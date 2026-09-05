@@ -119,6 +119,55 @@ public sealed class CharacterValidatorTests
         Assert.False(Has(_f.Validator.Validate(chosen), "POWER_BASELINE_TRAIT_NOT_CHOSEN"));
     }
 
+    /// <summary>
+    /// <b>An Expertise may fall under an Ability or a Talent and nothing else, and Boost may not
+    /// be held to that.</b> Ch.2 p.28: "Your specialization must fall under one of your Abilities
+    /// or Talents", and its printed baseline sentence says the same — "the rank of the Ability or
+    /// Talent it falls under". Boost's own text (Ch.2 p.24) reads "one specific Ability, Talent,
+    /// or Power", so the two share a <c>baseline_selected_trait</c> relationship and not a rule.
+    ///
+    /// <para><b>Both sides are here because the engine used to answer instead of reporting.</b>
+    /// <see cref="DerivedStatsCalculator.ResolveAffectedBySelection"/> asked p.83's own
+    /// attack-or-defence question of the nominated Power, so an Expertise (Martial Arts) came out
+    /// with a defensible Resolve and no finding at all — the sheet was illegal and looked fine.
+    /// An illegal character is reported, never repaired.</para>
+    /// </summary>
+    [Fact]
+    public void AnExpertiseNominatedToAPowerIsReportedAndBoostIsNot()
+    {
+        var sheet = LegalSheet(_f);
+        sheet.SelectedPowers.Add(
+            new SelectedPower("expertise", 2) { BaselineTraitId = "martial_arts" });
+
+        var issues = _f.Validator.Validate(sheet);
+
+        Assert.True(Has(issues, "EXPERTISE_NOMINATION_NOT_A_TRAIT"));
+
+        // One finding, not two: the nomination resolves, so the "not chosen" code must stay quiet.
+        Assert.False(Has(issues, "POWER_BASELINE_TRAIT_NOT_CHOSEN"));
+
+        // An Expertise nominated to another Expertise is the same mistake and is caught the same
+        // way, rather than recursing anywhere.
+        var nested = LegalSheet(_f);
+        nested.SelectedPowers.Add(
+            new SelectedPower("expertise", 2) { BaselineTraitId = "expertise" });
+
+        Assert.True(Has(_f.Validator.Validate(nested), "EXPERTISE_NOMINATION_NOT_A_TRAIT"));
+
+        // Boost's own entry names a Power as a legal nomination, so the same shape is legal there.
+        var boost = LegalSheet(_f);
+        boost.SelectedPowers.Add(
+            new SelectedPower("boost", 2) { BaselineTraitId = "martial_arts" });
+
+        Assert.False(Has(_f.Validator.Validate(boost), "EXPERTISE_NOMINATION_NOT_A_TRAIT"));
+
+        // And an Ability nomination, which is what the page asks for, is silent.
+        var legal = LegalSheet(_f);
+        legal.SelectedPowers.Add(new SelectedPower("expertise", 2) { BaselineTraitId = "might" });
+
+        Assert.False(Has(_f.Validator.Validate(legal), "EXPERTISE_NOMINATION_NOT_A_TRAIT"));
+    }
+
     [Fact]
     public void TooFewFlawsIsAnError()
     {

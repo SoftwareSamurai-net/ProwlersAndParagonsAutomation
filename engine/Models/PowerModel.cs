@@ -123,6 +123,28 @@ public record PowerModel
     public bool? AffectsResolve { get; init; }
 
     /// <summary>
+    /// The nominated Trait ids that make this Power count towards Resolve <em>despite</em>
+    /// <see cref="AffectsResolve"/> being false — the Ch.5 p.83 carve-out, and today the
+    /// Expertise entry alone carries one.
+    ///
+    /// <para><b>Why a list and not a second bool.</b> p.83 exempts "Expertise (except for
+    /// combat skills)", which is not an exemption but a carve-out: whether a given Expertise
+    /// counts depends on the Trait the player nominated on <c>SelectedPower.BaselineTraitId</c>,
+    /// and one flag on one entry has no room to say that. So <see cref="AffectsResolve"/> stays
+    /// the default answer and this names the nominations that overturn it.</para>
+    ///
+    /// <para><b>It holds Ability and Talent ids only</b>, which is the whole scope Ch.2 p.28
+    /// gives a nomination — "Your specialization must fall under one of your Abilities or
+    /// Talents". A nominated <em>Power</em> is not listed here and never should be, because it is
+    /// not a legal Expertise in the first place: <c>CharacterValidator</c> reports it as
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c> rather than the engine finding it an answer.</para>
+    ///
+    /// <para>Empty on every other entry, which is what makes the carve-out inert everywhere the
+    /// book does not print one.</para>
+    /// </summary>
+    public IReadOnlyList<string> AffectsResolveWhenNominated { get; init; } = [];
+
+    /// <summary>
     /// Which fields have been checked against the rulebook: any of
     /// range, rank_type, cost, prerequisite, description, pros_cons.
     /// Replaces the old single needs_review boolean, which could not distinguish

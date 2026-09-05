@@ -209,6 +209,52 @@ public sealed class McpQuestionPolicyTests
     }
 
     /// <summary>
+    /// <b>Expertise is the cheapest high number on a sheet, so what it costs in Resolve has to be
+    /// stated exactly.</b> Ch.5 p.83 exempts it "except for combat skills", and the four Abilities
+    /// that counts as here are Ch.4 p.75's — Might, Agility, Toughness and Willpower. The document
+    /// names all four, because a model that has learned only "Might or Agility" will sell a 12d
+    /// Expertise (Toughness) as free Resolve.
+    ///
+    /// <para><b>The worked figure is pinned with its qualifier.</b> "Opens on 0 rather than 12" is
+    /// the *base* — Chapter 5's table and nothing else — and Determination and the Condition and
+    /// Plot Hook Flaws are added on top of it. Unqualified, it teaches a model to quote 0 for a
+    /// Hero whose sheet says 3, which is the same figure this document elsewhere forbids it to
+    /// work out for itself.</para>
+    ///
+    /// <para><b>And that the set is a reading, with the direction of its error.</b> The book never
+    /// defines a combat skill; erring towards counting errs towards <em>less</em> Resolve, so it
+    /// never flatters a Hero, and p.83 hands the GM the final say. A guide that presented the set
+    /// as transcribed would leave a model unable to say why a GM might disagree.</para>
+    /// </summary>
+    [Fact]
+    public void TheGuideNamesTheFourCombatNominationsAndQualifiesTheFigure()
+    {
+        var expertise = _f.Rules.GetPower("expertise");
+        Assert.NotNull(expertise);
+
+        // Against the data rather than a hard-coded list, so widening the set fails here too.
+        Assert.All(
+            expertise.AffectsResolveWhenNominated,
+            id => Assert.Contains(_f.Rules.GetAbility(id)!.Name, Flowed, StringComparison.Ordinal));
+
+        Assert.Equal(4, expertise.AffectsResolveWhenNominated.Count);
+
+        Assert.Contains("0 base Resolve rather than 12", Flowed, StringComparison.Ordinal);
+        Assert.Contains(
+            "before Determination and any Condition or Plot Hook Flaws are added",
+            Flowed,
+            StringComparison.Ordinal);
+
+        // A reading, its direction, and the release valve.
+        Assert.Contains("never defines a combat skill", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("errs towards counting", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("GM the final say", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // And that a Power is not a legal nomination, which the validator now refuses.
+        Assert.Contains("EXPERTISE_NOMINATION_NOT_A_TRAIT", Flowed, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>The house Trait Cap, and both halves of what it does.</b> A campaign can cap tighter
     /// than any tier — the finding this whole slice came from — and the document has to say three
     /// things about it or a conversation goes wrong in a way nobody sees: that it is a field on

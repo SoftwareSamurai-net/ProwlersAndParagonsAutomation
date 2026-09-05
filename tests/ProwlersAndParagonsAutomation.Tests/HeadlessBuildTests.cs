@@ -1504,6 +1504,46 @@ public sealed class HeadlessBuildTests : IDisposable
     }
 
     /// <summary>
+    /// <b>The flag on a row is asked of the purchase, not of the Power.</b> Ch.5 p.83 exempts
+    /// "Expertise (except for combat skills)", so two characters can hold the same Power at the
+    /// same rank and get different answers — and a row is about somebody's sheet, so it reports
+    /// theirs. Reading <c>PowerModel.AffectsResolve</c> here would print <c>false</c> for both and
+    /// contradict the Resolve figure in the same report.
+    /// </summary>
+    [Fact]
+    public void AnExpertisesRowReportsTheAnswerForItsOwnNomination()
+    {
+        CharacterSheet WithExpertise(string name, string nomination)
+        {
+            var sheet = _f.LegalSheet();
+            sheet.Name = name;
+            sheet.SelectedPowers.Add(
+                new SelectedPower("expertise", 6) { SourceId = "trained", BaselineTraitId = nomination });
+            return sheet;
+        }
+
+        var fighter = WithExpertise("Fighter", "might");
+        var scholar = WithExpertise("Scholar", "science");
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(fighter)),
+                         "--from", CharacterFile(CharacterSheetJson.Write(scholar)),
+                         "--no-export", "--traits-above", "6");
+
+        var rows = run.Report["roster"]!["traits_above"]!.AsArray();
+        Assert.Equal(2, rows.Count);
+
+        var combat = Row(rows[0]!["traits"]!.AsArray(), "power", "expertise");
+        var mundane = Row(rows[1]!["traits"]!.AsArray(), "power", "expertise");
+
+        // Positive control: both rows have to be the same Power at the same rank, or the
+        // difference below could be about anything.
+        Assert.Equal((int)combat["rank"]!, (int)mundane["rank"]!);
+
+        Assert.True((bool)combat["affects_resolve"]!);
+        Assert.False((bool)mundane["affects_resolve"]!);
+    }
+
+    /// <summary>
     /// <b>The per-category totals are the engine's, one call each.</b> Asserted against
     /// <see cref="CostCalculator"/> rather than against literals, because a figure this
     /// program worked out itself is the one thing the whole command exists not to produce.

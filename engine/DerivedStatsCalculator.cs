@@ -124,7 +124,8 @@ public sealed class DerivedStatsCalculator
     ///
     /// Relevant ranks: all Ability ranks; Power effective ranks where the power
     /// affects Resolve. Talents excluded. Movement and Sensory category powers
-    /// excluded by default; explicit overrides via PowerModel.AffectsResolve.
+    /// excluded by default; explicit overrides via PowerModel.AffectsResolve, and the
+    /// nomination-dependent carve-out via <see cref="ResolveAffectedBySelection"/>.
     ///
     /// <para><b>The cap is <see cref="EffectiveTraitCap"/>, so a house cap moves this figure.</b>
     /// That is the one read this method makes of the cap and it is deliberately the only one —
@@ -141,12 +142,7 @@ public sealed class DerivedStatsCalculator
         var highestAbility = sheet.AbilityRanks.Values.DefaultIfEmpty(0).Max();
 
         var highestPower = sheet.SelectedPowers
-            .Select(sp =>
-            {
-                var power = _rules.GetPower(sp.PowerId);
-                if (power is null || !ResolveAffectedByPower(power)) return 0;
-                return GetEffectiveRank(sp, sheet);
-            })
+            .Select(sp => ResolveAffectedBySelection(sp) ? GetEffectiveRank(sp, sheet) : 0)
             .DefaultIfEmpty(0)
             .Max();
 
@@ -176,6 +172,8 @@ public sealed class DerivedStatsCalculator
     /// </summary>
     public static bool ResolveAffectedByPower(PowerModel power)
     {
+        ArgumentNullException.ThrowIfNull(power);
+
         if (power.AffectsResolve.HasValue) return power.AffectsResolve.Value;
 
         return power.Category switch
@@ -184,6 +182,49 @@ public sealed class DerivedStatsCalculator
             "Sensory"  => false,
             _          => true
         };
+    }
+
+    /// <summary>
+    /// Whether <em>this purchase</em> of a Power contributes its effective rank to Resolve.
+    ///
+    /// <para><b>This is <see cref="ResolveAffectedByPower"/> plus the one thing a
+    /// <see cref="PowerModel"/> on its own cannot answer.</b> Ch.5 p.83 exempts "Expertise
+    /// (except for combat skills)", which is a carve-out and not an exemption: whether a given
+    /// Expertise counts depends on the Trait the player nominated, so the question has to be
+    /// asked of the selection rather than of the entry. Every other Power answers identically
+    /// either way, because <see cref="PowerModel.AffectsResolveWhenNominated"/> is empty on all
+    /// of them.</para>
+    ///
+    /// <para><b>The nomination is looked up in the entry's list and nowhere else.</b> Ch.2 p.28
+    /// says "Your specialization must fall under one of your Abilities or Talents", so those are
+    /// the only two kinds of nomination an Expertise can legally carry, and
+    /// <see cref="PowerModel.AffectsResolveWhenNominated"/> names the ones that count: Might,
+    /// Agility, Toughness and Willpower, the four Abilities Ch.4 p.75's Attack and Defense table
+    /// uses to attack or defend. A nomination to a <em>Power</em> is not a legal Expertise at all
+    /// and gets no branch here — <c>CharacterValidator</c> reports it as
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c>, and an illegal character is reported, never
+    /// repaired. An earlier version of this method asked the nominated Power p.83's own
+    /// attack-or-defence question instead, which quietly gave an illegal sheet a defensible
+    /// Resolve and hid the finding.</para>
+    ///
+    /// <para>An unknown Power id answers false rather than throwing, matching
+    /// <see cref="CalculateResolve"/>'s existing tolerance — an id nobody can resolve is
+    /// <c>CharacterValidator</c>'s finding to report, not a crash in a derived stat. A nomination
+    /// this list does not name falls through to the entry's own answer for the same reason.</para>
+    /// </summary>
+    /// <param name="selected">The purchase, whose <see cref="SelectedPower.BaselineTraitId"/> is the nomination.</param>
+    public bool ResolveAffectedBySelection(SelectedPower selected)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+
+        var power = _rules.GetPower(selected.PowerId);
+        if (power is null) return false;
+
+        if (selected.BaselineTraitId is { Length: > 0 } traitId
+            && power.AffectsResolveWhenNominated.Contains(traitId, StringComparer.Ordinal))
+            return true;
+
+        return ResolveAffectedByPower(power);
     }
 
     // ── Baseline rank ─────────────────────────────────────────────────────
