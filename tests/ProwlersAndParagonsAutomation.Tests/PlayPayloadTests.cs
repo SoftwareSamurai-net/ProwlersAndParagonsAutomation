@@ -42,6 +42,13 @@ public sealed class PlayPayloadTests
     /// them:</b> the web csproj's own commentary quotes a glob to explain why the obvious spelling
     /// does not work, and a guard that cannot tell an explanation from a directive taxes the
     /// explanation.</para>
+    ///
+    /// <para><b>Both separators match, and that decides which failure you get.</b> MSBuild accepts
+    /// <c>data/rules/**/*.json</c> exactly as it accepts the backslash spelling, and a pattern that
+    /// only matched <c>data\rules</c> would find no globs at all in a rewritten project — so the
+    /// recursive edit this file exists to catch would have surfaced as "the extraction has stopped
+    /// matching" rather than as "this glob descends into subdirectories". A guard that reports the
+    /// wrong failure sends the next reader to fix the wrong thing.</para>
     /// </summary>
     private static List<(string Project, string Include)> RulesIncludes()
     {
@@ -51,7 +58,7 @@ public sealed class PlayPayloadTests
         {
             var xml = Regex.Replace(File.ReadAllText(project), "<!--.*?-->", " ", RegexOptions.Singleline);
 
-            foreach (Match match in Regex.Matches(xml, @"Include=""([^""]*data\\rules[^""]*)"""))
+            foreach (Match match in Regex.Matches(xml, @"Include=""([^""]*data[\\/]rules[^""]*)"""))
             {
                 found.Add((Path.GetFileName(project), match.Groups[1].Value));
             }
@@ -139,6 +146,46 @@ public sealed class PlayPayloadTests
             + $"glob sweeps it: {string.Join(", ", byName)}. It belongs in data/rules/play/.");
     }
 
+    /// <summary>
+    /// The staging expectation with no staged directory to read: <c>web/</c>'s own
+    /// <c>RulesDataFile</c> glob, expanded from the project directory the way MSBuild expands it.
+    /// Weaker than reading the copy — it says what the build would write, not what it wrote — and
+    /// the failure message says so, so nobody mistakes one for the other.
+    /// </summary>
+    private static void AssertTheWebGlobWouldStageNoPlayFile()
+    {
+        var webDirectory = Path.Combine(RepoRoot, "web");
+        var staged = new List<string>();
+
+        foreach (var (_, include) in RulesIncludes()
+                     .Where(i => string.Equals(i.Project, "ProwlersAndParagons.Web.csproj", StringComparison.Ordinal)))
+        {
+            // The wwwroot Content item re-includes what the target already wrote; the source-side
+            // glob is the one that decides what gets written.
+            if (include.Contains("wwwroot", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var pattern = include.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+            var directory = Path.GetFullPath(Path.Combine(webDirectory, Path.GetDirectoryName(pattern) ?? string.Empty));
+
+            staged.AddRange(Directory.GetFiles(directory, Path.GetFileName(pattern)));
+        }
+
+        // Same two controls as the on-disk check: the glob has to have matched the character rules,
+        // or an expectation of nothing would be satisfied by nothing.
+        Assert.True(
+            staged.Count >= 11,
+            $"web/'s rules glob expands to {staged.Count} files, which is fewer than the character "
+            + "rules alone, so this substitute for the staged directory is measuring nothing.");
+
+        var play = staged.Where(f => IsUnderPlay(f) || Path.GetFileName(f) is "challenge.json" or "play_meta.json").ToList();
+
+        Assert.True(
+            play.Count == 0,
+            "web/wwwroot/data/rules has not been built, so this was checked against web/'s own glob "
+            + "instead of against the staged copy — and the glob would stage these play files into "
+            + "wwwroot, where they become public URLs: " + string.Join(", ", play));
+    }
+
     private static bool IsUnderPlay(string path) =>
         Path.GetFullPath(path).StartsWith(
             PlayDirectory + Path.DirectorySeparatorChar, StringComparison.Ordinal);
@@ -147,6 +194,14 @@ public sealed class PlayPayloadTests
     /// The globs above are the mechanism; these are the directories they actually wrote. Checking
     /// the output as well as the source is the difference between "the rule says so" and "the copy
     /// does not contain it".
+    ///
+    /// <para><b>The web directory is not always there, and this used to fail rather than say so.</b>
+    /// <c>web/wwwroot/data/rules</c> is written by <c>web/</c>'s own build, and this test project
+    /// does not reference <c>web/</c> — so a solution-wide <c>dotnet test</c> happens to have staged
+    /// it (the bUnit project pulls <c>web/</c> in) while running this project alone does not. The
+    /// answer is not to skip: when the directory is absent the expectation is built from the
+    /// csproj's own glob instead, which is what MSBuild would have staged, and the assertion says
+    /// which of the two it read. A check that reports "run a build" is a check nobody runs.</para>
     /// </summary>
     [Theory]
     [InlineData("web")]
@@ -163,8 +218,16 @@ public sealed class PlayPayloadTests
             _ => Path.Combine(AppContext.BaseDirectory, "data", "rules")
         };
 
+        if (which == "web" && !Directory.Exists(directory))
+        {
+            AssertTheWebGlobWouldStageNoPlayFile();
+            return;
+        }
+
         // Positive control before the absence assertion: an empty or missing directory satisfies
-        // "contains no play file" completely while proving nothing at all.
+        // "contains no play file" completely while proving nothing at all. Only the CLI's copy
+        // reaches here unconditionally — this test project references it, so a build that produced
+        // this assembly produced that directory too.
         Assert.True(
             Directory.Exists(directory),
             $"{directory} does not exist, so this check would pass without looking at anything. "
@@ -200,4 +263,94 @@ public sealed class PlayPayloadTests
         Assert.DoesNotContain("challenge.json", RulesRepository.DataFileNames);
         Assert.DoesNotContain("play_meta.json", RulesRepository.DataFileNames);
     }
+
+    /// <summary>The five source trees that make up the application, none of which may read a play file.</summary>
+    private static readonly string[] ApplicationTrees = ["engine", "sheets", "cli", "web", "mcp"];
+
+    private static readonly string[] SourceExtensions = ["*.cs", "*.razor", "*.csproj", "*.js", "*.json"];
+
+    /// <summary>Every spelling of a play rules path a source file could reach one by.</summary>
+    private static readonly string[] PlayFileTokens =
+        ["play_meta.json", "challenge.json", "rules/play", @"rules\play"];
+
+    /// <summary>
+    /// <b><c>docs/guide/play-rules.md</c> says "Nothing reads either of them", and until now nothing
+    /// checked it.</b> That sentence is the whole shape of this slice — the data is verified before
+    /// anything trusts it, and the models and the resolution logic arrive with the simulator — so it
+    /// is the claim most worth a guard and the one an ordinary-looking commit would break: a
+    /// <c>PlayRulesRepository</c> wired into <c>engine/</c> compiles, passes, and quietly makes the
+    /// character engine an authority on resolving an action.
+    ///
+    /// <para>This is the source-side companion to the payload checks above. Those say a play file
+    /// cannot be <em>copied</em> anywhere; this says nothing in the application <em>names</em> one.
+    /// A denylist of spellings cannot prove nobody reads the data — see <c>CLAUDE.md</c> — so what
+    /// it is: cheap, and it catches the way it would actually happen.</para>
+    /// </summary>
+    [Fact]
+    public void NothingInTheApplicationNamesAPlayRulesFile()
+    {
+        var faults = new List<string>();
+        var scanned = 0;
+
+        foreach (var tree in ApplicationTrees)
+        {
+            foreach (var file in SourceFilesUnder(Path.Combine(RepoRoot, tree)))
+            {
+                scanned++;
+
+                var text = WithoutComments(File.ReadAllText(file));
+
+                foreach (var token in PlayFileTokens)
+                {
+                    if (text.Contains(token, StringComparison.OrdinalIgnoreCase))
+                    {
+                        faults.Add($"{Path.GetRelativePath(RepoRoot, file)} names '{token}'");
+                    }
+                }
+            }
+        }
+
+        // Positive control, and it is the instrument rather than a formality: this project names all
+        // four tokens, so a scan that found nothing here has stopped reading files and would report
+        // the application clean whatever it contained.
+        var self = SourceFilesUnder(Path.Combine(RepoRoot, "tests", "ProwlersAndParagonsAutomation.Tests"))
+            .Select(File.ReadAllText)
+            .ToList();
+
+        foreach (var token in PlayFileTokens)
+        {
+            Assert.True(
+                self.Exists(text => text.Contains(token, StringComparison.OrdinalIgnoreCase)),
+                $"The scan found no file naming '{token}' in the test project, which names all of "
+                + "them. It has stopped reading source; fix the scan, not this assertion.");
+        }
+
+        Assert.True(scanned >= 50, $"Only {scanned} source files were read across {string.Join(", ", ApplicationTrees)}.");
+
+        Assert.True(
+            faults.Count == 0,
+            "docs/guide/play-rules.md says nothing in the application reads data/rules/play/, and "
+            + "these files name one: " + string.Join(", ", faults)
+            + ". Play rules do not go into engine/ or any host — the simulator is a second engine "
+            + "beside it, in a project of its own.");
+    }
+
+    private static IEnumerable<string> SourceFilesUnder(string directory) =>
+        SourceExtensions
+            .SelectMany(pattern => Directory.EnumerateFiles(directory, pattern, SearchOption.AllDirectories))
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !f.Contains($"{Path.DirectorySeparatorChar}wwwroot{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
+
+    /// <summary>
+    /// Blanks XML, line and block comments, for the reason <c>RulesIncludes</c> does: a file may
+    /// legitimately explain why it does <em>not</em> reach the play rules, and a guard that cannot
+    /// tell an explanation from a directive taxes the explanation.
+    /// </summary>
+    private static string WithoutComments(string source) =>
+        Regex.Replace(
+            Regex.Replace(source, "<!--.*?-->|/\\*.*?\\*/", " ", RegexOptions.Singleline),
+            "^\\s*//.*$",
+            " ",
+            RegexOptions.Multiline);
 }
