@@ -145,8 +145,10 @@ public sealed class PlayEnginePropertyTests
         return result.State;
     }
 
+    private static readonly JsonSerializerOptions SerialisationOptions = new() { IncludeFields = false };
+
     private static string Serialise(EncounterState state) =>
-        JsonSerializer.Serialize(state, new JsonSerializerOptions { IncludeFields = false });
+        JsonSerializer.Serialize(state, SerialisationOptions);
 
     /// <summary>
     /// <b>An encounter cannot touch a character sheet.</b>
