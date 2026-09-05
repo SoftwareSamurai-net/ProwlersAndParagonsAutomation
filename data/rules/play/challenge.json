@@ -1,0 +1,295 @@
+{
+  "header": {
+    "what_this_is": "Every mechanic printed in Chapter 3, Action (pp.67-72), as data. The dice model these entries are expressed in - pool, success map, the sub-1d floor, automatic successes, net successes, and the book-wide rounding rule - is in play_meta.json beside this file.",
+    "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
+    "not_logic": "Data only. No engine reads this yet; the models arrive with the simulator.",
+    "deliberately_omitted": "The Sample Thresholds table (p.71) is not here. It is nine rows of worked examples - bypass a lock, convince a guard, perform acrobatics - illustrating thresholds the Thresholds table already states numerically, so it carries no mechanic of its own. It is also the one part of this chapter the extractor scrambles, being a three-column table that reads across rather than down. Judging Thresholds (p.71), which is the general guideline the same page prints, IS here. Describing the Action (p.68) is omitted for the same reason: it is advice on how to narrate, with no number and no procedure in it.",
+    "verified_fields_closed_list": [
+      "trigger",
+      "roll",
+      "threshold",
+      "effect",
+      "duration",
+      "cost",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.3 Action, pp.67-72"
+  },
+  "entries": [
+    {
+      "id": "narrative_control",
+      "name": "Challenge Rolls table - net successes to narrative control",
+      "kind": "table",
+      "bands": [
+        { "min_net_successes": null, "max_net_successes": -2, "outcome": "opponent", "embellishment": false },
+        { "min_net_successes": -1, "max_net_successes": 0, "outcome": "opponent", "embellishment": true },
+        { "min_net_successes": 1, "max_net_successes": 2, "outcome": "actor", "embellishment": true },
+        { "min_net_successes": 3, "max_net_successes": null, "outcome": "actor", "embellishment": false }
+      ],
+      "description": "The net figure is looked up on a four-row band table that says which of the two parties tells the table what happened, and whether the loser may add a detail to it. Both middle bands hand out that right; the outer two do not.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.9"],
+      "ambiguity": null
+    },
+    {
+      "id": "actor_selection",
+      "name": "Who is the Actor",
+      "kind": "narrative",
+      "actor_selection": {
+        "actor_is": "the character making the roll",
+        "opponent_is": "the character resisting it",
+        "when_two_or_more_pursue_the_same_goal": "highest successes is the Actor, second highest is the Opponent",
+        "gm_is_opponent_when_unopposed": true,
+        "gm_accepts_player_input_when_actor_is_npc": "encouraged, not required"
+      },
+      "description": "The two seats at the table have to be assigned before the band table can be read. Ordinarily the roller sits in the first and whoever resists sits in the second; where several characters chase one prize instead, the seats go to the two best rolls in order. With nothing to resist - a wall, a safe - the GM takes the second seat.",
+      "verified_fields": ["trigger", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "ambiguity": "Where three or more characters chase the same goal, only the top two are given seats and the book does not say what the rest get. It is also unstated how a tie on successes is broken when two characters roll equally well for the Actor seat."
+    },
+    {
+      "id": "thresholds",
+      "name": "Thresholds table",
+      "kind": "table",
+      "thresholds": [
+        { "difficulty": "Easy", "threshold_min": 0, "threshold_max": 0 },
+        { "difficulty": "Average", "threshold_min": 1, "threshold_max": 1 },
+        { "difficulty": "Hard", "threshold_min": 2, "threshold_max": 2 },
+        { "difficulty": "Daunting", "threshold_min": 3, "threshold_max": 3 },
+        { "difficulty": "Brutal", "threshold_min": 4, "threshold_max": 4 },
+        { "difficulty": "Inhuman", "threshold_min": 5, "threshold_max": 5 },
+        { "difficulty": "Superhuman", "threshold_min": 6, "threshold_max": 8 },
+        { "difficulty": "Legendary", "threshold_min": 9, "threshold_max": 11 },
+        { "difficulty": "Godlike", "threshold_min": 12, "threshold_max": null }
+      ],
+      "interpretation": {
+        "what_this_is": "This repository's reading of the rows above, not a column the book prints: a row whose printed threshold is a range rather than a single number leaves the GM to choose inside it. Kept out of the transcription and labelled so nobody cites it back as the rulebook, and derived by a test from the rows themselves rather than typed out here.",
+        "gm_discretion_difficulties": ["Superhuman", "Legendary", "Godlike"]
+      },
+      "naming_convention": "difficulty, threshold in brackets, then the Trait - an Average (1) Might roll",
+      "description": "With nobody resisting, the GM picks the number to beat off a nine-step ladder running from a standing start up to twelve or more. The bottom six steps are a single number each; the top three are ranges, so the GM chooses within them.",
+      "verified_fields": ["threshold", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.10"],
+      "ambiguity": "The top three steps are bands rather than values, and nothing says how to place an action inside one - a Superhuman action might be set at 6, 7 or 8 with no stated tie-breaker, and Godlike has no ceiling at all. Which rows that leaves to the GM is recorded under interpretation rather than in the table, because the book prints no such column: it is derived from the rows whose printed threshold is a range, and it exists so a simulator cannot silently pick the low end and call it the rule."
+    },
+    {
+      "id": "opposed_threshold",
+      "name": "An opponent's successes are the threshold",
+      "kind": "formula",
+      "opposed": {
+        "threshold_source": "the resisting character's own challenge roll successes",
+        "static_threshold_used_when": "nobody is resisting"
+      },
+      "description": "Against a living obstacle there is no table lookup: the other side rolls too and whatever they scored becomes the number the first roll is measured against. The Thresholds ladder is only for obstacles that cannot roll.",
+      "verified_fields": ["roll", "threshold", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "ambiguity": null
+    },
+    {
+      "id": "condition_modifier",
+      "name": "Condition modifier",
+      "kind": "scalar",
+      "condition_modifier": {
+        "min_dice": -4,
+        "max_dice": 4,
+        "applied_by": "gm",
+        "may_apply_to": "either roll, or to both",
+        "examples_given": ["lousy weather", "unstable footing"]
+      },
+      "description": "The GM may push a pool up or down by as many as four dice to price in the circumstances a roll is made under, and may do it to one side or to both at once.",
+      "verified_fields": ["roll", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "ambiguity": "Whether this stacks with the other dice adjustments in the chapter - an assist bonus, a contest exchange bonus, a Defining Moment's purchased dice - is not stated, nor whether the range is a cap on the total adjustment or only on this one source."
+    },
+    {
+      "id": "embellishment",
+      "name": "Embellishments",
+      "kind": "narrative",
+      "embellishment": {
+        "held_by": "the party without narrative control",
+        "must_not_contradict_the_narration": true,
+        "must_not_render_it_meaningless": true,
+        "size": "small but meaningful"
+      },
+      "description": "The side that lost the roll but landed in a middle band gets to add one detail to the winner's account of events. The addition has to survive alongside what was already said: it may not undo it, and it may not leave it technically true but with nothing riding on it.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.68",
+      "ambiguity": null
+    },
+    {
+      "id": "compromise",
+      "name": "Compromises",
+      "kind": "narrative",
+      "compromise": {
+        "offered_by": "the party holding narrative control",
+        "trade": "a worse outcome for the offering side, in exchange for the embellishment right being given up",
+        "requires_agreement_of_both": true,
+        "opponent_may_refuse": true
+      },
+      "description": "Rather than let the other side add a detail, the winner may volunteer a dented version of their own outcome and buy the right off them. It only happens if both sides sign off, and nobody is obliged to take the deal.",
+      "verified_fields": ["trigger", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.68",
+      "ambiguity": null
+    },
+    {
+      "id": "traditional_results",
+      "name": "Traditional Results table",
+      "kind": "table",
+      "bands": [
+        { "min_net_successes": null, "max_net_successes": -2, "outcome": "complete_failure", "embellishment": null },
+        { "min_net_successes": -1, "max_net_successes": 0, "outcome": "failure_with_silver_lining", "embellishment": null },
+        { "min_net_successes": 1, "max_net_successes": 2, "outcome": "success_with_complication", "embellishment": null },
+        { "min_net_successes": 3, "max_net_successes": null, "outcome": "complete_success", "embellishment": null }
+      ],
+      "silver_linings_and_complications_decided_by": "gm",
+      "mixable_per_player": true,
+      "description": "A table for groups that would rather be told whether they succeeded than be asked to narrate. It reuses the same four bands and turns each into a pass-or-fail verdict, with the GM supplying whatever the qualified verdicts qualify. One player may use it while another narrates.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.69",
+      "ambiguity": null
+    },
+    {
+      "id": "checking_your_swing",
+      "name": "Checking Your Swing",
+      "kind": "table_setting",
+      "checking_your_swing": {
+        "success_map": {
+          "1": 0,
+          "2": 1,
+          "3": 0,
+          "4": 1,
+          "5": 0,
+          "6": 1
+        },
+        "sixes_explode": "only by spending Resolve",
+        "explode_cost_resolve": 1,
+        "decided_after_the_roll": true,
+        "explosion_recurses_while_sixes_keep_coming": true,
+        "other_explode_offers_provide_no_extra_benefit": true
+      },
+      "description": "An optional setting for the whole table, not a thing one character does, and it exists for a group that wants a flatter and less swingy game than the default. Under it every even face is worth exactly one success, so a six stops being twice as good as a two; a player who wants more out of their sixes pays a point of Resolve to reroll them, and may decide that after seeing the dice. Elsewhere in the rules the same purchase is offered, and at this setting it buys nothing extra.",
+      "verified_fields": ["roll", "effect", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.69",
+      "ambiguity": "One Resolve is spent to make sixes explode, and the book does not say whether that covers the whole cascade or only the first reroll. Its interaction with the sub-1d floor is also unaddressed: that floor says only a six counts and counts for one success, which happens to agree with this map, so it is unclear whether the floor is meant to be read as a separate rule at all here. And the clause voiding the other explode offers does not say what becomes of a Defining Moment's exploding sixes, which cost no Resolve to begin with and so cannot be the purchase being voided."
+    },
+    {
+      "id": "assisting",
+      "name": "Assisting",
+      "kind": "formula",
+      "assist": {
+        "helper_rolls_against_threshold": 2,
+        "helper_threshold_difficulty": "Hard",
+        "net_successes_per_bonus_die": 2,
+        "rounding": "up",
+        "bonus_formula": "bonus_dice = ceil(helper_net_successes / 2)",
+        "best_helper_only": true
+      },
+      "description": "A second character can put their shoulder to the same task. They roll against a fixed number of two, and every pair of net successes they clear buys the character actually attempting the task one more die - with the odd one rounding upward, as halves do everywhere in this book. Extra helpers do not add up; only the best of them counts.",
+      "verified_fields": ["roll", "threshold", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.69",
+      "ambiguity": "Rounding up means one net success buys a full die, so a helper who barely clears the threshold helps exactly as much as one who doubles it. Nothing is said about a helper who fails - whether zero or negative net successes is simply no bonus, or a penalty - and nothing says whether the same character may both assist and act."
+    },
+    {
+      "id": "group_action",
+      "name": "Group actions",
+      "kind": "formula",
+      "group_action": {
+        "trigger": "allies performing individual actions as a group, such as a climb or an infiltration",
+        "everyone_rolls_individually": true,
+        "distribute_above_net_successes": 3,
+        "above_is_strict": true,
+        "minimum_net_successes_to_distribute": 4,
+        "distribute_to": "allies in the same group action",
+        "examples_given": ["climbing a mountain", "sneaking into a Villain's lair"]
+      },
+      "description": "Where a team each has to clear the same obstacle separately, everyone rolls their own dice and whoever does well enough can push their surplus across to the ones who did not.",
+      "verified_fields": ["trigger", "roll", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.69",
+      "ambiguity": "What may be handed over is 'these extra net successes' by a character earning more than 3, and 'extra' has two readings the book does not choose between: only the amount above 3, or the whole of that character's net successes once the total passes 3. On 5 net successes the first reading gives away 2 and the second gives away 5. It is also unstated whether the giver keeps their own band after giving, whether a recipient can be pushed above 3 this way, and whether more than one giver can stack on the same recipient."
+    },
+    {
+      "id": "contests",
+      "name": "Contests",
+      "kind": "formula",
+      "contest": {
+        "structure": "a challenge split into exchanges, each with its own challenge roll",
+        "typical_exchanges": 3,
+        "arduous_exchanges_min": 6,
+        "arduous_exchanges_max": null,
+        "arduous_condition": "the GM can make each exchange interesting",
+        "exchange_winner_narrates_that_exchange": true,
+        "exchange_win_bonus_dice_next_exchange": 2,
+        "final_exchange_decides_the_contest": true
+      },
+      "description": "A long or dramatic task is cut into stages and rolled once per stage - three stages is the usual shape, six or more if the GM can keep them distinct. Winning a stage lets you describe it and lends you two dice for the next one, but only the last stage settles who won the whole thing.",
+      "verified_fields": ["trigger", "roll", "effect", "duration", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.70",
+      "ambiguity": "The two-die bonus is granted for winning an exchange and is described as applying to the next one, but nothing says whether consecutive wins accumulate or whether the bonus simply refreshes. Nor is a drawn exchange addressed. Because only the final exchange decides the contest, a character can lose every earlier exchange and still win outright - printed as written, and recorded here rather than tidied away."
+    },
+    {
+      "id": "defining_moment",
+      "name": "Defining Moments",
+      "kind": "narrative",
+      "defining_moment": {
+        "declared_by": "the player, for a challenge roll everything rests on",
+        "sixes_explode": true,
+        "six_still_worth_successes": 2,
+        "explosion_recurses_while_sixes_keep_coming": true,
+        "dice_per_resolve_spent": 3,
+        "ordinary_dice_per_resolve_spent": 1,
+        "limit_per_story": 1,
+        "limit_per_scene_per_group": 1,
+        "concurrent_scenes_each_allow_one": true,
+        "may_last_longer_than_an_instant": true,
+        "aftermath_permanent_ability_loss_dice": 1,
+        "physical_task_reduces_one_of": ["agility", "might", "toughness"],
+        "mental_task_reduces_one_of": ["intellect", "perception", "willpower"],
+        "ability_may_be_bought_back_later": true
+      },
+      "description": "A player may declare that one roll carries everything, and the roll changes shape when they do: sixes reroll for more, cascading as long as sixes keep appearing, and each point of Resolve spent on it buys three dice where it would normally buy one. The cost lands afterwards - one Ability drops a rank for good, from the physical three or the mental three depending on what was attempted, though Hero Points can raise it again later. One per story per character, and one per scene across the group, with simultaneous scenes counted separately.",
+      "verified_fields": ["trigger", "roll", "effect", "duration", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.70",
+      "ambiguity": "A Defining Moment can be declared for something that spans more than one roll - holding up a building while civilians get out is the printed example - and it is not said whether the exploding sixes and the tripled Resolve apply to every roll in it or only to the one declared, nor whether the single permanent loss covers the whole of it. The per-scene limit is stated for Heroes; whether an NPC can declare one at all, funded from the GM's Adversity, is unaddressed. Nor is it said what happens to a Defining Moment declared for a task that turns out to be neither physical nor mental."
+    },
+    {
+      "id": "defining_moment_one_shot",
+      "name": "Defining Moments in one-shots",
+      "kind": "narrative",
+      "one_shot_variant": {
+        "context": "a convention game or any session where the Hero will not be used again",
+        "health_after": 0,
+        "unconscious": true,
+        "regain_consciousness": "end of the scene",
+        "challenge_roll_penalty_dice": -2,
+        "penalty_duration": "the rest of the story",
+        "ordinary_games_option": {
+          "offered_at_gm_option": true,
+          "replaces_the_permanent_ability_loss": true,
+          "mandatory": false
+        }
+      },
+      "description": "In a session the character will not survive past, losing a rank for ever costs nothing worth having, so this variant adds a price that bites inside the evening: the Hero drops, wakes at the end of the scene, and limps through the remainder of the story two dice down on everything. Whether that price stands beside the lost rank or takes its place is left open here rather than decided - the ambiguity below has both readings. A GM running an ongoing game may put the same bargain to a player in place of the rank, but is never obliged to.",
+      "verified_fields": ["trigger", "effect", "duration", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.70",
+      "ambiguity": "Whether the one-shot price replaces the permanent 1d Ability reduction or is paid on top of it is not stated, and the two readings differ by a rank. The section opens by saying Defining Moments are 'even more debilitating' in one-shot games and then lists the new consequences, which reads additively; the only 'instead of' the book prints is in the closing sentence, and that sentence is about ORDINARY games, where the GM may offer this as a replacement. So the replacement is stated where it is optional and unstated where it is the rule. Recorded here rather than decided: ordinary_games_option carries the one thing the page does say. Separately, dropping to 0 Health engages Chapter 4's damage and recovery rules, and it is not said whether this counts as damage for anything that keys off it. Whether the -2d penalty can itself push a pool below one die and onto the sub-1d floor is also unaddressed, as is whether it stacks with wound penalties for the same character."
+    },
+    {
+      "id": "judging_thresholds",
+      "name": "Judging thresholds",
+      "kind": "table",
+      "judging_guideline": [
+        { "descriptor": "difficult", "difficulty": "Hard", "threshold": 2 },
+        { "descriptor": "heroically difficult", "difficulty": "Brutal", "threshold": 4 },
+        { "descriptor": "super-heroically difficult", "difficulty": "Superhuman", "threshold": 6 }
+      ],
+      "calibrated_for": "Standard tier Heroes",
+      "wing_it_is_endorsed": true,
+      "description": "A three-point rule of thumb for a GM who does not want to consult the ladder: a merely difficult act sits at two, a heroic one at four, a superheroic one at six. It is pitched at the Standard power level, and the book explicitly blesses guessing when it does not help.",
+      "verified_fields": ["threshold", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.71",
+      "ambiguity": "Superhuman is a band of 6 to 8 on the Thresholds table and this guideline names only its floor, so the two are not quite the same statement. The calibration is to Standard tier and nothing is offered for the other five tiers."
+    }
+  ]
+}
