@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
+using ProwlersAndParagonsAutomation.Web.Layout;
 using ProwlersAndParagonsAutomation.Web.Pages;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -171,6 +172,62 @@ public sealed class PaletteBookTests
 
         Assert.All(cited, c => Assert.StartsWith("Ch.", c, StringComparison.Ordinal));
         Assert.Contains(cited, c => c.Contains("p.21", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A word typed into the banner's field reaches the book, and reaches it once.</b>
+    ///
+    /// <para>The banner carries a field rather than a button now, and the whole of its mechanism is
+    /// that it hands what was typed to the palette through <see cref="Commands.Open(string)"/> and
+    /// stops. It has no matcher, no row list and no corpus reader — so this drives it from the
+    /// banner and asserts on the palette: the box holds the word, the steps and Powers are matched
+    /// against it, and the book is asked for it.</para>
+    ///
+    /// <para><b>Once is the assertion that would catch a second search implementation.</b> A field
+    /// that asked the book on its own behalf as well as handing the word over would put two
+    /// requests on the wire for one keystroke and look completely correct on screen — the rows
+    /// would be right, because the second answer would land on the first one's. It is asserted
+    /// against the requests rather than against what is drawn for exactly that reason.</para>
+    /// </summary>
+    [Fact]
+    public async Task AWordTypedIntoTheBannerReachesTheBookThroughThePaletteAndOnlyOnce()
+    {
+        using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct_reader", "A reader");
+        ctx.With(SheetMode.Hero);
+
+        var layout = ctx.Render<MainLayout>();
+
+        // **Settled before anything is typed, or this is an absence dressed as a pass.** The
+        // palette asks who is here on its first render; a keystroke arriving before that answer
+        // has landed is asked on behalf of nobody and dropped, which would leave every assertion
+        // below about a search that never happened.
+        await Until(() => CommandsOf(ctx).BookIsOffered, "the palette settled who is asking");
+
+        ctx.Api.Asked.Clear();
+
+        layout.Find(".palette-field").Input("knock");
+
+        // The overlay is up and its own box holds the word, which is the handover.
+        Assert.Single(layout.FindAll(".palette"));
+        Assert.Equal("knock", layout.Find(".palette-box").GetAttribute("value"));
+
+        await layout.WaitForAssertionAsync(
+            () => Assert.NotEmpty(layout.FindAll(".palette-group")), Patient);
+
+        Assert.Contains("KNOCKBACK",
+            layout.FindAll(".palette-group ~ .palette-row")
+                  .Select(r => r.QuerySelector(".palette-label")!.TextContent.Trim()));
+
+        Assert.Single(Searches(ctx));
+        Assert.Contains("q=knock", Searches(ctx)[0], StringComparison.Ordinal);
+
+        // And the banner's own field is emptied when the palette goes, so focus does not come back
+        // to a box still holding the first letter of a question that has been asked and answered.
+        layout.Find(".palette-box").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        Assert.Empty(layout.FindAll(".palette"));
+        Assert.Equal("", layout.Find(".palette-field").GetAttribute("value"));
     }
 
     /// <summary>

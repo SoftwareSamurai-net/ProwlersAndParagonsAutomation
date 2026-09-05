@@ -106,9 +106,44 @@ public sealed class Commands
     /// <summary>Raised when the palette opens or closes, or a Power is requested.</summary>
     public event Action? Changed;
 
-    public void Open()
+    /// <summary>
+    /// What the box is to hold the moment it opens, for whoever opens the palette next.
+    ///
+    /// <para><b>The same read-once shape as the three requests above, and for the same reason.</b>
+    /// The banner's field is not a second search — it has no list, no matcher and no corpus of its
+    /// own. It carries a word across to the one box that does, and the palette takes it on the way
+    /// in, exactly as the Powers editor takes a requested Power. Left set, the next press of the
+    /// chord would open on a word somebody typed in the banner minutes earlier.</para>
+    /// </summary>
+    private string _opensWith = "";
+
+    /// <summary>
+    /// Take whatever the palette was opened with, clearing it so it is used once.
+    ///
+    /// <para>Empty for every other way in — the chord, a click on the banner's field while it is
+    /// empty — because <see cref="Open(string)"/> is the only thing that sets it and every open
+    /// goes through there.</para>
+    /// </summary>
+    public string TakeOpeningQuery()
+    {
+        var query = _opensWith;
+        _opensWith = "";
+        return query;
+    }
+
+    /// <summary>
+    /// Open the palette, with <paramref name="query"/> already in its box.
+    ///
+    /// <para><b>The text is carried in rather than searched here.</b> The banner's field hands over
+    /// what was typed into it and stops; the palette puts it in the box and matches it through
+    /// <see cref="Matching"/> and <see cref="AskTheBookAsync"/>, which is what the reader would
+    /// have got by typing the same letters into the box itself. There is one palette and one
+    /// matcher, and a banner that filtered anything would be the second.</para>
+    /// </summary>
+    public void Open(string query = "")
     {
         if (IsOpen) return;
+        _opensWith = query ?? "";
         IsOpen = true;
         Changed?.Invoke();
     }
@@ -120,10 +155,17 @@ public sealed class Commands
         Changed?.Invoke();
     }
 
+    /// <summary>
+    /// The chord, which opens on an empty box whichever way it is pressed.
+    ///
+    /// <para>Written as the two calls rather than as a flipped flag so that opening by the key
+    /// clears <see cref="_opensWith"/> like every other open. The observable behaviour is
+    /// unchanged: neither call can early-return from here.</para>
+    /// </summary>
     public void Toggle()
     {
-        IsOpen = !IsOpen;
-        Changed?.Invoke();
+        if (IsOpen) Close();
+        else Open();
     }
 
     /// <summary>
@@ -337,6 +379,24 @@ public sealed class Commands
     /// <see cref="NoteWhoIsAskingAsync"/>.</para>
     /// </summary>
     public bool BookIsOffered { get; private set; }
+
+    /// <summary>
+    /// What the palette promises, in one sentence — and it names the book only to somebody who
+    /// will be shown it.
+    ///
+    /// <para><b>A label promising a rulebook to an anonymous reader is the wrong promise</b> — the
+    /// server refuses them the book on the prefix and the palette makes no request on their
+    /// behalf, so naming it would advertise a thing they will type into and never see.</para>
+    ///
+    /// <para><b>It lives here because two controls say it now.</b> The palette's own box is
+    /// labelled with it, and so is the banner's field, which is the same promise made a second
+    /// earlier — and two spellings of one sentence is how the app comes to promise the book on one
+    /// surface and not on the other, to the same reader, in the same second. There is one
+    /// sentence, and <see cref="BookIsOffered"/> is what decides which half of it is true.</para>
+    /// </summary>
+    public string Prompt => BookIsOffered
+        ? "Go to a step, find a Power, or search the book"
+        : "Go to a step, or find a Power";
 
     /// <summary>
     /// Whether an answer about the book is outstanding.

@@ -72,8 +72,9 @@ was written down was **inside the palette** — on the row of keys along its own
 somebody who had already pressed it. That is the whole of what "a shortcut for whoever wrote it"
 means, and the owner named it as a defect about today rather than a note about a future design.
 
-The banner carries a `.palette-open` button now: the word **Search**, and the chord beside it in
-two `.key` boxes.
+The banner carries a `.palette-open` control now: the word **Search**, and the chord beside it in
+two `.key` boxes. It is a field — see the reversal four bullets down — and the word is its
+placeholder.
 
 - **On every route, because the chord works on every route.** The step band and the budget strip
   are the builder's and are drawn there alone; this is not one of those. A button that appeared
@@ -89,22 +90,45 @@ two `.key` boxes.
   which is exactly what the "no component names a typeface" rule exists to prevent.
 - **A missing script prints no chord at all.** That is the deployment where the key does nothing,
   so `Shortcuts`' reading call answers `null` on a swallowed failure rather than a default — a
-  default there is a claim about a keyboard made by a script that never ran. The button still
-  opens the palette, because that is a click Blazor handles. `RenderContext` answers `false` for
+  default there is a claim about a keyboard made by a script that never ran. The field still
+  opens the palette, because a click and a keystroke are things Blazor handles. `RenderContext` answers `false` for
   every test and proof page, so what renders is an ordinary Windows reader rather than a broken
   deployment; `GuardedInteropTests` owns the `null`.
-- **Still a button and not a text box, and the field is what remains of this bullet.** The corpus
-  moved behind the chord — see the section below — so the objection the button was kept for is
-  half spent: the rulebook is no longer a thing the palette does not do. What keeps it a button is
-  `proof-align.html`. (What is left of [`PROGRESS.md`](../../PROGRESS.md)'s item 12 is a question
-  for that file and not for this one — a guide that counts somebody else's halves is a second
-  progress list, and it goes stale the moment the first one moves.) The banner's baseline is measured on every CI run and the
-  `.key` boxes inside this control are part of that arithmetic, so swapping it for a field is a
-  change to the one band in the app whose alignment is proved in a browser rather than reasoned
-  about. **If you do it: keep the field on the `.banner-tool` baseline idiom, give it a visible
-  label or an `aria-label`, and make typing into it open the palette with the text carried in.** A
-  second search implementation in the banner is the thing to refuse — there is one palette and one
-  `Commands`.
+- **A field now, and the reversal is the point of this bullet rather than a correction to it.** It
+  read "a button and not a text box" for as long as the box would have been lying: a control that
+  says *search* while searching six step names and 141 Powers promises the rulebook and does not
+  have it, and the rulebook was behind an account. **The corpus is behind the chord now** — see the
+  section below — so the promise the box makes is true, and the field is what was left of the
+  decision. Six things hold it in place:
+  - **It searches nothing itself, and that is the line.** Typing hands the word to
+    `Commands.Open(query)`; the palette takes it on the way in and matches it exactly as if it had
+    been typed into the box — the steps, the Powers, the pause, the race guard, the book. There is
+    one palette, one matcher and one corpus reader, and a second search implementation in the
+    banner is the thing to refuse. It is asserted **on the wire**, not on screen: one request for
+    one keystroke, because a field that also asked on its own behalf would put two requests up and
+    look perfectly correct, the second answer landing on the first one's rows.
+  - **The first keystroke opens it; focus does not.** A field that opened the overlay when the
+    caret landed in it is a keyboard trap for everybody tabbing *past* it towards the page — the
+    palette takes the screen and leaving it means dismissing something nobody asked for. Typing is
+    an intention and arriving is not. Held by a test that also asserts no focus handler is bound,
+    because bUnit has no caret and nothing else in the suite could tell.
+  - **A click on the empty field opens it, which is what the button did.** The field is empty
+    whenever it can be clicked: anything typed into it has already opened the palette, and the
+    scrim is over this band while it is open.
+  - **`aria-label`, and it opens with the visible word.** A placeholder is not a label — it goes
+    the moment somebody types — so the label is mandatory here, where the only word on screen is
+    printed inside the control. It reads `Search — ` and then `Commands.Prompt`: the visible word
+    first, because an accessible name that does not contain the label on screen is a control voice
+    control cannot be told to use (WCAG 2.5.3), and the palette's own sentence after it, which
+    names the book only to a reader who will be shown it.
+  - **`Commands.Prompt` is where that sentence lives, and it moved there for this.** Two controls
+    say it now, a second apart, and two spellings is how the app comes to promise the book on one
+    surface and not the other to the same person in the same second.
+  - **And it is measured.** The banner's baseline is proved in a browser on every CI run, and an
+    `<input>` brings a box model no rule in this repository states — a border, a fill, padding and
+    a `line-height` of the browser's choosing, with the shared rule for every text box on the site
+    adding a panel ground on top. `.palette-field` undoes all of it and the proof reads the field
+    and the chord as two of seven items; see the baseline section below for what was measured.
 - **The word is "Search" and the palette still calls itself "Go to".** The label has to survive
   being read at a glance beside the other tools; "Go to" between two underlined links read as a
   third link with no destination. What the palette offers is unchanged and its own box says so in
@@ -161,7 +185,9 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   step, find a Power, or search the book" for a signed-in reader and the old two-thirds for
   everybody else — a label naming a rulebook to a reader the server will refuse is the wrong
   promise, which is the same objection the banner's control was kept a button for. A placeholder
-  is still not a label: both are set and both say the same words.
+  is still not a label: both are set and both say the same words. **The sentence is
+  `Commands.Prompt` and not a string in this component**, because the banner's field is labelled
+  with it too — one promise, made a second earlier, to the same reader.
 - **There is no "sign in to search the book" row, deliberately.** An inert row that does nothing is
   the fault `/rules`' "What is here" panel was fixed for, and a row that *did* navigate to sign-in
   would answer a question about Plasticity with an advertisement for an account. `/rules` is where

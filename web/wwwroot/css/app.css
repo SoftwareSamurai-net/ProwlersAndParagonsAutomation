@@ -1711,14 +1711,56 @@ label {
     align-self: center;
 }
 
-/* The word alone takes the tracking; the keys stay in the body face beside it. A key is a name
-   printed on a physical keyboard — setting it in capitals would say CTRL, which is not what is
-   written on the key.
+/* **The field wears the button's face and none of its own box**, and every declaration here is
+   undoing something rather than choosing something.
 
-   The keys sit tighter to each other than to the word, because Ctrl and K are one chord and the
-   label is a separate thing beside it. Equal gaps read as three items in a row. */
-.palette-open-label { margin-right: var(--space-1); }
+   An `<input>` arrives with a border, a fill, padding and a `line-height` of the browser's
+   choosing, and the rule every text box on this site shares adds a panel ground and a rule border
+   on top of that — all of it right inside a form and all of it wrong on the one band whose
+   alignment is measured in a browser. Stripped back to type, the field's baseline is its text's
+   baseline, which `.palette-open`'s own `align-items: baseline` then sets on the row beside the
+   key boxes. See `proof-align.html`, which measures the field and the chord as two items.
 
+   **`letter-spacing` and `text-transform` are set rather than left to inherit**, because they are
+   inherited properties everywhere except on a form control: the browser's own stylesheet declares
+   both on an input, and a declaration beats inheritance. Left out, the word here would lose the
+   tracking the two tools beside it carry.
+
+   **And the selector is two classes on purpose.** `input[type="search"]` is a type plus an
+   attribute and outranks a bare class, so `.palette-field` alone would lose to the very border and
+   padding it exists to undo — silently, since nothing about the rule would look wrong.
+
+   The word alone takes the tracking, and the keys sit tighter to each other than to it, because
+   Ctrl and K are one chord and the label is a separate thing beside it. Equal gaps read as three
+   items in a row. */
+.palette-open .palette-field {
+    /* The native search-field chrome, which is a rounded box and its own metrics on one engine
+       and nothing at all on the others — a single-platform difference in the band this file
+       measures to a half-pixel. */
+    appearance: none;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin-right: var(--space-1);
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+}
+
+/* The placeholder *is* the visible label on this control, so it is the band's own ink rather than
+   the browser's grey — which is chosen for the ground a form sits on and is close to unreadable on
+   `--primary`. `inherit` names no colour, the same way `currentColor` on `.key`'s border does
+   not. */
+.palette-open .palette-field::placeholder {
+    color: inherit;
+    opacity: 1;
+}
+
+/* The keys stay in the body face and in lower case beside the word. A key is a name printed on a
+   physical keyboard — setting it in capitals would say CTRL, which is not what is written on the
+   key. */
 .palette-open .key {
     border-color: currentColor;
     font-size: var(--text-xs);

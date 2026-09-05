@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -140,7 +141,13 @@ public sealed class BannerTests
     /// <para>The key was bound from the day the palette shipped and was written down only
     /// <em>inside</em> the palette — visible to somebody who had already pressed it, which is
     /// the whole of what a shortcut for whoever wrote it means. This asserts the two halves
-    /// together: the button names the thing it opens, and the chord is printed beside it.</para>
+    /// together: the control names the thing it opens, and the chord is printed beside it.</para>
+    ///
+    /// <para><b>The word is read off the placeholder now and not off the text content</b>, because
+    /// the control is a field: an <c>&lt;input&gt;</c> holds no text, so a check on
+    /// <c>TextContent</c> would go on passing over a field with no visible word in it at all.
+    /// A placeholder is not a label, which is why the <c>aria-label</c> is asserted in the same
+    /// breath — see <see cref="TheFieldIsLabelledForWhoeverCannotSeeIt"/> for what it says.</para>
     /// </summary>
     [Fact]
     public void TheBannerNamesThePalettesChord()
@@ -149,10 +156,58 @@ public sealed class BannerTests
 
         var layout = ctx.Render<MainLayout>();
 
-        var trigger = layout.Find(".palette-open");
+        var field = layout.Find(".palette-open .palette-field");
 
-        Assert.Contains("Search", trigger.TextContent, StringComparison.Ordinal);
+        Assert.Equal("search", field.GetAttribute("type"));
+        Assert.Equal("Search", field.GetAttribute("placeholder"));
+        Assert.False(string.IsNullOrWhiteSpace(field.GetAttribute("aria-label")));
         Assert.Equal(["Ctrl", "K"], Keys(layout));
+    }
+
+    /// <summary>
+    /// <b>The field is labelled, and the label promises the book only to somebody who will be
+    /// shown it.</b>
+    ///
+    /// <para><b>A placeholder is not a label.</b> It goes the moment anybody types and it is not
+    /// reliably what a screen reader announces, so the <c>aria-label</c> is mandatory on a control
+    /// whose only visible word is printed inside it.</para>
+    ///
+    /// <para><b>It opens with the visible word</b>, because an accessible name that does not
+    /// contain the label on screen is a control voice control cannot be told to use — WCAG 2.5.3,
+    /// and "Search" is what this banner prints here.</para>
+    ///
+    /// <para><b>And the rest of it is the palette's own sentence.</b> A label naming a rulebook to
+    /// a reader the server will refuse is the wrong promise — the same objection this control was
+    /// kept a button for — so both halves are driven: signed out it is the two-thirds sentence,
+    /// signed in it says the book. Either alone is satisfied by a constant.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheFieldIsLabelledForWhoeverCannotSeeIt()
+    {
+        using (var anonymous = new RenderContext())
+        {
+            var theirs = anonymous.Render<MainLayout>();
+            var field = theirs.Find(".palette-field");
+
+            Assert.Equal("Search — Go to a step, or find a Power", field.GetAttribute("aria-label"));
+
+            // The visible word and the announced one are not the same string, deliberately: the
+            // placeholder is the label a reader sees and the aria-label is what it is called.
+            Assert.Equal("Search", field.GetAttribute("placeholder"));
+        }
+
+        await using var signedIn = new RenderContext();
+        signedIn.Api.SignedIn = ("acct-7", "player");
+
+        var layout = signedIn.Render<MainLayout>();
+
+        await layout.WaitForAssertionAsync(() =>
+            Assert.Contains("book", layout.Find(".palette-field").GetAttribute("aria-label")!,
+                StringComparison.Ordinal), TimeSpan.FromSeconds(10));
+
+        // Still opening with the word on screen, whichever promise it goes on to make.
+        Assert.StartsWith("Search", layout.Find(".palette-field").GetAttribute("aria-label"),
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -184,9 +239,9 @@ public sealed class BannerTests
     /// in.</b>
     ///
     /// <para>The script is the listener: without it the chord does nothing at all, so printing
-    /// it would teach a key that is not there. The button is a click Blazor handles and keeps
-    /// working, which is why this is a missing hint rather than a missing control — the same
-    /// bargain every guarded interop call in this app makes.</para>
+    /// it would teach a key that is not there. The field is a click and a keystroke Blazor
+    /// handles and keeps working, which is why this is a missing hint rather than a missing
+    /// control — the same bargain every guarded interop call in this app makes.</para>
     /// </summary>
     [Fact]
     public void AMissingScriptPrintsNoChordAndStillOpensThePalette()
@@ -198,29 +253,92 @@ public sealed class BannerTests
 
         Assert.Empty(Keys(layout));
 
-        layout.Find(".palette-open").Click();
+        layout.Find(".palette-field").Click();
 
         Assert.True(ctx.Services.GetRequiredService<Commands>().IsOpen);
     }
 
     /// <summary>
-    /// <b>The button opens the palette.</b>
+    /// <b>Clicking the field opens the palette, which is what the button here always did.</b>
     ///
     /// <para>Asserted through the rendered overlay rather than through the service alone: a
     /// handler that set the flag and drew nothing is the state a reader would read as the
     /// control being broken.</para>
     /// </summary>
     [Fact]
-    public void TheButtonOpensThePalette()
+    public void TheFieldOpensThePalette()
     {
         using var ctx = new RenderContext();
 
         var layout = ctx.Render<MainLayout>();
         Assert.Empty(layout.FindAll(".palette"));
 
-        layout.Find(".palette-open").Click();
+        layout.Find(".palette-field").Click();
 
         Assert.Single(layout.FindAll(".palette"));
+    }
+
+    /// <summary>
+    /// <b>Focus alone does not open it, and that is the decision this control turns on.</b>
+    ///
+    /// <para>A field that opened an overlay the moment the caret landed in it is a keyboard trap
+    /// for everybody tabbing <em>past</em> it on their way to the page: the palette takes the
+    /// screen, and leaving it means dismissing something nobody asked for. Typing is an intention
+    /// and arriving is not — so the first keystroke opens it, and Enter opens it empty for
+    /// somebody who has tabbed here deliberately.</para>
+    ///
+    /// <para>The two halves are one test because either alone is satisfied by a control that does
+    /// nothing at all.</para>
+    /// </summary>
+    [Fact]
+    public void ArrivingAtTheFieldOpensNothingAndPressingEnterOpensIt()
+    {
+        using var ctx = new RenderContext();
+
+        var layout = ctx.Render<MainLayout>();
+        var field = layout.Find(".palette-field");
+
+        // Nothing is bound to arriving. Asserted structurally as well as by the keystroke below,
+        // because a focus handler that opened the palette would leave every other assertion here
+        // exactly as it is: bUnit has no caret, so nothing in this file can tab into anything.
+        Assert.Null(field.GetAttribute("blazor:onfocus"));
+        Assert.Null(field.GetAttribute("blazor:onfocusin"));
+
+        // A key that is not Enter is a key this control has nothing to say about.
+        field.KeyDown(new KeyboardEventArgs { Key = "Tab" });
+
+        Assert.Empty(layout.FindAll(".palette"));
+
+        layout.Find(".palette-field").KeyDown(new KeyboardEventArgs { Key = "Enter" });
+
+        Assert.Single(layout.FindAll(".palette"));
+        Assert.Equal("", layout.Find(".palette-box").GetAttribute("value"));
+    }
+
+    /// <summary>
+    /// <b>Typing into the banner opens the palette with what was typed already in its box.</b>
+    ///
+    /// <para><b>And it is carried, not searched.</b> The field has no matcher, no list and no
+    /// corpus reader; the word goes through <see cref="Commands.Open(string)"/> into the one box
+    /// that has all three, and everything after that is the palette's ordinary path — which is
+    /// what the rows here are asserted for. A banner that filtered anything would be the second
+    /// search implementation this control was refused for.</para>
+    /// </summary>
+    [Fact]
+    public void TypingIntoTheBannerCarriesTheWordIntoThePalette()
+    {
+        using var ctx = new RenderContext();
+
+        var layout = ctx.Render<MainLayout>();
+
+        layout.Find(".palette-field").Input("plast");
+
+        Assert.Single(layout.FindAll(".palette"));
+        Assert.Equal("plast", layout.Find(".palette-box").GetAttribute("value"));
+
+        // The palette really did match it, rather than merely holding the letters.
+        Assert.Contains(layout.FindAll(".palette-row"),
+            row => row.TextContent.Contains("Plasticity", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -417,6 +535,13 @@ public sealed class BannerTests
         Assert.Single(layout.FindAll(".palette-open"));
         Assert.Single(layout.FindAll(".banner-account"));
         Assert.Single(layout.FindAll(".settings-open"));
+
+        // The field itself, and named — on every route, because a control that could be reached
+        // but not announced is half the affordance. See TheFieldIsLabelledForWhoeverCannotSeeIt
+        // for what the name says.
+        var field = layout.Find(".palette-open .palette-field");
+        Assert.Equal("search", field.GetAttribute("type"));
+        Assert.False(string.IsNullOrWhiteSpace(field.GetAttribute("aria-label")));
     }
 
     /// <summary>
@@ -441,8 +566,17 @@ public sealed class BannerTests
         Assert.DoesNotContain("banner-link", account.GetAttribute("class") ?? "", StringComparison.Ordinal);
         Assert.Contains("banner-tool", account.GetAttribute("class") ?? "", StringComparison.Ordinal);
 
-        // All three tools carry the shared class, and they are the only three.
+        // All three tools carry the shared class, and they are the only three. **Unchanged by the
+        // search control becoming a field**: the field is drawn inside the control that wears the
+        // idiom, not beside it, so a box arriving in this strip cannot quietly make a fourth tool
+        // of itself.
         Assert.Equal(3, layout.FindAll(".banner-tools .banner-tool").Count);
+
+        // And the field is not wearing navigation's clothes either. It opens an overlay, like the
+        // button it replaced; nothing about being a text box makes it a destination.
+        var field = layout.Find(".palette-field");
+        Assert.DoesNotContain("banner-link", field.GetAttribute("class") ?? "", StringComparison.Ordinal);
+        Assert.Empty(layout.FindAll(".palette-open .banner-link"));
 
         // The positive control: the avenues kept the marking that makes them destinations.
         //

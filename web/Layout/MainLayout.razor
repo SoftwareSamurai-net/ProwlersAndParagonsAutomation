@@ -170,21 +170,53 @@
            and it never answers if the script is missing, which is the deployment where the key does
            nothing — the button says what it does and claims no shortcut at all.
 
-           A button and not a text box. The owner's design puts a rules search here eventually, and a
-           box that looked like one while searching Powers and step names would be the wrong promise
-           twice over: the rulebook is a different corpus and it is behind an account.
+           **A field now, and it was a button for as long as the box would have been lying.** The
+           objection was never the markup: a box that says "search" while searching six step names
+           and 141 Powers promises the rulebook and does not have it. The rulebook is behind the
+           chord now, so the promise the box makes is true, and what was left of that decision is
+           this control.
+
+           **It searches nothing itself, and that is the line to hold.** There is one palette, one
+           matcher and one corpus reader; this hands a word to the box that has them — see
+           `Commands.Open(query)` — and does no filtering, no matching and no request of its own. A
+           second search implementation in the banner is the thing to refuse.
+
+           **The first keystroke opens it, and focus alone does not.** A field that opened a modal
+           on focus is a keyboard trap for everybody tabbing *past* it on their way to the page:
+           the caret would land, the overlay would take the screen, and getting out would mean
+           dismissing something nobody asked for. Typing is an intention and arriving is not. A
+           click on an empty field opens it as the button did, because a click is an intention too
+           and that is the affordance this control has always had for a mouse.
+
+           **`aria-label`, because a placeholder is not a label** — it goes the moment somebody
+           types, and it is not reliably what a screen reader announces. It opens with the visible
+           word so that a name spoken to voice control matches what is on screen (WCAG 2.5.3), and
+           goes on with the palette's own promise, `Commands.Prompt`, which names the book only to
+           a reader who will be shown it. One sentence, decided in one place: the palette's box
+           carries the same words a moment later.
 
            "Search" and not "Go to", which is what the palette calls itself inside. The word here has
            to survive being read at a glance beside two other tools, and it is the word a reader
-           scans for. What the palette offers — the six steps and every Power — is unchanged, and
-           its own box still says so in full. *@
-        <button type="button" class="banner-tool palette-open" @onclick="Commands.Open">
-            <span class="palette-open-label">Search</span>
+           scans for. What the palette offers — the six steps, every Power, and the book for
+           somebody signed in — is unchanged, and its own box still says so in full. *@
+        <div class="banner-tool palette-open">
+            @* `size` and not a width: a text field's visible width is a count of characters, so it
+               follows the face and the size the band is set in instead of being a length that has
+               to be re-guessed whenever either moves. *@
+            <input type="search"
+                   class="palette-field"
+                   size="10"
+                   aria-label="@SearchLabel"
+                   placeholder="Search"
+                   value="@_search"
+                   @oninput="SearchTyped"
+                   @onkeydown="SearchKey"
+                   @onclick="SearchClicked" />
             @if (Keys.Modifier is { } modifier)
             {
                 <span class="key">@modifier</span><span class="key">K</span>
             }
-        </button>
+        </div>
 
         @* The account, in the one place it is visible from every page.
 
@@ -311,6 +343,87 @@
     /// <summary>Who the banner names, or null until the first answer arrives.</summary>
     private Identity? _who;
 
+    // ── The banner's search field, which carries a word to the palette and does nothing else ──
+
+    /// <summary>
+    /// What has been typed into the banner's field. Empty in every state a reader can rest in.
+    ///
+    /// <para><b>It is here so the field can be emptied again, and the timing of that is a fact
+    /// about Blazor rather than a preference.</b> Blazor writes a <c>value</c> attribute only when
+    /// the rendered value has moved, so clearing this on the way <em>in</em> — while the DOM holds
+    /// the letter the reader has just typed and the previous render said empty — writes nothing at
+    /// all and leaves the letter sitting in the field. It is cleared when the palette closes
+    /// instead, which is a render where the value really has moved.</para>
+    /// </summary>
+    private string _search = "";
+
+    /// <summary>
+    /// What the field is called, for anything that cannot see the word printed in it.
+    ///
+    /// <para><b>It opens with the visible word.</b> An accessible name that does not contain the
+    /// label a reader can see is a control voice control cannot be told to use — WCAG 2.5.3 — and
+    /// "Search" is the word this banner has always printed here.</para>
+    ///
+    /// <para><b>The rest is <see cref="Commands.Prompt"/>, not a second copy of it.</b> The palette's
+    /// own box says the same sentence a moment later, and it names the rulebook only to a reader
+    /// who will be shown it; two spellings would be two promises made to one person.</para>
+    /// </summary>
+    private string SearchLabel => $"Search — {Commands.Prompt}";
+
+    /// <summary>
+    /// A letter was typed into the banner. Open the palette with it, and stop.
+    ///
+    /// <para><b>Nothing is matched here.</b> The word goes to the one box with a matcher behind it
+    /// and is searched there exactly as if it had been typed there — see
+    /// <see cref="Commands.Open(string)"/>.</para>
+    /// </summary>
+    private void SearchTyped(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        Commands.Open(_search);
+    }
+
+    /// <summary>
+    /// Enter opens the palette on whatever the field holds, which for a reader who has just
+    /// tabbed to it is nothing.
+    ///
+    /// <para><b>Focus deliberately does not.</b> A field that opened an overlay the moment the
+    /// caret landed in it would take the screen from everybody tabbing past it towards the page,
+    /// which is the keyboard trap this control must not become. Typing is an intention; arriving
+    /// is not.</para>
+    /// </summary>
+    private void SearchKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") Commands.Open(_search);
+    }
+
+    /// <summary>
+    /// A click opens the palette, which is exactly what the button here used to do.
+    ///
+    /// <para>The field is empty whenever it can be clicked — anything typed into it has already
+    /// opened the palette, and the palette's scrim is over this band while it is open — so this
+    /// is the old control's behaviour rather than a second way of carrying a query.</para>
+    /// </summary>
+    private void SearchClicked() => Commands.Open(_search);
+
+    /// <summary>
+    /// The palette opened, closed, or changed what it promises.
+    ///
+    /// <para>Two events, one handler, because the banner draws one control off both: the field is
+    /// emptied when the palette closes — the word is in the palette's box now, and putting focus
+    /// back into a field still holding the first letter of it is the app answering a question that
+    /// has been asked and answered — and its label follows <see cref="Commands.Prompt"/>, which
+    /// moves when somebody signs in or out inside the visit.</para>
+    ///
+    /// <para><c>InvokeAsync</c> because <see cref="Commands.Changed"/> can be raised by the key
+    /// listener, which arrives from the browser rather than from Blazor.</para>
+    /// </summary>
+    private void PaletteMoved() => _ = InvokeAsync(() =>
+    {
+        if (!Commands.IsOpen) _search = "";
+        StateHasChanged();
+    });
+
     /// <summary>
     /// Who the banner names, and which modifier key the palette's button prints.
     ///
@@ -352,6 +465,11 @@
         Session.Changed += HandleCharacterChanged;
         Session.Saved += HandleCharacterSaved;
         Accounts.Changed += WhoChanged;
+
+        // Both of the palette's bells, for the two things the banner's field draws off it: whether
+        // the palette is open, and what it promises. See PaletteMoved.
+        Commands.Changed += PaletteMoved;
+        Commands.BookAnswered += PaletteMoved;
 
         // The shell has to redraw on a navigation as well as on a change to the character:
         // walking from a recording back into the wizard has to bring the budget bar back.
@@ -516,6 +634,8 @@
         Session.Changed -= HandleCharacterChanged;
         Session.Saved -= HandleCharacterSaved;
         Accounts.Changed -= WhoChanged;
+        Commands.Changed -= PaletteMoved;
+        Commands.BookAnswered -= PaletteMoved;
         Nav.LocationChanged -= Moved;
         _leaving?.Dispose();
     }
