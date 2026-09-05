@@ -150,6 +150,25 @@ between the Trait Cap and the highest relevant rank, so taking a headline Trait 
 drives Resolve towards zero. Build the specialist, say what it cost in one sentence, and let
 them take the generalist instead if that is what they wanted.
 
+**Expertise is the cheap way past that trade, except in a fight.** At 1 HP per 2 ranks on top of a
+Trait's rank it is the cheapest high number on the sheet, and Ch.5 p.83 exempts it from Resolve —
+*"except for combat skills"*. So an Expertise nominated to **Might, Agility, Toughness or
+Willpower** — the four Abilities Ch.4 p.75's Attack and Defense table uses to attack or defend —
+counts at its full rank and drives Resolve down exactly as that Ability would; one nominated to a
+Talent, or to Intellect or Perception, costs nothing. A 6d Hero with Expertise (Agility: Firearms)
+at a 12d cap opens on **0 base Resolve rather than 12**, before Determination and any
+Condition or Plot Hook Flaws are added. Read the figure from the report rather than working it out,
+and do not sell a combat Expertise as free Resolve.
+
+**Nominate an Ability or a Talent and nothing else.** Ch.2 p.28: *"Your specialization must fall
+under one of your Abilities or Talents"*. An Expertise whose `BaselineTraitId` names a Power is
+refused with `EXPERTISE_NOMINATION_NOT_A_TRAIT` — Boost is the one Power that may be nominated to
+another Power. **The book never defines a combat skill**, so which nominations count is this
+repository's reading of p.83, and it errs towards counting: the specialisation itself is free text,
+so Expertise (Agility: Acrobatics) counts here where a GM probably would not count it. Erring that
+way means *less* Resolve, so it never flatters a Hero — and p.83 gives the GM the final say. Say so
+if somebody's build turns on it.
+
 **And the cap may not be the tier's.** A campaign can impose a tighter one — Pinnacle City caps a
 non-superhuman NPC at 6d where the Standard tier allows 12d — and that is `TraitCapRank` on the
 character file, or `--trait-cap <n>` for a whole run. **It substitutes for the tier's rather than
@@ -380,8 +399,10 @@ Most of these are things the engine will tell you. They are here so the first pa
   `baseline_equal` takes that Trait's whole rank; `baseline_half` half of it, rounded up;
   `baseline_fixed` a rank printed in the entry (Running, 3d); `baseline_greater_of` the higher
   of an Ability and some Powers (Strike, from Might or Martial Arts); `baseline_selected_trait`
-  the rank of a Trait *you* nominate in `BaselineTraitId` (Boost, Expertise — and for Boost
-  that nomination also sets the cost per rank).
+  the rank of a Trait *you* nominate in `BaselineTraitId` (Boost, Expertise). **The two differ
+  in what may be nominated**: Boost raises "one specific Ability, Talent, or Power" (Ch.2 p.24)
+  and that nomination also sets its cost per rank, while an Expertise's specialisation "must
+  fall under one of your Abilities or Talents" (Ch.2 p.28) — a Power there is refused.
   `PurchasedRanks` stacks on top, so 4 purchased ranks of a `baseline_equal` Power on a 9d
   Ability is 13d — over the cap before you have noticed.
 - **`GradeKey` is required for the two gear features priced by grade** (`cost_type` is

@@ -206,6 +206,63 @@ public sealed class PrebuiltHeroTests
         Assert.Equal(hero.Resolve, _f.Derived.CalculateResolve(sheet));
     }
 
+    /// <summary>
+    /// <b>Scáthach's printed sheet is the one published datum that says a Talent nomination must
+    /// not count towards Resolve, and it is worth an assertion of its own.</b> Ch.8 p.135 prints
+    /// Expertise (Academics: Strategy and Tactics) at 12d — the Standard tier's Trait Cap exactly
+    /// — beside a Resolve of 5. Resolve is measured from the gap between the cap and the highest
+    /// relevant rank, so an Expertise sitting *on* the cap and counting would open her on nothing
+    /// but her Determination and her Flaw. The book says 5.
+    ///
+    /// <para><b>Both figures come out of the engine, because the point is the difference.</b> The
+    /// second sheet is hers with the nomination moved from a Talent to Might and the purchased
+    /// ranks adjusted so the Expertise still lands on 12d — one field changed, the rank held —
+    /// and it opens on 3. A reading of "combat skills" that reached Academics would print 3 for a
+    /// Hero the book prints at 5, which is the whole of why no Talent is in the set.</para>
+    ///
+    /// <para><see cref="HeroResolveMatchesTheRulebook"/> covers her too, and would go red on the
+    /// same mistake. This is here because that test says nothing about *why* she is a hard case,
+    /// and she is the only published Hero whose Expertise reaches the cap.</para>
+    /// </summary>
+    [Fact]
+    public void ScathachsPrintedResolveIsWhatSaysATalentNominationDoesNotCount()
+    {
+        var hero  = PrebuiltHeroes.All.Single(h => h.Name == "Herald (Scathach)");
+        var sheet = Build(hero);
+
+        var expertise = sheet.SelectedPowers.Single(sp => sp.PowerId == "expertise");
+
+        // Positive controls on the reconstruction: the nomination really is a Talent, and the
+        // Expertise really does reach the cap. Either being untrue would make the two figures
+        // below differ for a reason that has nothing to do with the carve-out.
+        Assert.Equal("academics", expertise.BaselineTraitId);
+        Assert.NotNull(_f.Rules.GetTalent(expertise.BaselineTraitId!));
+        Assert.Equal(12, _f.Derived.GetEffectiveRank(expertise, sheet));
+
+        Assert.Equal(5, hero.Resolve);
+        Assert.Equal(hero.Resolve, _f.Derived.CalculateResolve(sheet));
+
+        // The same sheet with the nomination moved into the combat set and the rank held at 12d:
+        // Might is 8d, so four purchased ranks reach the cap where ten did over Academics 2d.
+        var counting  = Build(hero);
+        var index     = counting.SelectedPowers.FindIndex(sp => sp.PowerId == "expertise");
+        var mightRank = counting.GetAbilityRank("might");
+
+        counting.SelectedPowers[index] = counting.SelectedPowers[index] with
+        {
+            PurchasedRanks  = 12 - mightRank,
+            BaselineTraitId = "might"
+        };
+
+        Assert.Contains(
+            "might",
+            _f.Rules.GetPower("expertise")!.AffectsResolveWhenNominated,
+            StringComparer.Ordinal);
+        Assert.Equal(12, _f.Derived.GetEffectiveRank(counting.SelectedPowers[index], counting));
+
+        Assert.Equal(3, _f.Derived.CalculateResolve(counting));
+    }
+
     [Theory]
     [MemberData(nameof(HeroNames))]
     public void HeroPowerRanksNeverExceedTheTraitCap(string name)

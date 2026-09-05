@@ -143,6 +143,50 @@ public sealed class SkillDocumentationTests
     }
 
     /// <summary>
+    /// <b>Expertise is the cheapest high number on a sheet, so what it costs in Resolve has to be
+    /// stated exactly.</b> The twin of
+    /// <c>McpQuestionPolicyTests.TheGuideNamesTheFourCombatNominationsAndQualifiesTheFigure</c>,
+    /// held here for the reason the test above is: these two documents teach the same loop to two
+    /// different readers and drift apart when only one of them is guarded.
+    ///
+    /// <para>Ch.5 p.83 exempts Expertise "except for combat skills", and the four Abilities that
+    /// counts as here are Ch.4 p.75's — Might, Agility, Toughness and Willpower. All four are
+    /// named, because a model that learned only "Might or Agility" will sell a 12d Expertise
+    /// (Toughness) as free Resolve. <b>The worked figure is pinned with its qualifier</b>: 0
+    /// rather than 12 is Chapter 5's <em>base</em>, and Determination and the Condition and Plot
+    /// Hook Flaws land on top of it. And the set is presented as a reading with the direction of
+    /// its error, because the book never defines a combat skill and p.83 hands the GM the final
+    /// say.</para>
+    /// </summary>
+    [Fact]
+    public void TheSkillNamesTheFourCombatNominationsAndQualifiesTheFigure()
+    {
+        var expertise = _f.Rules.GetPower("expertise");
+        Assert.NotNull(expertise);
+
+        // Against the data rather than a hard-coded list, so widening the set fails here too.
+        Assert.All(
+            expertise.AffectsResolveWhenNominated,
+            id => Assert.Contains(_f.Rules.GetAbility(id)!.Name, Flowed, StringComparison.Ordinal));
+
+        Assert.Equal(4, expertise.AffectsResolveWhenNominated.Count);
+
+        Assert.Contains("0 base Resolve rather than 12", Flowed, StringComparison.Ordinal);
+        Assert.Contains(
+            "before Determination and any Condition or Plot Hook Flaws are added",
+            Flowed,
+            StringComparison.Ordinal);
+
+        // A reading, its direction, and the release valve.
+        Assert.Contains("never defines a combat skill", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("errs towards counting", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("GM the final say", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // And that a Power is not a legal nomination, which the validator now refuses.
+        Assert.Contains("EXPERTISE_NOMINATION_NOT_A_TRAIT", Flowed, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b><c>--no-build</c> is the flag that makes several agents in one working tree safe,
     /// and it appeared in no document at all.</b> Plain <c>dotnet run</c> commands collide on
     /// the compiler, and the failure that comes back says nothing about the character; it was
