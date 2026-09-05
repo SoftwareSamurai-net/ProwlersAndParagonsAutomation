@@ -33,6 +33,12 @@
              Everything else in the tool needs the publisher's PDF, which is gitignored and is
              not on a build agent, so the corpus itself is committed and asserted as data. -->
         <ProjectReference Include="..\..\tools\RulebookExtractor\RulebookExtractor.csproj" />
+
+        <!-- The second engine — play/ — which resolves an action where engine/ costs and
+             validates a character. It is referenced here and nowhere else in the solution: the
+             hosts arrive in a later slice, and PlayContractTests requires engine/ and sheets/
+             never to reference it back. -->
+        <ProjectReference Include="..\..\play\ProwlersAndParagons.Play.csproj" />
     </ItemGroup>
 
 </Project>
