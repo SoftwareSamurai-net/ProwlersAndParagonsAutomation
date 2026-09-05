@@ -77,6 +77,7 @@ went wrong once.
 | About to touch | Read first |
 |---|---|
 | `engine/`, `sheets/`, `data/rules/*.json` | [`docs/guide/rules-engine.md`](docs/guide/rules-engine.md) |
+| `data/rules/play/` — the play rules, which no engine reads | [`docs/guide/play-rules.md`](docs/guide/play-rules.md) |
 | `web/` — any component or page, `app.css`, `theme.css` | [`docs/guide/browser.md`](docs/guide/browser.md) |
 | the print stylesheet, `SheetView`, `SampleCharacters` | [`docs/guide/printed-sheet.md`](docs/guide/printed-sheet.md) |
 | `data/transcripts/`, `TranscriptLibrary`, `ReplayLoader` | [`docs/guide/replay.md`](docs/guide/replay.md) |

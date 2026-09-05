@@ -19,7 +19,7 @@
          deliberately-broken twin of the site turned the right check red. A `dotnet test` runner
          would give a pass/fail count and no way to say "this check said FAIL, which is what the
          twin needed". It is also why ./scripts/count-tests.sh does not know about this directory
-         and should not: a suite whose figure is "six checks" beside four suites' thousands makes
+         and should not: a suite whose figure is "nine checks" beside four suites' thousands makes
          the total meaningless. docs/guide/testing.md says so in as many words. -->
 
     <PropertyGroup>
