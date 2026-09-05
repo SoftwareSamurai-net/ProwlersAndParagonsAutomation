@@ -467,10 +467,29 @@ freeze_tree() {
 # first orphans its children onto init and an orphan's ppid is 1, so a walk that would have found
 # them next returns nothing. `freeze_tree` prints parent-first, so this reverses it.
 #
-# **Not a process-group kill.** `( ... ) &` in a non-interactive shell is not a group leader, so
-# the tree's pgid is the *harness's own* — `kill -- -$pgid` would take out `e2e.sh` itself. Turning
-# on job control to give it a group of its own changes how every other background command in this
-# script behaves. The freeze buys the same atomicity without either.
+# **Not a process-group kill, and that was checked against wrangler's source rather than assumed.**
+# The obvious reading of run `33949251306` is "the holder escaped into a session of its own, so kill
+# the group" — and it is wrong twice over.
+#
+# *It would not help.* In the pinned miniflare, `Runtime.updateConfig` spawns `workerd` with
+# `stdio`, `windowsHide` and `env` and **no `detached`** — an ordinary child, in the harness's own
+# process group and session. The only `detached: true` in that file is the VS Code inspector
+# watchdog, gated behind `process.env.VSCODE_INSPECTOR_OPTIONS`, which CI does not set; wrangler's
+# own three are docker builds and a cloudchamber `ssh`, none of them on the `pages dev` path. There
+# is no second group to reach for. Neither `setsid` nor `process.setpgid` appears anywhere in
+# either package.
+#
+# *And it would be actively unsafe.* `( ... ) &` in a non-interactive shell is not a group leader,
+# so the tree's pgid is the *harness's own* — `kill -- -$pgid` would take out `e2e.sh` itself.
+# Turning on job control to give it a group of its own changes how every other background command
+# in this script behaves.
+#
+# **The holder escapes by being born, not by changing session.** Kill `workerd`, the supervisor's
+# exit handler runs `onWorkerdCrashRestart`, and the replacement is a pid that did not exist when
+# the tree was enumerated; kill the supervisor next and that replacement is reparented onto init,
+# where a ppid of 1 puts it outside any walk of parent links. That is the whole mechanism behind
+# "every pid in the tree is gone and the port is still listening". The freeze closes the window it
+# is born in, and `stop_server`'s socket lookup catches one born anyway.
 kill_tree() {
   local pid="$1" frozen p ordered=''
 
