@@ -2433,6 +2433,641 @@ public sealed class PlayRulesDataTests
         }
     }
 
+    // ── Chapter 4: the fixtures from the book ────────────────────────────────
+
+    /// <summary>
+    /// <b>Half a number, read out of <c>play_meta.json</c> rather than out of a call to
+    /// <c>Math.Ceiling</c> written here.</b> Every Chapter 4 figure that halves something — a
+    /// special effect's duration, the reduction that breaks it, a Health average — goes through
+    /// this, so a change to the Glossary rule the file records moves every one of them together and
+    /// the fixtures below stop matching the printed answers.
+    /// </summary>
+    private static int HalfBy(int value, string direction) => direction switch
+    {
+        "up" => (int)Math.Ceiling(value / 2.0),
+        "down" => (int)Math.Floor(value / 2.0),
+        _ => throw new InvalidOperationException($"unknown rounding direction '{direction}'")
+    };
+
+    private static string BookWideRoundingDirection() =>
+        MetaEntryById("half_rounds_up").Rounding?.Direction
+        ?? throw new InvalidOperationException("play_meta.json records no rounding direction.");
+
+    /// <summary>
+    /// <b>p.74's movement example, resolved through the file's own rates.</b> "Powermad needs to
+    /// smash a machinegun turret at Distant Range. He has no Travel Power, so it'll take him 2 pages
+    /// to run up to the thing… His ally, Flicker, is also at Distant Range, but she has the Running
+    /// Power at 9d, so she can move to within Close Range of the turret and smash it in 1 page."
+    ///
+    /// <para>Neither number is typed here: both come out of <c>movement</c>, and the rank that
+    /// decides which applies comes out of the same block. Flicker's 9d is the fixture's own input,
+    /// and the assertion that it clears the threshold is made against the file rather than against a
+    /// constant, so lowering the printed 6d in the data would put Powermad and Flicker on the same
+    /// footing and fail here rather than silently.</para>
+    /// </summary>
+    [Fact]
+    public void TheMovementExampleOnPageSeventyFourComesOutAsPrinted()
+    {
+        var movement = CombatEntryById("movement").Movement;
+
+        Assert.NotNull(movement);
+
+        const int flickerRunningRank = 9;
+
+        // Positive control on the fixture: the two characters must actually differ in the way the
+        // example turns on, or both halves below would be true of any pair of numbers.
+        Assert.True(
+            flickerRunningRank >= movement.TravelPowerRankRequired,
+            "Flicker's 9d Running has to clear the Travel Power rank the file records, or the "
+            + "example is not exercising the rule it is printed to illustrate.");
+
+        var powermad = movement.PagesPerRangeClass;
+        var flicker = flickerRunningRank >= movement.TravelPowerRankRequired
+            ? movement.PagesPerRangeClassWithATravelPower
+            : movement.PagesPerRangeClass;
+
+        Assert.Equal(2, powermad);   // "it'll take him 2 pages to run up to the thing"
+        Assert.Equal(1, flicker);    // "she can move to within Close Range … in 1 page"
+    }
+
+    /// <summary>
+    /// <b>p.74's chase, run one exchange at a time through <c>chases</c>.</b> Flicker starts at
+    /// Distant Range and wins three exchanges with 3, 1 and 4 net successes; the printed outcome is
+    /// that the first closes a range class and lends her dice, the second lends dice and nothing
+    /// else, and the third ends the chase.
+    ///
+    /// <para>The threshold, the bonus and both ending conditions are read from the file, and the
+    /// range ladder is read from <c>range_classes</c>'s own ordering — so a table whose classes were
+    /// reordered, or whose closing threshold moved, would put Flicker somewhere the page does not.</para>
+    /// </summary>
+    [Fact]
+    public void TheChaseExampleOnPageSeventyFourComesOutAsPrinted()
+    {
+        var chase = CombatEntryById("chases").Chase;
+        var classes = CombatEntryById("range_classes").Ranges;
+
+        Assert.NotNull(chase);
+        Assert.NotNull(classes);
+
+        // The ladder the chase moves along, innermost first, taken from the file's own row order.
+        var ladder = classes.Select(c => c.Class).ToList();
+        Assert.Equal(["Close", "Distant", "Extreme"], ladder);   // positive control on the ordering
+
+        // The chase names its ends in the book's own phrasing — "Close Range" — while the table names
+        // the classes. Resolving one to the other is asserted rather than assumed, because an
+        // unmatched name would silently make the ending condition unreachable and the chase run for
+        // ever while every other assertion below still passed.
+        var innermost = ladder.IndexOf(chase.EndsCloserThan.Replace(" Range", "", StringComparison.Ordinal));
+        var outermost = ladder.IndexOf(chase.EndsFartherThan.Replace(" Range", "", StringComparison.Ordinal));
+
+        Assert.Equal(0, innermost);
+        Assert.Equal(ladder.Count - 1, outermost);
+
+        var position = ladder.IndexOf("Distant");
+        var bonusesEarned = new List<int>();
+        var ended = false;
+
+        foreach (var net in new[] { 3, 1, 4 })
+        {
+            bonusesEarned.Add(chase.ExchangeWinBonusDiceNextExchange);
+
+            if (net >= chase.NetSuccessesToMoveOneRangeClass) position--;
+
+            if (position < innermost || position > outermost) { ended = true; break; }
+        }
+
+        // "She closes to within Close Range of the getaway car and gets a +2d bonus on her next roll."
+        // "…she wins the exchange but scores only 1 net success. That's enough to secure the +2d
+        // bonus … but not enough to close the distance any further."
+        // "…this time scoring 4 net successes and ending the chase."
+        Assert.Equal([2, 2, 2], bonusesEarned);
+        Assert.True(ended, "the third exchange takes Flicker closer than Close Range, which ends the chase");
+        Assert.Equal(3, bonusesEarned.Count);
+    }
+
+    /// <summary>
+    /// <b>p.76's Mind Control, and the rounding the rule never states.</b> Heartbreaker rolls 8
+    /// against Parthian's 3, and "Heartbreaker gains control of Parthian's mind for 3 pages" — which
+    /// five net successes only reach if half rounds up.
+    ///
+    /// <para>So this is both the fixture and the proof of the entry's <c>interpretation</c>: the
+    /// direction is taken from <c>play_meta.json</c>'s book-wide rule rather than typed, the entry is
+    /// required to agree with it, and the other direction is computed too and shown to contradict the
+    /// printed answer. A reading asserted only by restating itself would prove nothing.</para>
+    /// </summary>
+    [Fact]
+    public void TheSpecialEffectExampleOnPageSeventySixComesOutAsPrinted()
+    {
+        var entry = CombatEntryById("special_effects");
+        var rounds = entry.Interpretation?.DurationRounds;
+
+        Assert.Equal(BookWideRoundingDirection(), rounds);
+
+        var net = CanonicalCombatRules.SpecialEffect.ExampleAttackSuccesses
+                  - CanonicalCombatRules.SpecialEffect.ExampleDefenseSuccesses;
+
+        Assert.Equal(5, net);   // positive control: the fixture's own arithmetic
+        Assert.Equal(CanonicalCombatRules.SpecialEffect.ExampleDurationPages, HalfBy(net, rounds!));
+
+        // And the reading is doing work: the other direction gives an answer p.76 contradicts.
+        Assert.NotEqual(CanonicalCombatRules.SpecialEffect.ExampleDurationPages, HalfBy(net, "down"));
+    }
+
+    /// <summary>
+    /// <b>p.76's escape from that Mind Control.</b> Parthian rolls 7 against Heartbreaker's 4 — three
+    /// net successes — and "This reduces the Mind Control duration by 2 pages", leaving one of the
+    /// three the effect had bought. Same derivation as above, and the same demonstration that the
+    /// other direction is wrong: rounding down would remove one page, not two.
+    /// </summary>
+    [Fact]
+    public void TheBreakFreeExampleOnPageSeventySixComesOutAsPrinted()
+    {
+        var entry = CombatEntryById("breaking_free");
+        var rounds = entry.Interpretation?.ReductionRounds;
+
+        Assert.Equal(BookWideRoundingDirection(), rounds);
+
+        var net = CanonicalCombatRules.BreakingFree.ExampleAttemptSuccesses
+                  - CanonicalCombatRules.BreakingFree.ExampleOpposingSuccesses;
+
+        Assert.Equal(3, net);   // positive control
+        var removed = HalfBy(net, rounds!);
+        Assert.Equal(CanonicalCombatRules.BreakingFree.ExamplePagesRemoved, removed);
+        Assert.NotEqual(CanonicalCombatRules.BreakingFree.ExamplePagesRemoved, HalfBy(net, "down"));
+
+        // The effect had lasted three pages; two removed leaves one, and the entry's own free-at
+        // figure says that is not yet free.
+        var remaining = CanonicalCombatRules.SpecialEffect.ExampleDurationPages - removed;
+        Assert.Equal(1, remaining);
+        Assert.True(
+            remaining > entry.BreakingFree!.FreeWhenTheDurationReaches,
+            "one page left is not yet free, which is why the page says Parthian is loose after "
+            + "Heartbreaker's next turn rather than at once");
+    }
+
+    /// <summary>
+    /// <b>p.79's Clint Castle, resolved through <c>gritty.json</c>.</b> Five Health, down to one, and
+    /// a ninja master stabs him for six: "taking him down to −5 Health. Clint's full Health is 5, so
+    /// that's just enough to kill him. Our hero spends 1 Resolve to prevent that from happening,
+    /// leaving him at −4 Health."
+    ///
+    /// <para>The fatal line and the rescue are both computed from the entry rather than typed: the
+    /// threshold is the negative of full Health because the file says <c>killed_at</c> is that, and
+    /// −4 is one point above it because the file says the point buys exactly that.</para>
+    /// </summary>
+    [Fact]
+    public void TheFatalDamageExampleOnPageSeventyNineComesOutAsPrinted()
+    {
+        var fatal = GrittyEntryById("gritty_fatal_damage").FatalDamage;
+
+        Assert.NotNull(fatal);
+        Assert.True(fatal.HealthCanGoNegative);
+
+        var full = CanonicalGrittyRules.FatalDamage.ExampleFullHealth;
+        var after = CanonicalGrittyRules.FatalDamage.ExampleCurrentHealth
+                    - CanonicalGrittyRules.FatalDamage.ExampleDamage;
+
+        Assert.Equal(CanonicalGrittyRules.FatalDamage.ExampleHealthAfter, after);
+
+        var fatalThreshold = -full;
+        Assert.True(after <= fatalThreshold, "−5 reaches the negative of Clint's full 5 Health exactly");
+
+        // "reduce the damage … to 1 point below this fatal threshold" — one point of Health above it.
+        var rescued = fatalThreshold + fatal.CostResolveToAvoid;
+        Assert.Equal(CanonicalGrittyRules.FatalDamage.ExampleHealthAfterSpendingResolve, rescued);
+
+        // And the rescue leaves him dying rather than well: −4 is at or below the dying line.
+        Assert.True(rescued <= fatal.DyingBeginsWhenLethalDamageReducesYouTo);
+    }
+
+    /// <summary>
+    /// <b>The Example of Combat, pp.81-82, stepped through the data.</b> Six of its rolls resolve
+    /// against three different files — Chapter 4's damage rule, its Grappling table, its Minion rule,
+    /// and Chapter 3's narrative-control bands for the last one — and every threshold and rate comes
+    /// out of the JSON rather than out of this test.
+    ///
+    /// <para>This is the fixture rule from <c>docs/guide/play-rules.md</c> applied to Chapter 4: two
+    /// transcriptions can agree and both be wrong, so the chapter's data has to be exercised by an
+    /// example the authors worked through. It is also why the Example is not itself an entry — a
+    /// worked fight is not a mechanic, and it is worth more as the thing that proves the mechanics.</para>
+    /// </summary>
+    [Fact]
+    public void TheExampleOfCombatOnPagesEightyOneAndEightyTwoResolvesThroughTheData()
+    {
+        var damage = CombatEntryById("damage").Damage;
+        var grappling = CombatEntryById("grappling_table").GrapplingTable;
+        var minions = CombatEntryById("attacking_minions").AttackingMinions;
+        var order = CombatEntryById("edge_ties").TieBreak;
+        var bands = ChallengeEntryById("narrative_control").Bands;
+
+        Assert.NotNull(damage);
+        Assert.NotNull(grappling);
+        Assert.NotNull(minions);
+        Assert.NotNull(order);
+        Assert.NotNull(bands);
+
+        // Turn order: three Edge scores sorted downward, then the Minions, who have none.
+        Assert.False(order.MinionsHaveAnEdge);
+
+        var byEdge = new[]
+            {
+                ("Citizen Soldier", CanonicalCombatRules.ExampleOfCombat.CitizenSoldierEdge),
+                ("the mecha", CanonicalCombatRules.ExampleOfCombat.MechaEdge),
+                ("Gatecrasher", CanonicalCombatRules.ExampleOfCombat.GatecrasherEdge)
+            }
+            .OrderByDescending(c => c.Item2)
+            .Select(c => c.Item1)
+            .Append("the robotic Minions")
+            .ToArray();
+
+        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.TurnOrder, byEdge);
+
+        // "With a total of 2 net successes, a giant mechanical foot stomps Gate into the ground,
+        // inflicting 2 points of damage."
+        var stompNet = CanonicalCombatRules.ExampleOfCombat.StompAttackSuccesses
+                       - CanonicalCombatRules.ExampleOfCombat.StompDefenseSuccesses;
+
+        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.StompDamage, stompNet * damage.DamagePerNetSuccess);
+
+        // "With 5 net successes, our Hero could have defeated up to five of these robotic rogues,
+        // so the player describes how Citizen Soldier turns these four into scrap metal."
+        var minionNet = CanonicalCombatRules.ExampleOfCombat.MinionAttackSuccesses
+                        - CanonicalCombatRules.ExampleOfCombat.MinionDefenseSuccesses;
+
+        var couldDefeat = minionNet * minions.MinionsDefeatedPerNetSuccess;
+        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.MinionsCouldHaveBeenDefeated, couldDefeat);
+        Assert.Equal(
+            CanonicalCombatRules.ExampleOfCombat.MinionsPresent,
+            Math.Min(couldDefeat, CanonicalCombatRules.ExampleOfCombat.MinionsPresent));
+
+        // "the mecha also gets 9 successes when it rolls its 15d Armor for defense. Gatecrasher's
+        // attack has no effect."
+        var chargeNet = CanonicalCombatRules.ExampleOfCombat.ChargeAttackSuccesses
+                        - CanonicalCombatRules.ExampleOfCombat.ChargeDefenseSuccesses;
+
+        Assert.Equal(0, chargeNet);
+        Assert.Equal(0, chargeNet * damage.DamagePerNetSuccess);
+
+        // "With 3 net successes, the mecha places our Hero in a full hold."
+        var holdNet = CanonicalCombatRules.ExampleOfCombat.HoldAttackSuccesses
+                      - CanonicalCombatRules.ExampleOfCombat.HoldDefenseSuccesses;
+
+        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.HoldResult, GrapplingResult(grappling, holdNet).Hold);
+
+        // "With no net successes, the Soldier remains trapped in those mighty metal mitts."
+        var escapeNet = CanonicalCombatRules.ExampleOfCombat.EscapeAttemptSuccesses
+                        - CanonicalCombatRules.ExampleOfCombat.EscapeOpposingSuccesses;
+
+        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.EscapeResult, GrapplingResult(grappling, escapeNet).Escape);
+
+        // "One net success may not be much, but it's enough for narrative control… But with only one
+        // net success, the GM gets an embellishment." That is Chapter 3's band table, reached from
+        // Chapter 4's fight — the one step here that crosses files.
+        var eyebeamNet = CanonicalCombatRules.ExampleOfCombat.EyebeamAttackSuccesses
+                         - CanonicalCombatRules.ExampleOfCombat.EyebeamDefenseSuccesses;
+
+        var band = bands.Single(b =>
+            (b.MinNetSuccesses is null || eyebeamNet >= b.MinNetSuccesses)
+            && (b.MaxNetSuccesses is null || eyebeamNet <= b.MaxNetSuccesses));
+
+        Assert.Equal("actor", band.Outcome);
+        Assert.True(band.Embellishment);
+    }
+
+    /// <summary>The Grappling table row a net-success figure falls in.</summary>
+    private static GrapplingTableRowModel GrapplingResult(
+        IReadOnlyList<GrapplingTableRowModel> table, int net) =>
+        table.Single(r =>
+            (r.MinNetSuccesses is null || net >= r.MinNetSuccesses)
+            && (r.MaxNetSuccesses is null || net <= r.MaxNetSuccesses));
+
+    // ── Chapter 4: the readings, derived rather than typed ───────────────────
+
+    /// <summary>
+    /// <b>Tough Minions rounds down, and it is the only rule in the book that does.</b> The Glossary
+    /// (p.7) says a half goes up and names one exception; <c>gritty.json</c> is that exception. Both
+    /// halves are asserted together and by name, because either one alone is a statement about a file
+    /// rather than about the book: a rounding rule with no exception recorded and an exception with no
+    /// rule to except from would each pass on their own.
+    ///
+    /// <para>The worked example is what makes it bite. Five net successes defeat two Minions, and the
+    /// book-wide direction would defeat three — so the two directions are computed and the printed
+    /// answer picks one.</para>
+    /// </summary>
+    [Fact]
+    public void ToughMinionsIsTheOnePlaceAHalfGoesDownward()
+    {
+        var rounding = MetaEntryById("half_rounds_up").Rounding;
+        var tough = GrittyEntryById("gritty_tough_minions").ToughMinions;
+
+        Assert.NotNull(rounding);
+        Assert.NotNull(tough);
+
+        Assert.Equal("up", rounding.Direction);
+
+        var exception = Assert.Single(rounding.Exceptions);
+        Assert.Equal("Tough Minions", exception.Name);
+        Assert.Equal("down", exception.Direction);
+        Assert.Contains(
+            $"p.{CanonicalChallengeRules.HalfRuleExceptionPage}", exception.Reference, StringComparison.Ordinal);
+
+        // The Gritty file agrees with the exception the Glossary records, and disagrees with the
+        // book-wide rule — which is the whole content of "unique case".
+        Assert.Equal(exception.Direction, tough.Rounding);
+        Assert.NotEqual(rounding.Direction, tough.Rounding);
+        Assert.True(tough.RoundingIsANamedUniqueException);
+
+        // And the printed example separates them: 5 net successes, two Minions down, not three.
+        var net = CanonicalGrittyRules.ToughMinions.WorkedExampleNetSuccesses;
+
+        Assert.Equal(
+            CanonicalGrittyRules.ToughMinions.WorkedExampleMinionsDefeated,
+            HalfBy(net, tough.Rounding));
+
+        Assert.NotEqual(
+            CanonicalGrittyRules.ToughMinions.WorkedExampleMinionsDefeated,
+            HalfBy(net, rounding.Direction));
+    }
+
+    /// <summary>
+    /// <b>The GM's alternative to seizing the initiative inherits the purchase's duration.</b> p.73
+    /// prints the duration once, on the spend, and offers the alternative as a different effect for
+    /// the same point of Resolve rather than as a different purchase — so it runs as long. The page
+    /// never says so, which is why the value is an <c>interpretation</c> naming the entry it is taken
+    /// from rather than a duration typed into the block.
+    ///
+    /// <para>Chapter 5's <c>spend_combat</c> is the reason this is here at all: it carried these two
+    /// values as though p.84 stated them, and the guard written over that file sent them back to this
+    /// chapter. So the test also checks that Chapter 5 still defers rather than transcribing.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmAlternativeToSeizingTheInitiativeInheritsThePurchasesDuration()
+    {
+        var alternative = CombatEntryById("seize_initiative_gm_alternative");
+        var inheritedFrom = alternative.Interpretation?.DurationIsInheritedFrom;
+
+        Assert.Equal("seizing_initiative", inheritedFrom);
+
+        // The entry it names has to exist and to carry a duration, or the inheritance is a pointer
+        // at nothing — which is exactly how this value went stale in the other chapter.
+        var purchase = CombatEntryById(inheritedFrom!).SeizeInitiative;
+
+        Assert.NotNull(purchase);
+        Assert.False(string.IsNullOrWhiteSpace(purchase.Duration));
+
+        // The alternative replaces the effect and not the cost, so it carries neither cost nor
+        // duration of its own.
+        Assert.NotNull(alternative.GmAlternative);
+        Assert.Equal(CanonicalCombatRules.SeizeInitiativeGmAlternative.InsteadOf, alternative.GmAlternative.InsteadOf);
+
+        // Chapter 5 still points here rather than restating it.
+        var deferred = ResolveEntryById("spend_combat").Spend;
+        Assert.NotNull(deferred);
+        Assert.False(deferred.TranscribedHere);
+        Assert.Contains("Ch.4", deferred.DetailChapter!, StringComparison.Ordinal);
+    }
+
+    // ── Chapter 4: the two figures the character engine already computes ─────
+
+    /// <summary>
+    /// <b>Edge is printed twice — here and in Chapter 2 — and the engine has computed it since long
+    /// before this store existed.</b> Same shape as
+    /// <see cref="TheEngineComputesTheTableThisFileRecords"/> for Chapter 5's Resolve table: two
+    /// statements of one rule, held to the same answer on a worked character.
+    ///
+    /// <para><b>The expected figure is built from the file's own formula, not from arithmetic written
+    /// here.</b> The operand names are read out of <c>edge.formula</c> and looked up on the sheet, so
+    /// a formula that named Willpower instead of Intellect would compute a different number and fail,
+    /// rather than agreeing with a hard-coded <c>perception + max(agility, intellect)</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheEngineComputesTheEdgeThisChapterPrints()
+    {
+        var edge = CombatEntryById("edge_order").Edge;
+
+        Assert.NotNull(edge);
+
+        var operands = FormulaOperands(edge.Formula, "edge");
+        Assert.Equal(["perception", "agility", "intellect"], operands);
+
+        var sheet = _f.LegalSheet();
+        sheet.AbilityRanks["perception"] = 4;
+        sheet.AbilityRanks["agility"] = 3;
+        sheet.AbilityRanks["intellect"] = 5;
+
+        // Positive control: the two candidates must actually differ, or "use whichever is greater"
+        // is not being exercised and any of the three orderings would agree.
+        Assert.NotEqual(sheet.AbilityRanks["agility"], sheet.AbilityRanks["intellect"]);
+        Assert.Empty(sheet.SelectedPowers);   // no Danger Sense, Lightning Reflexes or Super Speed
+
+        var fromTheFile = sheet.AbilityRanks[operands[0]]
+                          + Math.Max(sheet.AbilityRanks[operands[1]], sheet.AbilityRanks[operands[2]]);
+
+        Assert.Equal(fromTheFile, _f.Derived.CalculateEdge(sheet));
+    }
+
+    /// <summary>
+    /// <b>Health is the second figure this chapter shares with the character engine, and the one that
+    /// proves the rounding reading.</b> The formula's operands are read out of the file, the direction
+    /// of the average comes from <c>play_meta.json</c>'s book-wide rule by way of the entry's
+    /// <c>interpretation</c>, and the fixture is deliberately odd — Toughness 3 with Might 4 averages
+    /// 3.5 — so the two directions give different answers and only one matches the engine.
+    /// </summary>
+    [Fact]
+    public void TheEngineComputesTheHealthThisChapterPrintsIncludingTheRounding()
+    {
+        var entry = CombatEntryById("health");
+        var health = entry.Health;
+
+        Assert.NotNull(health);
+
+        var rounds = entry.Interpretation?.AverageRounds;
+        Assert.Equal(BookWideRoundingDirection(), rounds);
+
+        var operands = FormulaOperands(health.Formula, "health");
+        Assert.Equal(["toughness", "might", "toughness", "willpower"], operands);
+
+        var sheet = _f.LegalSheet();
+        sheet.AbilityRanks["toughness"] = 3;
+        sheet.AbilityRanks["might"] = 4;
+        sheet.AbilityRanks["willpower"] = 1;
+
+        // Positive control on the fixture: the pair has to be odd, or the rounding under test never
+        // fires and both directions agree.
+        Assert.Equal(1, (sheet.AbilityRanks["toughness"] + sheet.AbilityRanks["might"]) % 2);
+
+        int Average(string a, string b, string direction) =>
+            HalfBy(sheet.AbilityRanks[a] + sheet.AbilityRanks[b], direction);
+
+        var up = Math.Max(Average(operands[0], operands[1], rounds!), Average(operands[2], operands[3], rounds!));
+        var down = Math.Max(Average(operands[0], operands[1], "down"), Average(operands[2], operands[3], "down"));
+
+        Assert.NotEqual(up, down);   // the reading is doing work on this fixture
+        Assert.Equal(up, _f.Derived.CalculateHealth(sheet));
+
+        // And the Foe rule the same entry records is the other half of Chapter 2's sentence.
+        Assert.True(health.FoesHalveTheResult);
+        Assert.False(health.MinionsUseHealth);
+    }
+
+    /// <summary>
+    /// The lower-cased identifiers on the right of a formula's <c>=</c>, in the order they appear,
+    /// with the left-hand name required to be <paramref name="expectedSubject"/>. Function names are
+    /// dropped, so <c>max(average(toughness, might), average(toughness, willpower))</c> yields the
+    /// four Traits and nothing else.
+    /// </summary>
+    private static List<string> FormulaOperands(string formula, string expectedSubject)
+    {
+        var parts = formula.Split('=', 2);
+        Assert.Equal(2, parts.Length);
+        Assert.Equal(expectedSubject, parts[0].Trim());
+
+        return Regex.Matches(parts[1], @"[a-z_]+")
+            .Select(m => m.Value)
+            .Where(name => name is not ("max" or "min" or "average"))
+            .ToList();
+    }
+
+    // ── Chapter 4: structural guards of its own ──────────────────────────────
+
+    /// <summary>
+    /// <b>The same guard <c>resolve.json</c> carries, over this chapter's one deferral.</b> p.75
+    /// hands NPC Health to Chapter 8 and does not restate it, so <c>npc_health</c> records the
+    /// pointer and nothing else. An entry that says it does not transcribe and then transcribes
+    /// anyway is precisely the second copy the policy exists to prevent — which is how Chapter 5's
+    /// combat spend came to be carrying two of this chapter's values.
+    ///
+    /// <para>Written over the whole file rather than over the one entry, so the next chapter this
+    /// store points at is covered without anybody remembering to.</para>
+    /// </summary>
+    [Fact]
+    public void ACombatEntryThatDefersToAnotherChapterCarriesReferencesAndNothingElse()
+    {
+        var deferring = Combat().Entries.Where(e => e.Reference is { TranscribedHere: false }).ToList();
+
+        // Positive control: there has to be one, or the guard is measuring nothing.
+        var entry = Assert.Single(deferring);
+        Assert.Equal("npc_health", entry.Id);
+
+        Assert.Equal(CanonicalCombatRules.NpcHealth.DetailChapter, entry.Reference!.DetailChapter);
+        Assert.NotEmpty(entry.Reference.DeferredTopics);
+
+        // Nothing else on the entry: every other block is null, so there is no transcribed value to
+        // go stale against the chapter it points at.
+        var carried = EntryLeaves(entry.Id, entry, stopAt: null)
+            .Select(leaf => leaf.Path)
+            .Where(path => !path.StartsWith($"{entry.Id}.reference.", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(
+            carried.Count == 0,
+            $"{entry.Id} says it does not transcribe Chapter 8 and then carries "
+            + string.Join(", ", carried));
+    }
+
+    /// <summary>
+    /// <b>Ten Gritty Combat Rules, and every one of them a setting for the whole table.</b> The
+    /// chapter offers them as things a group turns on rather than as things a character does, which is
+    /// what <c>kind</c> records — and the count is asserted because a rule quietly dropped from the
+    /// file would leave every other test green.
+    /// </summary>
+    [Fact]
+    public void TheTenGrittyRulesAreEachATableSetting()
+    {
+        var entries = Gritty().Entries;
+
+        var settings = entries.Where(e => e.Kind == "table_setting").Select(e => e.Id).Order(StringComparer.Ordinal).ToList();
+
+        Assert.Equal(
+            [
+                "gritty_active_defenses", "gritty_close_range", "gritty_fatal_damage",
+                "gritty_friendly_fire", "gritty_hard_targets", "gritty_raised_gear_limit",
+                "gritty_slow_healing", "gritty_the_drop", "gritty_tough_minions",
+                "gritty_wound_penalties"
+            ],
+            settings);
+
+        // The eleventh entry is the paragraph that introduces them, and it is not one of the ten.
+        var rest = entries.Where(e => e.Kind != "table_setting").Select(e => e.Id).ToList();
+        Assert.Equal(["gritty_overview"], rest);
+        Assert.True(GrittyEntryById("gritty_overview").Overview!.AnySubsetMayBeUsed);
+    }
+
+    /// <summary>
+    /// <b>Chapter 2 prints three of this chapter's rules a second time, and this is the only
+    /// independent printing any Chapter 4 value has.</b> Everything else in this file compares one
+    /// transcription to another; the Example of Combat answers that for the chain as a whole, and this
+    /// answers it for the Threat Ranks table and the two formulas.
+    ///
+    /// <para><b>The printed text is derived from the transcription, never typed out again.</b> A
+    /// Threat row prints as "Civilians 2d" or "Super 7d or More" exactly as its category, floor and
+    /// null ceiling say it should, and both formulas are rebuilt out of their own operand lists — so a
+    /// wrong value here builds a string Chapter 2 does not contain, and typing the expected strings
+    /// would only have added a fourth transcription to disagree with.</para>
+    /// </summary>
+    [Fact]
+    public void ChapterTwoReprintsTheThreatRanksTableAndTheTwoFormulas()
+    {
+        var minions = ChapterTwoPage(CanonicalCombatRules.ThreatRanksCorroboratingPage);
+        var derived = ChapterTwoPage(CanonicalCombatRules.Edge.CorroboratingPage);
+
+        // Positive control: an empty haystack satisfies nothing below and looks exactly like agreement.
+        Assert.True(minions.Length > 200, $"Ch.2 p.13 came back as {minions.Length} characters.");
+        Assert.True(derived.Length > 200, $"Ch.2 p.60 came back as {derived.Length} characters.");
+
+        var faults = new List<string>();
+
+        foreach (var row in CanonicalCombatRules.ThreatRanks)
+        {
+            var printed = row.MaxThreat is null
+                ? $"{row.Category} {row.MinThreat}d or More"
+                : $"{row.Category} {row.MinThreat}d";
+
+            if (!minions.Contains(printed, StringComparison.Ordinal))
+                faults.Add($"Ch.2 p.13 does not print the Threat Ranks row '{printed}'");
+        }
+
+        var edge = FormulaOperands(CanonicalCombatRules.Edge.Formula, "edge");
+        var edgeSentence =
+            $"your {Capitalise(edge[0])} plus the greater of your {Capitalise(edge[1])} or {Capitalise(edge[2])}";
+
+        if (!derived.Contains(edgeSentence, StringComparison.Ordinal))
+            faults.Add($"Ch.2 p.60 does not print '{edgeSentence}'");
+
+        var health = FormulaOperands(CanonicalCombatRules.Health.Formula, "health");
+        var healthSentence =
+            $"the average of your {Capitalise(health[0])} and {Capitalise(health[1])} or the average of "
+            + $"your {Capitalise(health[2])} and {Capitalise(health[3])}";
+
+        if (!derived.Contains(healthSentence, StringComparison.Ordinal))
+            faults.Add($"Ch.2 p.60 does not print '{healthSentence}'");
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    private static string Capitalise(string word) => char.ToUpperInvariant(word[0]) + word[1..];
+
+    /// <summary>Every Chapter 2 section printed on <paramref name="printedPage"/>, joined.</summary>
+    private static string ChapterTwoPage(int printedPage)
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RulebookPath, "ch02-characters.json")));
+
+        var builder = new StringBuilder();
+
+        foreach (var section in document.RootElement.GetProperty("sections").EnumerateArray())
+        {
+            if (section.TryGetProperty("printed_page", out var page)
+                && page.ValueKind == JsonValueKind.Number
+                && page.GetInt32() == printedPage)
+            {
+                builder.Append(section.GetProperty("text").GetString()).Append('\n');
+            }
+        }
+
+        return builder.ToString();
+    }
+
     // ── Structural guards over both files ────────────────────────────────────
 
     /// <summary>
