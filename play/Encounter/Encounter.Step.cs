@@ -62,6 +62,8 @@ public sealed partial class Encounter
     private EncounterState ResolveAttack(EncounterState state, Attack attack, List<LedgerLine> lines)
     {
         if (NotTheirTurn(state, attack.Actor, lines)) return state;
+        if (OutOfTheFight(state, attack.Actor, "actor", lines)) return state;
+        if (OutOfTheFight(state, attack.Target, "target", lines)) return state;
 
         var actor = state[attack.Actor];
         var target = state[attack.Target];
@@ -388,6 +390,20 @@ public sealed partial class Encounter
             : after;
     }
 
+    /// <summary>
+    /// p.76's second way to be defeated: an effect whose duration has reached what is left of the
+    /// target.
+    ///
+    /// <para><b>The line used to be the whole of it, and that is the worst defect this repository
+    /// recognises.</b> The ledger announced that the target was out for the rest of the scene and
+    /// the state said otherwise: they kept their place in the order, kept defending, and
+    /// <see cref="EncounterState.Over"/> never saw them go down. A run reading its own ledger and a
+    /// run reading its own numbers would have given two different accounts of the same fight.</para>
+    ///
+    /// <para>It is recorded on the combatant rather than as a Health total, because it is not one —
+    /// an Ensnare long enough to end a fight ends it without doing a point of damage, and writing it
+    /// as damage is a lie the wound penalties and the Fatal Damage threshold would both read.</para>
+    /// </summary>
     private EncounterState DefeatByEffect(
         EncounterState state, Combatant target, string effect, int duration, List<LedgerLine> lines)
     {
@@ -398,7 +414,7 @@ public sealed partial class Encounter
             $"{duration} pages of {effect} reaches {target.Name}'s current Health of "
             + $"{target.CurrentHealth}, so they are out for {entry.SpecialEffect!.DefeatByEffectLasts}"));
 
-        return state;
+        return state.With(target.OutForTheScene(effect));
     }
 
     private EncounterState InflictDamage(
@@ -463,6 +479,7 @@ public sealed partial class Encounter
     private EncounterState ResolveMove(EncounterState state, Move move, List<LedgerLine> lines)
     {
         if (NotTheirTurn(state, move.Actor, lines)) return state;
+        if (OutOfTheFight(state, move.Actor, "actor", lines)) return state;
 
         var actor = state[move.Actor];
         var entry = _play.GetCombat("movement");
@@ -508,6 +525,7 @@ public sealed partial class Encounter
     private EncounterState ResolveHold(EncounterState state, Hold hold, List<LedgerLine> lines)
     {
         if (NotTheirTurn(state, hold.Actor, lines)) return state;
+        if (OutOfTheFight(state, hold.Actor, "actor", lines)) return state;
 
         var entry = _play.GetCombat("holding_an_action");
         var actor = state[hold.Actor];
@@ -522,6 +540,8 @@ public sealed partial class Encounter
     private EncounterState ResolveGrapple(EncounterState state, GrappleIntent grapple, List<LedgerLine> lines)
     {
         if (NotTheirTurn(state, grapple.Actor, lines)) return state;
+        if (OutOfTheFight(state, grapple.Actor, "actor", lines)) return state;
+        if (OutOfTheFight(state, grapple.Target, "target", lines)) return state;
 
         var entry = _play.GetCombat("grappling");
         var table = _play.GetCombat("grappling_table");
@@ -617,6 +637,7 @@ public sealed partial class Encounter
     private EncounterState ResolveBreakFree(EncounterState state, BreakFree free, List<LedgerLine> lines)
     {
         if (NotTheirTurn(state, free.Actor, lines)) return state;
+        if (OutOfTheFight(state, free.Actor, "actor", lines)) return state;
 
         var entry = _play.GetCombat("breaking_free");
         var rule = entry.BreakingFree!;
@@ -1011,6 +1032,47 @@ public sealed partial class Encounter
             $"it is not {state[actor].Name}'s turn — every character gets "
             + $"{entry.Page!.TurnsPerCharacterPerPage} turn a page, and this one belongs to "
             + $"{state.Current?.Name ?? "nobody: the page is out of turns"}"));
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether somebody named by an intent is already out of the fight, refused on the ledger.
+    ///
+    /// <para><b>A defeated character does not act and is not attacked.</b> p.75 says defeat means
+    /// out of the fight and p.76 says an effect that reaches a character's Health puts them out for
+    /// the scene; an engine that let either of them keep swinging was applying no rule at all, and a
+    /// balance run would have counted their attacks. The refusal cites whichever of the two rules
+    /// put them there, because "unconscious at zero Health" and "held for the rest of the scene" are
+    /// different states with different ways out.</para>
+    ///
+    /// <para><b>Resolve purchases are deliberately not guarded by this.</b> Chapter 5's spends are
+    /// exactly what a character who has just gone down does — p.76's instant recovery brings them
+    /// round, and p.79's Fatal Damage rescue is bought at a Health well past the defeat figure. A
+    /// refusal there would block the two purchases the book prints for the situation.</para>
+    /// </summary>
+    private bool OutOfTheFight(EncounterState state, string id, string role, List<LedgerLine> lines)
+    {
+        var combatant = state[id];
+        var damage = _play.GetCombat("damage");
+
+        if (!combatant.Defeated(damage.Damage!.DefeatedAtHealth)) return false;
+
+        if (combatant.DefeatedByEffect is { } effect)
+        {
+            var special = _play.GetCombat("special_effects");
+
+            lines.Add(new LedgerLine(
+                state.Page, id, special.Id, special.SourceRef,
+                $"{combatant.Name} is out for {special.SpecialEffect!.DefeatByEffectLasts} under "
+                + $"{effect}, so they are not the {role} of anything"));
+
+            return true;
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, id, damage.Id, damage.SourceRef,
+            $"{combatant.Name} is {damage.Damage.DefeatedMeans}, so they are not the {role} of anything"));
 
         return true;
     }

@@ -107,6 +107,8 @@ Three properties of it are load-bearing:
 
 **Table settings recorded but not yet applied** — `Encounter.SwitchesNotYetApplied`, announced on page one of every run that turns one on: `CloseRangePenalty`, `TheDrop`, `FriendlyFire`, `HardTargets`, `SlowHealing`, and the two Gear Limit switches. The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, and the initiative variant beside them.
 
+**Two ways to be out of the fight, and both are on `Combatant`**: beaten down to `damage.defeated_at_health`, and p.76's `DefeatedByEffect` — an effect whose duration reached what was left of the target, which lasts the rest of the scene and is not a Health total (an Ensnare that ends a fight does it without a point of damage). `Defeated` reads both, so `Over`, `RunToEnd` and the policy all see either. **A defeated combatant is refused rather than resolved**: every intent that is a character *doing* something — `Attack`, `Move`, `Hold`, `GrappleIntent`, `BreakFree` — is refused for a defeated actor and against a defeated target, citing whichever of the two rules put them there. The Resolve purchases are deliberately not guarded, because Chapter 5's spends are exactly what a character who has just gone down does: p.76's instant recovery and p.79's Fatal Damage rescue are both bought from there.
+
 **Mechanics with no intent yet**: multiple actions and their −2d, combat stunts, ambushes, clobbering attacks, defending others, healing between fights, and the throwing table. None of them is stubbed; there is simply nothing to call.
 
 ## The readings this engine makes, and why each is here rather than in the data

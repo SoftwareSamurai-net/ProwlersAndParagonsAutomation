@@ -58,7 +58,8 @@ public sealed class Combatant
         int resolve,
         int groupSize,
         IReadOnlyDictionary<string, int> traitRanks,
-        IReadOnlyList<string> defences)
+        IReadOnlyList<string> defences,
+        string? defeatedByEffect)
     {
         Id = id;
         Name = name;
@@ -71,6 +72,7 @@ public sealed class Combatant
         GroupSize = groupSize;
         TraitRanks = traitRanks;
         Defences = defences;
+        DefeatedByEffect = defeatedByEffect;
     }
 
     /// <summary>The side the book's own fights are written from: the player characters'.</summary>
@@ -133,14 +135,27 @@ public sealed class Combatant
     /// </summary>
     public IReadOnlyList<string> Defences { get; }
 
+    /// <summary>
+    /// The special effect that has put this combatant out for the scene, or null.
+    ///
+    /// <para><b>p.76's second way to be defeated, and it is not a Health total.</b> Where a special
+    /// effect's duration reaches the target's current Health the target is out "for the rest of the
+    /// scene" — an Ensnare or a Mind Control long enough to end a fight ends it without doing a point
+    /// of damage. Recording it as Health would be a lie about how they went down, and a lie the wound
+    /// penalties and the Fatal Damage threshold would both go on to read.</para>
+    /// </summary>
+    public string? DefeatedByEffect { get; }
+
     /// <summary>Whether this combatant holds Resolve at all — true for a Hero and nobody else.</summary>
     public bool HoldsResolve => Kind == CombatantKind.Hero;
 
     /// <summary>
-    /// Whether this combatant is out of the fight. A Minion group is out when the last of it is.
+    /// Whether this combatant is out of the fight — beaten down to the defeat figure, wiped out to
+    /// the last body, or held by an effect that has run past what is left of them (p.76).
     /// </summary>
     public bool Defeated(int defeatedAtHealth) =>
-        Kind == CombatantKind.MinionGroup ? GroupSize <= 0 : CurrentHealth <= defeatedAtHealth;
+        DefeatedByEffect is not null
+        || (Kind == CombatantKind.MinionGroup ? GroupSize <= 0 : CurrentHealth <= defeatedAtHealth);
 
     /// <summary>The rank of one Trait, or zero where the combatant has none of it.</summary>
     public int Rank(string traitId) => TraitRanks.TryGetValue(traitId, out var rank) ? rank : 0;
@@ -191,7 +206,21 @@ public sealed class Combatant
 
     /// <summary>This combatant with a different Health. Nothing else moves.</summary>
     public Combatant WithHealth(int health) =>
-        new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences);
+        new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
+            DefeatedByEffect);
+
+    /// <summary>
+    /// This combatant put out of the fight by <paramref name="effect"/> — p.76's defeat by special
+    /// effect, which lasts the rest of the scene.
+    /// </summary>
+    public Combatant OutForTheScene(string effect)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(effect);
+
+        return new Combatant(
+            Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
+            Defences, effect);
+    }
 
     /// <summary>
     /// This combatant with <paramref name="points"/> taken out of their Resolve pool.
@@ -217,7 +246,8 @@ public sealed class Combatant
         }
 
         return new Combatant(
-            Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks, Defences);
+            Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks,
+            Defences, DefeatedByEffect);
     }
 
     /// <summary>This Minion group with fewer bodies in it.</summary>
@@ -225,7 +255,7 @@ public sealed class Combatant
         Kind == CombatantKind.MinionGroup
             ? new Combatant(
                 Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, Math.Max(0, groupSize),
-                TraitRanks, Defences)
+                TraitRanks, Defences, DefeatedByEffect)
             : throw new InvalidOperationException($"{Name} is a {Kind}, not a group of Minions.");
 
     private static Combatant Build(
@@ -241,6 +271,7 @@ public sealed class Combatant
         return new Combatant(
             id, name, kind, side, edge, health, health, resolve, groupSize,
             new Dictionary<string, int>(traitRanks, StringComparer.Ordinal),
-            [.. defences]);
+            [.. defences],
+            defeatedByEffect: null);
     }
 }

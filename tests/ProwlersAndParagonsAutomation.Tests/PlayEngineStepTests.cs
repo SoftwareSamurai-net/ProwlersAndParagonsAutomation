@@ -143,6 +143,148 @@ public sealed class PlayEngineStepTests
         Assert.Single(sidesStanding);
     }
 
+    // ── Defeat ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>An effect long enough to reach what is left of a target puts them out for the scene, and
+    /// the state says so and not only the ledger.</b>
+    ///
+    /// <para>p.76: "if the duration of the effect is equal to or greater than the target's current
+    /// Health, the target is defeated for the rest of the scene". Six net successes buy three pages
+    /// of Mind Control, which reaches a target on three Health. The engine used to write that
+    /// sentence on the ledger and change nothing — the target kept their place in the order, kept
+    /// defending, and the fight could not end on them — which is a ledger that lies about the run it
+    /// is the audit trail for.</para>
+    ///
+    /// <para>It is not recorded as damage, and the fixture says so: the target's Health has not
+    /// moved. An Ensnare long enough to end a fight ends it without doing a point.</para>
+    /// </summary>
+    [Fact]
+    public void AnEffectThatReachesATargetsHealthPutsThemOutForTheScene()
+    {
+        var controller = Combatant.Villain("controller", "the Controller", edge: 10, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["mind_control"] = 12, ["willpower"] = 5 },
+            ["willpower"]);
+
+        var subject = Combatant.Hero("subject", "the Subject", edge: 8, health: 3, resolve: 1,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["willpower"] = 6, ["might"] = 6 },
+            ["willpower"]);
+
+        // Nine successes against three is six net; half of six, rounding the Glossary's way, is the
+        // three pages that reach a Health of three.
+        var dice = new ScriptedDice([.. FacesFor(12, 9), .. FacesFor(6, 3)]);
+        var encounter = new Encounter(_play, dice);
+
+        var state = encounter.Begin([controller, subject]);
+        var step = encounter.Step(state, new Attack(
+            "controller", "subject", "mind_control", DamageKind.Psychic, Effect: "Mind Control"));
+
+        state = step.State;
+
+        // The controls, before the outcome: the rolls are the ones this fixture is about, and the
+        // engine made exactly those.
+        Assert.Equal(9, state.LastAttack!.AttackSuccesses);
+        Assert.Equal(3, state.LastAttack.DefenceSuccesses);
+        Assert.Equal(0, dice.Remaining);
+        Assert.Equal(3, Assert.Single(state.Effects).RemainingPages);
+
+        Assert.Contains(step.Added, l =>
+            string.Equals(l.Rule, "special_effects", StringComparison.Ordinal)
+            && l.Text.Contains("out for the rest of the scene", StringComparison.Ordinal));
+
+        // And the state agrees with the sentence.
+        Assert.Equal("Mind Control", state["subject"].DefeatedByEffect);
+        Assert.True(state["subject"].Defeated(encounter.DefeatFloor));
+        Assert.Equal(3, state["subject"].CurrentHealth);
+
+        // The fight is over once the page turns, which is when Over is recomputed.
+        state = encounter.Step(state, new EndTurn("controller")).State;
+        state = encounter.Step(state, new EndTurn("subject")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+
+        Assert.True(state.Over);
+
+        // And on the next page the subject does not act: the attack is refused, citing p.76.
+        var refused = encounter.Step(state with { TurnIndex = state.TurnOrder.ToList().IndexOf("subject") },
+            new Attack("subject", "controller", "might"));
+
+        Assert.Equal(10, refused.State["controller"].CurrentHealth);
+        Assert.Contains(refused.Added, l =>
+            string.Equals(l.Rule, "special_effects", StringComparison.Ordinal)
+            && l.Text.Contains("is out for the rest of the scene under Mind Control", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A combatant who has been beaten down neither acts nor is acted on.</b>
+    ///
+    /// <para>p.75: falling to the defeat figure means out of the fight. Every intent that is a
+    /// character doing something is refused for a defeated actor and against a defeated target, and
+    /// the refusal cites <c>damage</c> — the entry that says what defeat is.</para>
+    ///
+    /// <para><b>The Resolve purchases are deliberately still open</b>, and the fixture pins that:
+    /// Chapter 5's spends are what a character who has just gone down does, and p.79's Fatal Damage
+    /// rescue is bought at a Health well past the defeat figure.</para>
+    /// </summary>
+    [Fact]
+    public void ADefeatedCombatantNeitherActsNorIsActedOn()
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 6, ["toughness"] = 4, ["agility"] = 3
+        };
+
+        var down = Combatant.Hero("down", "the fallen Hero", edge: 9, health: 8, resolve: 2,
+            traits, ["toughness", "agility"]).WithHealth(0);
+        var up = Combatant.Villain("up", "the Villain", edge: 7, health: 10, traits, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(3));
+        var state = encounter.Begin([down, up]);
+
+        // The control: the fallen Hero is at the entry's own defeat figure and it is their turn, so
+        // nothing but being defeated is stopping them.
+        Assert.Equal(encounter.DefeatFloor, state["down"].CurrentHealth);
+        Assert.Equal("down", state.Current!.Id);
+
+        foreach (var intent in new Intent[]
+                 {
+                     new Attack("down", "up", "might"),
+                     new Move("down", "up"),
+                     new Hold("down"),
+                     new GrappleIntent("down", "up", GrappleMove.Hold),
+                     new BreakFree("down", "toughness", Threshold: 2)
+                 })
+        {
+            var step = encounter.Step(state, intent);
+
+            Assert.Contains(step.Added, l =>
+                string.Equals(l.Rule, "damage", StringComparison.Ordinal)
+                && l.Text.Contains("the fallen Hero is", StringComparison.Ordinal)
+                && l.Text.Contains("not the actor of anything", StringComparison.Ordinal));
+
+            Assert.Equal(10, step.State["up"].CurrentHealth);
+            Assert.Empty(step.State.Grapples);
+            Assert.Empty(step.State.Holds);
+        }
+
+        // And nobody attacks them either. It is the Villain's turn for this one.
+        var onDown = encounter.Step(
+            state with { TurnIndex = state.TurnOrder.ToList().IndexOf("up") },
+            new Attack("up", "down", "might"));
+
+        Assert.Contains(onDown.Added, l =>
+            string.Equals(l.Rule, "damage", StringComparison.Ordinal)
+            && l.Text.Contains("not the target of anything", StringComparison.Ordinal));
+        Assert.Null(onDown.State.LastAttack);
+
+        // A Resolve purchase is not refused: p.76 and p.79 are both bought from exactly here.
+        var spend = encounter.Step(state, new SpendResolve("down", ResolveSpend.InstantRecovery));
+
+        Assert.Contains(spend.Added, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+        Assert.DoesNotContain(spend.Added, l =>
+            l.Text.Contains("not the actor of anything", StringComparison.Ordinal));
+    }
+
     // ── Citations ────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -224,6 +366,34 @@ public sealed class PlayEngineStepTests
                 $"the ledger cites '{line.SourceRef}' for {line.Rule}, whose own source_ref is "
                 + $"'{pages[line.Rule]}': {line.Text}");
         }
+    }
+
+    /// <summary>
+    /// Faces for a pool of <paramref name="pool"/> dice worth exactly <paramref name="successes"/>
+    /// under the printed map — sixes first, one four if an odd success is left, then ones.
+    ///
+    /// <para>The same bridge <see cref="PlayWorkedExamples"/> needs and for the same reason: a rule
+    /// is stated in successes and <c>IDiceSource</c> answers in faces. It throws rather than
+    /// approximating, so a fixture cannot quietly assert a count its pool could not produce.</para>
+    /// </summary>
+    private static int[] FacesFor(int pool, int successes)
+    {
+        var sixes = successes / 2;
+        var four = successes % 2;
+
+        if (sixes + four > pool)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(successes), successes,
+                $"{pool} dice cannot be made to score {successes} successes under the printed map.");
+        }
+
+        return
+        [
+            .. Enumerable.Repeat(6, sixes),
+            .. Enumerable.Repeat(4, four),
+            .. Enumerable.Repeat(1, pool - sixes - four)
+        ];
     }
 
     /// <summary>One entry's <c>source_ref</c>, whichever of the five files it is in.</summary>
