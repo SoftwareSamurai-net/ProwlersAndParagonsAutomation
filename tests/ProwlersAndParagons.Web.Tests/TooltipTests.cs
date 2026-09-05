@@ -202,4 +202,42 @@ public sealed class TooltipTests
             cell.QuerySelector(".num")!.TextContent,
             StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// <b>The strip shows the cap the character is actually built to, and says when that is not
+    /// the tier's.</b> A house cap is what ranks are bounded by and what Resolve was measured
+    /// from, so a strip printing the tier's 12d over a character capped at 6d would be bounding
+    /// the fields by one number and judging them by another.
+    ///
+    /// <para>The run without a house cap is the positive control: the note is absent, so the
+    /// assertion below cannot be satisfied by a strip that always prints it.</para>
+    /// </summary>
+    [Fact]
+    public void TheBreakdownShowsAHouseTraitCapAndNamesTheTiersBesideIt()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        var tier = ctx.Session.TierTraitCap;
+        Assert.Equal(tier, ctx.Session.TraitCap);
+        Assert.DoesNotContain("not the tier's", TraitCapCell(ctx).TextContent, StringComparison.Ordinal);
+
+        ctx.Session.Sheet.TraitCapRank = 6;
+        Assert.NotEqual(6, tier);
+
+        var cell = TraitCapCell(ctx);
+
+        Assert.Contains("6", cell.QuerySelector(".num")!.TextContent, StringComparison.Ordinal);
+        Assert.Contains(tier.ToString(), cell.TextContent, StringComparison.Ordinal);
+        Assert.Contains("not the tier's", cell.TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>The Trait Cap's own cell of the budget breakdown, opened.</summary>
+    private static AngleSharp.Dom.IElement TraitCapCell(RenderContext ctx)
+    {
+        var strip = ctx.Render<HpBudgetBar>();
+        strip.Find(".budget-toggle").Click();
+
+        return strip.Find("#budget-breakdown").Children.Single(
+            e => e.TextContent.StartsWith("Trait Cap", StringComparison.Ordinal));
+    }
 }

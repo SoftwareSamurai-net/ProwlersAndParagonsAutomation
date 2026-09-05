@@ -544,6 +544,17 @@ the Trait Cap was silent on its own row until the end. `web/Services/SheetFindin
   token was needed — `--danger` and `--heading` on `--panel` are already held to 4.5:1 in all four
   palettes by `EveryScreenPairInUseHoldsItsContrastFloor`. Adding one would have needed a fresh
   measurement, since the screen palette has no luminance test.
+- **A cap tighter than a row's own floor is drawn, not enforced, and above all not thrown over.**
+  `RankRow.Ceiling` is `max(Max, Min, Rank)` and `Max` is the Trait Cap in force. Two states reach
+  it and both are ordinary once a house cap exists: a campaign capped at 2d over a package that
+  grants 3d made `Min > Max`, and `Math.Clamp` throws `ArgumentException` on exactly that — the
+  first pip click took out the whole step, on a character the validator already had
+  `TRAIT_CAP_BELOW_MINIMUM` and `TRAIT_ABOVE_CAP` to say something about. And an 8d Trait under a
+  6d cap drew six pips announcing `aria-valuenow=8` against `aria-valuemax=6`, a `slider` outside
+  its own range — the fault the budget strip records for `progressbar`, one component over. The
+  ceiling gives way to what is on the sheet, so the rank comes down and cannot climb; nothing is
+  repaired and the findings under the row do the talking. There is no "over the cap" ink, and a
+  second way of saying what the finding says is not worth a token.
 - **`HP_BUDGET_EXCEEDED` and the tier findings are deliberately unrouted.** They belong to no row,
   and the budget strip already exists for the first of them. A finding pinned to an arbitrary row
   would be worse than one shown where it belongs.
@@ -718,9 +729,66 @@ the storage half, which shipped a slice earlier.
   Resolve, which is `(TraitCap − highestRelevantRank) × 2`. `AnEmptyTierIsInherited` is the positive
   control that keeps the mismatch assertion from being an absence satisfied by a join that does
   nothing.
-- **The Trait Cap on a campaign is reported and never enforced**, deliberately and with the owner's
-  approval. `CampaignTests.ACampaignsTraitCapDoesNotMoveResolve` pins it at three caps including
-  none. Do not add a `TraitCapOverride` to `CharacterSheet` and do not touch `CheckTraitCap`.
+- **Joining copies a campaign's Trait Cap into a character that has none, and never over one that
+  has.** That is the tier rule one field at a time: an empty field is filled — alongside the tier
+  where the tier was empty, and on its own where it was not — and a character already built to a
+  cap keeps it, with `CAMPAIGN_TRAIT_CAP_MISMATCH` handed back by `Inspect`. Writing over one would
+  move Resolve on somebody's finished character in the course of typing a join code, which is the
+  same objection as lowering a tier. **A cap mismatch does not block the join and a tier mismatch
+  does**: a character at the wrong power level is at the wrong table, and one whose table caps
+  tighter than it does is a character with a finding on it. The finding carries the two ranks as
+  fields rather than in its sentence, the way the tier finding carries the two ids.
+  `AnEmptyTraitCapInheritsTheCampaigns` is the positive control and asserts the Resolve it moves,
+  because a join that wrote a field nothing read would satisfy an assertion about the field alone.
+- **A join says exactly what it took, because the outcome could not.** `Apply` returns
+  `CampaignJoinResult` — the outcome plus `TookTier` and `TookTraitCap` — and each sentence states
+  that and nothing more: "Its 6d Trait Cap is now yours, and Resolve is measured from it." One
+  outcome covers four different things having happened (both, tier only, cap only, neither), and
+  the page guessed from the outcome alone. It guessed wrong, claiming "Its tier and its Trait Cap
+  are now yours" over a join that took the tier and left a cap the character already had — the one
+  thing joining most carefully does not do, announced out loud. The write is `??=` and is silent by
+  construction, so the flags are read *before* it. **A message claiming a change nobody made is
+  worse than no message**, which is the same rule the three kept-but-no-room refusals follow.
+- **`CampaignJoin.Inspect` is drawn at the head of "Games you are in" on `/campaign`, and nowhere
+  else.** All three of its findings — `UNKNOWN_CAMPAIGN`, `CAMPAIGN_TIER_MISMATCH`,
+  `CAMPAIGN_TRAIT_CAP_MISMATCH` — reach a reader there and only there. **It shipped reaching
+  nobody**: the method was called by tests alone for a whole slice, so a character at 8d in a 6d
+  game was told on no screen, which is the fault this repository keeps hitting. The page resolves
+  the character's campaign **once per campaign id** and asks `Inspect` **every render** — the tier
+  and the cap move without the id moving, and re-resolving per keystroke is the read-per-letter
+  `ChooseTier` already refuses. The screen looks the two tier ids and the two ranks up and says
+  them, which is the other half of the finding carrying them as fields rather than in its sentence.
+- **`CharacterSession.TraitCap` is the cap in force, not the tier's**, and it is
+  `DerivedStatsCalculator.EffectiveTraitCap` rather than a second spelling of the coalesce. Every
+  rank field on every step is bounded by it, and the number the browser bounds by has to be the
+  number the validator judges by and the number Resolve was measured from. **Wherever the cap is
+  printed — the budget strip, the printed sheet's meta line, the Resolve breakdown, a replay's
+  verdict — the tier's is named beside it when the two differ**, because "Trait Cap 6d" at the
+  Standard tier looks like a mistake to anybody who knows the tier allows 12d. **All four are
+  tested, and for a while only the strip was** — `TraitCapOnScreenTests` covers the other three,
+  each with the control that a character on its tier's own cap is told one figure and not two.
+- **No screen claims which *way* the cap moved, because nothing on a screen can tell.**
+  `CharacterSession.TraitCapIsNotTheTiers` is a difference, not a direction, and a cap *above* the
+  tier's is reachable: the GM's form takes 1 to 30 whatever tier is chosen, and the validator
+  reports `TRAIT_CAP_ABOVE_TIER` and **still uses the number as written**. The Resolve breakdown
+  said "This game caps tighter than its tier's 12d" and would have said it over a 20d cap, between
+  the two figures that contradict it. It reads "Not the tier's 12d" now, which is true either way.
+- **The GM's form says when a cap is above the tier it chose, and does not refuse it.** A house cap
+  tightens a tier's ceiling and never loosens it, and the box accepted 20d at Standard in silence
+  under a hint reading "Tighter than the tier's" — so every character joining with no cap of its
+  own inherited an error on a screen the GM never opens. **Refusing was the alternative and this is
+  one of the few places it would have been defensible** — a form checking its own input against a
+  tier the same form chose is not the engine judging somebody's character. It reports because a GM
+  may type the cap before picking the tier, and a Save that silently does nothing is a control that
+  looks broken; reporting is also the answer the engine gives the same mistake one level down, so
+  the two cannot disagree about what a bad cap means.
+- **A campaign's Trait Cap is read from the character, never from the campaign.** That deferral is over: the owner settled on 2026-09-05 that a house cap *substitutes*
+  for the tier's, so it moves Resolve — see [`rules-engine.md`](rules-engine.md) for the
+  arithmetic and why gating was not an honest alternative. What survives unchanged is the route.
+  `CharacterSheet.TraitCapRank` is a field on the character; `Campaign.TraitCapRank` is still read
+  by nothing that computes anything, and `CampaignTests.ACampaignsTraitCapIsNotReadFromTheCampaign`
+  pins that at three caps including none. **If a reader for `CampaignId` is ever written, that is
+  the test that fails.**
 - **`CampaignId` is not in `CharacterSession.IsWorthKeeping`, and must not be.** Adding it would
   make picking a campaign create a real, listed, empty character the moment it happened — verbatim
   the defect that predicate was added to fix.
@@ -1054,6 +1122,14 @@ works and nobody can reach.
   obvious fixture ids (`code`, `flight`) are written exactly the way their printed names are, so a
   case-insensitive check on those cannot tell a leak from a correct lookup. That took three goes at
   one fixture; the test records all three.
+- **The Trait Cap row is the cap in force, not the field.** `Trait Cap 12d → 6d`, through
+  `EffectiveTraitCap`, so the ceiling a GM decides about is the one the validator judged the
+  submission by and the one its Resolve was measured from. A house cap written at exactly the
+  tier's own moves nothing and says nothing — the same rule the 0d rank follows. **Without this row
+  the screen said "nothing changed" over a real change**: the cap costs no Hero Points, so the
+  spend could not be the trigger, and a player who set one between submissions moved their Resolve
+  and could turn a legal Ability illegal while the GM's list stayed empty. A tier change moves this
+  row as well as the Tier row, which is two facts and not a duplicate.
 - **An id the rules data does not know is printed as itself, deliberately.** A payload can name a
   Power from a build these rules do not have, and a diff full of rows called "Unnamed" tells a GM
   nothing.

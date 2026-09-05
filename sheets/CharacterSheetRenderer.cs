@@ -22,15 +22,30 @@ public static class CharacterSheetRenderer
     /// filesystem or a Content-Disposition header would object to, plus a timestamp.
     /// Returned without an extension so the caller can append .txt or .json.
     /// </summary>
-    public static string BaseFileName(CharacterSheet sheet, DateTime generatedAt)
+    public static string BaseFileName(CharacterSheet sheet, DateTime generatedAt) =>
+        $"{BaseFileName(sheet)}_{generatedAt:yyyyMMdd_HHmmss}";
+
+    /// <summary>
+    /// The same name with no timestamp, so re-exporting a character replaces its sheets
+    /// instead of adding a pair beside them.
+    ///
+    /// <para><b>The timestamp is right for one export and wrong for a roster.</b> Twenty-eight
+    /// characters re-exported after an edit reached fifty-six <c>.txt</c> files before anybody
+    /// noticed, and finding the newest of each needed a script. This is what
+    /// <c>build --overwrite</c> names its files with; the timestamped form stays the default,
+    /// because replacing a file nobody asked to replace is the worse failure of the two.</para>
+    ///
+    /// <para>Two characters whose names differ only in punctuation share this name — the
+    /// caller has to notice that, and <c>build</c> reports it rather than letting one write
+    /// over the other in silence.</para>
+    /// </summary>
+    public static string BaseFileName(CharacterSheet sheet)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
-        var safeName = string.IsNullOrWhiteSpace(sheet.Name)
+        return string.IsNullOrWhiteSpace(sheet.Name)
             ? "unnamed"
             : new string(sheet.Name.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
-
-        return $"{safeName}_{generatedAt:yyyyMMdd_HHmmss}";
     }
 
     // ── Text sheet ────────────────────────────────────────────────────────
@@ -310,8 +325,19 @@ public static class CharacterSheetRenderer
                 ["id"]          = tier.Id,
                 ["name"]        = tier.Name,
                 ["hero_points"] = tier.HeroPoints,
+
+                // The tier's own ceiling, which is a fact about the tier and stays one. The cap
+                // this character is actually built to is the top-level `trait_cap` below, and it
+                // differs whenever a table has imposed a house rule.
                 ["trait_cap"]   = tier.TraitCapRank
             },
+
+            // <b>The ceiling this character is built to</b>, which is the house cap on the sheet
+            // where there is one and the tier's otherwise. Top-level rather than inside `tier`
+            // because it is not always the tier's — and it is here at all because it is the datum
+            // `derived.resolve` further down is measured from, so a sheet that printed the figure
+            // and not the cap would be unreadable the first time a campaign tightened one.
+            ["trait_cap"] = DerivedStatsCalculator.EffectiveTraitCap(sheet, tier),
             ["package"] = pkg is null ? JsonValue.Create<string?>(null) : new JsonObject
             {
                 ["id"]   = pkg.Id,

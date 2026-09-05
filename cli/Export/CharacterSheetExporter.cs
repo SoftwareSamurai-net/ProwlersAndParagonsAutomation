@@ -21,6 +21,12 @@ public sealed class CharacterSheetExporter
     /// <c>build</c> command lets the caller say where, since it may be running
     /// anywhere and against a character it did not create.
     /// Returns (txtPath, jsonPath).
+    ///
+    /// <para><paramref name="overwrite"/> names the pair after the character alone and
+    /// replaces whatever is under that name. It is what re-checking a roster after an edit
+    /// wants: the default adds a timestamped pair every run, so twenty-eight characters
+    /// exported twice are fifty-six files and a de-duplication script. It is not the default,
+    /// because replacing a file nobody asked to replace is the worse of the two failures.</para>
     /// </summary>
     public (string TxtPath, string JsonPath) Export(
         CharacterSheet sheet,
@@ -29,18 +35,22 @@ public sealed class CharacterSheetExporter
         DerivedStatsCalculator derived,
         ValidationResult validation,
         string projectRoot,
-        string? outputDirectory = null)
+        string? outputDirectory = null,
+        bool overwrite = false)
     {
         var dir = outputDirectory ?? Path.Combine(projectRoot, OutputDir);
         Directory.CreateDirectory(dir);
 
         var generatedAt = DateTime.Now;
-        var baseName    = CharacterSheetRenderer.BaseFileName(sheet, generatedAt);
 
         // The base name is the character's name and the time to the second, and two runs
         // inside one second silently overwrote each other — both reporting paths that then
-        // held somebody else's character. A repair loop runs far faster than that.
-        baseName = Unused(dir, baseName);
+        // held somebody else's character. A repair loop runs far faster than that. Under
+        // --overwrite that search is the thing being turned off, not a safety net being
+        // skipped: a caller asking for a stable name is asking for the file to be replaced.
+        var baseName = overwrite
+            ? CharacterSheetRenderer.BaseFileName(sheet)
+            : Unused(dir, CharacterSheetRenderer.BaseFileName(sheet, generatedAt));
 
         var txtPath  = Path.Combine(dir, baseName + ".txt");
         var jsonPath = Path.Combine(dir, baseName + ".json");

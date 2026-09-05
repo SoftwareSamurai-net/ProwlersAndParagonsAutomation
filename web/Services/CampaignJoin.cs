@@ -8,12 +8,18 @@ public enum CampaignJoinOutcome
     /// <summary>
     /// The character's tier was empty, so the campaign's settings were copied into it and the
     /// character now names the campaign.
+    ///
+    /// <para><b>Which settings, exactly, is on <see cref="CampaignJoinResult"/> and not derivable
+    /// from here</b> — a campaign that names no tier gives none, and a character that already had
+    /// a house cap keeps it even in this branch.</para>
     /// </summary>
     Inherited,
 
     /// <summary>
     /// The character already agreed with the campaign — same tier, or a campaign that names no
-    /// tier — so it now names the campaign and nothing else moved.
+    /// tier — so it now names the campaign. <b>A house Trait Cap it did not have may still have
+    /// been copied in</b>, which is inheriting into an empty field one field at a time; a cap it
+    /// already had is left alone and the disagreement is reported by <see cref="CampaignJoin.Inspect"/>.
     /// </summary>
     Joined,
 
@@ -28,6 +34,34 @@ public enum CampaignJoinOutcome
     CampaignIsNotHere,
 }
 
+/// <summary>
+/// What a join did, and what it actually copied.
+///
+/// <para><b>The two flags are here because the outcome alone could not carry the sentence.</b>
+/// <see cref="CampaignJoinOutcome.Inherited"/> and <see cref="CampaignJoinOutcome.Joined"/> both
+/// copy <em>some</em> subset of a campaign's settings — the tier only where the character had
+/// none, the cap only where the character had none, a campaign that sets neither copies nothing at
+/// all — and a screen reading the outcome alone had to guess. It guessed wrong: "Its tier and its
+/// Trait Cap are now yours" was printed over a join that took the tier and left a cap the
+/// character already had, which is the one thing this class most carefully does not do. A message
+/// that claims a change nobody made is worse than no message, because it teaches a reader to
+/// distrust the ones that are true.</para>
+/// </summary>
+/// <param name="Outcome">What happened.</param>
+/// <param name="TookTier">
+/// Whether the campaign's tier was written onto the character. False where the character already
+/// had one, and false where the campaign names none — a GM who has not set a power level is not
+/// giving anybody one.
+/// </param>
+/// <param name="TookTraitCap">
+/// Whether the campaign's house Trait Cap was written onto the character. False where the
+/// character already had a cap of its own, and false where the campaign has set none. <b>This is
+/// the flag that changes a figure</b>: Resolve is measured from the cap, so a join that took one
+/// moved it.
+/// </param>
+public readonly record struct CampaignJoinResult(
+    CampaignJoinOutcome Outcome, bool TookTier = false, bool TookTraitCap = false);
+
 /// <summary>One thing a host can say about a character's campaign. A report, never a repair.</summary>
 /// <param name="Code">
 /// A stable code in the same spelling <c>CharacterValidator</c> uses — <c>UNKNOWN_CAMPAIGN</c>
@@ -36,6 +70,14 @@ public enum CampaignJoinOutcome
 /// <param name="Message">What to put in front of a person.</param>
 /// <param name="CharacterTierId">The tier the character is built to, where the finding is about one.</param>
 /// <param name="CampaignTierId">The tier the campaign is played at, where the finding is about one.</param>
+/// <param name="CharacterTraitCapRank">
+/// The Trait Cap the character is built to, where the finding is about the cap.
+/// </param>
+/// <param name="CampaignTraitCapRank">
+/// The Trait Cap the campaign has set, where the finding is about the cap. Carried rather than
+/// written into the sentence for the reason the tier ids are: a screen renders the pair, and the
+/// message stays true without them.
+/// </param>
 /// <remarks>
 /// <b>The two ids are carried rather than written into the sentence</b>, because an id is not what
 /// a tier is called: the rulebook prints names, and every other finding in this application names
@@ -43,7 +85,8 @@ public enum CampaignJoinOutcome
 /// and says them; the message stays true without them.
 /// </remarks>
 public sealed record CampaignFinding(
-    string Code, string Message, string? CharacterTierId = null, string? CampaignTierId = null);
+    string Code, string Message, string? CharacterTierId = null, string? CampaignTierId = null,
+    int? CharacterTraitCapRank = null, int? CampaignTraitCapRank = null);
 
 /// <summary>
 /// Putting a character into a campaign: <b>inherit into an empty field, offer into a full
@@ -66,10 +109,20 @@ public sealed record CampaignFinding(
 /// while nobody is looking at it. So the disagreement is handed back for somebody to decide
 /// about.</para>
 ///
-/// <para><b>And the trait cap is reported, never enforced, in this slice at all.</b>
-/// <see cref="Campaign.TraitCapRank"/> is carried, listed and shown; nothing applies it. There is
-/// a test that a campaign whose cap differs from its tier's leaves <c>CalculateResolve</c>
-/// returning exactly what it returns with no campaign in the picture.</para>
+/// <para><b>The Trait Cap follows the same rule as the tier, one field at a time.</b> A campaign's
+/// cap is copied into <see cref="CharacterSheet.TraitCapRank"/> when the character has none, and a
+/// character that already has one keeps it and the disagreement is handed back. That is a real
+/// change to what the character is: the cap <em>substitutes</em> for the tier's, so it moves
+/// Resolve — see <c>docs/guide/rules-engine.md</c> for the owner's answer and the arithmetic.
+/// Which is exactly why it is never written over a cap somebody already set.</para>
+///
+/// <para><b>The cap is inherited even where the tier is not.</b> The tier is not copied into a
+/// character that already has one, because raising or lowering it is the repair this class exists
+/// not to make; the cap is copied into a character that has <em>none</em>, which is not a repair
+/// but the empty field being filled — the same thing that happens to the tier when the tier is
+/// empty. A cap mismatch does not block the join either, and the tier mismatch does: a character
+/// at the wrong power level is at the wrong table, and one whose table caps tighter than it does
+/// is a character with a finding on it.</para>
 /// </summary>
 public static class CampaignJoin
 {
@@ -87,11 +140,16 @@ public static class CampaignJoin
     /// The campaign, already resolved by a store, or null when the id named no campaign this
     /// browser or account holds.
     /// </param>
-    public static CampaignJoinOutcome Apply(CharacterSheet sheet, Campaign? campaign)
+    /// <returns>
+    /// What happened, <b>and which settings were really copied</b> — see
+    /// <see cref="CampaignJoinResult"/> for why the outcome alone was not enough to write a true
+    /// sentence with.
+    /// </returns>
+    public static CampaignJoinResult Apply(CharacterSheet sheet, Campaign? campaign)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
-        if (campaign is null) return CampaignJoinOutcome.CampaignIsNotHere;
+        if (campaign is null) return new(CampaignJoinOutcome.CampaignIsNotHere);
 
         // An empty tier is the inheriting case, and it is the only one that copies a setting. The
         // sandbox toggle travels with the tier rather than on its own: they are one statement
@@ -99,11 +157,17 @@ public static class CampaignJoin
         // campaign.
         if (sheet.SelectedTierId is null)
         {
+            // Read before the write, both of them: what was copied is what the character did not
+            // already have, and after the assignment there is no way to tell.
+            var takesTier = campaign.TierId is not null;
+            var takesCap = sheet.TraitCapRank is null && campaign.TraitCapRank is not null;
+
             sheet.CampaignId = campaign.Id;
             sheet.SelectedTierId = campaign.TierId;
             sheet.UnlimitedBudget = campaign.UnlimitedBudget;
+            sheet.TraitCapRank ??= campaign.TraitCapRank;
 
-            return CampaignJoinOutcome.Inherited;
+            return new(CampaignJoinOutcome.Inherited, takesTier, takesCap);
         }
 
         // A campaign that names no tier has nothing to disagree with — a GM who has not set a
@@ -111,16 +175,37 @@ public static class CampaignJoin
         if (campaign.TierId is not null
             && !string.Equals(campaign.TierId, sheet.SelectedTierId, StringComparison.Ordinal))
         {
-            return CampaignJoinOutcome.TierDisagrees;
+            return new(CampaignJoinOutcome.TierDisagrees);
         }
 
         sheet.CampaignId = campaign.Id;
 
-        return CampaignJoinOutcome.Joined;
+        // <b>An empty cap is filled even where the tier was not empty.</b> `??=` is the whole of
+        // it: a character that has already been built to a house cap keeps it, and the
+        // disagreement is Inspect's to report. Writing over one would move Resolve on somebody's
+        // finished character in the course of typing a join code.
+        //
+        // Which is exactly why the answer says whether it happened. `??=` is silent by
+        // construction, and a screen that assumed it had fired told somebody their Resolve had
+        // moved when it had not.
+        var tookCap = sheet.TraitCapRank is null && campaign.TraitCapRank is not null;
+
+        sheet.TraitCapRank ??= campaign.TraitCapRank;
+
+        return new(CampaignJoinOutcome.Joined, TookTraitCap: tookCap);
     }
 
     /// <summary>
     /// What is worth saying about the campaign this character names, without changing anything.
+    ///
+    /// <para><b>It is drawn on the campaigns page, at the head of "Games you are in", and that is
+    /// the only place.</b> This is worth stating because it was true of nothing for a whole slice:
+    /// the findings below were computed, tested and shown to nobody, which is the fault this
+    /// repository keeps hitting — a feature that works and no reader can reach. The page resolves
+    /// the character's campaign once per campaign id and asks this on every render, so a
+    /// disagreement that arrived by the GM retiering the campaign shows up as readily as one that
+    /// arrived by a refused join. A second surface would be a second thing to keep in step; if one
+    /// is ever added, say so here.</para>
     ///
     /// <para>Two findings, and both are the same shape as the tier findings the engine already
     /// produces:</para>
@@ -132,6 +217,11 @@ public static class CampaignJoin
     ///   <item><c>CAMPAIGN_TIER_MISMATCH</c> — the character and its campaign disagree about the
     ///     power level. Reported for as long as it is true, so a disagreement that arrived by the
     ///     GM changing the campaign is as visible as one that arrived by a failed join.</item>
+    ///   <item><c>CAMPAIGN_TRAIT_CAP_MISMATCH</c> — both have set a house Trait Cap and they are
+    ///     not the same one. The character's is what everything computes from, so this is the
+    ///     character being judged and paid against a ceiling its table did not set. Reported
+    ///     after the tier, because a character at the wrong power level has a bigger problem than
+    ///     a cap and only one finding comes back.</item>
     /// </list>
     /// </summary>
     /// <param name="sheet">The character.</param>
@@ -153,15 +243,27 @@ public static class CampaignJoin
                 + "deleted.");
         }
 
-        if (campaign.TierId is null || sheet.SelectedTierId is null
-            || string.Equals(campaign.TierId, sheet.SelectedTierId, StringComparison.Ordinal))
+        if (campaign.TierId is not null && sheet.SelectedTierId is not null
+            && !string.Equals(campaign.TierId, sheet.SelectedTierId, StringComparison.Ordinal))
         {
-            return null;
+            return new CampaignFinding("CAMPAIGN_TIER_MISMATCH",
+                "This character is built to a different tier from the campaign it belongs to. "
+                + "Nothing has been changed either way.",
+                sheet.SelectedTierId, campaign.TierId);
         }
 
-        return new CampaignFinding("CAMPAIGN_TIER_MISMATCH",
-            "This character is built to a different tier from the campaign it belongs to. "
-            + "Nothing has been changed either way.",
-            sheet.SelectedTierId, campaign.TierId);
+        // Both set and different. A campaign that has set no cap is not overruling anybody, and a
+        // character with none has already inherited the campaign's — so the only case left is two
+        // deliberate answers that disagree, and the character's is the one in force.
+        if (campaign.TraitCapRank is { } theirs && sheet.TraitCapRank is { } ours && ours != theirs)
+        {
+            return new CampaignFinding("CAMPAIGN_TRAIT_CAP_MISMATCH",
+                "This character is built to a different Trait Cap from the campaign it belongs "
+                + "to. The character's own is what its ranks are checked against and what its "
+                + "Resolve is worked out from. Nothing has been changed either way.",
+                CharacterTraitCapRank: ours, CampaignTraitCapRank: theirs);
+        }
+
+        return null;
     }
 }

@@ -142,14 +142,31 @@ else
                     </select>
                 </Field>
 
-                @* Reported, never enforced — see the note on `Campaign.TraitCapRank`. Applying it
-                   would move Resolve, which is (Trait Cap − highest rank) × 2, so a campaign's cap
-                   could silently change a figure the player paid Hero Points for. *@
+                @* Copied into a character that has no cap of its own when it joins, and never
+                   over one that has — see `CampaignJoin`. It is a real setting rather than a
+                   label: the cap a character carries is what its ranks are checked against and
+                   what its Resolve is measured from, which is (Trait Cap − highest rank) × 2. *@
                 <Field Label="Trait Cap" For="campaign-cap">
                     <input id="campaign-cap" type="number" min="1" max="30"
                            value="@_traitCap"
                            @onchange="e => _traitCap = Number(e.Value?.ToString())" />
-                    <p class="small muted">Shown to your players. Nothing is checked against it.</p>
+                    <p class="small muted">
+                        Tighter than the tier's. A character joining with no cap of its own takes
+                        this; one that has a cap keeps it, and says so.
+                    </p>
+
+                    @* **Said, and not refused.** The box takes 1 to 30 whatever tier is chosen, so
+                       a cap above the tier's ceiling was accepted in silence beside a hint saying
+                       "Tighter than the tier's" — and every character that then inherited it
+                       carried a `TRAIT_CAP_ABOVE_TIER` error the GM never saw coming. Refusing was
+                       the alternative and is the wrong one here: a GM may type the cap before
+                       choosing the tier, and a Save that does nothing is a control that looks
+                       broken. Reporting is also what the engine does with the same mistake one
+                       level down, so the two answers agree. *@
+                    @if (LooseCap is { } loose)
+                    {
+                        <p class="small muted" role="status">@loose</p>
+                    }
                 </Field>
 
                 <div class="inline">
@@ -172,6 +189,20 @@ else
     </Panel>
 
     <Panel Title="Games you are in" Aside="@InAside">
+        @* **What the character on screen and its campaign disagree about, said where its games
+           are.** `CampaignJoin.Inspect` answers for as long as a disagreement is true rather than
+           only at the moment of a join — so one that arrived by the GM retiering the campaign, or
+           by the campaign being deleted, is as visible as one that arrived by a refused join. This
+           is the only place it is drawn; before it existed the findings were computed by nobody.
+
+           **Information, not an error.** These campaigns climb tiers in play, and nothing is
+           repaired either way: raising a tier turns an illegal character legal in silence and
+           lowering it moves Resolve. Same voice as the tier line on the tier page. *@
+        @if (Finding is { } finding)
+        {
+            <p class="small muted" role="status">@finding.Message @Ranks(finding)</p>
+        }
+
         @if (_playing is null)
         {
             <EmptyState>Your games could not be read. Try again in a moment.</EmptyState>
@@ -315,6 +346,94 @@ else
     /// <summary>Which character is on screen — the one a join or a send is about.</summary>
     private string? _openId;
 
+    /// <summary>
+    /// The campaign the character on screen names, resolved. Null both for a character in no
+    /// campaign and for one naming a campaign this account cannot see — the second of those is a
+    /// finding rather than a blank, which is <see cref="CampaignJoin.Inspect"/>'s to tell apart.
+    /// </summary>
+    private Campaign? _campaign;
+
+    /// <summary>
+    /// The campaign id <see cref="_campaign"/> was resolved from, and whether anything has been
+    /// resolved at all.
+    ///
+    /// <para><b>The store is asked once per campaign id, and the finding is read every render.</b>
+    /// Resolving is a round trip and this page redraws on every change to the character, so
+    /// re-reading it per keystroke is the read-per-letter the character manager's own split exists
+    /// to avoid — the same bargain <c>ChooseTier</c> makes. But a tier and a Trait Cap move
+    /// without the id moving, and the finding is about those, so it is computed from the live
+    /// sheet on each pass rather than cached beside the campaign.</para>
+    /// </summary>
+    private string? _resolvedFrom;
+
+    private bool _resolved;
+
+    /// <summary>
+    /// What is worth saying about the character on screen and the campaign it names, or null.
+    ///
+    /// <para>Nothing while a resolution is in flight or stale: a finding computed against the
+    /// previous character's campaign would say something true about a character nobody is looking
+    /// at.</para>
+    /// </summary>
+    private CampaignFinding? Finding =>
+        _resolved && string.Equals(_resolvedFrom, Session.Sheet.CampaignId, StringComparison.Ordinal)
+            ? CampaignJoin.Inspect(Session.Sheet, _campaign)
+            : null;
+
+    /// <summary>
+    /// The two figures a finding carries as fields, in the app's own words, or nothing.
+    ///
+    /// <para><b>A finding carries them rather than writing them into its sentence</b>, because an
+    /// id is not what a tier is called and the message has to stay true without them. Looking them
+    /// up and saying them is the screen's half of that bargain — and a disagreement stated without
+    /// the two numbers leaves a reader with nothing to act on.</para>
+    /// </summary>
+    private string Ranks(CampaignFinding finding) => finding switch
+    {
+        { CharacterTierId: { } mine, CampaignTierId: { } theirs } =>
+            $"Built to {TierName(mine)}; the game is played at {TierName(theirs)}.",
+
+        { CharacterTraitCapRank: { } ours, CampaignTraitCapRank: { } theirs } =>
+            $"Built to a Trait Cap of {ours}d; the game caps at {theirs}d.",
+
+        _ => "",
+    };
+
+    private string TierName(string id) => Session.Rules.GetTier(id)?.Name ?? id;
+
+    /// <summary>
+    /// What is wrong with the cap in the form, or null when nothing is.
+    ///
+    /// <para><b>A house cap tightens a tier's ceiling and never loosens it</b>, and the box takes
+    /// any whole number from 1 to 30 whatever tier is chosen beside it. So a GM could set 20d over
+    /// the Standard tier's 12d and be told nothing, under a hint that said "Tighter than the
+    /// tier's" — and every character joining with no cap of its own would inherit an error the
+    /// engine reports as <c>TRAIT_CAP_ABOVE_TIER</c> on a screen the GM never opens.</para>
+    ///
+    /// <para><b>Reported rather than refused, and that is a decision.</b> This is a form checking
+    /// its own input against a tier the same form chose, which is one of the few places refusing
+    /// would be defensible — but a GM may type the cap before picking the tier, and a Save that
+    /// silently does nothing is a control that looks broken. Reporting is also the answer the
+    /// engine gives the same mistake one level down, so the two cannot disagree about what a bad
+    /// cap means.</para>
+    ///
+    /// <para>Nothing is said for a campaign that names no tier: a GM who has not set a power level
+    /// has nothing to be above.</para>
+    /// </summary>
+    private string? LooseCap
+    {
+        get
+        {
+            if (_traitCap is not { } cap || _tierId is null) return null;
+            if (Session.Rules.GetTier(_tierId) is not { } tier) return null;
+
+            return cap <= tier.TraitCapRank
+                ? null
+                : $"That is above the {tier.Name} tier's {tier.TraitCapRank}d. A house cap "
+                  + "tightens a tier's ceiling and never loosens it.";
+        }
+    }
+
     private string RunAside => $"{_running.Count} to run";
 
     private string InAside => _playing is { } playing ? $"{playing.Count} joined" : "Not read";
@@ -433,7 +552,35 @@ else
     /// has to redraw. The lists are not re-read here — that would be a round trip per keystroke on
     /// the finishing step, which is the split the character manager already makes.
     /// </summary>
-    private void Redraw() => StateHasChanged();
+    private void Redraw()
+    {
+        // The campaign is re-read only when the character on screen names a different one —
+        // switching character, joining, leaving. Everything else is a redraw, and the finding
+        // above recomputes from the sheet as it stands.
+        if (_available is true && !string.Equals(_resolvedFrom, Session.Sheet.CampaignId, StringComparison.Ordinal))
+        {
+            _ = InvokeAsync(async () =>
+            {
+                await ResolveCampaign();
+                StateHasChanged();
+            });
+
+            return;
+        }
+
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Turn the character's campaign id into a campaign, and remember which id it was.
+    /// See <see cref="_resolvedFrom"/> for why that is kept.
+    /// </summary>
+    private async Task ResolveCampaign()
+    {
+        _campaign = await Store.ForAsync(Session.Sheet);
+        _resolvedFrom = Session.Sheet.CampaignId;
+        _resolved = true;
+    }
 
     private void Reload() => _ = InvokeAsync(async () =>
     {
@@ -450,6 +597,13 @@ else
             _running = [];
             _playing = [];
             _inbox = [];
+
+            // Nothing resolves for somebody not signed in, and saying "that campaign is not here"
+            // to them would be true of the moment rather than of their character. The panels are
+            // not drawn in that state anyway; this keeps the field from outliving the account.
+            _campaign = null;
+            _resolvedFrom = null;
+            _resolved = false;
             return;
         }
 
@@ -457,6 +611,8 @@ else
         _playing = await Memberships.MineAsync();
         _inbox = await Memberships.InboxAsync();
         _openId = await Characters.CurrentIdAsync();
+
+        await ResolveCampaign();
     }
 
     private void Toggle(string id) => _open = _open == id ? null : id;
@@ -593,19 +749,19 @@ else
             return;
         }
 
-        var outcome = CampaignJoin.Apply(Session.Sheet, got.Campaign);
+        var result = CampaignJoin.Apply(Session.Sheet, got.Campaign);
 
         // The session is told once, after the sheet has been changed — so the autosave that
         // follows writes the character with its campaign rather than without it.
-        if (outcome is CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined)
+        if (result.Outcome is CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined)
         {
             Session.NotifyChanged();
         }
 
-        _joined = outcome switch
+        _joined = result.Outcome switch
         {
-            CampaignJoinOutcome.Inherited => $"Joined {got.Campaign.Name}. Its tier is now yours.",
-            CampaignJoinOutcome.Joined => $"Joined {got.Campaign.Name}.",
+            CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined =>
+                $"Joined {got.Campaign.Name}.{Took(result, got.Campaign)}",
             CampaignJoinOutcome.TierDisagrees =>
                 $"{got.Campaign.Name} is played at a different tier. Nothing was changed.",
             _ => "That game is not here.",
@@ -614,6 +770,35 @@ else
         _code = "";
         await Refresh();
     }
+
+    /// <summary>
+    /// What the join actually took, said exactly — or nothing, for a join that took nothing.
+    ///
+    /// <para><b>Read off the result rather than guessed from the outcome.</b> This sentence used
+    /// to claim "Its tier and its Trait Cap are now yours" whenever the campaign had a cap at all,
+    /// including over a character that already had one of its own and kept it — which is the one
+    /// thing joining most carefully does not do. A message claiming a change nobody made is worse
+    /// than no message: it teaches a reader to distrust the ones that are true.</para>
+    ///
+    /// <para><b>The cap half names the figure and says what it moves.</b> A cap arriving on a
+    /// character changes its Resolve, which is <c>(Trait Cap − highest rank) × 2</c> — a figure
+    /// somebody may have spent Hero Points on. That is not a thing to leave a player to discover
+    /// on the sheet.</para>
+    /// </summary>
+    private static string Took(CampaignJoinResult result, Campaign campaign) => result switch
+    {
+        { TookTier: true, TookTraitCap: true } =>
+            $" Its tier and its {campaign.TraitCapRank}d Trait Cap are now yours,"
+            + " and Resolve is measured from the cap.",
+
+        { TookTier: true } => " Its tier is now yours.",
+
+        { TookTraitCap: true } =>
+            $" Its {campaign.TraitCapRank}d Trait Cap is now yours,"
+            + " and Resolve is measured from it.",
+
+        _ => "",
+    };
 
     /// <summary>
     /// Send the character on screen for approval.

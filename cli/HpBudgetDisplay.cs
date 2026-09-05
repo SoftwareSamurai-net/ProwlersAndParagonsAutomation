@@ -48,7 +48,13 @@ public sealed class HpBudgetDisplay
                       $"[bold]Budget:[/] {budget} HP   " +
                       $"[bold]Spent:[/] {spent} HP   " +
                       $"[bold]Remaining:[/] {remainingMarkup}   " +
-                      $"[bold]Trait Cap:[/] {tier.TraitCapRank}d";
+                      // **The cap in force, not the tier's.** A character carrying a house cap
+                      // is bounded and judged by that one, and its Resolve is measured from it —
+                      // so a panel above every step printing the tier's would be the one figure
+                      // on screen that nothing else in the program agrees with. The wizard has no
+                      // step that sets a cap; a character built elsewhere and brought back has
+                      // one. See `docs/guide/cli-wizard.md`.
+                      $"[bold]Trait Cap:[/] {DerivedStatsCalculator.EffectiveTraitCap(sheet, tier)}d";
         }
 
         AnsiConsole.Write(
