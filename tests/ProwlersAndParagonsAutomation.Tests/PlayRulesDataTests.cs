@@ -2529,6 +2529,16 @@ public sealed class PlayRulesDataTests
         Assert.Contains(empty, f => f.Contains("probe.what_this_is", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Which canonical file an entry answers to, for the fault message. The probe record in
+    /// <see cref="TheCoverageWalkReportsAFieldNothingComparesToTheRulebook"/> belongs to neither,
+    /// so it is named as Chapter 3's — the classifier is what that test measures, not the wording.
+    /// </summary>
+    private static string CanonicalFileFor(string entryId) =>
+        Resolve().Entries.Any(e => string.Equals(e.Id, entryId, StringComparison.Ordinal))
+            ? nameof(CanonicalResolveRules)
+            : nameof(CanonicalChallengeRules);
+
     private static List<string> CoverageFaults(string entryId, object entry)
     {
         var faults = new List<string>();
@@ -2549,8 +2559,11 @@ public sealed class PlayRulesDataTests
 
             if (!CanonicalChecks.TryGetValue(path, out var check))
             {
+                // Named rather than hard-coded, because there are two canonical files now and a
+                // message sending the reader to the wrong chapter's is worse than no message.
+                // Found by mutation: a Chapter 5 field faulted with Chapter 3's file in the text.
                 faults.Add(
-                    $"{path} is a fact field and nothing compares it to CanonicalChallengeRules. "
+                    $"{path} is a fact field and nothing compares it to {CanonicalFileFor(entryId)}. "
                     + "Transcribe it there with the sentence it came from, register it, or move it "
                     + "into description/ambiguity prose — an unchecked fact field reads as verified "
                     + "data and is not");
