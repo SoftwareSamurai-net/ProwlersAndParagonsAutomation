@@ -25,6 +25,28 @@
 # the Linux arm below is exercised by something that reads the pids rather than the outcome.
 
 # ------------------------------------------------------------------------------------------------
+# Quoting a server's log without quoting a sign-in token out of it.
+#
+# **Every failure arm of `start_server` prints the tail of a wrangler log, and that log is a request
+# log.** Stage two drives `/signin?t=<raw token>`, so the line for that navigation carries the
+# bearer secret itself — and a failure tail is the one part of this harness that is copied into a
+# CI run's public output, an issue, or a chat window. The token is single-use and local to a
+# throwaway D1, so this is not a breach; printing a credential into a log because nobody thought
+# about it is a habit, and the habit is what is being fixed.
+#
+# `[?&]t=` and not a bare `t=`, so a word ending in `t=` inside a message is left alone. The value
+# is base64url — `A-Za-z0-9_-` — which is what `scripts/e2e/seed.mjs` mints and what
+# `worker/crypto.js` mints beside it.
+#
+# Here rather than in `scripts/e2e.sh` because this is the file that can be sourced, and therefore
+# the only part of the harness's shell that can be tested: `scripts/test-kill-tree.sh` drives it.
+
+# redacted_tail <file> [lines]
+redacted_tail() {
+  tail -"${2:-30}" "$1" | sed 's/\([?&]t=\)[A-Za-z0-9_-][A-Za-z0-9_-]*/\1<redacted>/g'
+}
+
+# ------------------------------------------------------------------------------------------------
 # The server currently running, if any. `stop_server` reads both and is also the EXIT trap, so it
 # has to be able to run against a script that never started one.
 

@@ -496,11 +496,27 @@ fi
 # sourced, and `scripts/test-kill-tree.sh` sources the same file `start_server` below uses.
 #
 # What comes out of it: `server_pid`, `server_port`, `on_windows`, `listeners_on`, `port_in_use`,
-# `next_free_port`, `release_port`, `children_of`, `kill_tree` and `stop_server`.
+# `next_free_port`, `release_port`, `children_of`, `kill_tree`, `stop_server` and `redacted_tail`.
 # shellcheck source=scripts/e2e/process.sh
 . "$root/scripts/e2e/process.sh"
 
-trap stop_server EXIT INT TERM
+# **The plan holds raw sign-in tokens, so it does not outlive the run that minted them.**
+#
+# `.e2e/seed.json` is how one drive's environment is handed to the next without re-seeding, and
+# every token in it is a bearer secret in the clear. It was removed at the *start* of the next run,
+# which is a file full of credentials sitting in a working tree for however long that is — and this
+# repository's own rule is that the database stores only a hash precisely so that a dump of it is
+# not a key to anything. The tokens are single-use, local, and against a throwaway D1, so nothing
+# is at risk today; leaving them there because nobody thought about it is the habit being fixed.
+#
+# The SQL beside it stays: it carries hashes and addresses, no raw token, and it is what a reader
+# debugging a failed sign-in actually needs.
+cleanup() {
+  stop_server
+  rm -f "$seed_plan"
+}
+
+trap cleanup EXIT INT TERM
 
 # start_server <directory-relative-to-$root> <port> <log-name>
 #
@@ -556,7 +572,7 @@ start_server() {
   while [ "$SECONDS" -lt "$deadline" ]; do
     if ! kill -0 "$server_pid" 2>/dev/null; then
       echo "::error::wrangler exited before it was ready:"
-      tail -30 "$log"
+      redacted_tail "$log"
       return 1
     fi
 
@@ -573,8 +589,11 @@ start_server() {
     sleep 1
   done
 
+  # **Redacted, because this is a request log and stage two drives `/signin?t=<raw token>`.** A
+  # failure tail is the one part of this harness that gets pasted into a CI log, an issue or a
+  # chat window, and it would have carried the bearer secret straight into all three.
   echo "::error::wrangler never served the site on port ${port} within 180s:"
-  tail -30 "$log"
+  redacted_tail "$log"
   return 1
 }
 

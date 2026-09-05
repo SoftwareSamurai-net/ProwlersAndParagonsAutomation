@@ -4,6 +4,10 @@
 #   ./scripts/test-kill-tree.sh                  # both trees: the synthetic one and a real wrangler
 #   ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic one only. NOT a full run
 #
+# It also covers the other thing `scripts/e2e/process.sh` owns — `redacted_tail`, which keeps a
+# raw sign-in token out of the log tail a failing `start_server` prints — for the reason that file
+# is separate at all: it is the only part of this harness's shell that can be sourced and tested.
+#
 # ------------------------------------------------------------------------------------------------
 # WHY THIS EXISTS, AND WHY AN OUTCOME CHECK WAS NOT ENOUGH.
 #
@@ -52,7 +56,7 @@
 # `docs/guide/testing.md` states it for `./scripts/e2e.sh`: a script that reports *verdicts*
 # rather than a test count cannot be totalled with four suites' thousands without making the
 # total meaningless, and a missing count there has to be an error rather than a zero. This one
-# reports three verdicts, so it is its own step in `build.yml` and prints its own summary line.
+# reports four verdicts, so it is its own step in `build.yml` and prints its own summary line.
 
 set -euo pipefail
 
@@ -388,12 +392,77 @@ wrangler_case() {
 }
 
 # ------------------------------------------------------------------------------------------------
+# Case 4 — the other thing `scripts/e2e/process.sh` owns: quoting a log without quoting a token.
+#
+# **Every failure arm of `start_server` prints the tail of a wrangler log, and that log is a request
+# log.** Stage two drives `/signin?t=<raw sign-in token>`, so the line for that navigation carries
+# the bearer secret — and a failure tail is the one part of this harness that gets pasted into a CI
+# log, an issue or a chat window. `redacted_tail` is what those arms call now.
+#
+# **The positive control comes first and is most of the value**, for the reason this file's header
+# gives twice over: "no token in the output" is satisfied perfectly by a redactor that printed
+# nothing at all, and by a fixture whose lines never contained one. So this asserts that the
+# ordinary line came through untouched and that the fixture really did carry a token, before it
+# asserts that the token is gone.
+redaction_case() {
+  local dir log out
+
+  dir="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$dir'" RETURN
+
+  log="$dir/server.log"
+  {
+    echo "[wrangler:info] Ready on http://127.0.0.1:8788"
+    echo "[wrangler:info] GET /signin?t=zAe9_-QbT7xyKLmn 302 Found (4ms)"
+    echo "[wrangler:info] GET /rules?chapter=4&t=SECOND_tok-99 200 OK (2ms)"
+    echo "[wrangler:info] an ordinary line with no secret in it"
+  } > "$log"
+
+  out="$(redacted_tail "$log" 10)"
+
+  if [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" -ne 4 ]; then
+    fail REDACTED_TAIL "[CONTROL] redacted_tail returned $(printf '%s\n' "$out" | wc -l | tr -d ' ')"\
+" of 4 lines, so whatever the assertions below found, they were not reading this log."
+    return
+  fi
+
+  case "$out" in
+    *"an ordinary line with no secret in it"*) ;;
+    *)
+      fail REDACTED_TAIL "[CONTROL] the line with no token in it did not survive redaction, so a"\
+" tail that says nothing would pass the outcome below."
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *"zAe9_-QbT7xyKLmn"*|*"SECOND_tok-99"*)
+      fail REDACTED_TAIL "[OUTCOME] a raw sign-in token survived into the tail a failing"\
+" start_server prints: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *"/signin?t=<redacted> 302"*)
+      pass REDACTED_TAIL "both t= values are gone and the rest of the log is untouched"
+      ;;
+    *)
+      fail REDACTED_TAIL "[OUTCOME] the token is gone but so is the address it was on, so a"\
+" failing start_server no longer says what it was serving: $out"
+      ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------------------------
 
 echo "=== kill_tree, proved by reading the pids ========================================"
 echo ""
 
 proc_parse_case
 synthetic_case
+redaction_case
 
 if [ "$skip_wrangler" -eq 1 ]; then
   echo ""

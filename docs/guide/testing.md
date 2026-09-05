@@ -356,6 +356,18 @@ test and nothing to compile out, which is the whole difference between this and 
 seam the original plan called for. It does not weaken *nothing reaches past the browser* either:
 that rule is about the browser, and a reader whose mail has arrived is an ordinary person.
 
+**A raw token lives exactly as long as the run that minted it, and no longer.** `.e2e/seed.json`
+is how one drive's environment reaches the next without re-seeding, and every token in it is a
+bearer secret in the clear; it used to be deleted at the *start* of the next run, which left a file
+full of credentials in a working tree for however long that was. The `EXIT` trap removes it now,
+beside `stop_server`. The SQL beside it stays — it carries hashes and addresses and no raw token,
+and it is what a reader debugging a failed sign-in needs. And `start_server`'s failure arms print
+`redacted_tail` rather than `tail`: that log is a *request* log and stage two drives
+`/signin?t=<raw token>`, so the tail pasted into a CI log, an issue or a chat window carried the
+secret with it. `scripts/test-kill-tree.sh` drives the redactor, positive control first — an
+ordinary line survives, and the fixture really did carry a token — because "no token in the output"
+is satisfied perfectly by a redactor that printed nothing.
+
 **The seed lives in the shell, not in a driver, and the reasons are arithmetic.** Writing a row
 needs the pinned wrangler version, the database id out of `d1/wrangler.toml`, the `--persist-to`
 directory and the migration state — four things `scripts/e2e.sh` already owns and a driver has no
@@ -511,7 +523,7 @@ against a pre-built site.
 ### Proving `kill_tree`, and why a green run was never evidence about it
 
 ```bash
-./scripts/test-kill-tree.sh                  # both trees; ~9s
+./scripts/test-kill-tree.sh                  # both trees, plus the log redactor; ~9s
 ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic one only. NOT a full run
 ```
 
