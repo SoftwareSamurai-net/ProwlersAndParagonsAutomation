@@ -99,7 +99,7 @@ placeholder.
   says *search* while searching six step names and 141 Powers promises the rulebook and does not
   have it, and the rulebook was behind an account. **The corpus is behind the chord now** — see the
   section below — so the promise the box makes is true, and the field is what was left of the
-  decision. Nine things hold it in place:
+  decision. Ten things hold it in place:
   - **It searches nothing itself, and that is the line.** Typing hands the word to
     `Commands.Open(query)`; the palette takes it on the way in and matches it exactly as if it had
     been typed into the box — the steps, the Powers, the pause, the race guard, the book. There is
@@ -154,6 +154,34 @@ placeholder.
   - **`Commands.Prompt` is where that sentence lives, and it moved there for this.** Two controls
     say it now, a second apart, and two spellings is how the app comes to promise the book on one
     surface and not the other to the same person in the same second.
+  - **Four things `.banner-tool` gives a button that are wrong on a box, and each is undone by
+    name.** The idiom was written for a button, a link and a disclosure, and a text field inherits
+    it whole.
+    - **`cursor: text`**, not the `pointer` that says "this happens when you press it" over a
+      control that gives you a caret.
+    - **No hover fade.** Cancelled on the wrapper — `.banner-tool.palette-open:hover` — and not on
+      the field, because `opacity` on a parent composites the whole subtree and a child cannot opt
+      out of it: a rule setting the input back to `1` would do nothing at all, silently. The
+      chord's key boxes go with it; they are a hint printed beside the control, not a second one.
+    - **`text-transform: none` on what is typed, `uppercase` on `::placeholder`.** They are two
+      pieces of text in one control: `Search` is this band's label and wears its idiom, and what
+      somebody types is their own words, which the palette's box shows a second later exactly as
+      typed. Inherited, a reader typing `plasticity` here watched it come out `PLASTICITY` in the
+      banner and `plasticity` in the palette — the app disagreeing with itself about a reader's own
+      words inside one second. Lower-casing both was the other way to settle it and is worse: the
+      word would be the only thing in the strip in sentence case.
+    - **The width is `8ch` in the stylesheet**, not `size="10"` in the markup — a number with no
+      arithmetic behind it, in a file where the type it was sizing is not visible. Measured,
+      `SEARCH` under `--label-track` in the shipped face is 6.995ch; eight is that rounded up plus
+      one character of slack for the fallback faces, since `ch` is the advance of `0` and its ratio
+      to six tracked capitals belongs to whichever face actually loaded. `BannerTests` reads the
+      number out of `app.css` and holds the placeholder to a word that fits it.
+    - And **WebKit's own clear glyph is reset** — `::-webkit-search-cancel-button` and
+      `::-webkit-search-decoration`, `appearance: none; display: none` — because `type="search"`
+      draws one on exactly one engine, positioned and sized by that engine, in the row this app
+      measures to a half-pixel. **Nothing in CI can see the effect of that rule**: the goldens are
+      Linux Chrome, the proofs are headless Chrome, and there is no Safari harness. It is kept
+      because the alternative is a defect only the owner's own browser can find.
   - **And it is measured.** The banner's baseline is proved in a browser on every CI run, and an
     `<input>` brings a box model no rule in this repository states — a border, a fill, padding and
     a `line-height` of the browser's choosing, with the shared rule for every text box on the site
@@ -433,6 +461,26 @@ the spread under 0.5px. Twenty-one browser verdicts now, not nineteen.
   baseline, and a spread cannot see a band that moved as one. Recorded because the opposite is the
   natural assumption and this page is read as evidence — those declarations are held by the pixel
   goldens, not here.
+- **And it does not see x-position either.** Every measurement on this page is a `top`; the field's
+  width, the gaps between the tools and where the cluster sits in the row are invisible to it. A
+  band with its seven items on one baseline and the search box twice as wide as it should be is a
+  `PASS` here. **So a change to the banner's geometry is a change nothing in the ordinary CI run
+  will catch, and it has to go through the pixel goldens.** `tests/visual-goldens/*.png` includes
+  the four `proof-shell-*` pages, which draw this whole band; regenerating them is
+  `.github/workflows/visual-goldens.yml`, which is `workflow_dispatch` only and **commits nothing** —
+  it uploads the PNGs for somebody to look at and commit, because a golden updated as a side effect
+  of an unrelated change is a regression signed off by nobody:
+
+  ```bash
+  gh workflow run visual-goldens.yml --ref <branch>
+  gh run download <run-id> --name visual-goldens --dir tests/visual-goldens
+  # look at the PNGs — they are real images — then commit them
+  ```
+
+  It has to be that workflow and not a local run: the goldens and the check must come from the same
+  Chrome, and `scripts/visual-regression.sh` drives a Docker Chrome off Linux and the runner's own
+  Chrome on it. Changes that need this: the field's `width`, its `margin`, the tracking or transform
+  that decide what a `ch` measures, anything about the `.key` boxes, and adding or removing a tool.
 - **A twin reproduces `align-items: center`** — the owner's reported defect — driving the
   byte-identical script, and CI requires it to say `FAIL`. Measured: PASS at 0.00px, twin FAIL at
   2.00px. **The C# suites stay green against that mutation**, which is the whole reason the harness

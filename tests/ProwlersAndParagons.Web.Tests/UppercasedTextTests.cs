@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AngleSharp.Dom;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using Bunit;
@@ -206,6 +207,22 @@ public sealed class UppercasedTextTests
                     $"'{selector}' is set in capitals and carries a rulebook citation: "
                     + $"\"{Collapse(text)}\". In capitals it reads CH.6, which is not how the "
                     + "rulebook cites itself.");
+
+                // **And the words printed inside a form control, which the sweep above cannot
+                // see.** See `PlaceholdersIn` for why they are read separately and why they are
+                // read at all.
+                foreach (var word in PlaceholdersIn(element))
+                {
+                    Assert.False(Rank.IsMatch(word),
+                        $"'{selector}' is set in capitals and holds a field whose placeholder "
+                        + $"carries a rank: \"{Collapse(word)}\". The rulebook writes a rank as "
+                        + "12d; in capitals it reads 12D.");
+
+                    Assert.False(Citation.IsMatch(word),
+                        $"'{selector}' is set in capitals and holds a field whose placeholder "
+                        + $"carries a rulebook citation: \"{Collapse(word)}\". In capitals it "
+                        + "reads CH.6, which is not how the rulebook cites itself.");
+                }
             }
         }
 
@@ -234,6 +251,59 @@ public sealed class UppercasedTextTests
             $"'{selector}' is set in capitals and this test found it on no page, so it asserted "
             + "nothing about it. Render a page that shows it, or name it in `unreachable` with "
             + "a reason.");
+    }
+
+    /// <summary>
+    /// The visible words printed inside a form control under (or at) this element.
+    ///
+    /// <para><b>The sweep above cannot see them, and the banner is where that stopped being
+    /// hypothetical.</b> Its search control is an <c>&lt;input&gt;</c> now, and an input holds no
+    /// text: <c>SheetText.Visible</c> on the tool that wraps it returns the two key boxes and
+    /// nothing else, so the one word a reader actually sees there — <c>SEARCH</c> — was swept by
+    /// nothing at all. A control whose only visible word is its placeholder is exactly the shape
+    /// this file's rule is about.</para>
+    ///
+    /// <para><b>It reads inputs under an uppercased selector rather than inputs the stylesheet
+    /// uppercases directly, and that is deliberately the wider net.</b> The capitals on this one
+    /// are set on <c>::placeholder</c>, which the theory's own selector list skips because a
+    /// pseudo-element is not queryable — so a rule keyed to the input itself would find nothing.
+    /// The cost of the wider net is a placeholder that is <em>not</em> uppercased being checked
+    /// anyway; the failure message says what it read, and a placeholder carrying <c>12d</c> or
+    /// <c>Ch.6</c> is worth a second look under either rule.</para>
+    /// </summary>
+    private static IEnumerable<string> PlaceholdersIn(IElement element)
+    {
+        const string boxes = "input[placeholder], textarea[placeholder]";
+
+        var found = element.Matches(boxes)
+            ? [element, .. element.QuerySelectorAll(boxes)]
+            : element.QuerySelectorAll(boxes).ToList();
+
+        return found.Select(e => e.GetAttribute("placeholder") ?? "")
+                    .Where(word => word.Length > 0);
+    }
+
+    /// <summary>
+    /// <b>The positive control on the sweep above: the banner's field really is read.</b>
+    ///
+    /// <para>A helper that found no placeholder anywhere would leave every assertion it feeds
+    /// asserting nothing, and the theory would stay green — which is this repository's most common
+    /// way for a guard to be wrong and the reason that theory closes with a count of its own. This
+    /// names the one control the extension was written for and asserts the word comes back through
+    /// the same path, from the same selector the stylesheet uppercases.</para>
+    /// </summary>
+    [Fact]
+    public void TheSweepReadsTheBannerFieldsPlaceholder()
+    {
+        using var ctx = new RenderContext();
+
+        var layout = ctx.Render<MainLayout>();
+
+        // `.banner-tool` is one of the selectors `app.css` sets in capitals, and the field is drawn
+        // inside the one that opens the palette. Read the same way the theory reads it.
+        var words = layout.FindAll(".banner-tool").SelectMany(PlaceholdersIn).ToList();
+
+        Assert.Contains("Search", words);
     }
 
     /// <summary>

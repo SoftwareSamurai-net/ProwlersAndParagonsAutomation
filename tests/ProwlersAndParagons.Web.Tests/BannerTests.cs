@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.AspNetCore.Components;
@@ -162,6 +163,65 @@ public sealed class BannerTests
         Assert.Equal("Search", field.GetAttribute("placeholder"));
         Assert.False(string.IsNullOrWhiteSpace(field.GetAttribute("aria-label")));
         Assert.Equal(["Ctrl", "K"], Keys(layout));
+    }
+
+    /// <summary>
+    /// <b>The field is wide enough for the word it actually prints, and the two halves of that are
+    /// held together.</b>
+    ///
+    /// <para><b>The width is a measurement of one specific string</b>: <c>SEARCH</c>, in the
+    /// display face, at the band's size, under <c>--label-track</c>, measured at 6.995ch and set to
+    /// <c>8ch</c> — that rounded up, plus one character of slack for the fallback faces, since
+    /// <c>ch</c> is the advance of <c>0</c> and its ratio to six tracked capitals is a property of
+    /// whichever face actually loaded. It replaced <c>size="10"</c>, which was a number with no
+    /// arithmetic behind it, in the markup, where nothing about the type it was sizing was
+    /// visible.</para>
+    ///
+    /// <para><b>So a longer placeholder is a defect this has to be able to see.</b> Nothing else
+    /// would: a word that overflows the box is clipped in a browser and identical in every
+    /// assertion in this project. The stylesheet's number is read here rather than restated, so the
+    /// two cannot drift — lengthen the word and this fails, widen the box and it passes again, which
+    /// is the reconsideration the failure is asking for. A change to the number is also a change to
+    /// the banner's geometry, so the pixel goldens have to be regenerated with it.</para>
+    /// </summary>
+    [Fact]
+    public void TheFieldIsAsWideAsThePlaceholderItPrints()
+    {
+        using var ctx = new RenderContext();
+
+        var placeholder = ctx.Render<MainLayout>().Find(".palette-field").GetAttribute("placeholder");
+
+        // Exactly the visible word, not merely containing it. The width below is measured against
+        // this string and nothing else.
+        Assert.Equal("Search", placeholder);
+
+        var css = new Regex(@"/\*.*?\*/", RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+            .Replace(File.ReadAllText(
+                Path.Combine(RepoRoot(), "web", "wwwroot", "css", "app.css")), " ");
+
+        var rule = new Regex(@"\.palette-open\s+\.palette-field\s*\{([^{}]*)\}",
+            RegexOptions.None, TimeSpan.FromSeconds(5)).Match(css);
+
+        Assert.True(rule.Success, "app.css no longer has a rule for `.palette-open .palette-field`.");
+
+        // A width in characters, and not `size` back in the markup or a length in px.
+        var width = new Regex(@"width:\s*([0-9.]+)ch", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Match(rule.Groups[1].Value);
+
+        Assert.True(width.Success,
+            "`.palette-open .palette-field` no longer sets its width in `ch`. A count of characters "
+            + "is the unit that follows the face and the size the band is set in; a length in px is "
+            + "one to re-guess whenever either moves, and `size` on the element is a number with no "
+            + "arithmetic behind it in a file where the type is not visible.");
+
+        var characters = double.Parse(width.Groups[1].Value, CultureInfo.InvariantCulture);
+
+        Assert.True(placeholder!.Length + 1 <= characters,
+            $"the field is {characters}ch wide and its placeholder is \"{placeholder}\", which is "
+            + $"{placeholder.Length} characters. Measured, SEARCH under --label-track is 6.995ch, so "
+            + "the width is the word rounded up with one character of slack for the fallback faces. "
+            + "A longer word needs that measurement taken again — and the pixel goldens regenerated "
+            + "with it, because this is the banner's geometry.");
     }
 
     /// <summary>

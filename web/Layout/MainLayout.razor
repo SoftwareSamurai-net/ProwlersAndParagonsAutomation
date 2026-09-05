@@ -200,12 +200,15 @@
            scans for. What the palette offers — the six steps, every Power, and the book for
            somebody signed in — is unchanged, and its own box still says so in full. *@
         <div class="banner-tool palette-open">
-            @* `size` and not a width: a text field's visible width is a count of characters, so it
-               follows the face and the size the band is set in instead of being a length that has
-               to be re-guessed whenever either moves. *@
+            @* **No `size` here, and the width is in the stylesheet in `ch`.** It read `size="10"`,
+               which is a number with no arithmetic behind it sitting in the markup, where nothing
+               about the type it is sizing is visible. A count of characters is still the right
+               unit — it follows the face and the size the band is set in rather than being a length
+               to re-guess whenever either moves — so `.palette-field` carries `width: 8ch`, beside
+               the tracking and the transform that decide what those characters measure, with the
+               measurement of this control's own placeholder written down next to it. *@
             <input type="search"
                    class="palette-field"
-                   size="10"
                    aria-label="@SearchLabel"
                    placeholder="Search"
                    value="@_search"
