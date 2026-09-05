@@ -521,9 +521,17 @@ public sealed class PageReaderTests
     /// A full-width line breaks the page into bands, and a column resuming below one has no
     /// comparable predecessor — its own top is nowhere near where the column left off, so a raw
     /// baseline subtraction there would be meaningless rather than merely large.
+    ///
+    /// <para><b>The full-width line itself is the opposite case, and used to be treated as the
+    /// same one.</b> It spans both columns, so the line directly above it is simply the lowest
+    /// line of the band it closes — 602 here against its own 580 — and those two baselines are on
+    /// the same run of the page. Nulling it was why a full-width block could never have
+    /// paragraphs at all: printed p.81's Example of Combat reached the corpus as one
+    /// 3,300-character run because every line in it was handed a null gap and
+    /// <see cref="ParagraphJoiner"/> has nothing to measure against a null.</para>
     /// </summary>
     [Fact]
-    public void AFullWidthBreakResetsTheGapOnBothColumns()
+    public void AFullWidthLineIsMeasuredAgainstTheBandAboveItAndResetsBothColumns()
     {
         // Eight rows a side, same as the fixture that already proves a full-width line stays
         // whole — ColumnLayout.FindGutter needs at least six lines to trust a page has columns
@@ -541,12 +549,54 @@ public sealed class PageReaderTests
         var fullWidthIndex = lines.FindIndex(l =>
             l.Text == "A FULL WIDTH LINE ACROSS THE WHOLE PAGE WIDTH FROM MARGIN TO MARGIN");
         Assert.NotEqual(-1, fullWidthIndex); // positive control: the full-width line survived whole
-        Assert.Null(lines[fullWidthIndex].LeadingGap);
+
+        // The band's lowest line is L7/R7 at 602; the full-width line is at 580.
+        Assert.Equal(22, lines[fullWidthIndex].LeadingGap);
 
         var resumedLeftIndex = lines.FindIndex(fullWidthIndex + 1,
             l => l.Text.StartsWith("L0 ", StringComparison.Ordinal));
         Assert.NotEqual(-1, resumedLeftIndex); // positive control: the column resumed afterwards
         Assert.Null(lines[resumedLeftIndex].LeadingGap);
+
+        var resumedRightIndex = lines.FindIndex(fullWidthIndex + 1,
+            l => l.Text.StartsWith("R0 ", StringComparison.Ordinal));
+        Assert.NotEqual(-1, resumedRightIndex); // positive control: the right column resumed too
+        Assert.Null(lines[resumedRightIndex].LeadingGap);
+    }
+
+    /// <summary>
+    /// <b>A run of full-width lines measures each against the one before it</b>, which is what
+    /// gives a full-width block its own paragraphs: the first line of the run is measured against
+    /// the band it closes and every line after it against its own predecessor, so a line set
+    /// twice the ordinary leading below reads as a paragraph start exactly as it does inside a
+    /// column.
+    /// </summary>
+    [Fact]
+    public void AFullWidthRunMeasuresEachLineAgainstThePreviousFullWidthLine()
+    {
+        const string wide = "A FULL WIDTH LINE ACROSS THE WHOLE PAGE WIDTH FROM MARGIN TO MARGIN";
+
+        var glyphs = TwoColumnBody("L", "R", startBaseline: 700);       // both columns end at 602
+        glyphs.AddRange(Glyphs($"{wide} ONE", left: 45, baseline: 580));
+        glyphs.AddRange(Glyphs($"{wide} TWO", left: 45, baseline: 566));   // 14pt: ordinary wrap
+        glyphs.AddRange(Glyphs($"{wide} THREE", left: 45, baseline: 552)); // 14pt: ordinary wrap
+        glyphs.AddRange(Glyphs($"{wide} FOUR", left: 45, baseline: 524));  // 28pt: a paragraph gap
+
+        var lines = new PageReader().Read(glyphs, PageWidth).ToList();
+
+        Assert.Equal(20, lines.Count); // positive control: 16 column lines plus four full-width
+
+        var run = lines.Where(l => l.Text.StartsWith("A FULL WIDTH", StringComparison.Ordinal)).ToList();
+        Assert.Equal(4, run.Count); // positive control: every full-width line survived whole
+
+        Assert.Equal(22, run[0].LeadingGap);   // against the band's lowest line, at 602
+        Assert.Equal(14, run[1].LeadingGap);
+        Assert.Equal(14, run[2].LeadingGap);
+        Assert.Equal(28, run[3].LeadingGap);
+
+        Assert.Equal(
+            $"{wide} ONE {wide} TWO {wide} THREE\n{wide} FOUR",
+            ParagraphJoiner.Join(run));
     }
 
     /// <summary>

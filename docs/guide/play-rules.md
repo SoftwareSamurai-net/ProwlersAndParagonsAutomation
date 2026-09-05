@@ -170,11 +170,13 @@ Four are pinned by name.
 - **The GM's alternative to seizing the initiative** has no stated duration, and no page says whether the GM's choice between the two effects is fixed for a table, for a campaign, or taken per purchase. Chapter 5 raised the same question from the other side and left it open.
 - **Wound Penalties' `ambiguity` records an extraction fault as well as a rules one**, because a reader comparing the entry against an older corpus would find the heading and not the rule. See below.
 
-### The extraction fault this slice fixed
+### The two extraction faults this slice fixed
 
-The corpus filed p.81's `WOUND PENALTIES` heading under the Example of Combat's, as one section called `EXAMPLE OF COMBAT — WOUND PENALTIES` — the tenth Gritty Combat rule and a two-page worked fight merged, with the qualifier inverted. **The prose was never damaged; only the heading was**, which is why it survived: both halves read as English.
+The corpus filed p.81's `WOUND PENALTIES` heading under the Example of Combat's, as one section called `EXAMPLE OF COMBAT — WOUND PENALTIES` — the tenth Gritty Combat rule and the worked fight merged, with the qualifier inverted. **The prose was never damaged; only the heading was**, which is why it survived: both halves read as English.
 
-It was a reading-order fault rather than a heading-recognition one, and it is fixed in the extractor rather than worked around here — `data/rulebook/` is never hand-edited. The rule and the second defect it also repaired, on printed p.107, are in [`rulebook-corpus.md`](rulebook-corpus.md).
+**Splitting that section off then exposed a second fault underneath it, in the same block.** The Example of Combat prints as ten paragraphs and arrived as one 3,361-character run with no `\n` in it at all, because every line of a full-width block was handed a null leading gap — a full-width line was treated as having no comparable predecessor, the way a column *resuming below* one genuinely does — so `ParagraphJoiner` had nothing to measure. It is the same shape as the heading fault and it survived for the same reason: the words were all there, in the right order, and only the structure was gone. A full-width line is now measured against the lowest line of the band it closes, or against the full-width line before it; the column resuming below one still gets nothing, deliberately, because its top is half a page from where that column left off and inventing a predecessor there would put a break inside a sentence. `TheExampleOfCombatKeepsItsTenPrintedParagraphs` pins the result.
+
+Both are reading-order faults rather than heading-recognition ones, and both are fixed in the extractor rather than worked around here — `data/rulebook/` is never hand-edited. The rules, the third defect the heading fix also repaired on printed p.107, and the one case the positional rule cannot tell apart are in [`rulebook-corpus.md`](rulebook-corpus.md).
 
 ## Chapter 5: two currencies, and the one place this store touches `engine/`
 
