@@ -1373,6 +1373,37 @@ public sealed class CharacterValidator
                 // Boost also takes its cost per rank from that Trait.
                 if (power.CostType == "special") resolvable = false;
             }
+
+            // A nomination that is missing or unresolvable is the finding above; one that resolves
+            // to a *Power* is this one, and only on Expertise. Ch.2 p.28 narrows that Power alone
+            // — "Your specialization must fall under one of your Abilities or Talents", and the
+            // printed baseline sentence agrees: "the rank of the Ability or Talent it falls
+            // under". Boost's own text (Ch.2 p.24) says "one specific Ability, Talent, or Power",
+            // so the two cannot share a rule and this is scoped by id rather than by the
+            // baseline_selected_trait relationship they both carry.
+            //
+            // Reported, never repaired: DerivedStatsCalculator used to answer p.83's own
+            // attack-or-defence question of the nominated Power, which gave an illegal sheet a
+            // defensible Resolve and left the mistake invisible.
+            if (string.Equals(sp.PowerId, "expertise", StringComparison.Ordinal)
+                && sp.BaselineTraitId is { Length: > 0 } nomination
+                && _rules.GetAbility(nomination) is null
+                && _rules.GetTalent(nomination) is null
+                && _rules.GetPower(nomination) is { } nominatedPower)
+            {
+                issues.Add(new(ValidationSeverity.Error, "EXPERTISE_NOMINATION_NOT_A_TRAIT",
+                    $"This Expertise falls under the Power '{nominatedPower.Name}', and a "
+                    + "specialisation has to fall under one of your Abilities or Talents "
+                    + "(Ch.2 p.28). Nominate an Ability or a Talent instead — Boost is the Power "
+                    + "that may be nominated to another Power.")
+                {
+                    // No Options, for the reason the finding above has none: the six Abilities
+                    // and twelve Talents are lists the caller already holds, and the subject is
+                    // the Power, so an option list here would be values of the wrong kind.
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId
+                });
+            }
         }
 
         return resolvable;

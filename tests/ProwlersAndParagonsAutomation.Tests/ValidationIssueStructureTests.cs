@@ -1025,6 +1025,12 @@ public sealed class ValidationIssueStructureTests
         ["POWER_HAS_NO_RANK"]               = [ValidationSubject.Power],
         ["POWER_VARIANT_NOT_CHOSEN"]        = [ValidationSubject.Power],
         ["POWER_BASELINE_TRAIT_NOT_CHOSEN"] = [ValidationSubject.Power],
+
+        // The Expertise, not the Power it was wrongly nominated to: the repair is rewriting
+        // BaselineTraitId on this purchase, and naming the nominated Power would send a repair
+        // loop looking for a Power to change.
+        ["EXPERTISE_NOMINATION_NOT_A_TRAIT"] = [ValidationSubject.Power],
+
         ["POWER_COST_AT_MINIMUM"]           = [ValidationSubject.Power],
         ["POWER_WITHOUT_SOURCE"]            = [ValidationSubject.Power],
         ["RANKLESS_POWER_WITHOUT_SOURCE"]   = [ValidationSubject.Power],
@@ -1280,6 +1286,7 @@ public sealed class ValidationIssueStructureTests
     [
         "no tier", "over budget", "above cap", "no flaws", "too many flaws",
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
+        "an expertise under a power",
         "iconic", "unknown tier", "unknown package", "unknown traits", "unknown modifiers",
         "ungraded modifiers", "negative quantities", "options that do not apply",
         "no traits at all", "below its package", "gear without a name", "gear at its floor", "power at its floor",
@@ -1390,6 +1397,19 @@ public sealed class ValidationIssueStructureTests
                 var sheet = Legal();
                 sheet.SelectedPowers.Add(new SelectedPower("boost", 2));
                 sheet.SelectedPowers.Add(new SelectedPower("omni_power", 4));
+                return sheet;
+            }
+
+            // An Expertise nominated to a Power, which Ch.2 p.28 does not allow — beside a Boost
+            // nominated to the same Power, which its own text does. The pair is the case: a rule
+            // written across both would report one of these two and be wrong either way.
+            case "an expertise under a power":
+            {
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(
+                    new SelectedPower("expertise", 2) { BaselineTraitId = "martial_arts" });
+                sheet.SelectedPowers.Add(
+                    new SelectedPower("boost", 2) { BaselineTraitId = "martial_arts" });
                 return sheet;
             }
 

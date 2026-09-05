@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components;
@@ -8,6 +7,7 @@ using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using ProwlersAndParagonsAutomation.Web.Pages;
+using static ProwlersAndParagons.Web.Tests.BusyRenderer;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -119,18 +119,6 @@ public sealed class PaletteBookTests
     private static readonly TimeSpan Impatient = TimeSpan.FromMilliseconds(20);
 
     /// <summary>
-    /// How long the renderer is held busy under a keypress, where a drive is about a press that
-    /// arrives while the palette is redrawing.
-    ///
-    /// <para><b>Long enough that the press cannot possibly be handled inline, and no longer.</b>
-    /// It is spent in two tests — the arrows reaching the book's rows, and the banner's letters
-    /// arriving while focus is still crossing; the figure only has to be well clear of the
-    /// microseconds an inline dispatch takes, because each drive that reads it asserts on a
-    /// fraction of it rather than on the figure itself.</para>
-    /// </summary>
-    private static readonly TimeSpan Occupation = TimeSpan.FromMilliseconds(250);
-
-    /// <summary>
     /// Whatever is subscribed to one of <see cref="Commands"/>' events, as the objects that will
     /// be woken.
     ///
@@ -167,55 +155,6 @@ public sealed class PaletteBookTests
     }
 
     /// <summary>
-    /// Drive something with the renderer deliberately busy, and say so if it was not.
-    ///
-    /// <para><b>This is the instrument the two dispatch traps in this file are proved with, and
-    /// both halves of it are load-bearing.</b> A bUnit event is <i>dispatched</i>: the synchronous
-    /// <c>Click</c>, <c>KeyDown</c> and <c>Input</c> post the event and return without waiting
-    /// whenever the renderer is not idle, so a read after one of them can be a read from before
-    /// it. While the renderer is idle the post runs inline and the difference never shows — which
-    /// is why such a drive passes on a quiet laptop and goes red on a loaded runner. Holding the
-    /// renderer busy makes that ordering the one every run takes.</para>
-    ///
-    /// <para><b>Held from another thread, because work posted from this one runs inline</b> while
-    /// the renderer is idle and would occupy nothing at all.</para>
-    ///
-    /// <para><b>And the elapsed time is the positive control.</b> A drive handled inline comes back
-    /// in microseconds; one posted behind a busy renderer cannot come back until the renderer is
-    /// free. It fires for either way of losing this: the drive no longer being awaited, or the
-    /// occupation no longer occupying anything. Without it an instrument that has quietly stopped
-    /// working leaves the drive passing for the wrong reason, which is the failure shape
-    /// <c>CLAUDE.md</c> lists three of.</para>
-    /// </summary>
-    /// <param name="page">The palette, whose dispatcher is the one held.</param>
-    /// <param name="drive">The awaited event to post behind it.</param>
-    /// <param name="what">What was driven, for the message when the control fires.</param>
-    private static async Task Occupying(
-        IRenderedComponent<CommandPalette> page, Func<Task> drive, string what)
-    {
-        using var occupied = new ManualResetEventSlim();
-
-        var busy = Task.Run(() => page.InvokeAsync(() =>
-        {
-            occupied.Set();
-            Thread.Sleep(Occupation);
-        }), Xunit.TestContext.Current.CancellationToken);
-
-        occupied.Wait(Xunit.TestContext.Current.CancellationToken);
-
-        var clock = Stopwatch.StartNew();
-
-        await drive();
-
-        Assert.True(clock.Elapsed > Occupation / 2,
-            $"{what} came back in {clock.ElapsedMilliseconds}ms, so it was handled inline: either "
-            + "it is not being awaited any more, or the renderer was not actually busy. Read "
-            + "bUnit's event dispatch before deleting either half.");
-
-        await busy;
-    }
-
-    /// <summary>
     /// Signed in, typing reaches the book: a group of its own, the book's heading as the label and
     /// the printed citation as the detail.
     /// </summary>
@@ -231,7 +170,7 @@ public sealed class PaletteBookTests
         // to a signed-in reader exactly as to anybody.
         Assert.Empty(page.FindAll(".palette-group"));
 
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
@@ -292,7 +231,13 @@ public sealed class PaletteBookTests
 
         ctx.Api.Asked.Clear();
 
-        layout.Find(".palette-field").Input("knock");
+        // **Awaited and driven behind a busy renderer**, because the two reads under it are the
+        // handover itself rather than a wait — an unawaited `Input` leaves them reading the render
+        // from before the keystroke, which is no overlay at all.
+        await Occupying(
+            layout,
+            () => layout.Find(".palette-field").InputAsync(new ChangeEventArgs { Value = "knock" }),
+            "the word typed into the banner");
 
         // The overlay is up and its own box holds the word, which is the handover.
         Assert.Single(layout.FindAll(".palette"));
@@ -310,7 +255,17 @@ public sealed class PaletteBookTests
 
         // And the banner's own field is emptied when the palette goes, so focus does not come back
         // to a box still holding the first letter of a question that has been asked and answered.
-        layout.Find(".palette-box").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        // **This is the press CI caught, and it is the third of its class in this file.** The
+        // renderer is genuinely busy here: the wait above returns the moment the book's answer for
+        // "knock" is on screen, and that answer lands on a thread-pool continuation whose redraw is
+        // queued through `InvokeAsync` — so the synchronous `KeyDown` posted the Escape and
+        // returned, and `Assert.Empty` read the palette still up. Held busy on purpose now, so the
+        // ordering that failed on ubuntu-latest is the ordering every run takes.
+        await Occupying(
+            layout,
+            () => layout.Find(".palette-box")
+                        .KeyDownAsync(new KeyboardEventArgs { Key = "Escape" }),
+            "the Escape that closes the palette");
 
         Assert.Empty(layout.FindAll(".palette"));
         Assert.Equal("", layout.Find(".palette-field").GetAttribute("value"));
@@ -350,28 +305,14 @@ public sealed class PaletteBookTests
 
         ctx.Api.Asked.Clear();
 
-        using var occupied = new ManualResetEventSlim();
-        var busy = Task.Run(() => layout.InvokeAsync(() =>
-        {
-            occupied.Set();
-            Thread.Sleep(Occupation);
-        }), Xunit.TestContext.Current.CancellationToken);
-
-        occupied.Wait(Xunit.TestContext.Current.CancellationToken);
-
-        var clock = Stopwatch.StartNew();
-
         // What the field holds after each press — the whole of it, which is what an `input` event
-        // on a text box actually carries.
-        await layout.Find(".palette-field").InputAsync(new ChangeEventArgs { Value = "kn" });
-        await layout.Find(".palette-field").InputAsync(new ChangeEventArgs { Value = "kno" });
-
-        Assert.True(clock.Elapsed > Occupation / 2,
-            $"the two presses came back in {clock.ElapsedMilliseconds}ms, so they were handled "
-            + "inline: either they are not being awaited any more, or the renderer was not "
-            + "actually busy. That is the ordinary ordering, not the one this test is about.");
-
-        await busy;
+        // on a text box actually carries. Driven through the shared instrument rather than a
+        // second copy of it, so the elapsed-time control cannot be left off this one.
+        await Occupying(layout, async () =>
+        {
+            await layout.Find(".palette-field").InputAsync(new ChangeEventArgs { Value = "kn" });
+            await layout.Find(".palette-field").InputAsync(new ChangeEventArgs { Value = "kno" });
+        }, "the two presses that arrived while focus was still crossing");
 
         Assert.Single(layout.FindAll(".palette"));
 
@@ -446,7 +387,8 @@ public sealed class PaletteBookTests
 
         ctx.Api.Asked.Clear();
 
-        layout.Find(".palette-field").Input("knockback");
+        await layout.Find(".palette-field")
+                    .InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         // The book answered, for a word that was typed before anything here knew it could be asked.
         await layout.WaitForAssertionAsync(
@@ -586,7 +528,8 @@ public sealed class PaletteBookTests
             CommandsOf(anonymous).BookPause = Impatient;
             anonymous.Api.Asked.Clear();
 
-            page.Find(".palette-box").Input("knockback");
+            await page.Find(".palette-box")
+                      .InputAsync(new ChangeEventArgs { Value = "knockback" });
 
             await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
@@ -602,7 +545,7 @@ public sealed class PaletteBookTests
         var theirs = signedIn.Render<CommandPalette>();
         signedIn.Api.Asked.Clear();
 
-        theirs.Find(".palette-box").Input("knockback");
+        await theirs.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         await theirs.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(theirs)), Patient);
         Assert.Single(Searches(signedIn));
@@ -624,7 +567,7 @@ public sealed class PaletteBookTests
         using var ctx = SignedIn();
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         // The positive control, and it is the whole test: the rows are there to be lost.
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
@@ -652,7 +595,7 @@ public sealed class PaletteBookTests
         // And the same query the account could search is not even sent now. Asserting only that
         // the rows are gone would be satisfied by the box having been emptied on the way in,
         // which happens on every open and is not this.
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
         await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
         Assert.Empty(Searches(ctx));
@@ -685,14 +628,14 @@ public sealed class PaletteBookTests
         CommandsOf(ctx).BookPause = Impatient;
         ctx.Api.Asked.Clear();
 
-        page.Find(".palette-box").Input("kn");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "kn" });
         await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
         Assert.Empty(Searches(ctx));
 
         // One more letter, and the same box asks. The control that makes the absence above mean
         // something: two characters is a threshold rather than the search being switched off.
-        page.Find(".palette-box").Input("kno");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "kno" });
 
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
         Assert.Single(Searches(ctx));
@@ -737,8 +680,16 @@ public sealed class PaletteBookTests
             CommandsOf(burst).Pausing = _ => pause.Task;
             burst.Api.Asked.Clear();
 
-            page.Find(".palette-box").Input("trai");
-            page.Find(".palette-box").Input("trait");
+            // **Both awaited, and driven behind a busy renderer, because the release below is the
+            // read.** Unawaited, the two `Input`s are posted rather than applied — the gate is
+            // released before either keystroke has reached its pause, and the sentence under this
+            // drive ("both keystrokes are now inside the pause") is simply not true of the run
+            // that just happened.
+            await Occupying(page, async () =>
+            {
+                await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "trai" });
+                await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "trait" });
+            }, "the two keystrokes of the burst");
 
             // Both keystrokes are now inside the pause, which no amount of machine load can
             // change. Released together, the first must find that a newer one has overtaken it.
@@ -753,10 +704,10 @@ public sealed class PaletteBookTests
         var theirs = apart.Render<CommandPalette>();
         apart.Api.Asked.Clear();
 
-        theirs.Find(".palette-box").Input("trai");
+        await theirs.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "trai" });
         await theirs.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(theirs)), Patient);
 
-        theirs.Find(".palette-box").Input("trait");
+        await theirs.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "trait" });
         await Until(() => Searches(apart).Count == 2, "the second keystroke asked the book");
 
         Assert.Equal(2, Searches(apart).Count);
@@ -803,10 +754,10 @@ public sealed class PaletteBookTests
         var page = ctx.Render<CommandPalette>();
         ctx.Api.Asked.Clear();
 
-        page.Find(".palette-box").Input("trait");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "trait" });
         await Until(() => Searches(ctx).Count == 1, "the first query reached the server");
 
-        page.Find(".palette-box").Input("surprise");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "surprise" });
         await page.WaitForAssertionAsync(() => Assert.Equal(["SURPRISE"], BookRows(page)), Patient);
 
         // Now let the older question answer, having been overtaken.
@@ -871,10 +822,10 @@ public sealed class PaletteBookTests
         var page = ctx.Render<CommandPalette>();
         ctx.Api.Asked.Clear();
 
-        page.Find(".palette-box").Input("surprise");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "surprise" });
         await Until(() => Searches(ctx).Count == 1, "the first query reached the server");
 
-        page.Find(".palette-box").Input("trait cap");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "trait cap" });
         await Until(() => Searches(ctx).Count == 2, "the second query reached the server");
 
         // The older question answers first, having been overtaken by a question still in flight.
@@ -897,7 +848,7 @@ public sealed class PaletteBookTests
         // The positive control on both absences: the same box, a word nothing knows, and the
         // sentence really is printed — so "no .palette-empty" above is the guard working rather
         // than a sentence this palette never draws.
-        page.Find(".palette-box").Input("zzzqqq");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "zzzqqq" });
         await page.WaitForAssertionAsync(
             () => Assert.Equal(
                 "Nothing here matches what you typed.",
@@ -923,7 +874,7 @@ public sealed class PaletteBookTests
         CommandsOf(ctx).BookPause = TimeSpan.Zero;
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("surprise");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "surprise" });
 
         // The positive control: there are rows to lose, and they are the older query's.
         await page.WaitForAssertionAsync(() => Assert.Equal(["SURPRISE"], BookRows(page)), Patient);
@@ -998,7 +949,8 @@ public sealed class PaletteBookTests
             lost.Api.Asked.Clear();
             lost.Api.Unreachable = true;
 
-            page.Find(".palette-box").Input("surprise");
+            await page.Find(".palette-box")
+                      .InputAsync(new ChangeEventArgs { Value = "surprise" });
 
             await Until(() => Searches(lost).Count == 1, "the query was sent");
             await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
@@ -1015,7 +967,8 @@ public sealed class PaletteBookTests
             var page = expired.Render<CommandPalette>();
             expired.Api.BookRefusesTheSession = true;
 
-            page.Find(".palette-box").Input("surprise");
+            await page.Find(".palette-box")
+                      .InputAsync(new ChangeEventArgs { Value = "surprise" });
 
             await Until(() => Searches(expired).Count >= 1, "the query was sent");
             await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
@@ -1036,7 +989,8 @@ public sealed class PaletteBookTests
             expired.Api.Asked.Clear();
             CommandsOf(expired).BookPause = Impatient;
 
-            page.Find(".palette-box").Input("surprise");
+            await page.Find(".palette-box")
+                      .InputAsync(new ChangeEventArgs { Value = "surprise" });
             await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
             Assert.Empty(Searches(expired));
@@ -1050,7 +1004,7 @@ public sealed class PaletteBookTests
         using var silent = SignedIn();
         var theirs = silent.Render<CommandPalette>();
 
-        theirs.Find(".palette-box").Input("zzzqqq");
+        await theirs.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "zzzqqq" });
 
         await theirs.WaitForAssertionAsync(
             () => Assert.Equal(
@@ -1084,7 +1038,7 @@ public sealed class PaletteBookTests
         var focus = ctx.JSInterop.SetupVoid("ppPalette.enter", _ => true);
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         // The positive control: this palette does ask, for this account, with this drive.
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
@@ -1100,7 +1054,7 @@ public sealed class PaletteBookTests
         // Opened and typed into with the focus call still unanswered. Whoever is here has to be
         // settled before the caret arrives, or these keystrokes go out under the old account.
         CommandsOf(ctx).Toggle();
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
@@ -1125,14 +1079,15 @@ public sealed class PaletteBookTests
         var page = ctx.Render<CommandPalette>();
 
         // The positive control first: with the pause taken normally, this same drive asks.
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
         var pause = new TaskCompletionSource();
         CommandsOf(ctx).Pausing = _ => pause.Task;
 
         ctx.Api.Asked.Clear();
-        page.Find(".palette-box").Input("knockback again");
+        await page.Find(".palette-box")
+                  .InputAsync(new ChangeEventArgs { Value = "knockback again" });
 
         await Until(() => CommandsOf(ctx).BookIsBeingAsked, "the keystroke reached its pause");
 
@@ -1176,7 +1131,7 @@ public sealed class PaletteBookTests
         using var ctx = SignedIn();
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
@@ -1191,7 +1146,14 @@ public sealed class PaletteBookTests
         // the results is drawn in the same list component and would answer either way.
         Assert.Null(Results(rules));
 
-        page.FindAll(".palette-group ~ .palette-row")[0].Click();
+        // **Awaited and behind a busy renderer**, because the two reads under it are what choosing
+        // a row *is*. The wait above returns the moment the book's answer is on screen, which is
+        // exactly when the palette's renderer is not idle — so an unawaited `Click` was posted and
+        // `Assert.False(IsOpen)` read a palette that had not been told to close yet.
+        await Occupying(
+            page,
+            () => page.FindAll(".palette-group ~ .palette-row")[0].ClickAsync(new MouseEventArgs()),
+            "the click that chooses a passage");
 
         Assert.False(CommandsOf(ctx).IsOpen);
         Assert.EndsWith("/rules", ctx.Services.GetRequiredService<NavigationManager>().Uri,
@@ -1218,11 +1180,18 @@ public sealed class PaletteBookTests
         using var ctx = SignedIn();
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
-        page.FindAll(".palette-group ~ .palette-row")[0].Click();
+        // **The render below is the read**, and it has to happen after the row has been chosen or
+        // this is the other half of the same test: a `RulesReference` that comes into existence
+        // before the request was made has nothing to answer, and the wait under it would time out
+        // blaming the page. Behind a busy renderer, so that ordering is driven rather than lucky.
+        await Occupying(
+            page,
+            () => page.FindAll(".palette-group ~ .palette-row")[0].ClickAsync(new MouseEventArgs()),
+            "the click that chooses a passage before /rules exists");
 
         var rules = ctx.Render<RulesReference>();
         await rules.WaitForAssertionAsync(() => Assert.NotNull(Results(rules)), Patient);
@@ -1257,7 +1226,7 @@ public sealed class PaletteBookTests
         using var ctx = SignedIn();
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
 
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
@@ -1319,7 +1288,7 @@ public sealed class PaletteBookTests
         using var ctx = SignedIn();
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("knockback");
+        await page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "knockback" });
         await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
         var inThePalette = page.FindAll(".palette-group ~ .palette-row")
@@ -1329,8 +1298,10 @@ public sealed class PaletteBookTests
                 StringComparer.Ordinal);
 
         var rules = ctx.Render<RulesReference>();
-        rules.Find("#rules-search").Input("knockback");
-        rules.Find("form").Submit();
+        // Awaited in both halves: the submit reads what the input left in the box, so a posted
+        // keystroke would search an empty query and the wait below would blame /rules for it.
+        await rules.Find("#rules-search").InputAsync(new ChangeEventArgs { Value = "knockback" });
+        await rules.Find("form").SubmitAsync();
 
         await rules.WaitForAssertionAsync(() => Assert.NotEmpty(rules.FindAll(".chosen > li")), Patient);
 

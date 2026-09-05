@@ -4636,6 +4636,16 @@ public sealed class WebPresentationTests
             // the ink already on these grounds, so it adds no pair that is not asserted here.
             ("--ink",        "--danger-soft", 4.5),
             ("--ink",        "--accent-soft", 4.5),
+
+            // The wizard's disabled Next control, `.btn.disabled` in app.css. It used to be the
+            // primary fill faded by opacity: 0.45, which axe measured at 2.23:1-3.28:1 across
+            // the four palettes and the A11Y e2e check exempted by name under WCAG 1.4.3 — a
+            // control that is genuinely inactive has no contrast requirement, but a reader is
+            // not axe, and 2.23:1 is close to invisible. Owner's ruling 2026-09-06 (PROGRESS.md
+            // item 10): legible, not merely exempt. This pair clears the ordinary 4.5:1 text
+            // floor outright, which is why the exemption in Accessibility.cs is gone rather than
+            // narrowed.
+            ("--muted",      "--panel-sunk",  4.5),
         ];
 
         foreach (var (fg, bg, floor) in pairs)

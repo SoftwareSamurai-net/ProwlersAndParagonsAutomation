@@ -1380,7 +1380,7 @@
     "prerequisite": {
       "relationship": "baseline_selected_trait",
       "ability": null,
-      "description": "Baseline rank equals the rank of the Ability, Talent or Power nominated by the player when this Power is purchased."
+      "description": "Baseline rank equals the rank of the Ability or Talent the specialisation falls under, nominated by the player when this Power is purchased."
     },
     "tags": [
       "utility",
@@ -1389,6 +1389,12 @@
       "specialist"
     ],
     "affects_resolve": false,
+    "affects_resolve_when_nominated": [
+      "might",
+      "agility",
+      "toughness",
+      "willpower"
+    ],
     "verified_fields": [
       "range",
       "rank_type",
@@ -1398,7 +1404,7 @@
       "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.28",
-    "notes": "Baseline rank equals the rank of the Ability or Talent the specialisation falls under, nominated by the player at purchase."
+    "notes": "Your specialisation falls under one of your Abilities or Talents (Ch.2 p.28), and that Trait's rank is this Power's baseline. Expertise is normally exempt from Resolve — Ch.5 p.83 exempts it 'except for combat skills' — but it counts at its full rank, and so lowers your opening Resolve, whenever the Trait it falls under is Might, Agility, Toughness or Willpower: the four the Attack and Defense table (Ch.4 p.75) uses to attack or defend. Your GM has the final say."
   },
   {
     "id": "extra_limbs",
@@ -1571,7 +1577,7 @@
       "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.29",
-    "notes": "T-Kay (Ch.8 p.143) is printed with Force Field 12d (Zone), which is why pros_allowed_by_own_text exists; each entry there carries its own printed sentence."
+    "notes": "This Power's own entry (Ch.2 p.29) tells you to apply the Zone, Ranged or Area Pro, so all three are offered here despite its Self range — and T-Kay (Ch.8 p.143) is printed with Force Field 12d (Zone)."
   },
   {
     "id": "form_energy",
