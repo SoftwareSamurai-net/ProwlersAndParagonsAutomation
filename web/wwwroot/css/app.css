@@ -818,8 +818,29 @@ hr {
 .btn.small { padding: var(--space-0) var(--space-3); font-size: var(--text-sm); }
 
 /* An <a> standing in for a disabled button. Without href it is not focusable, but it still
-   needs to look and behave as unavailable. */
-.btn.disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+   needs to look and behave as unavailable.
+
+   **It used to be opacity: 0.45, faded toward whatever sat behind it** — 2.23:1 Hero/Light,
+   3.28:1 Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark, against a 4.5:1 floor. WCAG
+   1.4.3 exempts an inactive control's text and axe agreed once told, but a reader is not axe:
+   the wizard's disabled Next is exactly what somebody looks at to work out why they cannot go
+   on, and 2.23:1 is close to invisible. Owner's ruling 2026-09-06 (PROGRESS.md item 10): make
+   it legible. Swapping to token colours instead of fading the primary fill reads as "here, not
+   yet available" rather than "barely there" — --panel-sunk/--muted/--rule is the same recessed,
+   secondary-text combination `.btn.quiet` already uses on --panel, one step further sunk so the
+   two are not the same control at a glance. --muted on --panel-sunk measures 6.01:1 Hero/Light,
+   7.26:1 Hero/Dark, 6.01:1 Villain/Light, 7.21:1 Villain/Dark — comfortably past 4.5:1 in all
+   four, asserted by EveryScreenPairInUseHoldsItsContrastFloor. That clears WCAG outright, so
+   the A11Y check's per-node exemption for this element is gone; re-measure here rather than
+   restoring the exemption if a future palette change moves either token. */
+.btn.disabled {
+    opacity: 1;
+    cursor: not-allowed;
+    pointer-events: none;
+    background: var(--panel-sunk);
+    color: var(--muted);
+    border-color: var(--rule);
+}
 
 /* --focus, not --accent. A focus ring is a non-text control indicator and WCAG 1.4.11 asks
    for 3:1 against what surrounds it; Hero --accent is 1.8:1 on --surface, which is a ring

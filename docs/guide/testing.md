@@ -703,21 +703,35 @@ whole section opens with.
 ### What the A11Y check measured, and the readings it corrected
 
 **axe's full default ruleset, nothing turned off, four palettes × four addresses: 536 passing rule
-instances and one violation, the same one in every palette, exempt under WCAG's own text.** So
-`theme.css`'s contrast claims hold in the assembled app — which nothing had ever checked. It writes
-its ratios into its comments as claims beside its own "re-measure if you change it; do not eyeball",
-two of its tokens are `color-mix()` which only a browser resolves, and
+instances and, at the time, one violation, the same one in every palette, exempt under WCAG's own
+text.** So `theme.css`'s contrast claims hold in the assembled app — which nothing had ever
+checked. It writes its ratios into its comments as claims beside its own "re-measure if you change
+it; do not eyeball", two of its tokens are `color-mix()` which only a browser resolves, and
 `EveryScreenPairInUseHoldsItsContrastFloor` measures the *tokens*, not every rendered combination.
 
-**The one finding, with its figures, because somebody has to decide about it.** The wizard's Next
-control on `/build` before a tier is chosen — `StepButtons.razor` renders an anchor with
-`aria-disabled="true"`, `app.css` paints it at `opacity: 0.45` — measures 2.23:1 Hero/Light, 3.28:1
-Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark, against 4.5:1. WCAG 1.4.3 exempts text in an
-*inactive* component and this one is inactive; axe cannot apply that exemption because it looks for
-the `disabled` attribute, which an anchor cannot carry. So the check drops those nodes **node by
-node rather than turning `color-contrast` off**, counts them, prints the count in its verdict, and
-goes red if the exemption ever matches nothing. Whether a disabled Next should be legible anyway is
-a design decision, not a conformance one — `PROGRESS.md` item 10 carries it.
+**The one finding there used to be, with its figures, because somebody had to decide about it.**
+The wizard's Next control on `/build` before a tier is chosen — `StepButtons.razor` renders an
+anchor with `aria-disabled="true"`, `app.css` used to paint it at `opacity: 0.45` — measured
+2.23:1 Hero/Light, 3.28:1 Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark, against 4.5:1.
+WCAG 1.4.3 exempts text in an *inactive* component and this one is inactive; axe could not apply
+that exemption itself because it looks for the `disabled` attribute, which an anchor cannot carry.
+So the check used to drop those nodes **node by node rather than turning `color-contrast` off**,
+count them, print the count in its verdict, and go red if the exemption ever matched nothing.
+Whether a disabled Next should be legible anyway was a design decision, not a conformance one —
+`PROGRESS.md` item 10 carried it, and the owner's ruling (2026-09-06) was to make it legible
+rather than rely on the exemption.
+
+**The exemption is gone, not narrowed, because the fix cleared the floor outright.**
+`.btn.disabled` in `app.css` no longer fades the primary fill by `opacity`; it paints `--muted`
+text on `--panel-sunk`, the same recessed, secondary-text combination `.btn.quiet` already uses on
+`--panel`, one step further sunk so the two are not the same control at a glance. That pair
+measures 6.01:1 Hero/Light, 7.26:1 Hero/Dark, 6.01:1 Villain/Light, 7.21:1 Villain/Dark — clear of
+4.5:1 in every palette, asserted alongside every other pair `theme.css` promises in
+`EveryScreenPairInUseHoldsItsContrastFloor`. With nothing left for `color-contrast` to find on
+that element, keeping the per-node exemption would have meant dead code guarding against a
+violation that can no longer occur — worse than no exemption, since a dead one hides a future
+regression instead of merely permitting a known one. If a later palette change ever pushes that
+pair back under 4.5:1, `Accessibility.cs` should simply go red on it like any other finding.
 
 **Getting there produced two wrong readings and nearly discarded a right one.** The first said 32
 violations; the second said 2, then 3, then 2, on different elements each run, reporting one
