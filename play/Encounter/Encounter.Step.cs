@@ -1446,6 +1446,26 @@ public sealed partial class Encounter
         }
 
         var threshold = -actor.FullHealth;
+
+        // <b>Two refusals that used to be a throw and a rescue of somebody who did not need one.</b>
+        // A spend with no points behind it reached Combatant.Spending and threw an exception out of
+        // Step, which is not a refusal — an intent the rules do not allow belongs on the ledger, not
+        // in a stack trace. And the arithmetic below sets a Health rather than reducing one, so
+        // against a character nowhere near the line it did not rescue them, it dropped them to one
+        // point above a threshold they were far above already.
+        if (actor.Resolve < fatal.CostResolveToAvoid)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} has {actor.Resolve} Resolve and buying back a fatal blow costs "
+                + $"{fatal.CostResolveToAvoid}");
+        }
+
+        if (actor.CurrentHealth > threshold)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} is on {actor.CurrentHealth} Health and the fatal threshold is "
+                + $"{threshold}, so there is no blow to buy back");
+        }
         var reading = entry.Interpretation!.ResolveReducesDamageTo!;
 
         // <b>Both halves of the reading come out of the sentence, and neither is typed here.</b>

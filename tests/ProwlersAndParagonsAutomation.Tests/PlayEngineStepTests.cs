@@ -873,6 +873,71 @@ public sealed class PlayEngineStepTests
         Assert.Equal(2, recovered.State["victim"].Resolve);
     }
 
+    /// <summary>
+    /// <b>The Fatal Damage rescue is refused when there is nothing to rescue, and refused rather
+    /// than thrown when there is nothing to pay with.</b>
+    ///
+    /// <para>Two failures in one purchase. A spend with no points behind it reached
+    /// <c>Combatant.Spending</c> and threw an exception out of <c>Step</c>, which is not a refusal —
+    /// an intent the rules do not allow belongs on the ledger, and a run that dies on one is a run
+    /// with no verdict at all. And the arithmetic <em>sets</em> a Health rather than reducing one, so
+    /// a character nowhere near the line was not rescued: they were dropped to one point above a
+    /// threshold they were comfortably above already. A Hero on 6 of 6 Health could buy themselves
+    /// down to −5.</para>
+    /// </summary>
+    [Fact]
+    public void TheFatalDamageRescueIsRefusedWhenThereIsNothingToBuyBack()
+    {
+        var table = TableRules.Book with { FatalDamage = true };
+
+        var encounter = new Encounter(_play, new SeededDice(18), table);
+
+        var healthy = Combatant.Hero("healthy", "the healthy Hero", edge: 9, health: 6, resolve: 2,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 3, ["might"] = 4 },
+            ["toughness"]);
+
+        var broke = Combatant.Hero("broke", "the broke Hero", edge: 8, health: 6, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 3, ["might"] = 4 },
+            ["toughness"]).WithHealth(-6);
+
+        var state = encounter.Begin([healthy, broke]);
+
+        // Nowhere near the threshold: refused, and their Health is where it was.
+        var untouched = encounter.Step(state, new SpendResolve("healthy", ResolveSpend.AvoidFatalDamage));
+
+        Assert.Contains(untouched.Added, l =>
+            string.Equals(l.Rule, "gritty_fatal_damage", StringComparison.Ordinal)
+            && l.Text.Contains("no blow to buy back", StringComparison.Ordinal));
+
+        Assert.Equal(6, untouched.State["healthy"].CurrentHealth);
+        Assert.Equal(2, untouched.State["healthy"].Resolve);
+
+        // At the threshold with nothing to spend: a refusal, not an exception out of Step.
+        var penniless = encounter.Step(state, new SpendResolve("broke", ResolveSpend.AvoidFatalDamage));
+
+        Assert.Contains(penniless.Added, l =>
+            string.Equals(l.Rule, "gritty_fatal_damage", StringComparison.Ordinal)
+            && l.Text.Contains("has 0 Resolve", StringComparison.Ordinal));
+
+        Assert.Equal(-6, penniless.State["broke"].CurrentHealth);
+
+        // The control: with a point and a blow to buy back, the purchase still works — so the two
+        // refusals are about the cases they name and not about the rescue being switched off. This
+        // is p.79's own arithmetic, and PlayWorkedExamples holds it against the printed example.
+        var rescued = encounter.Step(
+            state.With(state["broke"].WithHealth(-6)),
+            new SpendResolve("healthy", ResolveSpend.AvoidFatalDamage));
+
+        Assert.Contains(rescued.Added, l => l.Text.Contains("no blow to buy back", StringComparison.Ordinal));
+
+        var dying = encounter.Step(
+            state.With(state["healthy"].WithHealth(-6)),
+            new SpendResolve("healthy", ResolveSpend.AvoidFatalDamage));
+
+        Assert.Equal(-5, dying.State["healthy"].CurrentHealth);
+        Assert.Equal(1, dying.State["healthy"].Resolve);
+    }
+
     // ── Grappling ────────────────────────────────────────────────────────────
 
     /// <summary>Three characters: a grappler, somebody to grapple, and a bystander to be dodged.</summary>
