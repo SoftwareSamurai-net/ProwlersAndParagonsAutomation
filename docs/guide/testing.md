@@ -319,6 +319,18 @@ nothing else reaches it. So four rules, and each of them is load-bearing:
   prints a verdict either way, because a driver that died before reaching a check leaves the line
   out entirely — and "not PASS" would call that a working negative control. `e2e.sh` treats a
   missing verdict as a failure of the twin.
+- **And it must fail for the reason it claims.** Every twin declares `expects: 'control'` or
+  `expects: 'outcome'`, and `e2e.sh` requires the `FAIL` line to carry that kind. Any red line used
+  to count, and the Playwright driver mints a third: `[HARNESS]`, which is the *driver* having a
+  bug — an environment slot the shell forgot to seed throws out of `Account.cs` and prints
+  `FAIL — [HARNESS] no sign-in token was seeded for RULES`, which said nothing about whether the
+  check could see its defect and was read as a working negative control anyway. `Runner.cs` had
+  said so in a comment since the day it was written; nothing enforced it. `HARNESS` is not
+  declarable, so a twin that starts producing one turns the run red. **Every declared value was set
+  by watching the twin fail**, and two are not what a reader would guess: `boot-app-never-mounts` is
+  an `outcome` (both drivers' wait for the boot screen to go throws an ordinary failure) and
+  `store-writes-nothing` is a `control` ("the application wrote this character down" *is* `BUILD`'s
+  positive control). `--list` prints `name:CHECK:kind:expects`.
 
 `scripts/e2e/defects.mjs` builds each twin by copying the published directory and substituting
 **one documented line**, and **throws if that line does not occur exactly once** — the

@@ -105,11 +105,16 @@
 # (`scripts/e2e/defects.mjs`), served the same way, driven by the **byte-identical** harness. The
 # real site must report every check green **and** each twin must report its own check red.
 #
-# Three properties, each of which has a history:
+# Four properties, each of which has a history:
 #
 #   - **A twin must SAY FAIL**, not merely fail to say PASS. Three of this repository's four
 #     historical guard faults were a harness that never ran being read as a harness that passed,
 #     so `drive.mjs` catches inside each check and prints a verdict either way.
+#   - **And it must say it for the reason it claims.** Each twin declares `expects: 'control'` or
+#     `expects: 'outcome'` in `defects.mjs`, and its `FAIL` line has to carry that kind. Any FAIL
+#     used to count — including `[HARNESS]`, which is the *driver* having a bug and which
+#     `Runner.cs` says in as many words has not been watched to fail for the reason it claims. An
+#     environment slot the shell forgot to seed prints one, and read as a green negative control.
 #   - **A twin throws if its documented line has moved**, so it cannot quietly stop reproducing
 #     its defect and start passing for the wrong reason. Same shape as `ProofPages.WithDefect`.
 #   - **Every check must have a twin.** The check names the real run reported are compared against
@@ -620,7 +625,7 @@ fi
 echo ""
 echo "=== The deliberately-broken twins ================================================"
 
-# `name:CHECK:kind` per line, and there are two kinds now.
+# `name:CHECK:kind:expects` per line, and there are two kinds now.
 #
 # **`site` is a substituted line in the published output; `seed` is a substituted row in the local
 # D1.** A signed-in check cannot be twinned the first way: what `ADMIN` and `RULES` measure is a
@@ -694,16 +699,40 @@ twins_driven=0
 # a seed twin. A global because bash 3.2 cannot pass an array to a function.
 twin_env=()
 
-# drive_twin <name> <check> <port>
+# drive_twin <name> <check> <port> <expects>
 #
 # Drives one twin and reads exactly one line out of it. **Does not stop the server**, because the
 # two kinds want opposite things: a site twin is a directory of its own and its server dies with
 # it, and every seed twin shares the one server serving the real site, since the site is not what
 # differs between them.
+#
+# **`<expects>` is `control` or `outcome`, and requiring it is a fix rather than a refinement.**
+# This read `grep -q "^E2E CHECK <check>: FAIL"` and took *any* red line as a working negative
+# control. The drivers mint three kinds: `[CONTROL]` — the work did not happen — `[OUTCOME]` — it
+# happened and was wrong — and, in the Playwright driver, `[HARNESS]`, which is the driver itself
+# having a bug. `Runner.cs`'s own comment says a twin whose only red verdict is a `[HARNESS]` one
+# **has not been watched to fail for the reason it claims**, and nothing enforced it: an
+# environment slot the shell forgot to seed throws `InvalidOperationException` out of `Account.cs`,
+# prints `FAIL — [HARNESS] no sign-in token was seeded for RULES`, and read as green here. So did
+# a `Collection was modified` race, which is what a twin actually reported once.
+#
+# That is the same failure this whole file is built against, one level in: a check that goes red
+# for a reason nobody looked at is a claim, and the claim is usually wrong.
 drive_twin() {
-  local name="$1" check="$2" port="$3"
+  local name="$1" check="$2" port="$3" expects="$4"
   local twin_log="$logs/twin-$name-drive.log"
   local twin_status=0
+  local expected_kind
+
+  case "$expects" in
+    control) expected_kind=CONTROL ;;
+    outcome) expected_kind=OUTCOME ;;
+    *)
+      echo "::error::twin '$name' declares expects='$expects', which defects.mjs should have"
+      echo "::error::refused. Read scripts/e2e/defects.mjs's expectationOf."
+      exit 1
+      ;;
+  esac
 
   # **`--only $check`, because a twin needs one verdict and the other eight cost minutes.**
   #
@@ -740,9 +769,36 @@ drive_twin() {
   # A twin's verdict is a FAIL it *printed*, never the absence of a PASS: a driver that fell over
   # before reaching this check leaves the line out entirely, and "not PASS" would call that a
   # working negative control.
-  if grep -q "^E2E CHECK ${check}: FAIL" "$twin_log"; then
-    echo "  ok    $check went red, as it must: $(grep "^E2E CHECK ${check}: FAIL" "$twin_log" \
-      | sed 's/^E2E CHECK [A-Z][A-Z0-9_]*: FAIL — //')"
+  #
+  # **Matched with a shell `case` on the whole line rather than a second `grep`**, because the
+  # separator between the verdict and its reason is an em-dash: a pattern containing one is three
+  # bytes whose meaning to `grep`'s `.` depends on the locale, and `sed`-ing it off is what the
+  # Windows console encoding note in `tests/e2e/Program.cs` is already about. `case` compares
+  # bytes, and `${line#*] }` strips everything up to and including the kind's own bracket.
+  local fail_line
+  fail_line="$(grep "^E2E CHECK ${check}: FAIL" "$twin_log" | head -1)"
+
+  if [ -n "$fail_line" ]; then
+    case "$fail_line" in
+      *"[${expected_kind}]"*)
+        echo "  ok    $check went red as [${expected_kind}], as it must: ${fail_line#*] }"
+        ;;
+      *)
+        echo "::error::twin '$name' turned $check red, but not for the reason it claims. It"
+        echo "::error::declares expects: '${expects}', so its verdict has to be [${expected_kind}]:"
+        echo "::error::  ${fail_line}"
+        echo "::error::A [HARNESS] red is this harness having a bug — a sign-in slot the shell"
+        echo "::error::never seeded, a selector that throws — and says nothing about whether"
+        echo "::error::$check can see the defect it exists to catch. A [CONTROL] red where an"
+        echo "::error::[OUTCOME] was declared (or the reverse) means the twin is landing somewhere"
+        echo "::error::other than where it was watched to land, which is how a twin quietly stops"
+        echo "::error::proving anything about the check it names."
+        echo "::error::What this twin breaks: $(node "$root/scripts/e2e/defects.mjs" --why "$name")"
+        echo "::error::Fix the twin, or change 'expects' in scripts/e2e/defects.mjs — but only"
+        echo "::error::after watching it fail for the reason it would then claim."
+        twin_failures=$((twin_failures + 1))
+        ;;
+    esac
   elif grep -q "^E2E CHECK ${check}: PASS" "$twin_log"; then
     echo "::error::twin '$name' reports $check as PASSING. The check cannot see the defect it"
     echo "::error::exists to catch, so its green verdict against the real site means nothing."
@@ -771,6 +827,7 @@ for line in "${defect_lines[@]}"; do
   name="$(echo "$line" | cut -d: -f1)"
   check="$(echo "$line" | cut -d: -f2)"
   kind="$(echo "$line" | cut -d: -f3)"
+  expects="$(echo "$line" | cut -d: -f4)"
 
   [ "$kind" = "site" ] || continue
 
@@ -798,7 +855,7 @@ for line in "${defect_lines[@]}"; do
   start_server ".e2e/twins/$name" "$port" "twin-$name" || exit 1
 
   twin_env=()
-  drive_twin "$name" "$check" "$port"
+  drive_twin "$name" "$check" "$port" "$expects"
 
   stop_server
 done
@@ -814,14 +871,14 @@ done
 seed_twins=()
 for line in "${defect_lines[@]}"; do
   case "$line" in
-    *:seed) this_driver_runs "$(echo "$line" | cut -d: -f2)" && seed_twins+=("$line") ;;
+    *:seed:*) this_driver_runs "$(echo "$line" | cut -d: -f2)" && seed_twins+=("$line") ;;
   esac
 done
 
 if [ "${#seed_twins[@]}" -eq 0 ]; then
   for line in "${defect_lines[@]}"; do
     case "$line" in
-      *:seed)
+      *:seed:*)
         echo ""
         echo "--- twin '$(echo "$line" | cut -d: -f1)' — skipped: this driver does not run" \
           "$(echo "$line" | cut -d: -f2) ---"
@@ -835,6 +892,7 @@ else
   for line in "${seed_twins[@]}"; do
     name="$(echo "$line" | cut -d: -f1)"
     check="$(echo "$line" | cut -d: -f2)"
+    expects="$(echo "$line" | cut -d: -f4)"
 
     twins_driven=$((twins_driven + 1))
 
@@ -853,7 +911,7 @@ else
       exit 1
     fi
 
-    drive_twin "$name" "$check" "$port"
+    drive_twin "$name" "$check" "$port" "$expects"
   done
 
   stop_server

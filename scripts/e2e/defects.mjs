@@ -46,6 +46,26 @@
 // ago, or the second browser context is signed in as somebody else entirely. Each is a state this
 // deployment can really be in.
 //
+// ------------------------------------------------------------------------------------------------
+// AND EACH TWIN DECLARES *WHICH KIND* OF RED VERDICT IT MUST PRODUCE, BECAUSE "SAYS FAIL" IS NOT
+// THE SAME PROPERTY AS "FAILS FOR THE REASON IT CLAIMS".
+//
+// **`scripts/e2e.sh` used to accept any `FAIL` line at all**, and the drivers mint three kinds:
+// `[CONTROL]` (the work did not happen), `[OUTCOME]` (it happened and was wrong) and, in the
+// Playwright driver, `[HARNESS]` (this harness has a bug). `Runner.cs`'s own comment says a twin
+// whose only red verdict is a `[HARNESS]` one *has not been watched to fail for the reason it
+// claims* — and nothing enforced it, so an unset environment slot, a selector that throws or a
+// `Collection was modified` race would all have read as a working negative control. That is the
+// same failure shape as a harness that never ran being read as a harness that passed, one level
+// in.
+//
+// **So `expects` is part of the declaration**, `--list` prints it, and `scripts/e2e.sh` requires
+// the twin's `FAIL` line to carry exactly that kind. A twin that goes red the other way is
+// reported as a failure of the twin, in its own sentence, rather than counted as a control.
+// Changing an `expects` is a claim about behaviour: change it only after watching the twin fail
+// for the reason it now names.
+//
+// ------------------------------------------------------------------------------------------------
 // **`scripts/e2e/seed.mjs` mints the rows; this file stays the one place a negative control is
 // declared.** A seed defect names the slots it overrides and the accounts it points them at, and
 // `seed.mjs` **throws if a name it does not mint appears here, and throws again if a twin's plan
@@ -72,10 +92,23 @@ import { pathToFileURL } from 'node:url';
  *   `:root[data-mode="villain"] {` four times — once at the top level, which is the light
  *   villain palette, and three times indented inside media queries. A substring search found
  *   three and refused, correctly; the unindented one is unique as a line.
+ *
+ * <b>`expects` is the kind of red verdict this twin must produce</b> — `'control'` for "the work
+ * did not happen" and `'outcome'` for "it happened and was wrong". `scripts/e2e.sh` requires the
+ * twin's `FAIL` line to carry exactly that kind, so a twin that goes red the other way, or red as
+ * `[HARNESS]`, is reported as a failure of the twin rather than counted as a negative control.
+ *
+ * <b>Every value below was set by watching the twin fail, never by reading it</b>, which is why
+ * two of them are not what a reader would guess: `boot-app-never-mounts` reports `[OUTCOME]`
+ * because both drivers' wait for the app to replace its boot screen throws an ordinary failure,
+ * and `store-writes-nothing` reports `[CONTROL]` because `BUILD`'s "the application wrote this
+ * character down" *is* its positive control. Do not adjust one to make a run green; run the twin,
+ * read the verdict, and change the code or the declaration to agree with what was measured.
  */
 export const DEFECTS = [
     {
         name: 'boot-app-never-mounts',
+        expects: 'outcome',
         check: 'BOOT',
         why: 'The element Blazor is told to render into is renamed, so the framework starts, '
             + 'fetches its whole payload, and then has nowhere to put the application. The boot '
@@ -87,6 +120,7 @@ export const DEFECTS = [
     },
     {
         name: 'store-writes-nothing',
+        expects: 'control',
         check: 'BUILD',
         why: 'ppStore.save becomes a no-op that reports success. This is the defect class '
             + 'PROGRESS.md item 10 was sharpened by — a feature reading a store nothing writes '
@@ -98,6 +132,7 @@ export const DEFECTS = [
     },
     {
         name: 'theme-not-restored',
+        expects: 'outcome',
         check: 'THEME',
         why: 'js/theme.js still runs, still stamps, and still increments its own counter — so the '
             + 'positive control passes — but it stamps the default rather than what was stored. '
@@ -109,6 +144,7 @@ export const DEFECTS = [
     },
     {
         name: 'villain-palette-missing',
+        expects: 'outcome',
         check: 'PALETTE',
         why: "The villain palette's selector stops matching, so a Villain in light mode is drawn "
             + 'in the Hero palette. Four palettes silently become three. The pixel goldens would '
@@ -120,6 +156,7 @@ export const DEFECTS = [
     },
     {
         name: 'html-lang-dropped',
+        expects: 'outcome',
         check: 'A11Y',
         why: 'The <html> element loses its lang attribute, so a screen reader cannot tell which '
             + "language to pronounce the page in. It is axe's html-has-lang rule, tagged wcag2a, "
@@ -132,6 +169,7 @@ export const DEFECTS = [
     },
     {
         name: 'base-href-dropped',
+        expects: 'outcome',
         check: 'ROUTES',
         why: 'Without <base href="/"> every relative fetch resolves against the current path, so '
             + 'the front door works perfectly and every deep link fails to load the framework at '
@@ -148,6 +186,7 @@ export const DEFECTS = [
 
     {
         name: 'reader-is-an-administrator',
+        expects: 'outcome',
         check: 'ADMIN',
         why: 'The account the reader signs in as is one the invitation list marks '
             + '`grants_admin = 1`, so /admin serves them the list instead of refusing them. This '
@@ -160,6 +199,7 @@ export const DEFECTS = [
     },
     {
         name: 'rules-token-expired',
+        expects: 'control',
         check: 'RULES',
         why: 'The token seeded for the rulebook reader expired an hour before the run, so '
             + '`db.spendLoginToken` refuses it — its `expires_at > ?` test is in the UPDATE '
@@ -170,6 +210,7 @@ export const DEFECTS = [
     },
     {
         name: 'second-context-is-another-account',
+        expects: 'outcome',
         check: 'ACCOUNT_SAVE',
         why: 'The second browser context is signed in with a token minted for a different '
             + 'invited account, so the character built in the first context is not that '
@@ -242,6 +283,32 @@ export function kindOf(defect) {
     return site ? 'site' : 'seed';
 }
 
+/** The two kinds of red verdict a driver mints that a twin is allowed to declare. */
+export const EXPECTATIONS = ['control', 'outcome'];
+
+/**
+ * Which kind of red verdict this twin must produce, validated.
+ *
+ * <p><b>`HARNESS` is deliberately not declarable.</b> A driver mints it for anything that is
+ * neither of its two assertion types — an environment slot that was never seeded, a selector that
+ * throws, a collection modified while it was being read — and `Runner.cs` says in its own comment
+ * that a twin whose only red verdict is a `[HARNESS]` one has not been watched to fail for the
+ * reason it claims. So there is no spelling of `expects` that accepts one, and a twin that starts
+ * producing one turns the run red rather than passing as a negative control.</p>
+ */
+export function expectationOf(defect) {
+    if (!EXPECTATIONS.includes(defect.expects)) {
+        throw new Error(
+            `twin '${defect.name}' declares expects: ${JSON.stringify(defect.expects)}, which is `
+            + `not one of ${EXPECTATIONS.join(', ')}. Every twin says which kind of red verdict it `
+            + `must produce, because "it said FAIL" and "it failed for the reason it claims" are `
+            + `different properties and only the second one is a negative control — see this `
+            + `file's header. Drive the twin, read the kind in its FAIL line, and declare that.`);
+    }
+
+    return defect.expects;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Called by scripts/e2e.sh.
 //
@@ -257,10 +324,11 @@ const [command, ...rest] = invokedDirectly ? process.argv.slice(2) : ['--importe
 if (command === '--imported') {
     // Nothing. Imported for DEFECTS and kindOf.
 } else if (command === '--list') {
-    // `name:check:kind` per line, which is all the shell needs: it drives each twin, requires that
-    // check to be red in it, and needs the kind to know whether to build a site or re-seed.
+    // `name:check:kind:expects` per line, which is all the shell needs: it drives each twin, needs
+    // the kind to know whether to build a site or re-seed, and requires that check to be red in it
+    // *with the kind of verdict declared here* rather than red by any route at all.
     for (const defect of DEFECTS) {
-        console.log(`${defect.name}:${defect.check}:${kindOf(defect)}`);
+        console.log(`${defect.name}:${defect.check}:${kindOf(defect)}:${expectationOf(defect)}`);
     }
 } else if (command === '--build') {
     const [siteDir, intoDir, name] = rest;
