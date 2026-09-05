@@ -253,21 +253,39 @@ public sealed partial class Encounter
         int page)
     {
         var ties = _play.GetCombat("edge_ties");
-        var ladder = ties.TieBreak!.Order;
+        var tieBreak = ties.TieBreak!;
+
+        // <b>The ladder is looked up once rather than once per comparison.</b> It used to be
+        // `ladder.ToList().IndexOf(name)` inside the comparator, which allocates a list for every
+        // pair the sort looks at.
+        var rungs = tieBreak.Order
+            .Select((name, index) => (name, index))
+            .ToDictionary(rung => rung.name, rung => rung.index, StringComparer.Ordinal);
+
+        // p.73: Minions have no Edge and act after everyone else. Both halves are read rather than
+        // assumed, so a corrected entry moves the order with it.
+        var minionsLast = !tieBreak.MinionsHaveAnEdge
+            && tieBreak.MinionsAct.Contains("after everyone else", StringComparison.Ordinal);
 
         int Rung(Combatant c)
         {
+            // <b>A Minion group is on none of the four rungs, and saying it is on "extras" was a
+            // claim the entry does not make.</b> The ladder breaks ties between characters who have
+            // an Edge; p.73 says Minions have none. They sort after the whole ladder, which is where
+            // the sentence above puts them anyway — this is the same answer, honestly spelled.
+            if (c.Kind == CombatantKind.MinionGroup) return rungs.Count;
+
             var name = c.Kind switch
             {
                 CombatantKind.Hero => "heroes",
                 CombatantKind.Villain => "villains",
                 CombatantKind.Foe => "foes",
                 CombatantKind.Extra => "extras",
-                _ => "extras"
+                _ => throw new ArgumentOutOfRangeException(
+                    nameof(c), c.Kind, "No rung of p.73's ladder is written for that kind.")
             };
 
-            var index = ladder.ToList().IndexOf(name);
-            return index < 0 ? ladder.Count : index;
+            return rungs.TryGetValue(name, out var index) ? index : rungs.Count;
         }
 
         var doubling = Table.GmAlternativeToSeizingInitiative ? GmAlternativeFactor() : 1;
@@ -281,7 +299,7 @@ public sealed partial class Encounter
             !Table.GmAlternativeToSeizingInitiative && seized.Contains(c.Id, StringComparer.Ordinal) ? 0 : 1;
 
         var order = everyone.Values
-            .OrderBy(c => c.Kind == CombatantKind.MinionGroup ? 1 : 0)
+            .OrderBy(c => minionsLast && c.Kind == CombatantKind.MinionGroup ? 1 : 0)
             .ThenBy(Seizing)
             .ThenByDescending(EffectiveEdge)
             .ThenBy(Rung)

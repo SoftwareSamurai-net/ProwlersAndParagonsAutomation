@@ -1003,6 +1003,66 @@ public sealed class PlayEngineStepTests
         Assert.Equal("might", Assert.IsType<Attack>(typed.Choose(state, state["exotic"])).TraitId);
     }
 
+    // ── The order of action ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>The tie-break ladder is the entry's, and Minions are on none of its rungs.</b>
+    ///
+    /// <para>p.73 breaks a tie on Edge by what kind of character each one is, and says Minions have
+    /// no Edge at all and act after everyone else. The engine used to map a Minion group onto the
+    /// "extras" rung — a claim the entry does not make, and one that happened not to matter only
+    /// because the Minions-last sort ran first. It sorts them after the whole ladder now, which is
+    /// the same answer honestly spelled.</para>
+    ///
+    /// <para>That the ladder is read at all is proved with a twin: reordering the entry's own
+    /// <c>order</c> reorders the fight. Without it this fixture would be a second transcription of
+    /// the ladder agreeing with the first.</para>
+    /// </summary>
+    [Fact]
+    public void TheOrderOfActionComesFromTheLadderAndPutsMinionsAfterAllOfIt()
+    {
+        var tie = _play.GetCombat("edge_ties").TieBreak!;
+
+        // The controls on the data.
+        Assert.False(tie.MinionsHaveAnEdge);
+        Assert.Contains("after everyone else", tie.MinionsAct, StringComparison.Ordinal);
+
+        // Everybody on the same Edge, so the ladder is the only thing separating them — and the ids
+        // are chosen to sort the other way round, so an engine falling through to the id tie-break
+        // gives a different answer.
+        List<Combatant> Cast() =>
+        [
+            Combatant.Minions("a_minions", "the Minions", threat: 4, groupSize: 3, "threat"),
+            Combatant.Extra("b_extra", "the Extra", edge: 0, health: 6,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 3 }, ["toughness"]),
+            Combatant.Foe("c_foe", "the Foe", edge: 0, health: 6,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 3 }, ["toughness"]),
+            Combatant.Villain("d_villain", "the Villain", edge: 0, health: 6,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 3 }, ["toughness"]),
+            Combatant.Hero("e_hero", "the Hero", edge: 0, health: 6, resolve: 0,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 3 }, ["toughness"])
+        ];
+
+        var shipped = new Encounter(_play, new SeededDice(20)).Begin(Cast());
+
+        Assert.Equal(["e_hero", "d_villain", "c_foe", "b_extra", "a_minions"], shipped.TurnOrder);
+
+        // The twin: swap the top two rungs and the fight reorders. An engine with the ladder typed
+        // into it would come back with the same answer.
+        var swapped = SubstitutedPlayRules.With(
+            PlayRulesRepository.CombatFile,
+            "\"heroes\",\n          \"villains\"",
+            "\"villains\",\n          \"heroes\"");
+
+        var reordered = new Encounter(swapped, new SeededDice(20)).Begin(Cast());
+
+        Assert.Equal(["d_villain", "e_hero", "c_foe", "b_extra", "a_minions"], reordered.TurnOrder);
+
+        // And the Minions stay last through the reordering, because they are not on the ladder at
+        // all — which is the half the "extras" mapping was quietly claiming otherwise.
+        Assert.Equal("a_minions", reordered.TurnOrder[^1]);
+    }
+
     // ── Grappling ────────────────────────────────────────────────────────────
 
     /// <summary>Three characters: a grappler, somebody to grapple, and a bystander to be dodged.</summary>
