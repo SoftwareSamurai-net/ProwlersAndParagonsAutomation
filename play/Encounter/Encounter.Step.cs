@@ -316,6 +316,12 @@ public sealed partial class Encounter
                 + "place in the book where a half goes downward"));
         }
 
+        // <b>The cap is applied to both rates, and the entry's ambiguity is why that is a
+        // decision.</b> p.77 prints "(up to the number of Minions in the area of effect or within
+        // reach)" as a parenthesis on the area-attack clause alone, and the entry records it there,
+        // named for that clause. Its second half — "or within reach" — is the phrase for an ordinary
+        // attack, which reads as though the whole rule was meant to be capped. Capping both is the
+        // only reading under which an attack cannot knock out a Minion who is not there.
         var defeated = Math.Min(couldDefeat, target.GroupSize);
 
         if (citation is not null)
@@ -783,16 +789,25 @@ public sealed partial class Encounter
         }
 
         var threshold = -actor.FullHealth;
+        var reading = entry.Interpretation!.ResolveReducesDamageTo!;
 
-        var direction = entry.Interpretation!.ResolveReducesDamageTo switch
-        {
-            "1 point above the fatal threshold" => 1,
-            "1 point below the fatal threshold" => -1,
-            var other => throw new InvalidOperationException(
-                $"gritty_fatal_damage's interpretation reads '{other}', which names neither direction.")
-        };
+        // <b>Both halves of the reading come out of the sentence, and neither is typed here.</b>
+        // The direction is the word the interpretation ends on and the distance is the number it
+        // opens with — "1 point above the fatal threshold". Taking the distance from
+        // cost_resolve_to_avoid instead would be an arithmetic coincidence: that field is a price in
+        // Resolve and this is a distance in Health, and they are both 1 for no connected reason.
+        var distance = int.Parse(
+            System.Text.RegularExpressions.Regex.Match(
+                reading, @"^(\d+)\s+point", System.Text.RegularExpressions.RegexOptions.None,
+                TimeSpan.FromSeconds(5)).Groups[1].Value,
+            System.Globalization.CultureInfo.InvariantCulture);
 
-        var rescued = threshold + direction * fatal.CostResolveToAvoid;
+        var direction = reading.Contains("above", StringComparison.Ordinal) ? 1
+            : reading.Contains("below", StringComparison.Ordinal) ? -1
+            : throw new InvalidOperationException(
+                $"gritty_fatal_damage's interpretation reads '{reading}', which names neither direction.");
+
+        var rescued = threshold + direction * distance;
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
