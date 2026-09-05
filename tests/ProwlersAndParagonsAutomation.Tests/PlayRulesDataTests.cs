@@ -508,7 +508,8 @@ public sealed class PlayRulesDataTests
         string? DurationRounds,
         string? ReductionRounds,
         string? ResolveReducesDamageTo,
-        int? OnePointEveryHoursForTheLowestBand);
+        int? OnePointEveryHoursForTheLowestBand,
+        int? FatalDamageIsRequiredBelowHealth);
 
     private sealed record ActionsModel(
         string OnYourTurn,
@@ -1019,7 +1020,7 @@ public sealed class PlayRulesDataTests
     private sealed record WoundPenaltiesModel(
         int AtOrBelowHalfFullHealthPenaltyDice,
         int AtOrBelowZeroHealthPenaltyDice,
-        string ZeroOrLessIsReachableOnlyWith,
+        string ZeroOrLessParenthetical,
         string AppliesTo,
         int CostResolveToIgnore,
         int PagesIgnoredPerResolvePoint);
@@ -2868,6 +2869,79 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
+    /// <b>p.81's parenthetical covers the "or less", not the "0".</b> "Whenever you are down to 0
+    /// Health or less (which is possible when using the Fatal Damage rules) you suffer a −4d penalty"
+    /// hangs the clause off the whole phrase — but exactly 0 needs no optional rule whatever: p.75
+    /// says "Once a target's Health falls to 0, they are defeated", in any fight at any table. Only
+    /// the negative half of the band needs Fatal Damage, which is the rule that lets Health go below
+    /// zero at all.
+    ///
+    /// <para><b>The entry used to assert the other reading as a fact.</b> The field said
+    /// <c>zero_or_less_is_reachable_only_with: "the Fatal Damage rule"</c> — flat, and a claim the
+    /// page does not make: read that way the −4d band is unreachable in an ordinary game and a
+    /// defeated character's rolls carry no penalty. The fact field now carries p.81's clause as
+    /// printed and the reading is an <c>interpretation</c>.</para>
+    ///
+    /// <para>The reading is <b>derived rather than typed</b>: the boundary is Chapter 4's own
+    /// <c>damage.defeated_at_health</c>, read out of <c>combat.json</c>, and the corpus is asked for
+    /// both printed sentences so the derivation is against the book rather than against two of this
+    /// project's files agreeing with each other.</para>
+    /// </summary>
+    [Fact]
+    public void TheWoundPenaltyParentheticalCoversTheNegativeHalfOfItsBand()
+    {
+        var wounds = ChapterFourSectionText("WOUND PENALTIES");
+        var damageSection = ChapterFourSectionText("DAMAGE");
+
+        Assert.False(string.IsNullOrEmpty(wounds));
+        Assert.False(string.IsNullOrEmpty(damageSection));
+
+        var entry = GrittyEntryById("gritty_wound_penalties");
+        var penalties = entry.WoundPenalties;
+        var interpretation = entry.Interpretation;
+
+        Assert.NotNull(penalties);
+        Assert.NotNull(interpretation);
+        Assert.False(string.IsNullOrWhiteSpace(interpretation.WhatThisIs));
+
+        // The fact field is the page's clause and nothing else — verbatim, out of the corpus.
+        Assert.Contains(penalties.ZeroOrLessParenthetical, wounds, StringComparison.Ordinal);
+        Assert.Equal(CanonicalGrittyRules.WoundPenalties.ZeroOrLessParenthetical, penalties.ZeroOrLessParenthetical);
+
+        // p.75 is what makes the flat reading wrong: a character reaches exactly the defeat figure
+        // with no Gritty rule switched on, so the boundary the parenthetical guards is below it.
+        var damage = CombatEntryById("damage").Damage;
+
+        Assert.NotNull(damage);
+        Assert.Contains(
+            $"Health falls to {damage.DefeatedAtHealth}, they are defeated",
+            damageSection,
+            StringComparison.Ordinal);
+
+        Assert.Equal(
+            damage.DefeatedAtHealth,
+            interpretation.FatalDamageIsRequiredBelowHealth);
+
+        // And the rule the parenthetical names is the one that opens the negatives up. Without it
+        // there is nothing below the defeat figure to reach, which is the whole of the reading.
+        var fatal = GrittyEntryById("gritty_fatal_damage").FatalDamage;
+
+        Assert.NotNull(fatal);
+        Assert.True(
+            fatal.HealthCanGoNegative,
+            "Fatal Damage is what puts Health below the defeat figure. If it no longer does, "
+            + "p.81's parenthetical is about something else and this reading has to be redone.");
+
+        // The band's top value is therefore reachable in an ordinary fight, and its penalty applies
+        // there. Stated as a bound rather than as prose so a widened reading has to move it.
+        Assert.True(
+            interpretation.FatalDamageIsRequiredBelowHealth >= damage.DefeatedAtHealth,
+            "The reading may not push the Fatal Damage requirement above the defeat figure: that "
+            + "would make the −4d band unreachable without an optional rule, which is the flat "
+            + "reading this interpretation exists to replace.");
+    }
+
+    /// <summary>
     /// <b>The Example of Combat, p.81, stepped through the data.</b> Six of its rolls resolve
     /// against three different files — Chapter 4's damage rule, its Grappling table, its Minion rule,
     /// and Chapter 3's narrative-control bands for the last one — and every threshold and rate comes
@@ -4168,7 +4242,11 @@ public sealed class PlayRulesDataTests
             // gritty.json's Slow Healing: only the top three bands print an hourly figure. The
             // lowest band's 24-hour reading is 24 (a day's hours, not a page reference) divided by
             // itself, i.e. a day converted to hours — arithmetic, not a transcription.
-            "gritty_slow_healing.interpretation.one_point_every_hours_for_the_lowest_band"
+            "gritty_slow_healing.interpretation.one_point_every_hours_for_the_lowest_band",
+            // gritty.json's Wound Penalties: p.81 hangs its parenthetical on the whole of "0 Health
+            // or less", and which half it governs is a reading — derived from p.75's own defeat
+            // figure by TheWoundPenaltyParentheticalCoversTheNegativeHalfOfItsBand.
+            "gritty_wound_penalties.interpretation.fatal_damage_is_required_below_health"
         };
 
     /// <summary>
@@ -5012,7 +5090,7 @@ public sealed class PlayRulesDataTests
 
             ["gritty_wound_penalties.wound_penalties.at_or_below_half_full_health_penalty_dice"] = Is(CanonicalGrittyRules.WoundPenalties.AtOrBelowHalfFullHealthPenaltyDice),
             ["gritty_wound_penalties.wound_penalties.at_or_below_zero_health_penalty_dice"] = Is(CanonicalGrittyRules.WoundPenalties.AtOrBelowZeroHealthPenaltyDice),
-            ["gritty_wound_penalties.wound_penalties.zero_or_less_is_reachable_only_with"] = Is(CanonicalGrittyRules.WoundPenalties.ZeroOrLessIsReachableOnlyWith),
+            ["gritty_wound_penalties.wound_penalties.zero_or_less_parenthetical"] = Is(CanonicalGrittyRules.WoundPenalties.ZeroOrLessParenthetical),
             ["gritty_wound_penalties.wound_penalties.applies_to"] = Is(CanonicalGrittyRules.WoundPenalties.AppliesTo),
             ["gritty_wound_penalties.wound_penalties.cost_resolve_to_ignore"] = Is(CanonicalGrittyRules.WoundPenalties.CostResolveToIgnore),
             ["gritty_wound_penalties.wound_penalties.pages_ignored_per_resolve_point"] = Is(CanonicalGrittyRules.WoundPenalties.PagesIgnoredPerResolvePoint)

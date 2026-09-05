@@ -318,12 +318,20 @@ public static class CanonicalGrittyRules
     /// <para><b>The corpus filed this section's heading under the Example of Combat's until the extractor was
     /// fixed in this slice</b> — "EXAMPLE OF COMBAT — WOUND PENALTIES", the qualifier inverted. The prose was
     /// never damaged; only the heading was. See <c>docs/guide/rulebook-corpus.md</c>.</para>
+    ///
+    /// <para><b>The parenthetical is transcribed, not resolved.</b> It sits against the whole phrase
+    /// "0 Health or less", and exactly 0 needs no optional rule: p.75 defeats a character once their Health
+    /// falls to 0, in any fight. Which half the parenthetical governs is therefore a reading, and it lives in
+    /// the entry's <c>interpretation</c> — see
+    /// <c>PlayRulesDataTests.TheWoundPenaltyParentheticalCoversTheNegativeHalfOfItsBand</c>. The field below
+    /// carries p.81's clause and nothing more; it used to say "the Fatal Damage rule" flat, which asserted
+    /// the reading as though the page printed it.</para>
     /// </summary>
     public static class WoundPenalties
     {
         public const int AtOrBelowHalfFullHealthPenaltyDice = -2;
         public const int AtOrBelowZeroHealthPenaltyDice = -4;
-        public const string ZeroOrLessIsReachableOnlyWith = "the Fatal Damage rule";
+        public const string ZeroOrLessParenthetical = "which is possible when using the Fatal Damage rules";
         public const string AppliesTo = "all challenge rolls";
         public const int CostResolveToIgnore = 1;
         public const int PagesIgnoredPerResolvePoint = 1;

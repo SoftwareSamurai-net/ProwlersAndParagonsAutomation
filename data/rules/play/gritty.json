@@ -301,10 +301,14 @@
       "wound_penalties": {
         "at_or_below_half_full_health_penalty_dice": -2,
         "at_or_below_zero_health_penalty_dice": -4,
-        "zero_or_less_is_reachable_only_with": "the Fatal Damage rule",
+        "zero_or_less_parenthetical": "which is possible when using the Fatal Damage rules",
         "applies_to": "all challenge rolls",
         "cost_resolve_to_ignore": 1,
         "pages_ignored_per_resolve_point": 1
+      },
+      "interpretation": {
+        "what_this_is": "This repository's reading of how far p.81's parenthetical reaches. The page attaches 'which is possible when using the Fatal Damage rules' to the whole phrase '0 Health or less', but exactly 0 needs no optional rule at all: p.75 says a character is defeated once their Health falls to 0, in any fight. So the parenthetical is about the 'or less' half - only a Health strictly below the defeat figure requires Fatal Damage, which is the rule that lets Health go negative in the first place. Read the other way round, the -4d band would be unreachable in an ordinary game, and a defeated character's rolls would carry no penalty at all.",
+        "fatal_damage_is_required_below_health": 0
       },
       "description": "Being hurt shows: everything a character rolls is two dice worse once half their pool is gone, and four dice worse once the pool is empty or past it. A point of the Hero currency buys one slice free of it, and buying more slices costs more points.",
       "verified_fields": [
