@@ -150,6 +150,18 @@ $found"
 
 live() { kill -0 "$1" 2>/dev/null; }
 
+# How many processes on this machine are running a given command. Used only by the marker check in
+# `drive_tree_case`, and `ps` again rather than anything under test.
+#
+# **The pattern goes through the environment, and that is not style.** The first version was
+# `ps -eo command= | grep -c -F -- "$1"`, and `grep`'s own command line contains the pattern — so it
+# counted itself, reported one survivor of a tree that had been killed perfectly, and blamed the
+# fix. `awk` reading `ENVIRON` keeps the string out of every argv on the machine.
+count_matching() {
+  ps -eo command= 2>/dev/null \
+    | PP_MARK="$1" awk 'index($0, ENVIRON["PP_MARK"]) { n++ } END { print n + 0 }'
+}
+
 # ------------------------------------------------------------------------------------------------
 # Case 1 — the `/proc` parse, driven on this machine whatever this machine is.
 #
@@ -344,8 +356,8 @@ proc_net_parse_case() {
 # `( … ) &` shape `start_server` uses — so `$!`, and therefore `server_pid`, is the same kind of
 # pid the harness actually hands `stop_server`.
 drive_tree_case() {
-  local name="$1" port="$2" launch="$3" ready_seconds="$4"
-  local log tree n_alive survivors root_pid
+  local name="$1" port="$2" launch="$3" ready_seconds="$4" marker="${5:-}"
+  local log tree n_alive survivors root_pid escapees n_marked
 
   log="$(mktemp)"
 
@@ -390,6 +402,21 @@ $(descendants_of "$root_pid")"
     return
   fi
 
+  # A fixture that never spawned a marker satisfies "no marker survived" perfectly, which is three
+  # of this repository's four historical guard faults. So count them before anything is killed.
+  n_marked=0
+  if [ -n "$marker" ]; then
+    n_marked="$(count_matching "$marker")"
+    if [ "$n_marked" -lt 5 ]; then
+      stop_server
+      fail "$name" "[CONTROL] only $n_marked processes are running '$marker', so the supervisor"\
+" never had a set of siblings to replace and 'nothing was spawned during the kill' would hold"\
+" against a fixture that spawns nothing at all."
+      rm -f "$log"
+      return
+    fi
+  fi
+
   local before="$tree"
   local before_count="$n_alive"
 
@@ -421,6 +448,24 @@ $(descendants_of "$root_pid")"
     return
   fi
 
+  # **The assertion the port cannot make.** `stop_server`'s port-holder backstop will find and
+  # kill a respawned *listener*, so "the port is free" is true whether or not the tree kill was
+  # complete — it passed with `freeze_tree`'s `kill -STOP` removed, which is how this check came to
+  # exist. A process spawned during the kill that holds nothing is invisible to every other
+  # assertion here and is exactly what leaked.
+  if [ -n "$marker" ]; then
+    escapees="$(count_matching "$marker")"
+    if [ "$escapees" -ne 0 ]; then
+      pkill -f "$marker" 2>/dev/null || true
+      fail "$name" "[OUTCOME] $escapees process(es) running '$marker' outlived stop_server, out of"\
+" $n_marked before it. Every one of them was spawned by a supervisor that was still running while"\
+" its own tree was being killed, so it was born after the tree was enumerated and nothing killed"\
+" it. That is the leak CI run 33949251306 reported, and the freeze in kill_tree is what stops it."
+      rm -f "$log"
+      return
+    fi
+  fi
+
   if port_in_use "$port"; then
     # **Name the holder, because the last time this fired it did not.** CI run 33949251306 said
     # "something outside the tree is holding it" and stopped there, and a whole session went into
@@ -443,8 +488,14 @@ $(descendants_of "$root_pid")"
     return
   fi
 
-  pass "$name" "$before_count processes held port $port; after stop_server every one of them is"\
+  if [ -n "$marker" ]; then
+    pass "$name" "$before_count processes held port $port and $n_marked of them were siblings a"\
+" supervisor replaces on sight; after stop_server every one is gone, the port is free, and nothing"\
+" was spawned while the tree was being killed."
+  else
+    pass "$name" "$before_count processes held port $port; after stop_server every one of them is"\
 " gone and the port is free."
+  fi
   rm -f "$log"
 }
 
@@ -496,7 +547,7 @@ EOF
 }
 
 # ------------------------------------------------------------------------------------------------
-# Case 4 — a supervisor that restarts its listener, which is what wrangler is.
+# Case 4 — a supervisor that restarts what it loses, which is what wrangler is.
 #
 # **This is the CI failure, reproduced hermetically.** Measured on a real `wrangler pages dev`:
 # kill the `workerd` holding the port and miniflare logs "The Workers runtime crashed unexpectedly
@@ -506,12 +557,30 @@ EOF
 # lost. The replacement was born after the tree had been enumerated, so nothing killed it and
 # nothing listed it as a survivor: exactly the verdict run 33949251306 printed.
 #
-# **The sleeping siblings are the window and they are not padding.** wrangler's supervisor has four
-# children — two esbuild, two workerd — and the one holding the port is not the last of them, so
-# the old code ran `children_of` for every remaining sibling *after* killing it and before killing
-# their parent. A fixture whose supervisor has exactly one child gives that code no window at all
-# and passes against it, which would make this case a decoration. Forty siblings is a window on a
-# fast Mac as well as on the runner.
+# ------------------------------------------------------------------------------------------------
+# WHAT THIS ASSERTS THAT THE PORT CANNOT, AND WHY THAT TOOK A SECOND ATTEMPT.
+#
+# The first version of this case asserted only what every other case asserts — the tree is dead and
+# the port is free — and **it passed with the fix removed**, which is the whole reason this
+# paragraph exists rather than a green tick. `stop_server`'s port-holder backstop found the
+# respawned listener by its socket and killed it, so the outcome was identical whether or not the
+# tree kill had been complete. A check that cannot tell the fix from the backstop is not a check on
+# the fix.
+#
+# So it asserts the property the freeze actually buys: **nothing in the tree spawned anything while
+# the tree was being killed.** Every sibling here is a marker script that the supervisor replaces
+# when it dies — miniflare's behaviour, applied to a process cheap enough to have twenty-five of.
+# A depth-first kill starts killing siblings one at a time, the supervisor answers each death with
+# a new marker, and the ones born after the enumeration are orphaned onto init holding nothing.
+# They are invisible to "the port is free" and they are exactly what leaked.
+#
+# **Twenty-five siblings, and the count is the window rather than padding.** wrangler's supervisor
+# has four children and the one holding the port is not the last of them, so the old code ran
+# `children_of` for every remaining sibling *after* killing it and before killing their parent. A
+# fixture whose supervisor has one child gives that code no window at all and passes against it.
+#
+# The positive control is that the markers were really there before the stop: "no marker survived"
+# is satisfied perfectly by a fixture that never spawned one.
 #
 # So: remove the `kill -STOP` from `freeze_tree` and this must go red. That is the mutation this
 # case exists to be broken by.
@@ -523,26 +592,44 @@ respawning_case() {
 
   write_listener "$dir"
 
+  # The sibling. A script rather than a bare `sleep`, because its *path* is the marker: `ps` shows
+  # `/bin/sh <this temp dir>/marker.sh`, and the temp dir is unique to this run. `sleep` on its own
+  # is unidentifiable and every shell tail-execs a one-line script, which would lose the path.
+  cat > "$dir/marker.sh" <<'EOF'
+#!/bin/sh
+while :; do sleep 30; done
+EOF
+  chmod +x "$dir/marker.sh"
+
   cat > "$dir/supervisor.mjs" <<'EOF'
 import { spawn } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const port = process.argv[2];
-const start = () => {
+
+// What miniflare does when workerd dies: assume it crashed, and start another.
+const listener = () => {
   const child = spawn(process.execPath, [join(here, 'listener.mjs'), port], { stdio: 'inherit' });
-  // What miniflare does when workerd dies: assume it crashed, and start another.
-  child.on('exit', () => start());
+  child.on('exit', () => listener());
 };
-start();
-// The siblings that give a depth-first kill something to walk before it reaches this process.
-for (let i = 0; i < 40; i++) spawn('sleep', ['300'], { stdio: 'ignore' });
+listener();
+
+// The same reflex on a cheap process, twenty-five times over: the siblings a depth-first kill has
+// to walk, each of which is replaced the moment it dies.
+const sibling = () => {
+  const child = spawn(join(here, 'marker.sh'), [], { stdio: 'ignore' });
+  child.on('exit', () => sibling());
+};
+for (let i = 0; i < 25; i++) sibling();
+
 setInterval(() => {}, 1 << 30);
 EOF
 
   port="$(next_free_port 8894)"
 
-  drive_tree_case RESPAWNING_TREE "$port" "node '$dir/supervisor.mjs' $port & wait" 20
+  drive_tree_case RESPAWNING_TREE "$port" "node '$dir/supervisor.mjs' $port & wait" 20 \
+    "$dir/marker.sh"
 }
 
 # ------------------------------------------------------------------------------------------------
