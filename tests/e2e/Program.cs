@@ -7,11 +7,12 @@ using ProwlersAndParagons.E2e.Checks;
 //
 // **The server is not this program's business, and that is a deliberate answer rather than an
 // omission.** `scripts/e2e.sh` publishes the site, parses the wrangler version out of
-// `.github/workflows/deploy.yml`, starts the server from `.e2e/` **specifically so no `functions/`
-// directory is found**, builds a deliberately-broken twin per check, and drives each of them. All
-// of that is hard-won — read its header and `docs/guide/testing.md` on the three server facts that
-// each cost a debugging round — and none of it is easier in C#. So this program takes a URL, and
-// `PP_E2E_DRIVER` is the seam that points that script at it:
+// `.github/workflows/deploy.yml`, migrates and seeds a local D1, starts the server **from the
+// repository root so that `functions/` is bundled and the accounts API is served**, builds a
+// deliberately-broken twin per check, and drives each of them. All of that is hard-won — read its
+// header and `docs/guide/testing.md` on the three server facts that each cost a debugging round —
+// and none of it is easier in C#. So this program takes a URL, plus the raw sign-in tokens that
+// script seeded (see `Account.cs`), and `PP_E2E_DRIVER` is the seam that points it at one:
 //
 //     PP_E2E_DRIVER="dotnet <path>/ProwlersAndParagons.E2e.dll" ./scripts/e2e.sh
 //
@@ -71,8 +72,8 @@ for (var i = 1; i < args.Length; i++)
 // `e2e.sh` compares them and fails on a driven check with no negative control. While this driver
 // was being built one check at a time, the unported ones were listed here anyway, as a
 // `NotYetPorted` placeholder that reported FAIL — present and red rather than absent, so the
-// comparison stayed meaningful and a partial driver could not look like a smaller suite. All six
-// are ported, so that class is gone; if a seventh check is added, add its twin in the same change.
+// comparison stayed meaningful and a partial driver could not look like a smaller suite. All nine
+// below are twinned, so that class is gone; if a tenth is added, add its twin in the same change.
 //
 // **A11Y is second, and its position is part of what it measures.** Every other check here is
 // indifferent to what ran before it — "state left behind by an earlier check is deliberate, a
@@ -82,6 +83,20 @@ for (var i = 1; i < args.Length; i++)
 // or second, it scans one with a disabled Next. Those are different pages and they give different
 // answers, and a check whose subject depends on execution order is not reproducible. Second is
 // the position that agrees with `--only`, which is how every twin drives it.
+//
+// **The three signed-in checks are last, and each opens a browser context of its own.** They are
+// stage two: `scripts/e2e.sh` serves the site with `functions/` bundled against a migrated local
+// D1, seeds the `login_tokens` row an email would have caused, and hands the raw token here in the
+// environment — see `Account.cs`. A context apiece is what keeps them out of every other check's
+// way: a session cookie left in the run's own browser would make whatever ran next depend on
+// something nothing in it mentions, which is the fault A11Y had.
+//
+// **They are Playwright's alone, and that is a second asymmetry like A11Y's.** `scripts/e2e/
+// drive.mjs` cannot run them — it has no second context and no way to make one — so a `--driver
+// node` run reports five checks and skips four twins, saying so on each. `e2e.sh` compares only
+// the direction whose failure costs a missed regression (a driven check with no twin), and
+// `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck` holds the converse across both drivers.
+// Read the comment at that comparison in `e2e.sh` before changing either.
 Check[] checks =
 [
     Boot.Check,
@@ -90,6 +105,9 @@ Check[] checks =
     Theme.Check,
     Palette.Check,
     Routes.Check,
+    Admin.Check,
+    Rules.Check,
+    AccountSave.Check,
 ];
 
 if (only.Count > 0)

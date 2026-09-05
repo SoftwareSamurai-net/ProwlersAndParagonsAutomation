@@ -36,8 +36,11 @@ public sealed class ControlFailedException(string what)
 /// top, so a click at a coordinate the element has not settled on yet is retried rather than lost.
 /// </para>
 /// </summary>
-public sealed class Harness(IPage page, string baseUrl)
+public sealed class Harness(IPage page, string baseUrl, IBrowser? browser = null)
 {
+    /// <summary>Every extra context this harness has opened, so the run can close them.</summary>
+    private readonly List<IBrowserContext> _extraContexts = [];
+
     /// <summary>
     /// Installed into every document before anything else runs.
     ///
@@ -73,6 +76,109 @@ public sealed class Harness(IPage page, string baseUrl)
 
     /// <inheritdoc cref="ConsoleErrors"/>
     public List<string> Exceptions { get; } = [];
+
+    /// <summary>
+    /// The address and status of every response this page has received, cleared between checks.
+    ///
+    /// <para><b>This is a read and not a reach past the browser.</b> The rule is that no check may
+    /// <em>arrange</em> a state the application did not create — no <c>localStorage.setItem</c>, no
+    /// calling into a component. Watching what the browser was answered is the opposite: it is the
+    /// only way to tell "the page says you are not allowed" from "the page says that because it
+    /// never asked anybody", and it is what lets the rulebook check assert a real <c>401</c> from
+    /// the accounts server rather than a sentence in the markup.</para>
+    /// </summary>
+    /// <remarks>
+    /// <b>Read through <see cref="ResponsesSoFar"/> and never enumerated directly.</b> Playwright
+    /// raises <c>Response</c> on its own thread while a check is running, so a <c>Where(...)</c>
+    /// straight over this list throws <i>Collection was modified</i> the moment a page is still
+    /// fetching — which is most of the time, and which a twin duly reported as a
+    /// <c>[HARNESS]</c> verdict rather than as the defect it was supposed to prove.
+    /// </remarks>
+    private List<(string Method, string Url, int Status)> Responses { get; } = [];
+
+    /// <summary>A snapshot of <see cref="Responses"/>, safe to enumerate while the page is busy.</summary>
+    public List<(string Method, string Url, int Status)> ResponsesSoFar()
+    {
+        lock (Responses) return [.. Responses];
+    }
+
+    /// <summary>Forget what has been seen so far. Called between checks by <see cref="Runner"/>.</summary>
+    public void ClearResponses()
+    {
+        lock (Responses) Responses.Clear();
+    }
+
+    /// <summary>
+    /// A second browser, in effect: a fresh context with its own cookie jar and its own empty local
+    /// storage, on the same site.
+    ///
+    /// <para><b>Two checks need one and neither could be written honestly without it.</b>
+    /// <c>ACCOUNT_SAVE</c> asks whether a character followed the <em>account</em> rather than the
+    /// browser, which is not a question a single context can answer: whatever it finds might be
+    /// what it left in local storage. <c>RULES</c> asks what a stranger is served, which needs a
+    /// reader who is not signed in while one who is stays signed in.</para>
+    ///
+    /// <para><b>It inherits nothing except the site and the render latch.</b> The latch is carried
+    /// over because it only ever shortens a run that is already red — see
+    /// <see cref="AppEverRendered"/> — and everything else about the context is new by design.</para>
+    /// </summary>
+    public async Task<Harness> FreshContext()
+    {
+        if (browser is null)
+        {
+            throw new CheckFailedException(
+                "this harness was built without a browser, so it cannot open a second context. "
+                + "Runner.Drive is what supplies one.");
+        }
+
+        var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = 1280, Height = 900 },
+        });
+
+        _extraContexts.Add(context);
+
+        var fresh = await context.NewPageAsync();
+        var harness = new Harness(fresh, BaseUrl, browser) { AppEverRendered = AppEverRendered };
+
+        Watch(fresh, harness);
+        await fresh.AddInitScriptAsync(Recorder);
+
+        return harness;
+    }
+
+    /// <summary>
+    /// Wire a page's own complaints and answers into the harness that will report them.
+    ///
+    /// <para>One place rather than two, because a fresh context that recorded nothing would give a
+    /// check a permanently empty <see cref="Responses"/> — and every assertion made of it is an
+    /// absence, which an empty list satisfies.</para>
+    /// </summary>
+    internal static void Watch(IPage watched, Harness into)
+    {
+        watched.Console += (_, message) =>
+        {
+            if (message.Type == "error") into.ConsoleErrors.Add(message.Text);
+        };
+
+        watched.PageError += (_, error) => into.Exceptions.Add(error);
+        watched.Response += (_, response) =>
+        {
+            lock (into.Responses)
+                into.Responses.Add((response.Request.Method, response.Url, response.Status));
+        };
+    }
+
+    /// <summary>
+    /// Close whatever <see cref="FreshContext"/> opened. Called between checks by
+    /// <see cref="Runner"/>, so a check that opened one cannot leave it running through the next.
+    /// </summary>
+    public async Task CloseExtraContexts()
+    {
+        foreach (var context in _extraContexts) await context.CloseAsync();
+
+        _extraContexts.Clear();
+    }
 
     /// <summary>
     /// The main-frame response for the last <see cref="Goto"/> or <see cref="Reload"/>.

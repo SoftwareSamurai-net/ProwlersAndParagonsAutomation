@@ -40,13 +40,9 @@ public static class Runner
         });
 
         var page = await context.NewPageAsync();
-        var harness = new Harness(page, baseUrl);
+        var harness = new Harness(page, baseUrl, browser);
 
-        page.Console += (_, message) =>
-        {
-            if (message.Type == "error") harness.ConsoleErrors.Add(message.Text);
-        };
-        page.PageError += (_, error) => harness.Exceptions.Add(error);
+        Harness.Watch(page, harness);
 
         await page.AddInitScriptAsync(Harness.Recorder);
 
@@ -60,8 +56,16 @@ public static class Runner
             // having run.
             if (await Verdict(check, harness)) passed++;
 
+            // **A second context does not survive the check that opened it, and that is not
+            // tidiness.** A signed-in context left running would carry a session cookie into
+            // whatever ran next, so a later check could pass or fail for a reason nothing in it
+            // mentions — which is exactly the fault `A11Y` had when it scanned whichever palette
+            // and page state the previous check happened to leave behind.
+            await harness.CloseExtraContexts();
+
             harness.ConsoleErrors.Clear();
             harness.Exceptions.Clear();
+            harness.ClearResponses();
         }
 
         await context.CloseAsync();

@@ -10,22 +10,44 @@
 # THERE ARE TWO DRIVERS AND THIS SCRIPT IS NEITHER OF THEM.
 #
 # What this file owns is everything *around* a drive: publishing, parsing the wrangler version out
-# of deploy.yml, starting the server from a directory with no `functions/` in it, building each
-# deliberately-broken twin, driving it, and deciding what the verdicts mean. A driver takes a URL
-# and prints three kinds of line. That split is the whole reason a second driver cost a flag here
-# rather than a rewrite.
+# of deploy.yml, migrating and seeding a local D1, starting the server from a directory where
+# wrangler finds `functions/`, building each deliberately-broken twin, driving it, and deciding
+# what the verdicts mean. A driver takes a URL, and two of them also take the raw sign-in tokens
+# this script seeded — which is what a reader's mail would have handed them, and nothing more.
+# That split is the whole reason a second driver cost a flag here rather than a rewrite.
 #
-#   node    scripts/e2e/drive.mjs — a hand-rolled DevTools Protocol client, five checks. The
-#           default, and the one with a track record.
-#   dotnet  tests/e2e — Microsoft.Playwright, the same five plus `A11Y`, which runs axe-core
-#           inside the page and which the hand-rolled client cannot do at all.
+#   node    scripts/e2e/drive.mjs — a hand-rolled DevTools Protocol client. BOOT, BUILD, THEME,
+#           PALETTE and ROUTES: five. The default, and the one with a track record.
+#   dotnet  tests/e2e — Microsoft.Playwright. The same five plus four the hand-rolled client
+#           cannot do at all: `A11Y`, which runs axe-core inside the page, and the three
+#           signed-in checks, which need a second browser context apiece. Nine.
 #
 # **Neither is retired and the second has not replaced the first.** `PROGRESS.md` item 10 states
 # the condition under which `scripts/e2e/` goes, and removing a working harness before its
 # replacement has a record is how an upgrade becomes a regression.
 #
-# Stage one of `PROGRESS.md` item 10, and **anonymous only**: no account, no credential, no
-# bypass. Everything behind sign-in is stage two's business and nothing here reaches for it.
+# ------------------------------------------------------------------------------------------------
+# STAGE TWO: THE SERVER NOW BUNDLES `functions/` AND BINDS A LOCAL D1, AND A READER IS SIGNED IN
+# BY SEEDING THE ROW AN EMAIL WOULD HAVE CAUSED.
+#
+# Stage one was anonymous only, and deliberately so: it ran `wrangler pages dev` from a directory
+# with no `functions/` in it, so every `/api/` address fell through `_redirects` to `index.html`
+# and the app read an unparseable answer as "anonymous". Stage two needs the opposite. The server
+# now runs from the repository root, so wrangler finds `functions/`; it is given the D1 binding
+# `functions/api/[[path]].js` reaches for; and the database is migrated into `.e2e/d1/` first.
+#
+# **The anonymous checks did not need a second server, and that was measured rather than assumed.**
+# Bundling `functions/` changes what `/api/me` answers — a real JSON 401 instead of the site's own
+# `index.html` — so the question was whether the six existing checks still hold against it. All six
+# were driven against a functions-bundled server before anything else here was written, and all six
+# passed unchanged. So this is **one** server configuration and not two, which is the difference
+# between adding a few drives to the Build job and doubling it.
+#
+# **Signing in is a seeded row, never a seam in the application.** `worker/tokens.js` stores only
+# the SHA-256 of a sign-in token, so `scripts/e2e/seed.mjs` mints one, writes the hash into the
+# local D1, and hands the raw token to the driver — which drives `/signin?t=<token>` and lets the
+# application run its own verify path. `PROGRESS.md` item 10 argues why that is strictly better
+# than an authentication bypass; `seed.mjs`'s header carries the argument.
 #
 # ------------------------------------------------------------------------------------------------
 # WHAT THIS ANSWERS THAT NOTHING ELSE DID.
@@ -84,11 +106,16 @@
 # (`scripts/e2e/defects.mjs`), served the same way, driven by the **byte-identical** harness. The
 # real site must report every check green **and** each twin must report its own check red.
 #
-# Three properties, each of which has a history:
+# Four properties, each of which has a history:
 #
 #   - **A twin must SAY FAIL**, not merely fail to say PASS. Three of this repository's four
 #     historical guard faults were a harness that never ran being read as a harness that passed,
 #     so `drive.mjs` catches inside each check and prints a verdict either way.
+#   - **And it must say it for the reason it claims.** Each twin declares `expects: 'control'` or
+#     `expects: 'outcome'` in `defects.mjs`, and its `FAIL` line has to carry that kind. Any FAIL
+#     used to count — including `[HARNESS]`, which is the *driver* having a bug and which
+#     `Runner.cs` says in as many words has not been watched to fail for the reason it claims. An
+#     environment slot the shell forgot to seed prints one, and read as a green negative control.
 #   - **A twin throws if its documented line has moved**, so it cannot quietly stop reproducing
 #     its defect and start passing for the wrong reason. Same shape as `ProofPages.WithDefect`.
 #   - **Every check must have a twin.** The check names the real run reported are compared against
@@ -108,21 +135,47 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # ------------------------------------------------------------------------------------------------
 # Where everything lives.
 #
-# **`wrangler pages dev` is run from `$work`, and that placement is the configuration.** Wrangler
+# **`wrangler pages dev` is run from `$root`, and that placement is the configuration.** Wrangler
 # bundles a `functions/` directory found in the *working directory* — there is no flag for it — so
-# running it from the repository root would bundle the accounts API, which needs a D1 binding this
-# stage deliberately does not have. From here there is no `functions/` to find, wrangler says
-# "No Functions. Shimming...", every `/api/` address falls through `_redirects` to `index.html`,
-# and the app reads an unparseable answer as "anonymous" — which is exactly what stage one wants
-# and is the app's own documented behaviour rather than a special case for this harness.
+# it has to be the repository root for the accounts API to be served at all. Stage one ran it from
+# `.e2e/` for the opposite reason, and the trade is written down at the top of this file: from the
+# root, `/api/me` answers a real JSON 401 rather than falling through `_redirects` to
+# `index.html`, and the six anonymous checks were driven against that before this changed.
 #
-# **And the site directories are named relative to `$work` on purpose.** Wrangler is Node, so it
-# cannot read a Git Bash path like `/c/Users/...`; passing `site` from inside `$work` needs no
-# conversion and therefore cannot be got wrong on one platform and not the other.
+# **And the site directories are named relative to `$root` on purpose.** Wrangler is Node, so it
+# cannot read a Git Bash path like `/c/Users/...`; passing `.e2e/site` from inside `$root` needs no
+# conversion and therefore cannot be got wrong on one platform and not the other. Everything
+# handed to wrangler below — the served directory, `--persist-to`, `--file` — is relative for that
+# reason, and the two paths that go through `--cwd d1` are relative *to that*, which is `../.e2e`.
 work="$root/.e2e"
 site="$work/site"
 twins="$work/twins"
 logs="$work/logs"
+
+# The local D1 the accounts API runs against, and the sign-in rows seeded into it.
+#
+# **Under `.e2e/` rather than the repository's own `.wrangler/`**, so that one `rm -rf .e2e` is
+# still the whole of this harness's state — and so a developer's real `wrangler d1 execute --local`
+# database, if they have ever made one, cannot be the thing a check reads or writes.
+db_state="$work/d1"
+db_state_rel=".e2e/d1"
+db_state_from_d1="../.e2e/d1"
+seed_sql="$work/seed.sql"
+seed_sql_from_d1="../.e2e/seed.sql"
+seed_plan="$work/seed.json"
+
+# The only environment file the server is allowed to load, and it is empty on purpose.
+#
+# **`wrangler pages dev` is run from `$root`, and wrangler loads `$root/.dev.vars` if there is
+# one** — a developer's real deployment secrets, arriving in `env` beside the bindings below.
+# `start_server`'s own comment says the *absence* of `ADMIN_EMAIL` is load-bearing; a `.dev.vars`
+# on the machine silently reverses that, and the ADMIN check would keep passing on a laptop while
+# measuring something else. `--env-file` names the files to load instead of the ones wrangler
+# would find, so pointing it at an empty file of this harness's own is the whole fix.
+#
+# **Nothing here reads, copies, moves or deletes `.dev.vars`.** It is only never asked for.
+env_file="$work/no-env.vars"
+env_file_rel=".e2e/no-env.vars"
 
 # The first port tried. Each server gets its own rather than waiting for one to be released:
 # a stale listener on a port a new server then fails to bind is not hypothetical — it happened
@@ -137,16 +190,17 @@ first_port=8788
 # *capture*, and a wedged Chrome duly spent 1666 seconds saying nothing and cancelled the Build
 # job — see `docs/guide/hosting.md`. Every wait inside `drive.mjs` is bounded (45s for a render,
 # 30s for a navigation) and `start_server` gives up after 180s, but nothing bounded a *drive*:
-# six servers times five checks times two waits is well past the 30-minute job cap, so a browser
-# that stopped answering here would cancel the job in exactly the same way.
+# eight servers times up to nine checks times two waits is well past the 30-minute job cap, so a
+# browser that stopped answering here would cancel the job in exactly the same way.
 #
 # **One value, used by both the `timeout` and the messages quoting it**, same rule as the two
 # deadlines in the visual check.
 #
 # 300s against a measured worst case of about 105s — that is the `base-href-dropped` twin, which
 # spends two deliberate 45-second timeouts proving deep links cannot load the framework. The real
-# site's five checks are about 26 seconds. So this is not a performance budget; it is far enough
-# above the honest cost that a loaded runner cannot trip it.
+# site is about 26 seconds over the node driver's five checks and about 52 over the Playwright
+# driver's nine. So this is not a performance budget; it is far enough above the honest cost that a
+# loaded runner cannot trip it.
 #
 # `-k 10s` escalates to SIGKILL, because a driver killed mid-run does not get to run its own
 # `close()`. Its Chrome can outlive it: on a runner that is collected when the job ends — the
@@ -178,8 +232,9 @@ fi
 #
 # `scripts/e2e/drive.mjs` is the hand-rolled DevTools Protocol client this script was written
 # for. `tests/e2e` is a C# one over Microsoft.Playwright, which drives the same five checks plus
-# an axe-core accessibility check the other cannot do at all. Both print the same three lines
-# this script reads, which is the only contract between them. **Neither is retired**;
+# four the other cannot: an axe-core accessibility check and the three signed-in ones, which need
+# a second browser context apiece. Both print the same three lines this script reads, which is the
+# only contract between them. **Neither is retired**;
 # `PROGRESS.md` item 10 carries the condition under which the first one is, and until that is met
 # the argument for keeping it is that it is the one with a track record.
 #
@@ -247,10 +302,51 @@ fi
 echo "deploy.yml pins wrangler@${wrangler_version}; serving with that."
 
 # ------------------------------------------------------------------------------------------------
+# The D1 database's id. Read out of d1/wrangler.toml, never declared here — same discipline as the
+# wrangler version above and for the same reason: a copy kept in step by good intentions drifts.
+#
+# **It is an identifier and not a credential** — d1/wrangler.toml's own header says so, which is why
+# it is committed. What it decides here is only which sqlite file under `--persist-to` miniflare
+# opens, and the migration and the server have to agree about that or the server runs against an
+# empty database and every signed-in check fails on a table that is not there.
+
+d1_database_id=$(sed -n 's/^database_id = "\([0-9a-f-]*\)".*$/\1/p' "$root/d1/wrangler.toml")
+
+if [ -z "$d1_database_id" ]; then
+  cat >&2 <<'EOF'
+::error::Could not read `database_id = "…"` out of d1/wrangler.toml.
+::error::
+::error::Refusing to serve with a guess. The migration below and the server's --d1 binding have to
+::error::name the same database; a fallback would migrate one and serve the other, and every
+::error::signed-in check would fail on a missing table with nothing saying why.
+EOF
+  exit 2
+fi
+
+# ------------------------------------------------------------------------------------------------
 # Publish the site, unless a caller in the same job already did.
 
-rm -rf "$twins" "$logs"
+rm -rf "$twins" "$logs" "$db_state" "$seed_sql" "$seed_plan"
 mkdir -p "$work" "$twins" "$logs"
+
+# Written every run rather than committed, so it cannot quietly acquire a line.
+printf '# Written by scripts/e2e.sh. Deliberately empty - see its header.\n' > "$env_file"
+
+# **Said out loud when there is one, because the two flags above cannot be proved on a machine that
+# has none.** `--env-file` should mean wrangler never looks for `$root/.dev.vars`, and
+# `--binding ADMIN_EMAIL=` should win over it if it did; neither was watched to happen here, since
+# this harness must never read, copy, move or delete that file to find out. So a run on a machine
+# that has one says what would be at stake if both were wrong, rather than being quietly different
+# from the same run in CI. Its existence is all that is looked at.
+if [ -e "$root/.dev.vars" ]; then
+  echo "::warning::$root/.dev.vars exists. This harness starts wrangler from the repository root,"
+  echo "::warning::so that file is what wrangler would load if it were asked for — and it is not:"
+  echo "::warning::the server is started with --env-file .e2e/no-env.vars and an explicit empty"
+  echo "::warning::--binding ADMIN_EMAIL=. If either of those ever stopped working, an ADMIN_EMAIL"
+  echo "::warning::in that file would make its address an administrator who is never in the table,"
+  echo "::warning::and the ADMIN check's subject would silently become an environment variable"
+  echo "::warning::rather than the invitation list this run seeds. Nothing here reads it."
+fi
 
 # An array and not a string, which is where `WRANGLER_BIN`'s shape does not carry over: that one
 # is `npx --yes wrangler@<version>` and word-splits safely because it contains no path.
@@ -307,269 +403,153 @@ cp -r "$root/publish/wwwroot" "$site"
 echo "Serving $(find "$site" -type f | wc -l | tr -d ' ') published files."
 
 # ------------------------------------------------------------------------------------------------
-# Starting and stopping one server.
-
-server_pid=''
-server_port=0
-
-on_windows() {
-  case "$(uname -s)" in
-    MINGW*|MSYS*|CYGWIN*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# The Windows pids listening on a port. Empty on anything else, and on Windows empty means the
-# port is free.
-listeners_on() {
-  local port="$1"
-  on_windows || return 0
-  # **`tr -d '\r'` is not cosmetic.** `netstat.exe` ends every line with CRLF, so without it each
-  # pid comes back as `1234\r` — which `taskkill` refuses as an invalid argument, silently, while
-  # `release_port` loops for thirty seconds and then reports that something is still listening.
-  # That is exactly what it did, and the warning was the only sign.
-  netstat -ano 2>/dev/null \
-    | tr -d '\r' \
-    | awk -v want=":$port" '$1 == "TCP" && $4 == "LISTENING" && index($2, want) { print $5 }' \
-    | sort -u
-}
-
-# Whether anything is listening on a port. Portable, and portable is the point.
+# The local D1, migrated, and the sign-in rows an email would have written into it.
 #
-# **`listeners_on` above is Windows-only — `on_windows || return 0` — so on Linux it reported every
-# port free, and `next_free_port` therefore never skipped anything.** That was invisible for as
-# long as this script ran once per job: ports are handed out by incrementing, so a fresh run
-# starting at 8788 never collided with itself. Running it twice in one job broke it immediately —
-# the second run started again at 8788, walked up to 8793, and got
-# `Address already in use (127.0.0.1:8793)` from workerd, three twins in.
+# **`scripts/apply-migrations.sh` is not reused here, and that is a finding rather than a
+# preference.** Both `PROGRESS.md` item 10 and the stage-two brief say it "already creates and
+# migrates a local D1". It does not: every one of its three wrangler invocations carries `--remote`,
+# and its whole body is `scripts/d1-migrations/gate.mjs` deciding whether it is safe to *deploy* —
+# refusing on an unreadable listing, applying, then asking production again to confirm the schema
+# moved. Pointing it at a local database would mean either touching the real one (which this
+# harness must never do) or growing a second mode inside a script whose entire purpose is refusing
+# a bad deploy. What is actually needed here is one command with no gate in front of it, because
+# nothing is deployed past this point.
 #
-# **It reads the listener table; it does not try to connect.** A `/dev/tcp` probe was the first
-# attempt and it is wrong in a way worth writing down, because it looked right and passed once: a
-# connection *consumes a slot in the server's accept backlog*, so against a server that is
-# listening but not accepting, the first probe succeeds and the second is refused. The port then
-# reads as free on the very call that matters. Found by testing the probe against a deliberately
-# small backlog — `next_free_port` returned the occupied port while `port_in_use` on its own had
-# just said the port was busy. A real `wrangler pages dev` accepts, so this would have worked in
-# practice and failed the first time something did not; a probe with a side effect is not a probe.
-#
-# `ss` is on `ubuntu-latest`; `netstat` is the Windows path and answers the same question there.
-# TIME_WAIT is deliberately not counted: it is not a listener, `SO_REUSEADDR` lets the next server
-# bind over it, and treating one as occupied would skip ports for no reason.
-port_in_use() {
-  local port="$1"
+# **The version is the same one the server uses**, parsed from deploy.yml above, so this cannot
+# become a fourth copy of a pinned version number.
 
-  if on_windows; then
-    [ -n "$(listeners_on "$port")" ] && return 0
-    return 1
-  fi
+echo "Migrating a local D1 into ${db_state_rel}..."
 
-  # **`/proc/net/tcp` is the primary, not the fallback, and that ordering was arrived at by
-  # checking rather than assuming.** `ss` is the obvious tool and it is *not* on every Linux image
-  # — `mcr.microsoft.com/dotnet/sdk:10.0` has no iproute2 at all. Making the harness depend on it
-  # would trade a wrong answer for a hard failure on some machine nobody tested. The kernel's own
-  # table needs no package, cannot be missing on Linux, and lists listeners without opening a
-  # connection to them.
-  #
-  # **Not opening a connection is the whole point.** The first version of this probe was
-  # `/dev/tcp`, which looked right and passed once: connecting consumes a slot in the server's
-  # accept backlog, so against a server that listens but is not accepting, the first probe
-  # succeeds and the second is refused — and the port reads as free on the call that matters.
-  # Found by testing the probe against a deliberately small backlog, where `port_in_use` said
-  # "busy" and `next_free_port` immediately handed that same port back.
-  #
-  # State `0A` is TCP_LISTEN. TIME_WAIT is `06` and is deliberately not counted: it is not a
-  # listener, `SO_REUSEADDR` lets the next server bind over it, and treating one as occupied would
-  # skip ports for no reason.
-  local hex
-  hex="$(printf '%04X' "$port")"
-
-  local table
-  for table in /proc/net/tcp /proc/net/tcp6; do
-    [ -r "$table" ] || continue
-    awk -v want=":$hex" '$4 == "0A" && index($2, want) == length($2) - length(want) + 1 { found = 1 }
-         END { exit !found }' "$table" && return 0
-  done
-
-  if [ -r /proc/net/tcp ]; then
-    return 1
-  fi
-
-  # Not Linux and not Windows — a Mac, most likely. `ss` if it is there, and otherwise refuse
-  # rather than guess: guessing "free" is precisely what produced `Address already in use` from
-  # workerd three twins into a run, and a fallback that can be silently wrong is worse than none.
-  #
-  # **`lsof` before `ss`, because on the Mac this branch names, `ss` is the one that is absent.**
-  # iproute2 is Linux's; macOS ships `lsof` in the base system and no `ss` at all, so this arm
-  # refused on the very platform its own comment says it is for — the run died at the first port
-  # check with "no /proc/net/tcp and no 'ss' on PATH". CI is Linux and takes the branch above, so
-  # nothing there could ever have seen it.
-  #
-  # `-sTCP:LISTEN` is what keeps this equivalent to the `0A` test above rather than merely close
-  # to it: it matches listeners only, so a socket in TIME_WAIT is not counted as occupying the
-  # port — the same distinction the Linux arm makes deliberately, for the same reason.
-  if command -v lsof >/dev/null 2>&1; then
-    lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && return 0
-    return 1
-  fi
-
-  if command -v ss >/dev/null 2>&1; then
-    ss -ltn 2>/dev/null | awk -v want=":$port$" '$4 ~ want { found = 1 } END { exit !found }'
-    return $?
-  fi
-
-  echo "::error::cannot tell whether port $port is free: no /proc/net/tcp and no 'ss' on PATH." >&2
-  echo "::error::Refusing rather than guessing it is free — see this function's comment." >&2
+(
+  cd "$root" || exit 1
+  CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
+    npx --yes "wrangler@${wrangler_version}" --cwd d1 \
+      d1 migrations apply prowlers-and-paragons --local \
+      --persist-to "$db_state_from_d1"
+) > "$logs/d1-migrate.log" 2>&1 || {
+  echo "::error::migrating the local D1 failed:"
+  tail -40 "$logs/d1-migrate.log"
   exit 2
 }
 
-# The first port at or after `$1` that nothing is listening on.
+# **The database is asked, rather than the migration's exit code being believed.** That is the
+# lesson `scripts/apply-migrations.sh` records in its own positive-control comment: code shipped
+# past a migration nobody had confirmed, and production answered `no such column` on every save.
+# The table named here is the one every signed-in check depends on.
+if ! grep -q 'login_tokens' <(
+  cd "$root" && CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
+    npx --yes "wrangler@${wrangler_version}" --cwd d1 \
+      d1 execute prowlers-and-paragons --local --persist-to "$db_state_from_d1" \
+      --command "SELECT name FROM sqlite_master WHERE type = 'table'" 2>&1
+); then
+  echo "::error::the migrated local D1 has no login_tokens table, so nothing can be signed in."
+  exit 2
+fi
+
+echo "Seeding the sign-in rows..."
+
+seed_lines=$(node "$root/scripts/e2e/seed.mjs" --plan "$seed_sql" "$seed_plan") || {
+  echo "::error::scripts/e2e/seed.mjs refused to plan the seed — see above. Its two properties are"
+  echo "::error::that a twin cannot name a slot or account it does not mint, and that a twin's plan"
+  echo "::error::cannot come out identical to the real run's."
+  exit 2
+}
+echo "  $seed_lines"
+
+(
+  cd "$root" || exit 1
+  CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
+    npx --yes "wrangler@${wrangler_version}" --cwd d1 \
+      d1 execute prowlers-and-paragons --local --persist-to "$db_state_from_d1" \
+      --file "$seed_sql_from_d1"
+) > "$logs/d1-seed.log" 2>&1 || {
+  echo "::error::seeding the local D1 failed:"
+  tail -40 "$logs/d1-seed.log"
+  exit 2
+}
+
+# `KEY=VALUE` per line, put in front of a drive with `env` rather than exported: a twin runs under
+# a different set, and a variable exported here would outlive the drive it was meant for.
 #
-# **Occupied ports are skipped, never cleared.** An earlier version killed whatever held the port
-# it wanted, which is a fine way to end somebody's unrelated dev server on the same number.
-next_free_port() {
-  local port="$1"
+# **A read loop rather than `mapfile`, because macOS ships bash 3.2** — same reason as the twin
+# list further down, and it failed there once after five green verdicts.
+seed_env=()
+while IFS= read -r seed_line; do
+  [ -n "$seed_line" ] && seed_env+=("$seed_line")
+done < <(node "$root/scripts/e2e/seed.mjs" --env "$seed_plan")
 
-  while port_in_use "$port"; do
-    port=$((port + 1))
-  done
+if [ "${#seed_env[@]}" -eq 0 ]; then
+  echo "::error::the seed produced no tokens, so every signed-in check would fail with nothing to"
+  echo "::error::sign in as. Read $logs/d1-seed.log."
+  exit 1
+fi
 
-  echo "$port"
-}
+# ------------------------------------------------------------------------------------------------
+# Starting and stopping one server.
 
-# **Kill whatever is still listening on a port this script started a server on, and wait until
-# nothing is.** Each server gets a port of its own, so this is not needed to let the next one
-# bind — it is needed so a run does not leave `workerd` processes behind on a developer's machine.
+# **These live in `scripts/e2e/process.sh` and are sourced, not defined here.** They were in this
+# file until `kill_tree` had to be proved: `PROGRESS.md` item 10 records that it fixed a real leak
+# and was never watched to work, and that both of its fixes were verified by *outcome* — "no
+# leaked processes after a run" — which on Linux passes while the leak continues, because
+# `next_free_port` steps over the held port and never asks for it again.
 #
-# Only ever called with a port `start_server` has just used, and only after the wrapper process
-# has been asked to stop: the pid it reads out of `netstat` is a real Windows pid, which is the
-# whole reason this is the cleanup rather than a pid translation — see `stop_server`.
-release_port() {
-  local port="$1"
-  local deadline=$((SECONDS + 30))
-
-  while [ "$SECONDS" -lt "$deadline" ]; do
-    port_in_use "$port" || return 0
-
-    # Only Windows can name the holder; `kill_tree` in `stop_server` is what does the work
-    # everywhere else, and this is the backstop that says so if it did not.
-    if on_windows; then
-      local pid
-      for pid in $(listeners_on "$port"); do
-        taskkill //F //T //PID "$pid" >/dev/null 2>&1 || true
-      done
-    fi
-
-    sleep 1
-  done
-
-  echo "::warning::something is still listening on port $port after 30s of asking it not to."
-}
-
-# The direct children of a pid, from the kernel rather than from a tool.
+# **Proving it needs a check that starts a tree, stops it, and reads the pids** — and this script
+# cannot be sourced to get at the functions, because sourcing it publishes a site, starts a server
+# and drives a browser. So the port and process half moved to a file that does nothing when
+# sourced, and `scripts/test-kill-tree.sh` sources the same file `start_server` below uses.
 #
-# **`pgrep -P` is the obvious way and it is not guaranteed to be there** — the same lesson
-# `port_in_use` just learned about `ss`, which is missing from `mcr.microsoft.com/dotnet/sdk:10.0`.
-# `/proc/<pid>/stat` cannot be missing on Linux. Its fourth field is the parent pid, and the second
-# is the command name in parentheses, which can itself contain spaces — so the parse starts after
-# the last `)` rather than counting fields from the left, which is the bug every naive
-# `/proc/*/stat` reader has.
-children_of() {
-  local parent="$1" entry pid stat
+# What comes out of it: `server_pid`, `server_port`, `on_windows`, `listeners_on`, `port_in_use`,
+# `next_free_port`, `release_port`, `children_of`, `kill_tree`, `stop_server` and `redacted_tail`.
+# shellcheck source=scripts/e2e/process.sh
+. "$root/scripts/e2e/process.sh"
 
-  # **`/proc` is Linux's and macOS has none, so this returned nothing there — and returning
-  # nothing is silent.** `kill_tree` then killed only the pid it was handed, which is the `npx`
-  # wrapper; wrangler's own node and the `workerd` under it survived and kept the port. That is
-  # the identical defect the Linux arm below this function was written to fix (`pkill -P` killing
-  # direct children only), reappearing on a platform the fix could not reach. Measured: six
-  # `wrangler`/`workerd` groups still listening on 8788-8793 after a completed run, one per
-  # server, with `release_port` warning about every one of them and the run still reporting PASS.
-  #
-  # `pgrep -P` gives direct children and is in the macOS base system; `kill_tree` already
-  # recurses, so one level is all this has to answer — the same shape the `/proc` walk provides.
-  if [ ! -d /proc ]; then
-    pgrep -P "$parent" 2>/dev/null
-    return 0
-  fi
-
-  for entry in /proc/[0-9]*; do
-    pid="${entry##*/}"
-    stat="$(cat "$entry/stat" 2>/dev/null)" || continue
-    stat="${stat##*) }"
-
-    # After the trim, field 2 is ppid: "<state> <ppid> ...".
-    set -- $stat
-    [ "${2:-}" = "$parent" ] && echo "$pid"
-  done
-}
-
-# Every descendant of a pid, depth first, then the pid itself.
+# **The plan holds raw sign-in tokens, so it does not outlive the run that minted them.**
 #
-# **One level at a time rather than a process group**: `( ... ) &` in a non-interactive shell is
-# not a group leader, so `kill -- -$pid` names nothing, and turning on job control to make it one
-# changes how every other background command in this script behaves.
-kill_tree() {
-  local pid="$1" child
-
-  for child in $(children_of "$pid"); do
-    kill_tree "$child"
-  done
-
-  kill -9 "$pid" >/dev/null 2>&1 || true
+# `.e2e/seed.json` is how one drive's environment is handed to the next without re-seeding, and
+# every token in it is a bearer secret in the clear. It was removed at the *start* of the next run,
+# which is a file full of credentials sitting in a working tree for however long that is — and this
+# repository's own rule is that the database stores only a hash precisely so that a dump of it is
+# not a key to anything. The tokens are single-use, local, and against a throwaway D1, so nothing
+# is at risk today; leaving them there because nobody thought about it is the habit being fixed.
+#
+# The SQL beside it stays: it carries hashes and addresses, no raw token, and it is what a reader
+# debugging a failed sign-in actually needs.
+cleanup() {
+  stop_server
+  rm -f "$seed_plan"
 }
 
-stop_server() {
-  local pid="$server_pid"
-  local port="$server_port"
-  server_pid=''
+trap cleanup EXIT INT TERM
 
-  [ -n "$pid" ] || return 0
-
-  # **MSYS pids and Windows pids are two namespaces, and getting the translation wrong cost three
-  # debugging rounds. All three are written down because each looked like a different bug.**
-  #
-  # `$!` is an MSYS pid; `taskkill` speaks Windows pids. So:
-  #
-  #   1. **`taskkill //PID <msys pid>`** names a process Windows has never heard of. It failed
-  #      silently, nothing died, and the `wait` below never returned — the script sat there for
-  #      ever after printing five green verdicts.
-  #   2. **`ps -W` to translate** was worse. `-W` adds Windows-only processes, listed *with their
-  #      Windows pid in the first column*, so matching `$1 == <msys pid>` can hit a completely
-  #      unrelated process — and the tree kill then takes out whatever that was. It took out the
-  #      driver, which printed no verdict at all and read exactly like a harness unable to see its
-  #      own defect.
-  #   3. **Killing only the port's listener** leaves the supervisor alive, and wrangler restarts
-  #      `workerd` — so the port came back, on a new pid, as fast as it could be cleared. Thirty
-  #      seconds of that is what `release_port`'s warning was reporting.
-  #
-  # `ps` *without* `-W` lists MSYS processes only, so the first column is unambiguously an MSYS pid
-  # and the fourth is its Windows pid. `//T` then takes the whole Windows tree — `npx` here is a
-  # shell script that runs node, which runs `cmd`, which runs node, which runs `workerd` — which
-  # is the supervisor and its worker together, so nothing is left to restart anything.
-  if on_windows; then
-    local winpid
-    winpid="$(ps 2>/dev/null | tr -d '\r' | awk -v p="$pid" '$1 == p { print $4 }' | head -1)"
-    [ -n "${winpid:-}" ] && taskkill //F //T //PID "$winpid" >/dev/null 2>&1 || true
-  else
-    # **The whole tree, not the children, and that distinction leaked a server on every Linux
-    # run.** This was `pkill -P "$pid"`, which kills *direct* children only — and wrangler's tree
-    # is `npx` -> node -> `workerd`, so `workerd` survived, kept the port, and outlived the step.
-    # Nobody noticed while the script ran once per job, because the leaked port was never asked
-    # for again; the second run in one job walked straight into it. `release_port` did not cover
-    # it either: it reads pids out of `netstat`, which is Windows-only, so on Linux it returned
-    # immediately having done nothing and warned about nothing.
-    kill_tree "$pid"
-  fi
-
-  kill "$pid" >/dev/null 2>&1 || true
-  wait "$pid" 2>/dev/null || true
-
-  # The backstop, not the mechanism. If the tree kill above missed something, this names it.
-  release_port "$port"
-}
-
-trap stop_server EXIT INT TERM
-
-# start_server <directory-relative-to-$work> <port> <log-name>
+# start_server <directory-relative-to-$root> <port> <log-name>
+#
+# **Started from `$root` so that `functions/` is bundled, and given the D1 binding that needs.**
+# There is no flag for the functions directory — wrangler takes the one in the working directory —
+# so the cwd *is* the configuration, and `--d1 DB=<id>` plus `--persist-to` are what make the
+# database it finds the one migrated and seeded above. `DB` is the binding name `worker/index.js`
+# reaches for as `env.DB`; it has to match or every account request answers 500.
+#
+# **No `ADMIN_EMAIL`, and its absence is load-bearing — so it is arranged rather than assumed.**
+# `worker/invitations.js` treats that address as an administrator who is never in the table and can
+# never be locked out — so a deployment with none allows nobody by that route, and *every* answer
+# about who may sign in and who may manage the list comes from the `invitations` rows this run
+# seeded. That is what makes the ADMIN check's subject the invitation list rather than an
+# environment variable.
+#
+# **Not binding it is not the same as it not being bound**, which is the hole this closes: wrangler
+# runs from `$root`, loads `$root/.dev.vars` if there is one, and `ADMIN_EMAIL` then arrives anyway.
+# Two flags, because neither alone can be proved on a machine that has no `.dev.vars` to test with:
+#
+#   * `--env-file` points at an empty file of this harness's own, so the files wrangler would
+#     otherwise find are never asked for.
+#   * `--binding ADMIN_EMAIL=` binds it explicitly to the empty string, which `bootstrapAdmin`
+#     maps to `null` — it requires an `@` — so this *is* the "no administrator by that route"
+#     state, arranged on the command line where nothing on the filesystem can reverse it.
+#
+# **Measured rather than reasoned**: binding it to a seeded address instead turns the ADMIN check
+# red against the real site, which is the positive control that this flag reaches
+# `worker/invitations.js` at all. A flag that silently did nothing would leave every sentence above
+# a claim.
 start_server() {
   local dir="$1" port="$2" name="$3"
   local log="$logs/$name.log"
@@ -577,10 +557,12 @@ start_server() {
   server_port="$port"
 
   (
-    cd "$work" || exit 1
+    cd "$root" || exit 1
     CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
       exec npx --yes "wrangler@${wrangler_version}" pages dev "$dir" \
-        --ip 127.0.0.1 --port "$port" > "$log" 2>&1
+        --ip 127.0.0.1 --port "$port" \
+        --env-file "$env_file_rel" --binding 'ADMIN_EMAIL=' \
+        --d1 "DB=${d1_database_id}" --persist-to "$db_state_rel" > "$log" 2>&1
   ) &
   server_pid=$!
 
@@ -593,7 +575,7 @@ start_server() {
   while [ "$SECONDS" -lt "$deadline" ]; do
     if ! kill -0 "$server_pid" 2>/dev/null; then
       echo "::error::wrangler exited before it was ready:"
-      tail -30 "$log"
+      redacted_tail "$log"
       return 1
     fi
 
@@ -610,8 +592,11 @@ start_server() {
     sleep 1
   done
 
+  # **Redacted, because this is a request log and stage two drives `/signin?t=<raw token>`.** A
+  # failure tail is the one part of this harness that gets pasted into a CI log, an issue or a
+  # chat window, and it would have carried the bearer secret straight into all three.
   echo "::error::wrangler never served the site on port ${port} within 180s:"
-  tail -30 "$log"
+  redacted_tail "$log"
   return 1
 }
 
@@ -622,7 +607,7 @@ echo ""
 echo "=== The real site ================================================================"
 
 port="$(next_free_port "$first_port")"
-start_server site "$port" real || exit 1
+start_server .e2e/site "$port" real || exit 1
 
 real_log="$logs/real-drive.log"
 real_status=0
@@ -640,7 +625,11 @@ real_status=0
 # non-zero-status check has been dead since this script was written, and the count check was
 # quietly carrying it — a redundant guard covering for a broken one, and the reason to break a
 # guard rather than read it.
-"${timeout_cmd[@]}" -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" 2>&1 \
+# **The seeded tokens go in front of the drive with `env`, never exported.** A twin runs under a
+# different set, and an exported variable would outlive the drive it was minted for — which is the
+# shape that would let a twin quietly sign in with the real run's token and pass.
+env "${seed_env[@]}" \
+  "${timeout_cmd[@]}" -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" 2>&1 \
   | tee "$real_log" || real_status=$?
 
 stop_server
@@ -707,7 +696,16 @@ fi
 echo ""
 echo "=== The deliberately-broken twins ================================================"
 
-# `name:CHECK` per line.
+# `name:CHECK:kind:expects` per line, and there are two kinds now.
+#
+# **`site` is a substituted line in the published output; `seed` is a substituted row in the local
+# D1.** A signed-in check cannot be twinned the first way: what `ADMIN` and `RULES` measure is a
+# rule the accounts server enforces, and nothing in `index.html`, `js/*.js` or `css/*.css` can
+# break one — the browser half that touches them at all is compiled into a WebAssembly payload
+# with no line to substitute. So a seed twin changes the row the sign-in was seeded from instead:
+# an account the invitation list makes an administrator, a token that expired an hour ago, a second
+# browser context signed in as somebody else. `scripts/e2e/defects.mjs` stays the one place any of
+# this is declared, and its header carries the argument.
 #
 # **A read loop rather than `mapfile`, because macOS ships bash 3.2 and `mapfile` is bash 4.**
 # Apple has not shipped a newer bash since 2007 (the licence changed), so `/usr/bin/env bash` on
@@ -767,16 +765,144 @@ fi
 twin_failures=0
 twins_driven=0
 
-for line in "${defect_lines[@]}"; do
-  name="${line%%:*}"
-  check="${line##*:}"
+# The environment one twin is driven under. Empty for a site twin — it is the seeded row that is
+# unchanged there, and the real run's tokens have all been spent — and the twin's own profile for
+# a seed twin. A global because bash 3.2 cannot pass an array to a function.
+twin_env=()
 
-  # A twin for a check this driver did not run. Skipped rather than failed — the other driver
-  # covers it, and `E2eDriverTests` is what proves *some* driver does. Reported so that a run's
-  # own output says which negative controls it did and did not exercise, because "all twins
-  # turned their check red" over a silently smaller list is this repository's oldest failure
-  # shape wearing a green tick.
-  if ! echo "$checks_run" | grep -qx "$check"; then
+# drive_twin <name> <check> <port> <expects>
+#
+# Drives one twin and reads exactly one line out of it. **Does not stop the server**, because the
+# two kinds want opposite things: a site twin is a directory of its own and its server dies with
+# it, and every seed twin shares the one server serving the real site, since the site is not what
+# differs between them.
+#
+# **`<expects>` is `control` or `outcome`, and requiring it is a fix rather than a refinement.**
+# This read `grep -q "^E2E CHECK <check>: FAIL"` and took *any* red line as a working negative
+# control. The drivers mint three kinds: `[CONTROL]` — the work did not happen — `[OUTCOME]` — it
+# happened and was wrong — and, in the Playwright driver, `[HARNESS]`, which is the driver itself
+# having a bug. `Runner.cs`'s own comment says a twin whose only red verdict is a `[HARNESS]` one
+# **has not been watched to fail for the reason it claims**, and nothing enforced it: an
+# environment slot the shell forgot to seed throws `InvalidOperationException` out of `Account.cs`,
+# prints `FAIL — [HARNESS] no sign-in token was seeded for RULES`, and read as green here. So did
+# a `Collection was modified` race, which is what a twin actually reported once.
+#
+# That is the same failure this whole file is built against, one level in: a check that goes red
+# for a reason nobody looked at is a claim, and the claim is usually wrong.
+drive_twin() {
+  local name="$1" check="$2" port="$3" expects="$4"
+  local twin_log="$logs/twin-$name-drive.log"
+  local twin_status=0
+  local expected_kind
+
+  case "$expects" in
+    control) expected_kind=CONTROL ;;
+    outcome) expected_kind=OUTCOME ;;
+    *)
+      echo "::error::twin '$name' declares expects='$expects', which defects.mjs should have"
+      echo "::error::refused. Read scripts/e2e/defects.mjs's expectationOf."
+      exit 1
+      ;;
+  esac
+
+  # **`--only $check`, because a twin needs one verdict and the other eight cost minutes.**
+  #
+  # Exactly one line of a twin's run is read below: whether `$check` said FAIL. Everything else
+  # the driver would do here is a server round trip and a browser boot against a site broken on
+  # purpose in a way unrelated to it. Measured on the Playwright driver, where `A11Y` scans four
+  # palettes across four addresses at 45 seconds a drive: six twins were spending four and a half
+  # minutes re-measuring the accessibility of deliberately-broken sites, which no line of this
+  # script looks at.
+  #
+  # **This cannot make a run quietly smaller, which is the only thing that would make it a bad
+  # trade.** The real site above is driven with no filter at all, and it is that run whose check
+  # names are compared against the twin list. Here, a name matching nothing would leave the
+  # verdict line absent — and the "printed no verdict" arm below already calls that a failed
+  # negative control rather than a pass.
+  env ${twin_env[@]+"${twin_env[@]}"} \
+    "${timeout_cmd[@]}" -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" \
+    --only "$check" > "$twin_log" 2>&1 || twin_status=$?
+
+  # **A hung driver stops the run, for the same reason a hung capture stops the visual check.**
+  # Nine twins at this deadline is forty-five minutes on top of the real site, well past the
+  # 30-minute job cap — and if the driver stopped coming back once, the remaining twins are going
+  # to ask the same question of the same browser. The "printed no verdict" arm below is for a
+  # driver that *finished* without reaching this check, which is a different and recoverable
+  # thing; this one is not.
+  if [ "$twin_status" -eq 124 ]; then
+    echo "::error::twin '$name': the driver did not finish within ${drive_deadline} and was killed,"
+    echo "::error::so $check has no verdict here and this twin proved nothing. Every wait inside the"
+    echo "::error::driver is bounded, so read $twin_log for how far it got. Stopping rather than"
+    echo "::error::driving the remaining twins through the same browser."
+    exit 1
+  fi
+
+  # A twin's verdict is a FAIL it *printed*, never the absence of a PASS: a driver that fell over
+  # before reaching this check leaves the line out entirely, and "not PASS" would call that a
+  # working negative control.
+  #
+  # **Matched with a shell `case` on the whole line rather than a second `grep`**, because the
+  # separator between the verdict and its reason is an em-dash: a pattern containing one is three
+  # bytes whose meaning to `grep`'s `.` depends on the locale, and `sed`-ing it off is what the
+  # Windows console encoding note in `tests/e2e/Program.cs` is already about. `case` compares
+  # bytes, and `${line#*] }` strips everything up to and including the kind's own bracket.
+  local fail_line
+  fail_line="$(grep "^E2E CHECK ${check}: FAIL" "$twin_log" | head -1)"
+
+  if [ -n "$fail_line" ]; then
+    case "$fail_line" in
+      *"[${expected_kind}]"*)
+        echo "  ok    $check went red as [${expected_kind}], as it must: ${fail_line#*] }"
+        ;;
+      *)
+        echo "::error::twin '$name' turned $check red, but not for the reason it claims. It"
+        echo "::error::declares expects: '${expects}', so its verdict has to be [${expected_kind}]:"
+        echo "::error::  ${fail_line}"
+        echo "::error::A [HARNESS] red is this harness having a bug — a sign-in slot the shell"
+        echo "::error::never seeded, a selector that throws — and says nothing about whether"
+        echo "::error::$check can see the defect it exists to catch. A [CONTROL] red where an"
+        echo "::error::[OUTCOME] was declared (or the reverse) means the twin is landing somewhere"
+        echo "::error::other than where it was watched to land, which is how a twin quietly stops"
+        echo "::error::proving anything about the check it names."
+        echo "::error::What this twin breaks: $(node "$root/scripts/e2e/defects.mjs" --why "$name")"
+        echo "::error::Fix the twin, or change 'expects' in scripts/e2e/defects.mjs — but only"
+        echo "::error::after watching it fail for the reason it would then claim."
+        twin_failures=$((twin_failures + 1))
+        ;;
+    esac
+  elif grep -q "^E2E CHECK ${check}: PASS" "$twin_log"; then
+    echo "::error::twin '$name' reports $check as PASSING. The check cannot see the defect it"
+    echo "::error::exists to catch, so its green verdict against the real site means nothing."
+    echo "::error::What this twin breaks: $(node "$root/scripts/e2e/defects.mjs" --why "$name")"
+    twin_failures=$((twin_failures + 1))
+  else
+    echo "::error::twin '$name' printed no verdict for $check at all, so the harness did not"
+    echo "::error::reach it. A missing verdict is not a failure — see $twin_log."
+    twin_failures=$((twin_failures + 1))
+  fi
+}
+
+# **A twin this driver cannot exercise is skipped and said out loud, never counted.** The other
+# driver covers it, and `E2eDriverTests` is what proves *some* driver does. Reported so that a
+# run's own output says which negative controls it did and did not exercise, because "all twins
+# turned their check red" over a silently smaller list is this repository's oldest failure shape
+# wearing a green tick.
+this_driver_runs() {
+  echo "$checks_run" | grep -qx "$1"
+}
+
+# ------------------------------------------------------------------------------------------------
+# Pass one: the site twins. One copied directory and one server apiece.
+
+for line in "${defect_lines[@]}"; do
+  name="$(echo "$line" | cut -d: -f1)"
+  check="$(echo "$line" | cut -d: -f2)"
+  kind="$(echo "$line" | cut -d: -f3)"
+  expects="$(echo "$line" | cut -d: -f4)"
+
+  [ "$kind" = "site" ] || continue
+
+  if ! this_driver_runs "$check"; then
     echo ""
     echo "--- twin '$name' — skipped: this driver does not run $check ---"
     continue
@@ -797,60 +923,70 @@ for line in "${defect_lines[@]}"; do
   # A port of its own rather than the one just released: nothing then depends on how quickly the
   # previous server let go of it, and a socket in TIME_WAIT cannot be read as this server.
   port="$(next_free_port "$((port + 1))")"
-  start_server "twins/$name" "$port" "twin-$name" || exit 1
+  start_server ".e2e/twins/$name" "$port" "twin-$name" || exit 1
 
-  twin_log="$logs/twin-$name-drive.log"
-  twin_status=0
-  # **`--only $check`, because a twin needs one verdict and the other five cost minutes.**
-  #
-  # Exactly one line of a twin's run is read below: whether `$check` said FAIL. Everything else
-  # the driver would do here is a server round trip and a browser boot against a site broken on
-  # purpose in a way unrelated to it. Measured on the Playwright driver, where `A11Y` scans four
-  # palettes across four addresses at 45 seconds a drive: six twins were spending four and a half
-  # minutes re-measuring the accessibility of deliberately-broken sites, which no line of this
-  # script looks at.
-  #
-  # **This cannot make a run quietly smaller, which is the only thing that would make it a bad
-  # trade.** The real site above is driven with no filter at all, and it is that run whose check
-  # names are compared against the twin list. Here, a name matching nothing would leave the
-  # verdict line absent — and the "printed no verdict" arm below already calls that a failed
-  # negative control rather than a pass.
-  "${timeout_cmd[@]}" -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" --only "$check" \
-    > "$twin_log" 2>&1 || twin_status=$?
+  twin_env=()
+  drive_twin "$name" "$check" "$port" "$expects"
 
   stop_server
-
-  # **A hung driver stops the run, for the same reason a hung capture stops the visual check.**
-  # Five twins at this deadline is twenty-five minutes on top of the real site, which is the
-  # 30-minute job cap — and if the driver stopped coming back once, the remaining twins are going
-  # to ask the same question of the same browser. The "printed no verdict" arm below is for a
-  # driver that *finished* without reaching this check, which is a different and recoverable
-  # thing; this one is not.
-  if [ "$twin_status" -eq 124 ]; then
-    echo "::error::twin '$name': the driver did not finish within ${drive_deadline} and was killed,"
-    echo "::error::so $check has no verdict here and this twin proved nothing. Every wait inside the"
-    echo "::error::driver is bounded, so read $twin_log for how far it got. Stopping rather than"
-    echo "::error::driving the remaining twins through the same browser."
-    exit 1
-  fi
-
-  # A twin's verdict is a FAIL it *printed*, never the absence of a PASS: a driver that fell over
-  # before reaching this check leaves the line out entirely, and "not PASS" would call that a
-  # working negative control.
-  if grep -q "^E2E CHECK ${check}: FAIL" "$twin_log"; then
-    echo "  ok    $check went red, as it must: $(grep "^E2E CHECK ${check}: FAIL" "$twin_log" \
-      | sed 's/^E2E CHECK [A-Z][A-Z0-9_]*: FAIL — //')"
-  elif grep -q "^E2E CHECK ${check}: PASS" "$twin_log"; then
-    echo "::error::twin '$name' reports $check as PASSING. The check cannot see the defect it"
-    echo "::error::exists to catch, so its green verdict against the real site means nothing."
-    echo "::error::What this twin breaks: $(node "$root/scripts/e2e/defects.mjs" --why "$name")"
-    twin_failures=$((twin_failures + 1))
-  else
-    echo "::error::twin '$name' printed no verdict for $check at all, so the harness did not"
-    echo "::error::reach it. A missing verdict is not a failure — see $twin_log."
-    twin_failures=$((twin_failures + 1))
-  fi
 done
+
+# ------------------------------------------------------------------------------------------------
+# Pass two: the seed twins, which share one server because the site is not what differs.
+#
+# **This is where the cost of stage two was kept down to a number worth having.** A seed twin needs
+# no copied directory, no substituted line and no server of its own — only a different set of
+# sign-in tokens, all of which were minted in the single seeding pass above. So three more negative
+# controls cost one server start and three `--only` drives, rather than three of each.
+
+seed_twins=()
+for line in "${defect_lines[@]}"; do
+  case "$line" in
+    *:seed:*) this_driver_runs "$(echo "$line" | cut -d: -f2)" && seed_twins+=("$line") ;;
+  esac
+done
+
+if [ "${#seed_twins[@]}" -eq 0 ]; then
+  for line in "${defect_lines[@]}"; do
+    case "$line" in
+      *:seed:*)
+        echo ""
+        echo "--- twin '$(echo "$line" | cut -d: -f1)' — skipped: this driver does not run" \
+          "$(echo "$line" | cut -d: -f2) ---"
+        ;;
+    esac
+  done
+else
+  port="$(next_free_port "$((port + 1))")"
+  start_server .e2e/site "$port" seed-twins || exit 1
+
+  for line in "${seed_twins[@]}"; do
+    name="$(echo "$line" | cut -d: -f1)"
+    check="$(echo "$line" | cut -d: -f2)"
+    expects="$(echo "$line" | cut -d: -f4)"
+
+    twins_driven=$((twins_driven + 1))
+
+    echo ""
+    echo "--- twin '$name' — $check must fail (a seeded row, not a broken site) ---"
+
+    twin_env=()
+    while IFS= read -r seed_line; do
+      [ -n "$seed_line" ] && twin_env+=("$seed_line")
+    done < <(node "$root/scripts/e2e/seed.mjs" --env "$seed_plan" "$name")
+
+    if [ "${#twin_env[@]}" -eq 0 ]; then
+      echo "::error::seed.mjs minted no profile for twin '$name', so this drive would run under the"
+      echo "::error::real run's tokens — every one of which is already spent — and $check would go"
+      echo "::error::red for a reason that says nothing about the defect. Refusing to count it."
+      exit 1
+    fi
+
+    drive_twin "$name" "$check" "$port" "$expects"
+  done
+
+  stop_server
+fi
 
 echo ""
 
