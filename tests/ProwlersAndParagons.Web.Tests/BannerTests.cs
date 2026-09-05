@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Components.Web;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
+using static ProwlersAndParagons.Web.Tests.BusyRenderer;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -52,14 +53,23 @@ public sealed class BannerTests
     /// check completely — there being no buttons at all — which is this repository's single most
     /// common way for a guard to be wrong.</para>
     /// </summary>
-    private static IRenderedComponent<MainLayout> WithSettingsOpen(RenderContext ctx)
+    /// <remarks>
+    /// <b>Awaited, and driven behind a busy renderer.</b> A bUnit click is dispatched rather than
+    /// applied, so the two assertions under it are exactly the shape that has gone red three times
+    /// in <see cref="PaletteBookTests"/> — and here they would fail claiming the disclosure never
+    /// opened. See <see cref="BusyRenderer"/>.
+    /// </remarks>
+    private static async Task<IRenderedComponent<MainLayout>> WithSettingsOpenAsync(RenderContext ctx)
     {
         var layout = ctx.Render<MainLayout>();
 
         Assert.Equal("false", layout.Find(".settings-open").GetAttribute("aria-expanded"));
         Assert.Empty(layout.FindAll(".settings-menu-list"));
 
-        layout.Find(".settings-open").Click();
+        await Occupying(
+            layout,
+            () => layout.Find(".settings-open").ClickAsync(new MouseEventArgs()),
+            "the click that opens the settings menu");
 
         Assert.Equal("true", layout.Find(".settings-open").GetAttribute("aria-expanded"));
         Assert.Single(layout.FindAll(".settings-menu-list"));
@@ -304,7 +314,7 @@ public sealed class BannerTests
     /// control — the same bargain every guarded interop call in this app makes.</para>
     /// </summary>
     [Fact]
-    public void AMissingScriptPrintsNoChordAndStillOpensThePalette()
+    public async Task AMissingScriptPrintsNoChordAndStillOpensThePalette()
     {
         using var ctx = new RenderContext();
         ctx.JSInterop.Setup<bool?>("ppPalette.onAMac").SetResult(null);
@@ -313,7 +323,10 @@ public sealed class BannerTests
 
         Assert.Empty(Keys(layout));
 
-        layout.Find(".palette-field").Click();
+        await Occupying(
+            layout,
+            () => layout.Find(".palette-field").ClickAsync(new MouseEventArgs()),
+            "the click on the banner's field");
 
         Assert.True(ctx.Services.GetRequiredService<Commands>().IsOpen);
     }
@@ -326,14 +339,17 @@ public sealed class BannerTests
     /// control being broken.</para>
     /// </summary>
     [Fact]
-    public void TheFieldOpensThePalette()
+    public async Task TheFieldOpensThePalette()
     {
         using var ctx = new RenderContext();
 
         var layout = ctx.Render<MainLayout>();
         Assert.Empty(layout.FindAll(".palette"));
 
-        layout.Find(".palette-field").Click();
+        await Occupying(
+            layout,
+            () => layout.Find(".palette-field").ClickAsync(new MouseEventArgs()),
+            "the click on the banner's field");
 
         Assert.Single(layout.FindAll(".palette"));
     }
@@ -351,7 +367,7 @@ public sealed class BannerTests
     /// nothing at all.</para>
     /// </summary>
     [Fact]
-    public void ArrivingAtTheFieldOpensNothingAndPressingEnterOpensIt()
+    public async Task ArrivingAtTheFieldOpensNothingAndPressingEnterOpensIt()
     {
         using var ctx = new RenderContext();
 
@@ -364,12 +380,21 @@ public sealed class BannerTests
         Assert.Null(field.GetAttribute("blazor:onfocus"));
         Assert.Null(field.GetAttribute("blazor:onfocusin"));
 
-        // A key that is not Enter is a key this control has nothing to say about.
-        field.KeyDown(new KeyboardEventArgs { Key = "Tab" });
+        // A key that is not Enter is a key this control has nothing to say about. Awaited behind a
+        // busy renderer like the press below it: an absence read one render early passes for the
+        // wrong reason, which is the direction this file cannot afford to be casual about.
+        await Occupying(
+            layout,
+            () => field.KeyDownAsync(new KeyboardEventArgs { Key = "Tab" }),
+            "the Tab press the field ignores");
 
         Assert.Empty(layout.FindAll(".palette"));
 
-        layout.Find(".palette-field").KeyDown(new KeyboardEventArgs { Key = "Enter" });
+        await Occupying(
+            layout,
+            () => layout.Find(".palette-field")
+                        .KeyDownAsync(new KeyboardEventArgs { Key = "Enter" }),
+            "the Enter that opens the palette empty");
 
         Assert.Single(layout.FindAll(".palette"));
         Assert.Equal("", layout.Find(".palette-box").GetAttribute("value"));
@@ -385,13 +410,16 @@ public sealed class BannerTests
     /// search implementation this control was refused for.</para>
     /// </summary>
     [Fact]
-    public void TypingIntoTheBannerCarriesTheWordIntoThePalette()
+    public async Task TypingIntoTheBannerCarriesTheWordIntoThePalette()
     {
         using var ctx = new RenderContext();
 
         var layout = ctx.Render<MainLayout>();
 
-        layout.Find(".palette-field").Input("plast");
+        await Occupying(
+            layout,
+            () => layout.Find(".palette-field").InputAsync(new ChangeEventArgs { Value = "plast" }),
+            "the word typed into the banner");
 
         Assert.Single(layout.FindAll(".palette"));
         Assert.Equal("plast", layout.Find(".palette-box").GetAttribute("value"));
@@ -442,15 +470,15 @@ public sealed class BannerTests
     [Theory]
     [InlineData(SheetMode.Hero, "Hero")]
     [InlineData(SheetMode.Villain, "Villain")]
-    public void ExactlyOneModeButtonAnnouncesItselfAsPressed(SheetMode mode, string expected)
+    public async Task ExactlyOneModeButtonAnnouncesItselfAsPressed(SheetMode mode, string expected)
     {
         using var ctx = new RenderContext();
         ctx.Session.Mode = mode;
 
         // The switch is inside the settings menu now, so the assertion follows it there rather
-        // than being dropped. `WithSettingsOpen` proves the disclosure actually opened first: a
+        // than being dropped. `WithSettingsOpenAsync` proves the disclosure actually opened first: a
         // menu that rendered nothing satisfies every claim below by having no buttons at all.
-        var layout = WithSettingsOpen(ctx);
+        var layout = await WithSettingsOpenAsync(ctx);
 
         var pressed = layout.FindAll(".mode-switch button")
             .Where(b => b.GetAttribute("aria-pressed") == "true")
@@ -483,12 +511,12 @@ public sealed class BannerTests
     [InlineData("light", "Light")]
     [InlineData("dark", "Dark")]
     [InlineData(null, "Auto")]
-    public void ExactlyOneThemeButtonAnnouncesItselfAsPressed(string? stored, string expected)
+    public async Task ExactlyOneThemeButtonAnnouncesItselfAsPressed(string? stored, string expected)
     {
         using var ctx = new RenderContext();
         ctx.JSInterop.Setup<string?>("ppTheme.current").SetResult(stored);
 
-        var layout = WithSettingsOpen(ctx);
+        var layout = await WithSettingsOpenAsync(ctx);
 
         var buttons = layout.FindAll(".theme-switch button");
         Assert.Equal(3, buttons.Count);
@@ -511,14 +539,15 @@ public sealed class BannerTests
     /// updates and never pushes changes the buttons and nothing else on the page.</para>
     /// </summary>
     [Fact]
-    public void ChoosingAThemePushesItAndMovesTheControl()
+    public async Task ChoosingAThemePushesItAndMovesTheControl()
     {
         using var ctx = new RenderContext();
 
-        var layout = WithSettingsOpen(ctx);
+        var layout = await WithSettingsOpenAsync(ctx);
         var dark = layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Dark");
 
-        dark.Click();
+        await Occupying(layout, () => dark.ClickAsync(new MouseEventArgs()),
+            "the click on the Dark theme button");
 
         Assert.Contains(ctx.JSInterop.Invocations,
             i => i.Identifier == "ppTheme.set" && i.Arguments.Contains("dark"));
@@ -542,21 +571,30 @@ public sealed class BannerTests
     /// however the leak is spelled.</para>
     /// </summary>
     [Fact]
-    public void ChoosingAThemeChangesNothingAboutTheCharacter()
+    public async Task ChoosingAThemeChangesNothingAboutTheCharacter()
     {
         using var ctx = new RenderContext().With(SheetMode.Villain);
 
         var before = CharacterSheetJson.Write(ctx.Session.Sheet);
 
-        var layout = WithSettingsOpen(ctx);
-        layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Dark").Click();
-        layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Light").Click();
+        var layout = await WithSettingsOpenAsync(ctx);
+        await Occupying(layout, async () =>
+        {
+            await layout.FindAll(".theme-switch button")
+                        .Single(b => b.TextContent.Trim() == "Dark").ClickAsync(new MouseEventArgs());
+            await layout.FindAll(".theme-switch button")
+                        .Single(b => b.TextContent.Trim() == "Light").ClickAsync(new MouseEventArgs());
+        }, "the two theme choices");
 
         Assert.Equal(before, CharacterSheetJson.Write(ctx.Session.Sheet));
 
         // The positive control: the *other* switch does change it, so this is a fact about the
         // theme rather than about a sheet that ignores the banner entirely.
-        layout.FindAll(".mode-switch button").Single(b => b.TextContent.Trim() == "Hero").Click();
+        await Occupying(
+            layout,
+            () => layout.FindAll(".mode-switch button")
+                        .Single(b => b.TextContent.Trim() == "Hero").ClickAsync(new MouseEventArgs()),
+            "the click on the Hero mode button");
 
         Assert.NotEqual(before, CharacterSheetJson.Write(ctx.Session.Sheet));
     }
@@ -703,11 +741,11 @@ public sealed class BannerTests
     /// first time somebody renamed one, which is precisely the event it exists to catch.</para>
     /// </summary>
     [Fact]
-    public void TheSettingsMenusControlsDoNotPrint()
+    public async Task TheSettingsMenusControlsDoNotPrint()
     {
         using var ctx = new RenderContext();
 
-        var layout = WithSettingsOpen(ctx);
+        var layout = await WithSettingsOpenAsync(ctx);
 
         var drawn = layout.FindAll(".settings-menu-list [role=\"group\"]")
             .SelectMany(g => (g.GetAttribute("class") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
