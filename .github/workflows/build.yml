@@ -618,8 +618,9 @@ jobs:
         # **The server it starts now bundles `functions/` and binds a migrated local D1**, and the
         # script seeds the `login_tokens` row an email would have caused so a reader can be signed
         # in — stage two of PROGRESS.md item 10, and still no credential and no seam in the
-        # application. This step's driver runs the six anonymous checks; the Playwright one below
-        # runs those plus the three signed-in ones, which need a second browser context apiece.
+        # application. This step's driver runs five anonymous checks — BOOT, BUILD, THEME, PALETTE
+        # and ROUTES — and skips four twins, saying so on each; the Playwright one below runs those
+        # five plus A11Y and the three signed-in ones, which need a second browser context apiece.
         #
         # **And it asks a question none of the others can.** A feature shipped here while nothing
         # in the application ever wrote to the store it read from — every unit and component test
@@ -645,8 +646,8 @@ jobs:
         run: ./scripts/e2e.sh
 
       - name: Drive the assembled app again, with Playwright and axe
-        # **The second driver, and the only new thing it does is the accessibility check.** The
-        # other five checks are a port, run here as well because a port is a claim until it has a
+        # **The second driver, and four of its nine checks are things the other cannot do.** The
+        # other five are a port, run here as well because a port is a claim until it has a
         # record: PROGRESS.md item 10 states the condition under which `scripts/e2e/` is deleted,
         # and it is twenty consecutive green Build runs of *this* step. Until then both run, and
         # either going red fails the job — which is also what makes "twenty green runs" mean the

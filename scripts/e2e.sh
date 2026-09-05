@@ -16,10 +16,11 @@
 # this script seeded — which is what a reader's mail would have handed them, and nothing more.
 # That split is the whole reason a second driver cost a flag here rather than a rewrite.
 #
-#   node    scripts/e2e/drive.mjs — a hand-rolled DevTools Protocol client, five checks. The
-#           default, and the one with a track record.
-#   dotnet  tests/e2e — Microsoft.Playwright, the same five plus `A11Y`, which runs axe-core
-#           inside the page and which the hand-rolled client cannot do at all.
+#   node    scripts/e2e/drive.mjs — a hand-rolled DevTools Protocol client. BOOT, BUILD, THEME,
+#           PALETTE and ROUTES: five. The default, and the one with a track record.
+#   dotnet  tests/e2e — Microsoft.Playwright. The same five plus four the hand-rolled client
+#           cannot do at all: `A11Y`, which runs axe-core inside the page, and the three
+#           signed-in checks, which need a second browser context apiece. Nine.
 #
 # **Neither is retired and the second has not replaced the first.** `PROGRESS.md` item 10 states
 # the condition under which `scripts/e2e/` goes, and removing a working harness before its
@@ -189,16 +190,17 @@ first_port=8788
 # *capture*, and a wedged Chrome duly spent 1666 seconds saying nothing and cancelled the Build
 # job — see `docs/guide/hosting.md`. Every wait inside `drive.mjs` is bounded (45s for a render,
 # 30s for a navigation) and `start_server` gives up after 180s, but nothing bounded a *drive*:
-# six servers times five checks times two waits is well past the 30-minute job cap, so a browser
-# that stopped answering here would cancel the job in exactly the same way.
+# eight servers times up to nine checks times two waits is well past the 30-minute job cap, so a
+# browser that stopped answering here would cancel the job in exactly the same way.
 #
 # **One value, used by both the `timeout` and the messages quoting it**, same rule as the two
 # deadlines in the visual check.
 #
 # 300s against a measured worst case of about 105s — that is the `base-href-dropped` twin, which
 # spends two deliberate 45-second timeouts proving deep links cannot load the framework. The real
-# site's five checks are about 26 seconds. So this is not a performance budget; it is far enough
-# above the honest cost that a loaded runner cannot trip it.
+# site is about 26 seconds over the node driver's five checks and about 52 over the Playwright
+# driver's nine. So this is not a performance budget; it is far enough above the honest cost that a
+# loaded runner cannot trip it.
 #
 # `-k 10s` escalates to SIGKILL, because a driver killed mid-run does not get to run its own
 # `close()`. Its Chrome can outlive it: on a runner that is collected when the job ends — the
@@ -230,8 +232,9 @@ fi
 #
 # `scripts/e2e/drive.mjs` is the hand-rolled DevTools Protocol client this script was written
 # for. `tests/e2e` is a C# one over Microsoft.Playwright, which drives the same five checks plus
-# an axe-core accessibility check the other cannot do at all. Both print the same three lines
-# this script reads, which is the only contract between them. **Neither is retired**;
+# four the other cannot: an axe-core accessibility check and the three signed-in ones, which need
+# a second browser context apiece. Both print the same three lines this script reads, which is the
+# only contract between them. **Neither is retired**;
 # `PROGRESS.md` item 10 carries the condition under which the first one is, and until that is met
 # the argument for keeping it is that it is the one with a track record.
 #

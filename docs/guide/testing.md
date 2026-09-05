@@ -254,8 +254,8 @@ second driver cost a flag rather than a rewrite.
 | `dotnet` | `tests/e2e`, over `Microsoft.Playwright` and `Deque.AxeCore.Playwright` | the same five, plus **A11Y**, **ADMIN**, **RULES** and **ACCOUNT_SAVE** |
 
 **The last three are stage two and need a second browser context apiece**, which the hand-rolled
-client has no way to make — so a `--driver node` run reports six checks, skips three twins, and says
-so on each line. That is a second asymmetry of exactly `A11Y`'s shape; see *Signed in, seeded from
+client has no way to make — so a `--driver node` run reports five checks, skips four twins
+(`html-lang-dropped` and the three seed ones), and says so on each line. That is a second asymmetry of exactly `A11Y`'s shape; see *Signed in, seeded from
 outside the application* below.
 
 **Neither is retired.** `PROGRESS.md` item 10 states the condition under which `scripts/e2e/` goes,

@@ -72,8 +72,8 @@ for (var i = 1; i < args.Length; i++)
 // `e2e.sh` compares them and fails on a driven check with no negative control. While this driver
 // was being built one check at a time, the unported ones were listed here anyway, as a
 // `NotYetPorted` placeholder that reported FAIL — present and red rather than absent, so the
-// comparison stayed meaningful and a partial driver could not look like a smaller suite. All six
-// are ported, so that class is gone; if a seventh check is added, add its twin in the same change.
+// comparison stayed meaningful and a partial driver could not look like a smaller suite. All nine
+// below are twinned, so that class is gone; if a tenth is added, add its twin in the same change.
 //
 // **A11Y is second, and its position is part of what it measures.** Every other check here is
 // indifferent to what ran before it — "state left behind by an earlier check is deliberate, a
@@ -93,7 +93,7 @@ for (var i = 1; i < args.Length; i++)
 //
 // **They are Playwright's alone, and that is a second asymmetry like A11Y's.** `scripts/e2e/
 // drive.mjs` cannot run them — it has no second context and no way to make one — so a `--driver
-// node` run reports six checks and skips three twins, saying so on each. `e2e.sh` compares only
+// node` run reports five checks and skips four twins, saying so on each. `e2e.sh` compares only
 // the direction whose failure costs a missed regression (a driven check with no twin), and
 // `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck` holds the converse across both drivers.
 // Read the comment at that comparison in `e2e.sh` before changing either.
