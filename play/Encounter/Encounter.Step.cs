@@ -267,6 +267,9 @@ public sealed partial class Encounter
 
             if (tableHalves || lethalHalves) rank = Halve(rank);
 
+            // p.78: dodging a blast is deliberately awkward. See DodgingAnAreaAttack.
+            if (active && attack.Area) rank = Halve(rank);
+
             if (halved is not null && (!halved.ActiveOnly || active)) rank = Halve(rank);
 
             if (rank > best.Item2) best = (trait, rank, active);
@@ -278,6 +281,8 @@ public sealed partial class Encounter
             // and a threshold of nothing is what "no defence available" means.
             return ("no defence", 0, false);
         }
+
+        if (attack.Area && best.Item3) DodgingAnAreaAttack(state, target, lines);
 
         var pool = best.Item2 + WoundPenalty(state, target, lines);
 
@@ -358,6 +363,40 @@ public sealed partial class Encounter
             + $"{target.Name} is {string.Join(", ", candidates.Select(c => c.Trait).DefaultIfEmpty("nothing"))}"));
 
         return candidates;
+    }
+
+    /// <summary>
+    /// p.78's price on dodging a blast, and the ledger line that says which half of it was paid.
+    ///
+    /// <para><b>The rule is a choice and the engine has to make it, so it makes it out loud.</b>
+    /// <c>area_attacks</c> says an active defence against an area attack must either halve its rank
+    /// or forfeit the next turn to act; this engine halves, and the line names the option it did not
+    /// take. Halving is the choice that keeps a fight comparable across runs — forfeiting a turn
+    /// moves a character's whole page and would make an area attack's cost depend on where in the
+    /// order the dodger happened to be — and a policy that could choose is what would settle it
+    /// properly, which is a later slice's problem rather than a licence to apply neither.</para>
+    ///
+    /// <para>The two options are read off the entry rather than typed, and the halving one is found
+    /// by its printed word: an entry that stopped offering it is a rule this engine cannot apply, so
+    /// it throws rather than quietly halving anyway.</para>
+    /// </summary>
+    private void DodgingAnAreaAttack(EncounterState state, Combatant target, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("area_attacks");
+        var options = entry.AreaAttack!.AnActiveDefenseMustEither;
+
+        var halving = options.FirstOrDefault(o => o.Contains("halve", StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException(
+                "area_attacks no longer offers halving as one of the things an active defence must "
+                + $"do — it offers {string.Join(" or ", options)}. This engine takes the halving "
+                + "option and records the other, so a rule without one is a rule it cannot apply.");
+
+        var alternative = options.Where(o => !string.Equals(o, halving, StringComparison.Ordinal));
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{target.Name} dodges an area attack, so the defence must either {string.Join(" or ", options)}: "
+            + $"this engine takes \"{halving}\" and not \"{string.Join(" or ", alternative)}\""));
     }
 
     /// <summary>The table's own name for the column that means "one of the target's Powers".</summary>

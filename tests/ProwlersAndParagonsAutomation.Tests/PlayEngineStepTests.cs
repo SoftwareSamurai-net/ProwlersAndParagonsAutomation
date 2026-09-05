@@ -306,6 +306,78 @@ public sealed class PlayEngineStepTests
         }
     }
 
+    // ── Area attacks, going all-out, charging ────────────────────────────────
+
+    /// <summary>
+    /// <b>An active defence against an area attack is halved, and the ledger says which of p.78's
+    /// two options was taken.</b>
+    ///
+    /// <para><c>area_attacks</c>: "an active defense must either halve its rank or forfeit the next
+    /// turn to act". Neither half was applied, so dodging a blast cost nothing at all and every
+    /// balance figure for an area attack was too low. The engine halves and names the option it did
+    /// not take, because a rule where the engine had to choose and chose silently is a reading
+    /// nobody can argue with.</para>
+    ///
+    /// <para>The control is the same dodger against the same attack without the area flag: 8d, and
+    /// 4d with it. A passive defence is untouched either way, which the second half checks — the
+    /// page puts the price on dodging.</para>
+    /// </summary>
+    [Fact]
+    public void AnActiveDefenceAgainstAnAreaAttackIsHalved()
+    {
+        var attacker = Combatant.Villain("attacker", "the attacker", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["blast"] = 8 }, ["toughness"]);
+
+        var dodger = Combatant.Hero("dodger", "the dodger", edge: 5, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["agility"] = 8, ["might"] = 3 },
+            ["agility"]);
+
+        var bracer = Combatant.Hero("bracer", "the bracer", edge: 4, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["force_field"] = 8, ["might"] = 3 },
+            ["force_field"]);
+
+        // The control: without the area flag the dodger answers with the whole of their 8d.
+        Assert.Contains("defends with agility 8d", Defence("dodger", area: false), StringComparison.Ordinal);
+
+        var dodged = Defence("dodger", area: true);
+        Assert.Contains("defends with agility 4d", dodged, StringComparison.Ordinal);
+
+        // p.78 prices dodging and not bracing, so the passive defence is the same either way.
+        Assert.Contains("defends with force_field 8d", Defence("bracer", area: false), StringComparison.Ordinal);
+        Assert.Contains("defends with force_field 8d", Defence("bracer", area: true), StringComparison.Ordinal);
+
+        string Defence(string target, bool area)
+        {
+            var encounter = new Encounter(_play, new SeededDice(9));
+            var state = encounter.Begin([attacker, dodger, bracer]);
+
+            var added = encounter
+                .Step(state, new Attack("attacker", target, "blast", DamageKind.Lethal,
+                    AttackType.PhysicalPower, Area: area))
+                .Added;
+
+            // The engine says which of the two printed options it took, and only when one was owed.
+            var entry = _play.GetCombat("area_attacks");
+            var choice = added.Where(l => string.Equals(l.Rule, "area_attacks", StringComparison.Ordinal)).ToList();
+
+            if (area && string.Equals(target, "dodger", StringComparison.Ordinal))
+            {
+                var line = Assert.Single(choice);
+
+                foreach (var option in entry.AreaAttack!.AnActiveDefenseMustEither)
+                    Assert.Contains(option, line.Text, StringComparison.Ordinal);
+            }
+            else
+            {
+                Assert.Empty(choice);
+            }
+
+            return added.Single(l =>
+                string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+                && l.Text.Contains("defends with", StringComparison.Ordinal)).Text;
+        }
+    }
+
     // ── Defeat ───────────────────────────────────────────────────────────────
 
     /// <summary>
