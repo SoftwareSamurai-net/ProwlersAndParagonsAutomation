@@ -119,13 +119,26 @@ public static class CanonicalGrittyRules
     /// A ninja master then stabs him for 6 points of damage, taking him down to −5 Health. Clint's full
     /// Health is 5, so that's just enough to kill him. Our hero spends 1 Resolve to prevent that from
     /// happening, leaving him at −4 Health."</para>
+    ///
+    /// <para><b>The printed word and the printed arithmetic disagree.</b> "1 point below this fatal
+    /// threshold" computes to −6 at Clint's −5 threshold; the worked example two sentences later
+    /// leaves him at −4, one point ABOVE it. <see cref="ResolveReducesDamageTo"/> carries the word as
+    /// printed, because this file is the rulebook and not a repair of it — the reading the arithmetic
+    /// supports is <see cref="InterpretedResolveReducesDamageTo"/>, and the entry's own <c>ambiguity</c>
+    /// names the contradiction. <c>PlayRulesDataTests.TheFatalDamagePrintedWordAndItsWorkedExampleDisagree</c>
+    /// proves both halves out of the corpus, so it fires if the page is ever re-extracted differently.</para>
     /// </summary>
     public static class FatalDamage
     {
         public const bool HealthCanGoNegative = true;
         public const string KilledAt = "the negative value of your full Health";
         public const int CostResolveToAvoid = 1;
-        public const string ResolveReducesDamageTo = "1 point above the fatal threshold";
+        public const string ResolveReducesDamageTo = "1 point below the fatal threshold";
+
+        /// <summary>Not printed. The reading the worked example's own arithmetic supports — see the
+        /// class comment above — and what a simulator should compute rather than the printed word.</summary>
+        public const string InterpretedResolveReducesDamageTo = "1 point above the fatal threshold";
+
         public const bool ResolveMayBeSpentOnDamageYouInflictOnSomeoneElse = true;
         public const bool ResolveAlsoStabilisesIfNecessary = true;
         public const int DyingBeginsWhenLethalDamageReducesYouTo = -1;

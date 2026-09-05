@@ -505,7 +505,8 @@ public sealed class PlayRulesDataTests
         string? DurationIsInheritedFrom,
         string? AverageRounds,
         string? DurationRounds,
-        string? ReductionRounds);
+        string? ReductionRounds,
+        string? ResolveReducesDamageTo);
 
     private sealed record ActionsModel(
         string OnYourTurn,
@@ -1108,7 +1109,8 @@ public sealed class PlayRulesDataTests
         GearLimitModel? GearLimit,
         SlowHealingModel? SlowHealing,
         ToughMinionsModel? ToughMinions,
-        WoundPenaltiesModel? WoundPenalties);
+        WoundPenaltiesModel? WoundPenalties,
+        CombatInterpretationModel? Interpretation);
 
     private sealed record PlayFile<TEntry>(Header Header, IReadOnlyList<TEntry> Entries);
 
@@ -2714,17 +2716,31 @@ public sealed class PlayRulesDataTests
     /// that's just enough to kill him. Our hero spends 1 Resolve to prevent that from happening,
     /// leaving him at −4 Health."
     ///
-    /// <para>The fatal line and the rescue are both computed from the entry rather than typed: the
-    /// threshold is the negative of full Health because the file says <c>killed_at</c> is that, and
-    /// −4 is one point above it because the file says the point buys exactly that.</para>
+    /// <para><b>Both the threshold and the rescue read off the entry rather than being re-derived in
+    /// the test.</b> The threshold check is not just <c>-full</c>: it also requires <c>fatal.KilledAt</c>
+    /// to equal the transcribed sentence, so a mutation to that field — as opposed to a mutation to the
+    /// arithmetic this test does on its own — has somewhere to be caught. The rescue direction comes
+    /// from <c>Interpretation.ResolveReducesDamageTo</c>, the reading <c>TheFatalDamagePrintedWordAndItsWorkedExampleDisagree</c>
+    /// proves the worked example actually supports, rather than from the printed <c>fatal_damage.resolve_reduces_damage_to</c>
+    /// word, which that same test proves is contradicted. Mutating either <c>killed_at</c> or
+    /// <c>resolve_reduces_damage_to</c> — the fact field or the interpretation — now moves this
+    /// fixture.</para>
     /// </summary>
     [Fact]
     public void TheFatalDamageExampleOnPageSeventyNineComesOutAsPrinted()
     {
-        var fatal = GrittyEntryById("gritty_fatal_damage").FatalDamage;
+        var entry = GrittyEntryById("gritty_fatal_damage");
+        var fatal = entry.FatalDamage;
+        var interpretation = entry.Interpretation;
 
         Assert.NotNull(fatal);
+        Assert.NotNull(interpretation);
         Assert.True(fatal.HealthCanGoNegative);
+
+        // The threshold is read off the entry's own killed_at field, checked against the
+        // transcription rather than assumed — a mutation to killed_at has to land here.
+        Assert.Equal(CanonicalGrittyRules.FatalDamage.KilledAt, fatal.KilledAt);
+        Assert.Equal(CanonicalGrittyRules.FatalDamage.ResolveReducesDamageTo, fatal.ResolveReducesDamageTo);
 
         var full = CanonicalGrittyRules.FatalDamage.ExampleFullHealth;
         var after = CanonicalGrittyRules.FatalDamage.ExampleCurrentHealth
@@ -2735,12 +2751,85 @@ public sealed class PlayRulesDataTests
         var fatalThreshold = -full;
         Assert.True(after <= fatalThreshold, "−5 reaches the negative of Clint's full 5 Health exactly");
 
-        // "reduce the damage … to 1 point below this fatal threshold" — one point of Health above it.
-        var rescued = fatalThreshold + fatal.CostResolveToAvoid;
+        // The rescue's direction comes from the interpretation, not from the contradicted printed
+        // word — see CanonicalGrittyRules.FatalDamage and the entry's own ambiguity.
+        var direction = interpretation.ResolveReducesDamageTo switch
+        {
+            "1 point above the fatal threshold" => 1,
+            "1 point below the fatal threshold" => -1,
+            var other => throw new InvalidOperationException(
+                $"interpretation.resolve_reduces_damage_to '{other}' names neither direction")
+        };
+
+        var rescued = fatalThreshold + direction * fatal.CostResolveToAvoid;
         Assert.Equal(CanonicalGrittyRules.FatalDamage.ExampleHealthAfterSpendingResolve, rescued);
 
         // And the rescue leaves him dying rather than well: −4 is at or below the dying line.
         Assert.True(rescued <= fatal.DyingBeginsWhenLethalDamageReducesYouTo);
+    }
+
+    /// <summary>
+    /// <b>Finding 1's proof.</b> <c>gritty_fatal_damage</c>'s fact field transcribes p.79's word —
+    /// "1 point below this fatal threshold" — as printed, and its <c>interpretation</c> carries the
+    /// reading the same paragraph's own worked example supports instead. This reads both the word and
+    /// the example's three figures out of <c>ch04-combat.json</c> rather than off
+    /// <c>CanonicalGrittyRules</c>, so it fires if the corpus is ever re-extracted with a different
+    /// reading of the page.
+    /// </summary>
+    [Fact]
+    public void TheFatalDamagePrintedWordAndItsWorkedExampleDisagree()
+    {
+        var section = ChapterFourSectionText("FATAL DAMAGE");
+        Assert.False(string.IsNullOrEmpty(section));
+
+        Assert.Contains("1 point below this fatal threshold", section, StringComparison.Ordinal);
+
+        var fullHealth = int.Parse(
+            Regex.Match(section, @"tough guy with (\d+) Health").Groups[1].Value,
+            CultureInfo.InvariantCulture);
+        var beforeRescue = int.Parse(
+            Regex.Match(section, "taking him down to −(\\d+) Health").Groups[1].Value,
+            CultureInfo.InvariantCulture);
+        var afterRescue = int.Parse(
+            Regex.Match(section, "leaving him at −(\\d+) Health").Groups[1].Value,
+            CultureInfo.InvariantCulture);
+
+        var fatalThreshold = -fullHealth;
+        Assert.Equal(fatalThreshold, -beforeRescue);
+
+        var belowReading = fatalThreshold - 1; // what the printed word computes
+        var aboveReading = fatalThreshold + 1; // what the worked example computes
+
+        Assert.Equal(aboveReading, -afterRescue);
+        Assert.NotEqual(belowReading, -afterRescue);
+
+        // And the entry's own fields say the same two things: the fact carries the word, the
+        // interpretation carries the reading the arithmetic above just proved.
+        var entry = GrittyEntryById("gritty_fatal_damage");
+        Assert.Equal("1 point below the fatal threshold", entry.FatalDamage!.ResolveReducesDamageTo);
+        Assert.Equal("1 point above the fatal threshold", entry.Interpretation!.ResolveReducesDamageTo);
+        Assert.False(string.IsNullOrWhiteSpace(entry.Ambiguity));
+    }
+
+    /// <summary>Every section printed under <paramref name="heading"/> in Chapter 4's corpus, joined.</summary>
+    private static string ChapterFourSectionText(string heading)
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RulebookPath, "ch04-combat.json")));
+
+        var builder = new StringBuilder();
+
+        foreach (var section in document.RootElement.GetProperty("sections").EnumerateArray())
+        {
+            if (section.TryGetProperty("heading", out var sectionHeading)
+                && sectionHeading.ValueKind == JsonValueKind.String
+                && string.Equals(sectionHeading.GetString(), heading, StringComparison.Ordinal))
+            {
+                builder.Append(section.GetProperty("text").GetString()).Append('\n');
+            }
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>
@@ -3957,7 +4046,11 @@ public sealed class PlayRulesDataTests
             "seize_initiative_gm_alternative.interpretation.duration_is_inherited_from",
             "health.interpretation.average_rounds",
             "special_effects.interpretation.duration_rounds",
-            "breaking_free.interpretation.reduction_rounds"
+            "breaking_free.interpretation.reduction_rounds",
+            // gritty.json's Fatal Damage: the printed word and its own worked example disagree
+            // (see CanonicalGrittyRules.FatalDamage), and this is the reading the arithmetic
+            // supports rather than a second transcription of the contradicted word.
+            "gritty_fatal_damage.interpretation.resolve_reduces_damage_to"
         };
 
     /// <summary>

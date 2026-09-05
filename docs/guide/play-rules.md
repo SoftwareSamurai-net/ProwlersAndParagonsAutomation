@@ -137,6 +137,8 @@ The counting function is a test helper and is not the start of an engine. Keep i
 
 Five more of the chapter's printed examples are pinned the same way — p.74's movement, p.74's chase, p.76's Mind Control and the escape from it, and p.79's Clint Castle, who is killed at exactly −5 and saved at −4.
 
+**Clint Castle is also where the page contradicts itself, and both halves are on record.** p.79 says a spent Resolve reduces the damage "to 1 point below this fatal threshold" — one point further from zero, −6 at Clint's −5 threshold — but the worked example two sentences later leaves him at −4, one point *above* it, alive. `gritty_fatal_damage.resolve_reduces_damage_to` carries the printed word, because `gritty.json` is the rulebook and not a repair of it; its `interpretation` carries the reading the arithmetic supports, and its `ambiguity` names the contradiction between them. `TheFatalDamagePrintedWordAndItsWorkedExampleDisagree` reads both the word and the example's own three figures out of `ch04-combat.json` rather than off the canonical file, so it fires if the corpus is ever re-extracted differently, and `TheFatalDamageExampleOnPageSeventyNineComesOutAsPrinted` picks its rescue direction from the interpretation rather than assuming it, so mutating either the fact field or the interpretation moves the fixture.
+
 ### Three readings, and each one is derived from something the book does print
 
 Chapter 4 prints three figures it never actually states, and all three are `interpretation` blocks rather than fact fields, for the reason `challenge.json`'s Thresholds table established: **a fact field is a claim that the page states the thing.**

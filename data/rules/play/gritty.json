@@ -112,7 +112,7 @@
         "health_can_go_negative": true,
         "killed_at": "the negative value of your full Health",
         "cost_resolve_to_avoid": 1,
-        "resolve_reduces_damage_to": "1 point above the fatal threshold",
+        "resolve_reduces_damage_to": "1 point below the fatal threshold",
         "resolve_may_be_spent_on_damage_you_inflict_on_someone_else": true,
         "resolve_also_stabilises_if_necessary": true,
         "dying_begins_when_lethal_damage_reduces_you_to": -1,
@@ -125,6 +125,10 @@
         "cost_resolve_to_stabilise_immediately": 1,
         "instant_recovery_requires_being_stable": true
       },
+      "interpretation": {
+        "what_this_is": "This repository's reading, and not what the printed word computes. p.79 says a spent Resolve reduces the damage 'to 1 point below this fatal threshold', which at Clint Castle's -5 threshold is -6 - but the very next sentence's worked example leaves him at -4 Health, one point ABOVE the threshold, not below it. The arithmetic the authors worked through is the reading a simulator should follow; the entry's ambiguity field names the contradiction the printed word leaves unresolved.",
+        "resolve_reduces_damage_to": "1 point above the fatal threshold"
+      },
       "description": "The pool keeps going below nothing, and a character dies when it reaches the negative of what they started with - so a bigger character has further to fall. One point of the Hero currency buys the damage down to a single point short of that line, on either side of the blow, and steadies them into the bargain. Anything of the killing sort that leaves them below nothing starts a clock: a point a slice until somebody stops it, by a roll, by a Power, or by another point spent. Nothing brings a character back on their feet until that clock has been stopped.",
       "verified_fields": [
         "roll",
@@ -135,7 +139,7 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.4 Combat, p.79",
-      "ambiguity": null
+      "ambiguity": "The printed word and the printed worked example disagree. p.79 says a spent Resolve reduces the damage 'to 1 point below this fatal threshold' - one point further from zero, -6 at Clint Castle's -5 threshold - but the example two sentences later leaves him at -4 Health, one point above the threshold, and he lives. resolve_reduces_damage_to above carries the word as printed; the interpretation beside it carries the reading the arithmetic actually supports."
     },
     {
       "id": "gritty_friendly_fire",
