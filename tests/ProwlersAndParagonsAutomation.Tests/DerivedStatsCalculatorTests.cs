@@ -202,6 +202,42 @@ public sealed class DerivedStatsCalculatorTests
     }
 
     /// <summary>
+    /// <b>An Expertise nominated to a Power gets the entry's own answer and no reasoning of its
+    /// own, however combat-capable that Power is.</b> Ch.2 p.28 allows an Ability or a Talent and
+    /// nothing else, so this is not a case with an answer — it is
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c>, and an illegal character is reported, never
+    /// repaired.
+    ///
+    /// <para><b>This exists because the branch it forbids was here and nothing caught its
+    /// return.</b> <see cref="DerivedStatsCalculator.ResolveAffectedBySelection"/> used to ask
+    /// p.83's "can it be used for attack, defense, or to affect other characters or objects" of
+    /// the nominated Power, which handed an illegal sheet a defensible Resolve — Martial Arts
+    /// counted, Flight did not — and left the validator's finding beside a figure that looked
+    /// considered. Re-adding that branch passed the whole suite until this test existed: every
+    /// other guard asks about legal nominations, which the branch answers identically.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("martial_arts")]   // a Power that attacks
+    [InlineData("flight")]         // a Power p.83 exempts in its own right
+    [InlineData("expertise")]      // and an Expertise, which must not recurse into its own rule
+    public void AnExpertiseNominatedToAPowerGetsNoAnswerOfItsOwn(string nomination)
+    {
+        var selection = new SelectedPower("expertise", 4) { BaselineTraitId = nomination };
+
+        // Positive control: the nomination really does name a Power, or this asserts nothing about
+        // the branch it exists to forbid.
+        Assert.NotNull(_f.Rules.GetPower(nomination));
+
+        Assert.False(_f.Derived.ResolveAffectedBySelection(selection));
+
+        // And the entry's own answer is what came back, rather than a coincidence: Martial Arts
+        // affects Resolve in its own right, so a branch reading the nominated Power would say true.
+        Assert.Equal(
+            DerivedStatsCalculator.ResolveAffectedByPower(_f.Rules.GetPower("expertise")!),
+            _f.Derived.ResolveAffectedBySelection(selection));
+    }
+
+    /// <summary>
     /// The carve-out moves the figure, not merely a flag. A Standard-tier 6d character who buys
     /// Expertise up to the 12d cap opens on nothing when the specialisation is a combat skill and on
     /// twelve when it is not — one sheet, one rank, and the nomination is the only thing that moves.
