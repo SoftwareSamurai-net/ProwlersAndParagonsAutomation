@@ -15,12 +15,25 @@ namespace ProwlersAndParagons.E2e.Checks;
 /// browser resolves. Nothing in this repository measured any of that in the assembled app: a bUnit
 /// test reads markup, and the pixel goldens compare a picture against a picture.</para>
 ///
-/// <para><b>What it found.</b> Across four palettes and four addresses, with axe's full default
-/// ruleset and no rule turned off: 536 passing rule instances and one violation — the wizard's
-/// disabled Next control, which WCAG 1.4.3 exempts and axe cannot tell is inactive. See
-/// <see cref="ExemptRule"/> for the figures and for why it is dropped by node rather than by rule.
-/// Everything <c>theme.css</c> claims about its own contrast holds; it had simply never been
-/// measured in the running app.</para>
+/// <para><b>What it found, and what is no longer true.</b> Across four palettes and four
+/// addresses, with axe's full default ruleset and no rule turned off: 536 passing rule instances
+/// and one violation — the wizard's disabled Next control on <c>/build</c>, which
+/// <c>StepButtons.razor</c> renders as an anchor with <c>aria-disabled="true"</c> and
+/// <c>app.css</c> used to paint at <c>opacity: 0.45</c>, faded toward whatever sat behind it:
+/// 2.23:1 Hero/Light, 3.28:1 Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark, against a
+/// 4.5:1 floor. WCAG 1.4.3 exempts an inactive component's text and axe cannot apply that
+/// exemption itself — it looks for the <c>disabled</c> attribute, which an anchor cannot carry —
+/// so this file used to drop that one node by name rather than turn <c>color-contrast</c> off.
+/// Owner's ruling 2026-09-06 (<c>PROGRESS.md</c> item 10) was to make it legible rather than
+/// merely exempt: <c>.btn.disabled</c> in <c>app.css</c> now paints <c>--muted</c> text on
+/// <c>--panel-sunk</c> instead of fading the primary fill, which measures 6.01:1-7.26:1 across
+/// the four palettes — clear of 4.5:1 in every one, asserted alongside every other pair
+/// <c>theme.css</c> promises in <c>WebPresentationTests.EveryScreenPairInUseHoldsItsContrastFloor</c>.
+/// There is no longer a violation to exempt, so the per-node exemption this file used to carry is
+/// gone; a future palette change that regresses this pair below 4.5:1 now shows up here as an
+/// ordinary <c>color-contrast</c> finding rather than silently widening what was dropped. Every
+/// other claim <c>theme.css</c> makes about its own contrast holds; nothing here had ever measured
+/// it in the running app until this file existed.</para>
 ///
 /// <para><b>Two earlier readings were artefacts and a third was real and nearly deleted as a
 /// fourth.</b> The artefacts were pages measured mid-animation — see <see cref="Scan"/>. The real
@@ -91,54 +104,6 @@ public static class Accessibility
     };
 
     /// <summary>
-    /// The one thing axe reports here that is not a defect, dropped node by node rather than by
-    /// turning its rule off — and counted, so it cannot quietly grow.
-    ///
-    /// <para><b>What it is.</b> <c>web/Components/StepButtons.razor</c> renders the wizard's Next
-    /// control as an anchor with <c>class="btn primary disabled"</c> and
-    /// <c>aria-disabled="true"</c>, which <c>app.css</c> paints at <c>opacity: 0.45</c> with
-    /// <c>pointer-events: none</c>. On <c>/build</c> before a tier is chosen, axe measures it and
-    /// reports <c>color-contrast</c> in every palette: <b>2.23:1 Hero/Light, 3.28:1 Hero/Dark,
-    /// 2.54:1 Villain/Light, 3.22:1 Villain/Dark</b> against a 4.5:1 floor. Measured 2026-09-04 in
-    /// real Chrome against the published site, after the waits in <see cref="Scan"/>, stable over
-    /// five consecutive runs.</para>
-    ///
-    /// <para><b>Why it is exempt.</b> WCAG 1.4.3 says in as many words that text which is part of
-    /// an inactive user interface component has no contrast requirement, and this control is
-    /// inactive: <c>aria-disabled="true"</c>, no pointer events. axe cannot apply that exemption
-    /// because it recognises the <c>disabled</c> <em>attribute</em>, which an anchor cannot carry.
-    /// So this is axe unable to see a rule it agrees with, not a defect being waved past.</para>
-    ///
-    /// <para><b>What is nonetheless being taken on trust, and is the owner's call rather than
-    /// this file's.</b> A disabled Next is exactly what a reader looks at to work out why they
-    /// cannot go on, and 2.23:1 is faint. WCAG exempts it; legibility does not. That is a design
-    /// decision, so this reports the figures and does not fail on them — see PROGRESS.md item 10.
-    /// </para>
-    ///
-    /// <para><b>Node by node, not rule by rule</b>, so <c>color-contrast</c> stays live on every
-    /// other element of every page — which is the whole reason this file exists. And the exemption
-    /// carries its own positive control below: if it stops matching, it has become dead code, and
-    /// a dead exemption makes a check imperceptibly easier every year.</para>
-    /// </summary>
-    private const string ExemptRule = "color-contrast";
-
-    /// <summary>
-    /// The exact selector axe reports for the exempt element, compared for equality.
-    ///
-    /// <para><b>It was <c>Contains(".disabled")</c> and that was overbroad, found by review rather
-    /// than by a run.</b> <c>AxeResultNode.Target.ToString()</c> is the CSS selector axe generated
-    /// for the node, so a substring test would exempt any future element whose selector merely
-    /// contained those characters — <c>.disabled-icon</c>, <c>.disabled-hint</c>, a genuinely
-    /// broken element on an unrelated page — and the <c>exempted &gt; 0</c> control below would
-    /// stay perfectly green while the exemption widened. No such class exists under <c>web/</c>
-    /// today, so it was a latent hole and not an active one; it also flatly contradicted this
-    /// file's own claim to drop nodes "node by node" and to be "counted, so it cannot quietly
-    /// grow". Equality means an exemption that stops matching is reported by its control instead,
-    /// which is the failure everybody wants.</para>
-    /// </summary>
-    private const string ExemptTarget = ".disabled";
-
-    /// <summary>
     /// One address's scan: axe's rules against the page as rendered, and the three waits that had
     /// to be discovered rather than assumed.
     ///
@@ -177,7 +142,6 @@ public static class Accessibility
         var scanned = 0;
         var passes = 0;
         var rulesEvaluated = 0;
-        var exempted = 0;
 
         // **The palette this scans is chosen here, not inherited, and that was a real defect.**
         // This check runs last, so it used to scan whatever palette the PALETTE check happened to
@@ -216,15 +180,11 @@ public static class Accessibility
 
                 foreach (var violation in results.Violations)
                 {
-                    var nodes = violation.Nodes.Where(n => !IsExempt(violation.Id, n)).ToList();
-
-                    exempted += violation.Nodes.Length - nodes.Count;
-
-                    if (nodes.Count == 0) continue;
+                    var nodes = violation.Nodes;
 
                     findings.Add(
                         $"{mode}/{theme} {address}: {violation.Id} [{violation.Impact}] "
-                        + $"x{nodes.Count} — {violation.Help} "
+                        + $"x{nodes.Length} — {violation.Help} "
                         + $"(first: {nodes[0].Target} — {Summarise(nodes[0].Any)})");
                 }
             }
@@ -248,26 +208,12 @@ public static class Accessibility
             + "so it scanned something that was not this application, or a rule filter dropped "
             + "most of the ruleset");
 
-        // The exemption's own positive control. A selector that has stopped matching is dead
-        // code that makes this check imperceptibly easier every year, which is how a suite rots.
-        Harness.Control(exempted > 0,
-            $"the {ExemptRule} exemption for '{ExemptTarget}' matched nothing. Either the wizard's "
-            + "disabled Next control is gone — in which case delete the exemption — or this scan "
-            + "is no longer reaching /build before a tier is chosen.");
-
         Harness.Outcome(findings.Count == 0,
             $"{findings.Count} accessibility violation(s): {string.Join(" | ", findings)}");
 
         return $"{Palettes.Length} palettes x {Addresses.Length} addresses, {passes} passing "
-            + $"rule instances, no violations ({exempted} exempt: {ExemptTarget})";
+            + "rule instances, no violations";
     }
-
-    /// <summary>
-    /// Whether one failing node is the documented exemption. See <see cref="ExemptRule"/>.
-    /// </summary>
-    private static bool IsExempt(string rule, AxeResultNode node) =>
-        rule == ExemptRule
-        && string.Equals(node.Target.ToString(), ExemptTarget, StringComparison.Ordinal);
 
     /// <summary>The one-line "why" axe attaches to a failing node.</summary>
     private static string Summarise(IEnumerable<AxeResultCheck> checks) =>
