@@ -57,11 +57,14 @@ The guard is stronger than a sentence comparison, because the realistic failure 
 
 ## `ambiguity` is a field, not a comment
 
-Where the book is genuinely unclear, the entry says so in an `ambiguity` string. **An ambiguity nobody wrote down becomes an implementation decision nobody made** — a simulator simply picks a reading, and from then on the choice is invisible. Three are pinned by name because they change results:
+Where the book is genuinely unclear, the entry says so in an `ambiguity` string. **An ambiguity nobody wrote down becomes an implementation decision nobody made** — a simulator simply picks a reading, and from then on the choice is invisible. Four are pinned by name because they change results:
 
 - **The sub‑1d floor is reachable by several routes** (the GM's ±4d, Ch.4's wound penalties, the one‑shot Defining Moment's −2d) and nothing says whether they sum before the floor applies once or are floored as each lands.
 - **Automatic successes are priced in pairs and the book never addresses an odd pool.** The printed example is 12d taking 6, which is even and settles nothing.
 - **"Extra" net successes in a group action has two readings** — the amount above 3, or the whole total once it passes 3. On 5 net successes that is the difference between giving away 2 and giving away 5.
+- **The one‑shot Defining Moment may replace the permanent rank loss or be paid on top of it.** The paragraph opens by calling Defining Moments "even more debilitating" in a one‑shot, which reads additively; the only *instead of* the page prints is its closing sentence, which is about **ordinary** games, where the GM *may* offer the swap. So the replacement is stated exactly where it is optional and unstated where it would be the rule.
+
+**The fourth is here because it had been decided instead of recorded.** The entry carried `replaces: "the permanent 1d Ability reduction"` as a fact field, and a test named for that trade asserted nothing of the sort. What is a fact is now `ordinary_games_option` — offered, replacing, and not compulsory, which are the three halves of the one sentence that says any of it — and the reading for one-shots is in `ambiguity` where it belongs. **A fact field is a claim that the page states the thing**; when it does not, the field is the wrong container no matter how likely the reading.
 
 ## The fixture rule: pin an example the authors worked through
 

@@ -122,14 +122,17 @@ public sealed class PlayRulesDataTests
     private sealed record GroupActionModel(
         string Trigger,
         bool EveryoneRollsIndividually,
-        int DistributionPivotNetSuccesses,
+        int DistributeAboveNetSuccesses,
+        bool AboveIsStrict,
+        int MinimumNetSuccessesToDistribute,
         string DistributeTo,
         IReadOnlyList<string> ExamplesGiven);
 
     private sealed record ContestModel(
         string Structure,
         int TypicalExchanges,
-        int ArduousExchanges,
+        int ArduousExchangesMin,
+        int? ArduousExchangesMax,
         string ArduousCondition,
         bool ExchangeWinnerNarratesThatExchange,
         int ExchangeWinBonusDiceNextExchange,
@@ -151,15 +154,17 @@ public sealed class PlayRulesDataTests
         IReadOnlyList<string> MentalTaskReducesOneOf,
         bool AbilityMayBeBoughtBackLater);
 
+    private sealed record OrdinaryGamesOptionModel(
+        bool OfferedAtGmOption, bool ReplacesThePermanentAbilityLoss, bool Mandatory);
+
     private sealed record OneShotModel(
         string Context,
-        string Replaces,
         int HealthAfter,
         bool Unconscious,
         string RegainConsciousness,
         int ChallengeRollPenaltyDice,
         string PenaltyDuration,
-        string AvailableInOrdinaryGames);
+        OrdinaryGamesOptionModel OrdinaryGamesOption);
 
     private sealed record JudgingModel(string Descriptor, string Difficulty, int Threshold);
 
@@ -453,26 +458,63 @@ public sealed class PlayRulesDataTests
         Assert.Equal(hard.Min, assist.HelperRollsAgainstThreshold);
     }
 
+    /// <summary>
+    /// <b>The bound is strict, and a bare 3 cannot say so.</b> The page reads "characters who earn
+    /// more than 3 net successes can distribute these extra net successes" — so 3 distributes
+    /// nothing and 4 is the first figure that does. Recording the pivot alone left a simulator free
+    /// to read it as "3 or more", which hands out a share the book does not.
+    ///
+    /// <para>The entry carries the inequality in three pieces and this checks they agree, so the
+    /// derived minimum cannot drift away from the pivot it is derived from. What "extra" means once
+    /// the bound is passed is a separate question the book genuinely does not answer, and it stays
+    /// in <c>ambiguity</c>.</para>
+    /// </summary>
     [Fact]
-    public void AGroupActionDistributesWhatIsEarnedAboveThreeNetSuccesses()
+    public void AGroupActionDistributesOnlyWhatIsEarnedStrictlyAboveThreeNetSuccesses()
     {
         var group = ChallengeEntryById("group_action").GroupAction;
 
         Assert.NotNull(group);
-        Assert.Equal(CanonicalChallengeRules.GroupActionDistributionPivot, group.DistributionPivotNetSuccesses);
+        Assert.Equal(
+            CanonicalChallengeRules.GroupActionDistributeAboveNetSuccesses,
+            group.DistributeAboveNetSuccesses);
+        Assert.Equal(CanonicalChallengeRules.GroupActionAboveIsStrict, group.AboveIsStrict);
+        Assert.Equal(
+            CanonicalChallengeRules.GroupActionMinimumNetSuccessesToDistribute,
+            group.MinimumNetSuccessesToDistribute);
         Assert.True(group.EveryoneRollsIndividually);
+
+        // The three fields have to describe one rule: the minimum is the pivot plus one exactly
+        // when the bound is strict. Without this the file could say "above 3, strictly, minimum 3".
+        Assert.Equal(
+            group.DistributeAboveNetSuccesses + (group.AboveIsStrict ? 1 : 0),
+            group.MinimumNetSuccessesToDistribute);
     }
 
+    /// <summary>
+    /// <b>"6 or more" is a floor, and the data models it as one.</b> The page reads "Most contests
+    /// should involve 3 exchanges, but especially arduous ones can have 6 or more" — so an arduous
+    /// contest has a minimum and no printed ceiling, exactly the shape the Thresholds table already
+    /// uses for Godlike's "12 or more". A bare 6 asserts a cap the book never prints.
+    /// </summary>
     [Fact]
-    public void AContestIsUsuallyThreeExchangesAndWinningOneLendsTwoDiceToTheNext()
+    public void AContestIsUsuallyThreeExchangesAndAnArduousOneIsSixOrMore()
     {
         var contest = ChallengeEntryById("contests").Contest;
 
         Assert.NotNull(contest);
         Assert.Equal(CanonicalChallengeRules.ContestTypicalExchanges, contest.TypicalExchanges);
-        Assert.Equal(CanonicalChallengeRules.ContestArduousExchanges, contest.ArduousExchanges);
+        Assert.Equal(CanonicalChallengeRules.ContestArduousExchangesMin, contest.ArduousExchangesMin);
+        Assert.Equal(CanonicalChallengeRules.ContestArduousExchangesMax, contest.ArduousExchangesMax);
         Assert.Equal(CanonicalChallengeRules.ContestExchangeWinBonusDice, contest.ExchangeWinBonusDiceNextExchange);
         Assert.True(contest.FinalExchangeDecidesTheContest);
+
+        // Same open-ended shape as the Thresholds table's top row, and asserted against it rather
+        // than against a second hand-typed null, so the two cannot drift into different models of
+        // "or more".
+        var godlike = CanonicalChallengeRules.Thresholds[^1];
+        Assert.Null(godlike.Max);
+        Assert.Null(contest.ArduousExchangesMax);
     }
 
     [Fact]
@@ -515,8 +557,15 @@ public sealed class PlayRulesDataTests
     private static List<string> RulesRepositoryAbilityIds() =>
         ["agility", "intellect", "might", "perception", "toughness", "willpower"];
 
+    /// <summary>
+    /// <b>The name says what the body asserts, and no more.</b> It used to say the variant "trades
+    /// the rank loss for" the penalty — a replacement the page does not state for one-shots, and
+    /// which the body never checked. The one-shot paragraph opens "Defining Moments are even more
+    /// debilitating in one-shot games", which reads additively; the entry's <c>ambiguity</c> now
+    /// carries both readings and no fact field picks one.
+    /// </summary>
     [Fact]
-    public void TheOneShotVariantTradesTheRankLossForATwoDicePenaltyForTheStory()
+    public void TheOneShotDefiningMomentDropsYouToZeroHealthAndTwoDiceForTheStory()
     {
         var oneShot = ChallengeEntryById("defining_moment_one_shot").OneShotVariant;
 
@@ -524,6 +573,39 @@ public sealed class PlayRulesDataTests
         Assert.Equal(CanonicalChallengeRules.OneShotHealthAfter, oneShot.HealthAfter);
         Assert.Equal(CanonicalChallengeRules.OneShotChallengeRollPenaltyDice, oneShot.ChallengeRollPenaltyDice);
         Assert.True(oneShot.Unconscious);
+    }
+
+    /// <summary>
+    /// <b>The one "instead of" the page prints is about ordinary games, and it is optional.</b>
+    /// "GMs may let Heroes in ordinary games choose this option instead of reducing one of their
+    /// Abilities by 1d, but that's entirely optional." All three halves of that sentence are
+    /// recorded — it is offered, it replaces, and it is not compulsory — because dropping the last
+    /// one turns a GM's option into a rule of the game.
+    /// </summary>
+    [Fact]
+    public void TheOrdinaryGamesOptionIsAReplacementTheGmMayOfferAndNeedNot()
+    {
+        var oneShot = ChallengeEntryById("defining_moment_one_shot").OneShotVariant;
+
+        Assert.NotNull(oneShot);
+
+        var option = oneShot.OrdinaryGamesOption;
+
+        Assert.Equal(
+            CanonicalChallengeRules.OneShotOptionOfferedInOrdinaryGamesAtGmOption,
+            option.OfferedAtGmOption);
+        Assert.Equal(
+            CanonicalChallengeRules.OneShotOptionInOrdinaryGamesReplacesTheAbilityLoss,
+            option.ReplacesThePermanentAbilityLoss);
+        Assert.Equal(
+            CanonicalChallengeRules.OneShotOptionInOrdinaryGamesIsMandatory,
+            option.Mandatory);
+
+        // And the one-shot case itself states no such replacement, so nothing in the entry may
+        // claim one. This is the field the review found asserting an ambiguity as fact.
+        var ambiguity = ChallengeEntryById("defining_moment_one_shot").Ambiguity;
+        Assert.NotNull(ambiguity);
+        Assert.Contains("even more debilitating", ambiguity, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -804,14 +886,19 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
-    /// The three ambiguities this slice was required to record. <b>An ambiguity nobody wrote down
-    /// becomes an implementation decision nobody made</b> — the simulator would simply pick a
-    /// reading and the choice would be invisible from then on.
+    /// The ambiguities this slice is required to record. <b>An ambiguity nobody wrote down becomes
+    /// an implementation decision nobody made</b> — the simulator would simply pick a reading and
+    /// the choice would be invisible from then on.
+    ///
+    /// <para>The fourth is here because it had been decided rather than recorded: the one-shot
+    /// entry carried <c>replaces: "the permanent 1d Ability reduction"</c> as a fact field, which
+    /// is one of two live readings of a page that never says it.</para>
     /// </summary>
     [Theory]
     [InlineData("play_meta.json", "sub_one_die_floor")]
     [InlineData("play_meta.json", "automatic_successes")]
     [InlineData("challenge.json", "group_action")]
+    [InlineData("challenge.json", "defining_moment_one_shot")]
     public void TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect(string file, string id)
     {
         var ambiguity = file == "play_meta.json"

@@ -193,7 +193,9 @@
       "group_action": {
         "trigger": "allies performing individual actions as a group, such as a climb or an infiltration",
         "everyone_rolls_individually": true,
-        "distribution_pivot_net_successes": 3,
+        "distribute_above_net_successes": 3,
+        "above_is_strict": true,
+        "minimum_net_successes_to_distribute": 4,
         "distribute_to": "allies in the same group action",
         "examples_given": ["climbing a mountain", "sneaking into a Villain's lair"]
       },
@@ -209,7 +211,8 @@
       "contest": {
         "structure": "a challenge split into exchanges, each with its own challenge roll",
         "typical_exchanges": 3,
-        "arduous_exchanges": 6,
+        "arduous_exchanges_min": 6,
+        "arduous_exchanges_max": null,
         "arduous_condition": "the GM can make each exchange interesting",
         "exchange_winner_narrates_that_exchange": true,
         "exchange_win_bonus_dice_next_exchange": 2,
@@ -251,18 +254,21 @@
       "kind": "narrative",
       "one_shot_variant": {
         "context": "a convention game or any session where the Hero will not be used again",
-        "replaces": "the permanent 1d Ability reduction",
         "health_after": 0,
         "unconscious": true,
         "regain_consciousness": "end of the scene",
         "challenge_roll_penalty_dice": -2,
         "penalty_duration": "the rest of the story",
-        "available_in_ordinary_games": "at the GM's option, as a choice offered to the player"
+        "ordinary_games_option": {
+          "offered_at_gm_option": true,
+          "replaces_the_permanent_ability_loss": true,
+          "mandatory": false
+        }
       },
-      "description": "Losing a rank for ever means little to a character who retires at the end of the evening, so a one-shot swaps the price for one that bites inside the session: the Hero drops, wakes at the end of the scene, and limps through the remainder of the story two dice down on everything. A GM in an ongoing game may offer it as an alternative, but is not required to.",
+      "description": "In a session the character will not survive past, losing a rank for ever costs nothing worth having, so this variant adds a price that bites inside the evening: the Hero drops, wakes at the end of the scene, and limps through the remainder of the story two dice down on everything. Whether that price stands beside the lost rank or takes its place is left open here rather than decided - the ambiguity below has both readings. A GM running an ongoing game may put the same bargain to a player in place of the rank, but is never obliged to.",
       "verified_fields": ["trigger", "effect", "duration", "cost", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.70",
-      "ambiguity": "Dropping to 0 Health engages Chapter 4's damage and recovery rules, and it is not said whether this counts as damage for anything that keys off it. Whether the -2d penalty can itself push a pool below one die and onto the sub-1d floor is also unaddressed, as is whether it stacks with wound penalties for the same character."
+      "ambiguity": "Whether the one-shot price replaces the permanent 1d Ability reduction or is paid on top of it is not stated, and the two readings differ by a rank. The section opens by saying Defining Moments are 'even more debilitating' in one-shot games and then lists the new consequences, which reads additively; the only 'instead of' the book prints is in the closing sentence, and that sentence is about ORDINARY games, where the GM may offer this as a replacement. So the replacement is stated where it is optional and unstated where it is the rule. Recorded here rather than decided: ordinary_games_option carries the one thing the page does say. Separately, dropping to 0 Health engages Chapter 4's damage and recovery rules, and it is not said whether this counts as damage for anything that keys off it. Whether the -2d penalty can itself push a pool below one die and onto the sub-1d floor is also unaddressed, as is whether it stacks with wound penalties for the same character."
     },
     {
       "id": "judging_thresholds",

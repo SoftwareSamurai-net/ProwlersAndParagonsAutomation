@@ -123,13 +123,34 @@ public static class CanonicalChallengeRules
     public const bool AssistBestHelperOnly = true;
 
     public const int GroupActionPage = 69;
-    public const int GroupActionDistributionPivot = 3;
+
+    /// <summary>
+    /// <b>The printed bound is strict.</b> "characters who earn <em>more than</em> 3 net successes
+    /// can distribute these extra net successes among their allies to help them succeed as well."
+    /// So 3 distributes nothing and 4 is the first figure that does — an inequality a bare 3
+    /// cannot carry, and the difference between a band being reachable and not.
+    /// </summary>
+    public const int GroupActionDistributeAboveNetSuccesses = 3;
+    public const bool GroupActionAboveIsStrict = true;
+    public const int GroupActionMinimumNetSuccessesToDistribute = 4;
 
     // ── Contests, p.70 ───────────────────────────────────────────────────────
 
     public const int ContestsPage = 70;
+
+    /// <summary>"Most contests should involve 3 exchanges".</summary>
     public const int ContestTypicalExchanges = 3;
-    public const int ContestArduousExchanges = 6;
+
+    /// <summary>
+    /// <b>Six is a floor, not a figure.</b> "Most contests should involve 3 exchanges, but
+    /// especially arduous ones can have <em>6 or more</em>, assuming the GM can make each exchange
+    /// interesting." Modelled the way the Thresholds table models Godlike's "12 or more": a
+    /// minimum with a null ceiling, because a bare 6 states a cap the book does not print.
+    /// </summary>
+    public const int ContestArduousExchangesMin = 6;
+    public static readonly int? ContestArduousExchangesMax;
+
+    /// <summary>"earns a +2d bonus on their challenge roll in the next exchange".</summary>
     public const int ContestExchangeWinBonusDice = 2;
 
     // ── Defining Moments and the one-shot variant, p.70 ──────────────────────
@@ -149,6 +170,20 @@ public static class CanonicalChallengeRules
 
     public const int OneShotHealthAfter = 0;
     public const int OneShotChallengeRollPenaltyDice = -2;
+
+    /// <summary>
+    /// <b>The only replacement the page states, and it is stated about ordinary games.</b> "GMs may
+    /// let Heroes in ordinary games choose this option <em>instead of</em> reducing one of their
+    /// Abilities by 1d, but that's entirely optional."
+    ///
+    /// <para>The one-shot case itself is left open on purpose: that paragraph opens "Defining
+    /// Moments are even more debilitating in one-shot games", which reads additively, and never
+    /// says the new price replaces the rank. The entry's <c>ambiguity</c> carries both readings;
+    /// nothing in the fact fields asserts either.</para>
+    /// </summary>
+    public const bool OneShotOptionOfferedInOrdinaryGamesAtGmOption = true;
+    public const bool OneShotOptionInOrdinaryGamesReplacesTheAbilityLoss = true;
+    public const bool OneShotOptionInOrdinaryGamesIsMandatory = false;
 
     // ── Judging thresholds, p.71 ─────────────────────────────────────────────
 
