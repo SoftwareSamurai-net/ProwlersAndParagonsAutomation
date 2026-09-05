@@ -115,9 +115,12 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   user)`, to gate `/api/admin/invitations` — and `/admin` already answers an ordinary account the
   same `404` an unrouted address gets, so the page cannot be discovered by trying. A read-only
   `/api/admin/error-log`, gated by that identical check, adds no role to `Identity` and no new
-  concept; it is the same question asked once more. The unrelated precedent —
-  `users.character_limit`, raised by hand in SQL — still stands: that is a *write* with no gate
-  built for it, which reading a table never needed one for in the first place.
+  concept; it is the same question asked once more. **The precedent this used to cite against
+  itself is gone**: `users.character_limit` was a *write* with no gate built for it, raised by hand
+  in SQL against the live database, and that is now a third address behind the identical check —
+  see "The accounts screen" below. What is unchanged is the reasoning, which the screen follows
+  rather than reverses: the gate is the one that already existed, and the write is scoped so that
+  nobody can raise their own.
   - **A category is assigned where a failure is caught, never at a throw site.** `handle()`
     wraps the two subsystems on the way in — `taggedStorage` round the D1 binding,
     `taggedMail` round the send — so `db.js` and `mail.js` know nothing about any of it. A
@@ -427,6 +430,69 @@ left to contradict the code.
 **The live database is `prowlers-and-paragons`.** That comment named `prowlers-accounts`, which does
 not exist, so the worked example in it failed for anybody who followed it.
 
+
+## The accounts screen: whose cap a GM may set, and how a row is keyed
+
+`worker/adminAccounts.js` answers three addresses under `/api/admin/accounts`, gated by the
+identical `invitations.isAdministrator` check the invitation list and the error log use, inside the
+same routing block — 401 signed out, the same **404** an unrouted address gets for an ordinary
+account. A panel on `/admin` renders them. The contract is `docs/CHARACTERS-API.md`.
+
+- **This is a screen over a mechanism that was already correct, and that is the whole shape of it.**
+  `users.character_limit` was raised by hand in SQL against the production database, which this file
+  already called out as *a write with no gate*. Nothing about how the cap behaves changed:
+  `db.putCharacter`'s `INSERT … SELECT … WHERE` still lets an id the account already owns through
+  however full the account is, so dropping somebody from 25 to 3 while they hold ten keeps all ten
+  openable and refuses only the eleventh. **Do not "fix" a lowered cap by deleting rows or by
+  refusing the lowering**; the number is the entire mechanism and the test that drives the cap
+  through the new endpoint and then reads the outcome through the character routes is what joins
+  the two halves.
+- **The scope is `campaign_members`, not every account, and the cost is accepted knowingly.** The
+  list is the players in campaigns the *caller* is GM of. `isAdministrator` is one person today so
+  an all-accounts list would not bite yet — it would the moment a second GM is ever made an
+  administrator, and a privilege that only misbehaves later is the kind this project has been bitten
+  by before. What that costs: **a GM cannot see a player's characters unless that player is in one
+  of their campaigns, and should not.**
+- **A row is keyed by `email`, and that is the decision the membership design makes you argue for.**
+  Account ids are kept off the wire there precisely so a GM is never told whose account is on the
+  other side of an `m_…`; nothing here weakens it, because this caller is *already* reading every
+  address on the invitation list drawn beside this panel on the same page. The address is also the
+  only key with the right cardinality: a membership id is per campaign and per character, so a
+  player in two of this GM's games would be two rows, and a cap is a property of the account. It is
+  percent-encoded in the path and read back through the one `normaliseEmail` the gate uses, so a
+  capital letter names the same account here as it does at sign-in. **It never reaches `error_log`**
+  — `routePattern` files everything under this prefix as `/api/admin/accounts/{key}`, and `redact`
+  takes addresses out of a message — which is the half of the key decision that needed a guard
+  rather than a paragraph.
+- **The write is one statement and a plain `UPDATE` is right here.** `putCharacter` needs its
+  `INSERT … SELECT` because it reads a count and decides on it, so the decision has to be inside the
+  write; this one writes a number the caller supplied, and two administrators setting a cap at the
+  same moment correctly leave whichever landed second. What *is* inside the `WHERE` is the scope —
+  `email = ? AND id <> ? AND EXISTS (… campaign_members …)` — because a read that checked the
+  membership followed by an `UPDATE` that trusted it would let a membership ended in between land a
+  write on an account the caller may no longer see. `RETURNING` is how the caller learns which
+  happened: a row back means in scope and now capped, nothing back means the same 404 an address
+  nobody has ever used gives.
+- **The caller is excluded from their own list and cannot cap their own address.** A GM can redeem
+  their own join code, so without `u.id <> ?` they would be a player in their own campaign with an
+  editable number beside their name — and `docs/CHARACTERS-API.md` states that a cap somebody can
+  raise on themselves is not a cap. The exclusion is in **all three** statements — the list, the
+  read behind their characters, and the write — so the rule survives somebody typing the address in
+  rather than clicking a row. **The third had no test and the suite stayed green without it**, which
+  is exactly the shape of hole this repository keeps finding: one clause of three covered by nobody,
+  because the other two are the ones anybody thinks to drive.
+- **Never the payload.** The characters list answers `label`, `updated_at` and the three index
+  columns `0008` added — `kind`, `tier_id`, `spent` — every one written by the client, stored
+  verbatim and handed back verbatim. Listing a tier by parsing a sheet would give this server an
+  opinion about what a character is; it has never had one. **These are the player's own rows**,
+  which are a different set from the campaign's clone the GM can already read: a clone is a sheet
+  that member deliberately sent and this is not.
+- **`worker/errors.js` needs both halves, as it did for campaigns and memberships.**
+  `/api/admin/accounts` in `KNOWN_ROUTES` so the list is filed under its own name, and the
+  `startsWith` arm in `routePattern` so a failure at one account's cap is not filed as `other`
+  beside a passing crawler — and here the arm buys the redaction as well, because the path names a
+  person. `EveryRoutedPrefixHasARoutePatternForTheErrorLog` holds the two files together and now
+  covers this prefix.
 
 ## Inviting somebody emails them, and the token is the exception rather than the rule
 

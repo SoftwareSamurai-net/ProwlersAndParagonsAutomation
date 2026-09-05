@@ -140,6 +140,10 @@ const KNOWN_ROUTES = Object.freeze([
     '/api/rulebook/power',
     '/api/rulebook/search', '/api/rulebook/contents', '/api/rulebook/passage',
     '/api/admin/error-log',
+    // The list of players in the caller's own campaigns. Its own name rather than folded in with
+    // the row below, because a list that cannot be drawn and one account's cap that cannot be set
+    // are different faults with different causes.
+    '/api/admin/accounts',
     '/api/transcripts',
 ]);
 
@@ -183,6 +187,14 @@ export function routePattern(request) {
     // which statement threw.
     if (path.startsWith('/api/memberships/')) return '/api/memberships/{id}';
 
+    // **The key under this prefix is an email address, which is exactly why the arm is here.**
+    // Without it, a failure setting somebody's cap is filed as `other` beside every request to an
+    // address nobody routes — and, worse than for the three above, the *path* under this prefix
+    // names a person. Filing it as a pattern is what keeps an address out of a table whose whole
+    // design is that it is safe to read aloud. Both sub-paths share the one pattern, verb
+    // included, for the reason the membership arm gives: `route` is half of a primary key.
+    if (path.startsWith('/api/admin/accounts/')) return '/api/admin/accounts/{key}';
+
     return 'other';
 }
 
@@ -224,9 +236,17 @@ export function redact(message) {
     const cleaned = message
         // Addresses first, so what is left of one is labelled as an address rather than
         // disappearing into the token rule below.
-        .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[address]')
+        //
+        // **The local part is any run of characters that is not whitespace and not another `@`**,
+        // rather than the RFC-ish `[A-Za-z0-9._%+-]+` it used to be. That set is not what an
+        // address is allowed to hold — a unicode local part is ordinary, a quoted one may hold a
+        // slash — and every character outside it ended the match early, so `dorián@example.test`
+        // left `dori` in front of an `[address]` and `"a/b"@example.test` left the whole first
+        // half in `error_log.detail`. Over-matching here costs a word of legibility either side of
+        // the address, which is the trade this whole function is written to make.
+        .replace(/[^\s@]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[address]')
         // A local part with no dotted domain is still an address, and D1 quotes them bare.
-        .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g, '[address]')
+        .replace(/[^\s@]+@[A-Za-z0-9.-]+/g, '[address]')
         .replace(/[A-Za-z0-9_-]{20,}/g, '[redacted]')
         .replace(/\s+/g, ' ')
         .trim();

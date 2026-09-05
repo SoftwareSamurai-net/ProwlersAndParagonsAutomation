@@ -511,6 +511,164 @@ public sealed class AccountsContractTests
             "worker/campaigns.js no longer sends the join code, so a GM has nothing to read out.");
     }
 
+    /// <summary>
+    /// The three admin-accounts addresses are routed, inside the administrator's gate, and the
+    /// keys on both shapes are spelled the same at both ends.
+    ///
+    /// <para><b>Read structurally out of <c>worker/index.js</c> alone, never with
+    /// <c>Contains</c></b> — the reason this file records four times over. Both literals also
+    /// appear in <c>worker/errors.js</c>, built for a different purpose, so a search over the
+    /// concatenated server would find them whether or not anything routed them.</para>
+    ///
+    /// <para><b>And the gate is the point of the routing half.</b> These addresses answer who is in
+    /// somebody's campaigns and set a cap; routed outside the block that asks
+    /// <c>invitations.isAdministrator</c> they would be the whole player list readable by any
+    /// signed-in account, and both suites would stay green — the server's own tests drive the
+    /// server, and the browser's drive a stub of it.</para>
+    ///
+    /// <para>The keys half guards the silent failure: <c>ReadFromJsonAsync</c> answers the default
+    /// for a property it cannot find, so a renamed key does not throw — it produces a panel on
+    /// which every player is capped at zero and holds nothing, which looks exactly like a set of
+    /// accounts nobody has used.</para>
+    /// </summary>
+    [Fact]
+    public void TheAdminAccountAddressesAreRoutedInsideTheAdminGate()
+    {
+        var indexJs = File.ReadAllText(WorkerFile("index.js"));
+
+        Assert.True(
+            Regex.IsMatch(indexJs, @"path\s*===\s*'/api/admin/accounts'",
+                RegexOptions.None, TimeSpan.FromSeconds(5)),
+            "worker/index.js does not route /api/admin/accounts as an exact path, so the admin "
+            + "page's list of players asks for an address the server answers with 404.");
+
+        Assert.True(
+            Regex.IsMatch(indexJs, @"path\.startsWith\('/api/admin/accounts/'\)",
+                RegexOptions.None, TimeSpan.FromSeconds(5)),
+            "worker/index.js does not route the /api/admin/accounts/ prefix, so setting a cap and "
+            + "reading a player's sheets are unrouted — neither is ever an exact match.");
+
+        // **Inside the administrator's block, read as: both appear in the same condition as
+        // `/api/admin/invitations`.** The condition is the gate; a route matched below it but
+        // outside it is one no check has been asked about.
+        var gate = Regex.Match(indexJs,
+            @"if \(path === '/api/admin/invitations'(?<body>(?:(?!\)\s*\{).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(gate.Success,
+            "the administrator's block in worker/index.js no longer opens on "
+            + "/api/admin/invitations, so this test cannot see which addresses share its gate and "
+            + "would pass whatever they were.");
+
+        Assert.Contains("/api/admin/accounts", gate.Groups["body"].Value, StringComparison.Ordinal);
+
+        // And the two sub-paths, out of the routing block's own comparisons. All of them found is
+        // the positive control: an extraction that has stopped matching yields nothing and would
+        // satisfy an "all of these are routed" assertion for free.
+        var tails = Regex.Matches(indexJs, @"tail === '([a-z-]+)'",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Contains("character-limit", tails, StringComparer.Ordinal);
+        Assert.Contains("characters", tails, StringComparer.Ordinal);
+
+        // ── The keys, off the object literals the server actually builds ────────────────
+        //
+        // Comments blanked first, for the reason recorded on the campaign list: a scan for
+        // `word:` cannot tell a note from a key, and both literals below carry one.
+        var accountsJs = WithoutCsComments(File.ReadAllText(WorkerFile("adminAccounts.js")));
+        var store = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Services", "AdminAccounts.cs"));
+
+        var account = Regex.Match(accountsJs,
+            @"function shape\(row\) \{\s*return \{(?<body>(?:(?!\};).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(account.Success,
+            "worker/adminAccounts.js no longer shapes an account as an object literal, so this "
+            + "test cannot see what the list sends and would pass whatever it sent.");
+
+        var accountSends = LiteralKeys(account.Groups["body"].Value);
+        var accountReads = BoundKeys(store, "ManagedAccount", "AdminAccounts.cs");
+
+        // Four: the address that keys the row, the name, what they hold, what they may hold. The
+        // count is the positive control — two extractions that had both stopped matching would
+        // compare two empty arrays and agree.
+        Assert.True(accountReads.Length == 4,
+            "the client binds " + accountReads.Length + " fields on a managed account: "
+            + string.Join(", ", accountReads));
+
+        Assert.Equal(accountReads, accountSends);
+
+        var held = Regex.Match(accountsJs,
+            @"characters: rows\.map\(row => \(\{(?<body>(?:(?!\}\)\).).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(held.Success,
+            "worker/adminAccounts.js no longer maps a player's rows into an object literal, so "
+            + "this test cannot see what that list sends.");
+
+        var heldSends = LiteralKeys(held.Groups["body"].Value);
+        var heldReads = BoundKeys(store, "ManagedCharacter", "AdminAccounts.cs");
+
+        // Six, and **`payload` is not one of them and must never be.** The server never parses a
+        // character; this list is the index columns beside it. A seventh key here is a decision
+        // about that invariant rather than a field being added.
+        Assert.True(heldReads.Length == 6,
+            "the client binds " + heldReads.Length + " fields on a player's character: "
+            + string.Join(", ", heldReads));
+
+        Assert.DoesNotContain("payload", heldSends, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(heldReads, heldSends);
+    }
+
+    /// <summary>
+    /// The cap box's <c>max</c> is the server's <c>MAX_CHARACTER_LIMIT</c>.
+    ///
+    /// <para><b>The guide claimed the range was not restated on the page, and it was.</b>
+    /// <c>web/Services/AdminAccounts.cs</c> really does hold no bound — the refusal comes back
+    /// from the server — but <c>Admin.razor</c> writes <c>max="500"</c> onto the input, which is a
+    /// second copy of a number that lives in <c>worker/adminAccounts.js</c>. A copy nothing
+    /// compares is a copy that drifts: raise the server's bound and the box goes on refusing at
+    /// the old one, from inside the browser, where there is no message to read.</para>
+    ///
+    /// <para>The floor is pinned the same way and is written out rather than read, because
+    /// <c>0</c> in the server's check is a literal in a comparison rather than a named constant —
+    /// naming it there for this test's benefit would be the test deciding the code's shape.</para>
+    /// </summary>
+    [Fact]
+    public void TheCapBoxIsBoundedByTheServersOwnMaximum()
+    {
+        var adminJs = File.ReadAllText(WorkerFile("adminAccounts.js"));
+        var razor = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Pages", "Admin.razor"));
+
+        var declared = Regex.Match(adminJs,
+            @"export const MAX_CHARACTER_LIMIT\s*=\s*(?<value>\d+)\s*;",
+            RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        Assert.True(declared.Success,
+            "worker/adminAccounts.js no longer exports MAX_CHARACTER_LIMIT as a literal, so there "
+            + "is nothing to pin the cap box's max to and this test would pass whatever it was.");
+
+        var box = Regex.Match(razor,
+            @"<input id=""@capId"" type=""number"" min=""(?<min>\d+)"" max=""(?<max>\d+)""",
+            RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        Assert.True(box.Success,
+            "web/Pages/Admin.razor no longer draws the cap as a number input with min and max, so "
+            + "this test cannot see the bound the browser enforces.");
+
+        Assert.Equal(declared.Groups["value"].Value, box.Groups["max"].Value);
+        Assert.Equal("0", box.Groups["min"].Value);
+
+        // And the floor the server checks is still zero, so the pair above is the whole range
+        // rather than half of it.
+        Assert.Contains("characterLimit < 0", adminJs, StringComparison.Ordinal);
+    }
+
     /// <summary>The keys of a JavaScript object literal, sorted.</summary>
     private static string[] LiteralKeys(string body) =>
         [.. Regex.Matches(body, @"(\w+):", RegexOptions.None, TimeSpan.FromSeconds(5))
@@ -525,14 +683,14 @@ public sealed class AccountsContractTests
     /// without its attribute is invisible here — which is correct: the attribute <em>is</em> the
     /// wire name.</para>
     /// </summary>
-    private static string[] BoundKeys(string source, string record)
+    private static string[] BoundKeys(string source, string record, string file = "CampaignMembership.cs")
     {
         var declaration = Regex.Match(source,
             $@"record {record}\((?<body>[^;]*)\);",
             RegexOptions.Singleline, TimeSpan.FromSeconds(5));
 
         Assert.True(declaration.Success,
-            $"CampaignMembership.cs no longer declares a {record} record, so there is nothing to "
+            $"{file} no longer declares a {record} record, so there is nothing to "
             + "compare the server's answer against and this test would pass whatever it sent.");
 
         return [.. Regex.Matches(declaration.Groups["body"].Value,
@@ -571,10 +729,17 @@ public sealed class AccountsContractTests
             $"found {routed.Count} routed prefixes in worker/index.js; the pattern has stopped "
             + "matching and this test is asserting nothing.");
 
-        // Only the prefixes that carry a caller-chosen id need an arm; the admin one does too and
-        // deliberately does not have one, so this is scoped to the two stores rather than to
-        // every prefix. Widening it is a decision about the error log, not about this test.
-        foreach (var prefix in routed.Where(p => p is "/api/characters/" or "/api/campaigns/"))
+        // Only the prefixes that carry a caller-chosen id need an arm.
+        // `/api/admin/invitations/` deliberately does not have one, so this is scoped to a list
+        // rather than to every prefix. Widening it is a decision about the error log, not about
+        // this test.
+        //
+        // **`/api/admin/accounts/` is on the list and its arm buys something the other two do
+        // not.** The key under that prefix is an *email address*, so without a pattern the path
+        // filed against a failure would name a person — in the one table whose whole design is
+        // that it is safe to read aloud. The other two only lose legibility.
+        foreach (var prefix in routed.Where(p =>
+                     p is "/api/characters/" or "/api/campaigns/" or "/api/admin/accounts/"))
         {
             Assert.True(
                 errorsJs.Contains($"path.startsWith('{prefix}')", StringComparison.Ordinal),
@@ -584,6 +749,7 @@ public sealed class AccountsContractTests
         }
 
         Assert.Contains("'/api/campaigns'", errorsJs, StringComparison.Ordinal);
+        Assert.Contains("'/api/admin/accounts'", errorsJs, StringComparison.Ordinal);
     }
 
     /// <summary>

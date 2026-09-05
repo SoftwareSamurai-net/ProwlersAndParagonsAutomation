@@ -139,6 +139,34 @@ test('the redaction takes out the shapes it claims to, and leaves prose alone', 
     assert.equal(redact(''), '');
 });
 
+test('an address whose local part is not ASCII is still taken out whole', () => {
+    // **The local part used to be `[A-Za-z0-9._%+-]+`, which is not what an address may hold.**
+    // Anything outside that set ended the match early and only the tail was replaced, so the
+    // recognisable half of a real person's address stayed in `error_log.detail` — the one column
+    // whose whole design is that it is safe to read aloud. A unicode local part is ordinary
+    // (`users.email` is a text column and `normaliseEmail` lower-cases rather than transliterates),
+    // and a quoted one may hold a slash.
+    for (const address of ['dorián@example.test', 'ríoghnach.ní.bhriain@example.test',
+                           'a/b@example.test', "o'brien+p&p@example.test", '日本@example.test']) {
+        const detail = redact(`the provider refused ${address} outright`);
+
+        assert.equal(detail, 'the provider refused [address] outright',
+            `part of ${address} survived redaction as ${detail}`);
+    }
+
+    // Bare local parts, the other arm, on the same terms.
+    assert.equal(redact('no row for dorián@localhost'), 'no row for [address]');
+
+    // **The positive control, and it is the half that keeps this honest**: a rule wide enough to
+    // eat the address is wide enough to eat the sentence around it, and `[address]` on its own
+    // would satisfy every assertion above. The words either side have to still be there.
+    const around = redact('D1_ERROR: UNIQUE constraint failed on dorián@example.test at insert');
+
+    assert.equal(around,
+        'D1_ERROR: UNIQUE constraint failed on [address] at insert',
+        'the redaction ate the message around the address as well as the address');
+});
+
 // ---------------------------------------------------------------------------------------------
 // 2. The public body carries a category and a reference, and no exception text.
 // ---------------------------------------------------------------------------------------------
@@ -440,6 +468,18 @@ test('the route is a pattern from a closed list, and anything else is other', ()
 
     // A campaign's join-code rotation is under the campaign's own id, and so is its pattern.
     assert.equal(at('/api/campaigns/g_abcdefghijklmnopqrstuv/code'), '/api/campaigns/{id}');
+
+    // **The admin accounts screen, whose key is an email address**, which is why the arm matters
+    // more here than for the three id prefixes above: without it the *path* — naming a person —
+    // would be the thing filed, and this table's whole design is that it is safe to read aloud.
+    // Both sub-paths share one pattern, for the reason the memberships one does.
+    assert.equal(at('/api/admin/accounts'), '/api/admin/accounts');
+    assert.equal(at('/api/admin/accounts/someone%40example.test/character-limit'),
+        '/api/admin/accounts/{key}');
+    assert.equal(at('/api/admin/accounts/someone%40example.test/characters'),
+        '/api/admin/accounts/{key}');
+    assert.ok(!at('/api/admin/accounts/someone%40example.test/characters').includes('example'),
+        'an address reached the pattern the error log files a failure under');
 
     assert.equal(at('/api/me/'), '/api/me', 'a trailing slash is the same address');
     assert.equal(at('/api/nothing-here'), 'other');

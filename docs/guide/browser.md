@@ -830,6 +830,65 @@ Ch.9 builds Villains exactly like Heroes and prints no separate stat-block forma
 - **`.mode-switch` names the Hero/Villain control, not the pill shape.** The light/dark control briefly carried the same class, which made `.mode-switch button` match five buttons and the identity switch report three pressed states at once. The shape is shared by selector list; `BannerTests` caught it in under a minute. **Both controls are inside `SettingsMenu` now** — see the banner section above, including why they are drawn on `--panel` rather than on `--primary`.
 - Only the palette differs. If a layout change seems necessary for one mode, the layout is wrong for both.
 
+## The accounts panel on `/admin`, and why it introduces no idiom of its own
+
+**One more `Panel` beside the invitation list and the failure log**, listing the players in the
+reader's own campaigns with an editable cap and a disclosure onto their sheets. The server half —
+the scope, the key, the single-statement write — is in
+[`accounts-server.md`](accounts-server.md); what is here is what the screen does.
+
+- **No new class and no new component.** `Panel`, `ChosenList`/`ChosenRow` and `Field` already draw
+  a list of things with an action on each, which is what this is. A fourth panel that reached for
+  its own markup would be the twenty-two hand-written panels this app spent a slice removing.
+- **The cap is a `<input type="number">` with a real `<label>`, not a placeholder.** A placeholder
+  is not a label — it goes when somebody types and it is not what a screen reader announces.
+- **The Save button is dead until the number differs from the server's and while a write is in
+  flight**, and the comparison is against the server's value rather than against whether anybody
+  has touched the box. Typing the original number back is not a change.
+- **The range is the server's, and the box's copy of it is pinned rather than absent.** `min`/`max`
+  on the input are a browser affordance and the page decides nothing with them — there is no range
+  check in C#, because a second copy there would be a rule the page made up and the refusal it
+  produced would be a sentence about it. But `max="500"` *is* a copy, and this bullet used to claim
+  it was not, so `AccountsContractTests` reads `MAX_CHARACTER_LIMIT` out of `worker/adminAccounts.js`
+  and compares it with the attribute: raise the server's bound and the razor fails until it agrees.
+  What the page owns is turning each of the server's three answers into one thing to say — the
+  number, the account, or nothing said why.
+- **Save is dead while the box holds something that is not a number**, and this is a defect it
+  shipped with rather than a nicety. The draft was a parsed `int`, so clearing the box or typing
+  `1e5` left the last number that parsed sitting behind a live button, and pressing it wrote a
+  figure nothing on screen was showing. The draft is the *text* now and `Number` is where it
+  becomes an integer or does not.
+- **Each row's cap carries the player's address in its label, `sr-only`.** Twenty boxes all
+  accessibly named "Characters they may keep" are twenty controls that cannot be told apart by
+  the only thing announced on arriving at one; the address is on screen above the box and nothing
+  linked the two.
+- **The sheets are read when the disclosure is opened, not with the list.** Twenty players would
+  otherwise be twenty requests for something nobody has asked to look at. `aria-controls` names the
+  list **only while it is rendered** — the same conditional the banner's two disclosures carry, and
+  the same dangling IDREF the budget disclosure shipped once. `aria-expanded` is a `"true"`/
+  `"false"` string, for the reason every switch in this app spells it out.
+- **There is one open disclosure and one `_sheets`, so a late answer is dropped by sequence
+  number.** Opening a second row while the first is still in flight put the first row's characters
+  under the second row's name — a GM reading one player's sheets attributed to another, which is
+  worse than either row failing. `_asked` moves on every open and every shut and a reply that does
+  not carry the current value is stale by construction; comparing the address instead would not do,
+  because opening a row, shutting it and opening it again is the same address twice. The reply is
+  what gets dropped, never the second click: the row somebody just asked for has to open now.
+- **A player who holds nothing and a list that could not be read are two sentences.** Saying
+  "nothing saved yet" for the second tells a GM their player has built nothing on the strength of a
+  request that failed — the same rule the standing follows for `MineAsync` returning null.
+- **The empty panel reads as reassurance**: *"Nobody is in one of your campaigns yet."* Same rule
+  as the failure log's "nothing has failed here" — **and it is guarded, which it was not.** The
+  panel is only allowed that sentence when the list actually loaded. `ListAsync` folded every
+  non-2xx into `NotForYou` and the page turned everything that was not `Loaded` into an empty list,
+  so one 500 from storage told a GM their games were empty; a 404 is the gate's answer and is the
+  only one that still means that, and everything else — 500, 502, 405, a 200 carrying the app's own
+  `index.html` — is `Unavailable` and gets *"The players could not be read just now."* This is the
+  same distinction the bullet above draws one level down, which the panel itself did not keep.
+- **`AriaReferenceTests` renders this page now, in both states of the disclosure**, with the
+  positive control that the click really opened the list. A reference resolves for the wrong reason
+  when the element it names happens to be there.
+
 ## Campaigns: three screens, a diff, and a standing
 
 **A campaign holds a clone of a character; a player's edits arrive as an approval request.** Fork
