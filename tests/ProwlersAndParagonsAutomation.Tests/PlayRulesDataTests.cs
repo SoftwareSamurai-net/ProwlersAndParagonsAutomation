@@ -340,8 +340,6 @@ public sealed class PlayRulesDataTests
         bool? TranscribedHere,
         string? DetailChapter,
         IReadOnlyList<string>? CombatSpendRefs,
-        string? SeizeInitiativeGmAlternative,
-        string? SeizeInitiativeLasts,
         string? Invents,
         bool? SubjectToGmApproval,
         string? Uses,
@@ -1254,6 +1252,65 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
+    /// The fields an entry may carry when it says it does not transcribe the chapter it points at:
+    /// the flag itself, the chapter it defers to, and the ids of what was deferred. <b>Nothing
+    /// else</b> — a value is either transcribed from a page this file cites or it is somewhere
+    /// else's to record.
+    /// </summary>
+    private static readonly HashSet<string> ReferenceOnlyFields =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "transcribed_here", "detail_chapter", "combat_spend_refs"
+        };
+
+    /// <summary>
+    /// <b>An entry that says it defers to another chapter must actually defer to it.</b>
+    /// <c>spend_combat</c> declares <c>transcribed_here: false</c> and pointed at Ch.4 — and then
+    /// carried two of Ch.4's values anyway, with a description claiming the GM's initiative
+    /// alternative was "printed here rather than there". <b>Ch.4 p.73 prints it in full</b>, with
+    /// the 1 Resolve cost, the duration and the alternative, so the two fields were the second
+    /// transcription the entry's own policy exists to prevent — and the one that would have gone
+    /// stale first, because Chapter 4's slice will transcribe the page properly.
+    ///
+    /// <para>Written as a rule over the file rather than as an assertion about the one entry that
+    /// breaks it: the next chapter this store points at gets the same guard for free.</para>
+    /// </summary>
+    [Fact]
+    public void AnEntryThatDefersToAnotherChapterCarriesReferencesAndNothingElse()
+    {
+        var deferring = Resolve().Entries.Where(e => e.Spend?.TranscribedHere == false).ToList();
+
+        // Positive control: a rule over an empty set is satisfied by there being nothing to check,
+        // and this one is worth exactly as much as the entries it reaches.
+        Assert.NotEmpty(deferring);
+
+        var faults = new List<string>();
+
+        foreach (var entry in deferring)
+        {
+            var strangers = EntryLeaves(entry.Id, entry, stopAt: null)
+                .Select(leaf => leaf.Path[(leaf.Path.LastIndexOf('.') + 1)..])
+                .Where(name => !ReferenceOnlyFields.Contains(name))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            if (strangers.Count > 0)
+            {
+                faults.Add(
+                    $"{entry.Id} sets transcribed_here false and still carries "
+                    + string.Join(", ", strangers));
+            }
+        }
+
+        Assert.True(
+            faults.Count == 0,
+            "An entry that hands a mechanic to another chapter may carry the reference and nothing "
+            + "more — transcribe the value in that chapter's own file, where the page it comes from "
+            + "is the one being cited: " + string.Join("; ", faults));
+    }
+
+    /// <summary>
     /// <b>Every entry names the heading it was transcribed from, and the heading has to exist on the
     /// page the entry cites.</b> This is the structural link between the data and the corpus: a
     /// <c>source_ref</c> alone says a page, and a page in a six-page chapter is a wide target.
@@ -1672,8 +1729,7 @@ public sealed class PlayRulesDataTests
                 "eligible_characters", "excluded_characters",
                 "npcs_cannot_choose_when_their_flaws_bite", "what_it_is",
                 "must_be_a_challenge_not_a_punishment", "must_not_be_a_plot_device", "automatic",
-                "use_sparingly", "transcribed_here", "combat_spend_refs",
-                "seize_initiative_gm_alternative", "example_given"),
+                "use_sparingly", "transcribed_here", "combat_spend_refs", "example_given"),
             ["duration"] = Keys(
                 "penalty_duration", "regain_consciousness", "limit_per_story",
                 "limit_per_scene_per_group", "concurrent_scenes_each_allow_one",
@@ -1683,8 +1739,7 @@ public sealed class PlayRulesDataTests
                 "carries_over_between_issues", "unspent_is_lost_at_issue_end",
                 "some_flaws_award_per_issue_instead", "unconscious_until",
                 "must_be_spent_on_the_same_page", "may_be_saved_for_later_in_the_issue",
-                "limit_per_battle", "limit_per_character_per_issue", "duration",
-                "seize_initiative_lasts"),
+                "limit_per_battle", "limit_per_character_per_issue", "duration"),
             ["cost"] = Keys(
                 "explode_cost_resolve", "dice_per_resolve_spent", "ordinary_dice_per_resolve_spent",
                 "aftermath_permanent_ability_loss_dice", "ability_may_be_bought_back_later",
@@ -2347,9 +2402,6 @@ public sealed class PlayRulesDataTests
             ["spend_combat.spend.transcribed_here"] = Is(CanonicalResolveRules.CombatSpendsAreTranscribedHere),
             ["spend_combat.spend.detail_chapter"] = Is(CanonicalResolveRules.CombatSpendsDetailChapter),
             ["spend_combat.spend.combat_spend_refs"] = Is(CanonicalResolveRules.CombatSpendRefs),
-            ["spend_combat.spend.seize_initiative_gm_alternative"] =
-                Is(CanonicalResolveRules.SeizeInitiativeGmAlternative),
-            ["spend_combat.spend.seize_initiative_lasts"] = Is(CanonicalResolveRules.SeizeInitiativeLasts),
 
             ["spend_lucky_break.spend.cost_resolve"] = Is(CanonicalResolveRules.LuckyBreakCost),
             ["spend_lucky_break.spend.invents"] = Is(CanonicalResolveRules.LuckyBreakInvents),
@@ -2498,7 +2550,7 @@ public sealed class PlayRulesDataTests
         Assert.True(
             leaves >= 225,
             $"The walk found only {leaves} fact fields across the three files, which is fewer than "
-            + "the entries carry — there are 235 today, 98 of them Chapter 3's. It has stopped "
+            + "the entries carry — there are 233 today, 98 of them Chapter 3's. It has stopped "
             + "reading the models; fix the walk, not this number.");
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));

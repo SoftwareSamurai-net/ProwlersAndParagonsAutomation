@@ -323,14 +323,12 @@
           "lure_an_attacker_into_hitting_something_else",
           "make_a_team_attacks_dice_explode",
           "reduce_the_impact_of_a_gritty_combat_rule"
-        ],
-        "seize_initiative_gm_alternative": "double your Edge instead of acting first",
-        "seize_initiative_lasts": "every page of the action"
+        ]
       },
-      "description": "Six more uses are listed by name and handed straight to the combat chapter, which is where each of them is actually specified. They are recorded here as references and nothing more: the mechanics belong to Chapter 4 and transcribing them into a Chapter 5 file would create a second copy to disagree with the first. The initiative one carries an alternative the GM may prefer, and that alternative is printed here rather than there.",
-      "verified_fields": ["effect", "duration", "description"],
+      "description": "Six more uses are listed by name and handed straight to the combat chapter, which is where each of them is actually specified. They are recorded here as references and nothing more: the mechanics belong to Chapter 4 and transcribing them into a Chapter 5 file would create a second copy to disagree with the first. The initiative one is named here with an alternative the GM may prefer attached to it, and Chapter 4 prints that alternative in full on its own page, so it is not recorded here either.",
+      "verified_fields": ["effect", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
-      "ambiguity": "The initiative spend is printed with two different effects joined by the GM's preference - acting first, or twice the Edge - and nothing says whether that is a choice made once for a table, once per campaign, or per purchase. The list itself is introduced as several ways rather than as all of them, so whether Chapter 4 holds exactly these six is a question this entry cannot answer from this page."
+      "ambiguity": "The list is introduced as several ways rather than as all of them, so whether Chapter 4 holds exactly these six is a question this entry cannot answer from this page. The initiative spend is named with two effects joined by the GM's preference, and nothing on either page says whether that preference is settled once for a table, once per campaign, or per purchase - which is Chapter 4's to record when it is transcribed, not this entry's."
     },
     {
       "id": "spend_lucky_break",

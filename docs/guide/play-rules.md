@@ -135,6 +135,8 @@ The counting function is a test helper and is not the start of an engine. Keep i
 
 **References out, never transcriptions in.** The six combat spends are recorded as ids pointing at Ch.4 with `transcribed_here: false`, and Interludes point at Ch.9 for what an interlude is. Copying either chapter in would create a second transcription to disagree with the first — which is the same reason `challenge.json` does not restate the rounding rule `play_meta.json` holds.
 
+**And that is now a guard, because the entry broke its own rule the first time.** `spend_combat` declared `transcribed_here: false`, pointed at Ch.4, and carried two of Ch.4's values anyway — the GM's alternative to seizing the initiative and how long it lasts — under a description claiming the alternative was "printed here rather than there". It is not: **Ch.4 p.73 prints the whole rule**, cost, duration and alternative, so the two fields were precisely the second transcription the policy exists to prevent, and the one that would have gone stale first when Chapter 4's slice transcribes its own page. `AnEntryThatDefersToAnotherChapterCarriesReferencesAndNothingElse` refuses any fact field beyond the flag, the chapter and the deferred ids on an entry that says it does not transcribe — written over the file rather than over the one entry, so the next chapter this store points at is covered without anybody remembering to.
+
 ## What is deliberately not in the data
 
 - **The Sample Thresholds table (p.71).** Nine rows of worked examples illustrating thresholds the Thresholds table already states numerically — no mechanic of its own. It is also the one part of Ch.3 the extractor scrambles, being a three‑column table it reads across rather than down.

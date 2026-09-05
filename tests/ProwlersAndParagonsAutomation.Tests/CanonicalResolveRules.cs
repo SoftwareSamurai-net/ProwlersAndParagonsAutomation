@@ -305,11 +305,21 @@ public static class CanonicalResolveRules
     /// <para><b>Recorded as references, not transcribed.</b> Each of the six is specified in
     /// Chapter 4; copying it here would create a second transcription to disagree with the
     /// first.</para>
+    ///
+    /// <para><b>Including the parenthesis, which is why there is no constant for it.</b> The
+    /// entry once carried the GM's alternative and its duration as fact fields, on the reading
+    /// that Chapter 5's parenthesis was the only printing of them. It is not: <b>Ch.4 p.73,
+    /// SEIZING INITIATIVE, prints the whole rule</b> — "You can spend 1 Resolve to jump ahead of
+    /// everyone else in combat. From that point on, you act first on every page of the action. …
+    /// Optionally, rather than allowing characters to automatically act first, GMs may instead
+    /// have this double a character's effective Edge…" — so the values belong to Chapter 4's
+    /// slice and a Chapter 5 copy of them would be exactly the second transcription this entry
+    /// exists to avoid. <see cref="PlayRulesDataTests.AnEntryThatDefersToAnotherChapterCarriesReferencesAndNothingElse"/>
+    /// now refuses any fact field beyond the reference list on an entry that says
+    /// <c>transcribed_here: false</c>.</para>
     /// </summary>
     public const bool CombatSpendsAreTranscribedHere = false;
     public const string CombatSpendsDetailChapter = "Ultimate Edition, Ch.4 Combat";
-    public const string SeizeInitiativeGmAlternative = "double your Edge instead of acting first";
-    public const string SeizeInitiativeLasts = "every page of the action";
 
     public static readonly IReadOnlyList<string> CombatSpendRefs =
     [
