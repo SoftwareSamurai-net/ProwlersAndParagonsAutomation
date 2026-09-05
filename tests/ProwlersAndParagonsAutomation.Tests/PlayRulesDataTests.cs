@@ -1243,6 +1243,10 @@ public sealed class PlayRulesDataTests
                 faults.Add($"{entry.Id} states a cost in Resolve and declares currency {spend.Currency}");
         }
 
+        // The faults come first deliberately: each names the entry and what is wrong with it, and
+        // the two set-shaped assertions below fail with a diff that sends the reader hunting.
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+
         // Both pools have to be represented, or "every spend is keyed correctly" is satisfied by a
         // file in which every spend is a Hero's.
         foreach (var currency in CanonicalResolveRules.PoolHolders.Keys)
@@ -1257,8 +1261,6 @@ public sealed class PlayRulesDataTests
         Assert.Equal(
             spends.Select(e => e.Id).Order(StringComparer.Ordinal).ToList(),
             entries.Where(e => e.Who is not null).Select(e => e.Id).Order(StringComparer.Ordinal).ToList());
-
-        Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
 
     /// <summary>
