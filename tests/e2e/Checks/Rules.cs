@@ -11,9 +11,15 @@ namespace ProwlersAndParagons.E2e.Checks;
 /// server that refuses everybody, including the reader who paid for an account with their address.
 /// So one run does both, in two contexts, and reports the pair.</para>
 ///
-/// <para><b>Control</b>: the seeded link signed somebody in; <c>/rules</c> rendered its own heading;
-/// the banner still names them there; and the search actually ran — the page came back with a
-/// result panel rather than being left in the state it started in.</para>
+/// <para><b>Control</b>: <c>/rules</c> rendered its own heading; the banner <em>there</em> names the
+/// account the seeded link was minted for; a search box arrived; and the search actually ran — the
+/// page came back with a result panel rather than being left in the state it started in.</para>
+///
+/// <para><b>The sign-in is spent silently and judged by the second of those</b>, rather than by
+/// <see cref="Account.SignIn"/> throwing on the way in. That is what gives the rest of this file a
+/// negative control: a twin that breaks the link now falls on a line in <em>this</em> check, so
+/// truncating the method below it turns the twin green and the run red. Before, it did not — see
+/// the comment at the call.</para>
 ///
 /// <para><b>Outcome</b>: at least one passage came back, and it carries a printed page citation,
 /// which is the thing that makes a rules answer checkable against the copy on the table. Then, in a
@@ -82,7 +88,21 @@ public static class Rules
         // makes a later check's subject depend on what ran before it.
         var harness = await driver.FreshContext();
 
-        var who = await Account.SignIn(harness, "RULES");
+        // **The seeded link is spent here and judged at `/rules`, and that is a fix rather than a
+        // preference.** `Account.SignIn` throws before this check has opened anything, so the
+        // `rules-token-expired` twin used to die inside a helper `ADMIN` and `ACCOUNT_SAVE` share
+        // — and everything below it, the results panel's scoping, the citation regex, the `401`
+        // off the wire and the refusal sentence, had no negative control at all. Measured rather
+        // than reasoned: replacing this whole method after that line with `return "ok"` left the
+        // twin red, which is the definition of a twin that proves nothing about this check.
+        //
+        // So the sign-in is arranged silently and the *first control below* is what a reader who
+        // was refused a link falls on. It is still a control and still says so — a reader who is
+        // not signed in has not been refused the book by anything, and every sentence this check
+        // would go on to write about what they were served is a sentence about a stranger.
+        var (_, email, who) = Account.Seeded("RULES");
+
+        await Account.Spend(harness, "RULES");
 
         await harness.Open("/rules");
 
@@ -90,9 +110,16 @@ public static class Rules
         Harness.Control(heading == Heading,
             $"/rules rendered \"{heading}\" rather than \"{Heading}\"");
 
-        Harness.Control(await Account.StillSignedInAs(harness, who),
-            $"the banner on /rules no longer names {who}, so this is not an account reading the "
-            + "book");
+        var banner = await harness.Eval<string?>(
+            "document.querySelector('.banner-account')?.textContent?.trim() ?? null");
+
+        Harness.Control(banner == who,
+            $"the banner on /rules reads \"{banner}\" rather than \"{who}\" ({email}), so nobody "
+            + "with an account is reading the book here. Either the seeded RULES link was refused "
+            + "— which is what the application does for a token that has expired, been used, or "
+            + "belongs to an address the invitation list no longer carries — or the session did "
+            + "not survive the navigation. What /rules serves below is then what a stranger is "
+            + "served, and this check's whole subject is what an account is served");
 
         // The search box only exists once the server has said this account may read anything at
         // all, so its arrival is the first half of "the account was served the book".

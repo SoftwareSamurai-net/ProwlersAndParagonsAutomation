@@ -203,9 +203,15 @@ export const DEFECTS = [
         check: 'RULES',
         why: 'The token seeded for the rulebook reader expired an hour before the run, so '
             + '`db.spendLoginToken` refuses it — its `expires_at > ?` test is in the UPDATE '
-            + 'itself — and the reader arrives at /rules anonymous. The check must then go red '
-            + 'on its positive control rather than reporting the book as readable, which is what '
-            + 'it would do if it were finding prose that is served to everybody.',
+            + 'itself — and the reader arrives at /rules anonymous. RULES must then go red on '
+            + 'its own second control, the banner on /rules naming nobody, rather than reporting '
+            + 'the book as readable — which is what it would do if it were finding prose that is '
+            + 'served to everybody. **It lands inside Checks/Rules.cs and that is the whole of '
+            + 'the fix here**: this twin used to die in Account.SignIn, a helper ADMIN and '
+            + 'ACCOUNT_SAVE share, so replacing the rest of the RULES check with `return "ok"` '
+            + 'left the twin red and nothing below that line — the results panel scoping, the '
+            + 'citation regex, the 401 read off the wire, the refusal sentence — had a negative '
+            + 'control at all.',
         seed: { slots: { RULES: { expired: true } } },
     },
     {

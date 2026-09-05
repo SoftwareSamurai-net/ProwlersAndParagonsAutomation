@@ -374,12 +374,28 @@ reason.
 | Check | Control, before anything else | Outcome |
 |---|---|---|
 | `ADMIN` | the link signed somebody in; `/admin` rendered its own heading; the banner *still* names that account on that page | the page says there is nothing here for this account, **and** does not carry the list |
-| `RULES` | signed in; `/rules` rendered; a search box arrived; a search came back | ≥1 passage with a printed page citation and real prose — then, in a context that never signed in, a `401` from `/api/rulebook/` **read off the wire** and the page saying so |
+| `RULES` | `/rules` rendered; the banner **there** names the seeded account; a search box arrived; a search came back | ≥1 passage with a printed page citation and real prose — then, in a context that never signed in, a `401` from `/api/rulebook/` **read off the wire** and the page saying so |
 | `ACCOUNT_SAVE` | signed in; a non-`GET` to `/api/characters` was answered under 400; a second context began with storage that had never heard of the character; it signed in | the second context is signed in as the same account **and** the wizard there holds the character |
 
 **`ADMIN` is the one that is easiest to get vacuous and the brief said so in advance.** "Not
 allowed" is satisfied by a page that failed to load, by a page that refused because nobody was
 signed in, and by a page that never asked the server anything. All three are excluded by name.
+
+**A twin has to land inside the check it names, and `rules-token-expired` did not.** It expires the
+seeded token, so `Account.SignIn` threw on the way in — a helper `ADMIN` and `ACCOUNT_SAVE` share,
+reached before `RULES` had opened `/rules` at all. Measured: replacing everything after that call
+with `return "ok"` left the twin red, which means the results-panel scoping, the citation regex, the
+`401` off the wire and the refusal sentence had **no negative control**. `RULES` now spends its link
+silently — `Account.Spend`, which reports rather than throws — and judges it on its own second
+control, the banner on `/rules`. Truncating the check now turns the twin green and the run red.
+
+**What is still untwinned, said plainly.** No twin lands on the rulebook's *content* assertions,
+and none can be built the two ways this harness has: the corpus is baked into `worker/corpus.js` and
+the gate is `worker/index.js`'s "somebody is signed in", so **nothing in the published bundle a site
+twin copies decides any of it**, and **no seeded row produces a live session that the rulebook prefix
+then refuses** — `currentUser` reads the session and nothing re-checks the invitation list, which
+`worker/invitations.js` says in as many words. The honest third shape would be a twin that
+substitutes a documented line in `worker/` and serves it from a root of its own; it is not built.
 
 **Two things in these were found by running them rather than by reading them**, which is the whole
 argument of the discipline:

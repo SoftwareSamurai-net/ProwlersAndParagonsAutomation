@@ -60,21 +60,24 @@ public static class Account
     }
 
     /// <summary>
-    /// Spend a seeded link and come back signed in, or say the work did not happen.
+    /// Drive a seeded link and report whether it left the reader signed in. <b>Does not throw.</b>
     ///
     /// <para><b>The banner is what is read, and it is read on purpose rather than the sign-in
     /// page's own panel.</b> Every page in this application carries it, so the same assertion works
     /// wherever a check goes next — and a check that asserts a page refused it needs to be able to
     /// say, on <em>that</em> page, that the reader was signed in as somebody while it did.</para>
     ///
-    /// <para><b>It throws a control failure, not an outcome one.</b> A reader who could not be
-    /// signed in has not been refused by anything; every sentence a check would go on to write
-    /// about what they were shown is a sentence about a stranger. That is the distinction the
-    /// <c>rules-token-expired</c> twin exists to prove is being made.</para>
+    /// <para><b>Silent because a caller may want to judge the answer somewhere else</b>, which is
+    /// not fastidiousness about where a message comes from. <see cref="SignIn"/> below throws here,
+    /// which is right for a check whose subject is another page entirely — but it means a twin that
+    /// breaks the sign-in dies at a line every signed-in check shares, and everything the check
+    /// went on to assert then has no negative control at all. <c>RULES</c> spends its link this way
+    /// and judges it at <c>/rules</c> for exactly that reason; <c>Checks/Rules.cs</c> carries the
+    /// measurement.</para>
     /// </summary>
-    public static async Task<string> SignIn(Harness harness, string slot)
+    public static async Task<bool> Spend(Harness harness, string slot)
     {
-        var (token, email, displayName) = Seeded(slot);
+        var (token, _, displayName) = Seeded(slot);
 
         await harness.Open($"/signin?t={Uri.EscapeDataString(token)}");
 
@@ -85,20 +88,41 @@ public static class Account
                 + $"{Quoted(displayName)}",
                 $"the banner to name {displayName}, which is who the {slot} token was minted for",
                 20_000);
+
+            return true;
         }
         catch (CheckFailedException)
         {
-            var banner = await harness.Eval<string?>(
-                "document.querySelector('.banner-account')?.textContent?.trim() ?? null");
-
-            throw new ControlFailedException(
-                $"the seeded {slot} link did not sign anybody in — the banner reads "
-                + $"\"{banner}\" rather than \"{displayName}\" ({email}). The application spent the "
-                + "token and refused it, which is what it does for a token that has expired, been "
-                + "used, or belongs to an address the invitation list no longer carries.");
+            return false;
         }
+    }
 
-        return displayName;
+    /// <summary>
+    /// Spend a seeded link and come back signed in, or say the work did not happen.
+    ///
+    /// <para><b>It throws a control failure, not an outcome one.</b> A reader who could not be
+    /// signed in has not been refused by anything; every sentence a check would go on to write
+    /// about what they were shown is a sentence about a stranger.</para>
+    ///
+    /// <para><b>Use it where the sign-in is the <em>arrangement</em> and not the subject.</b> A
+    /// check whose own assertions can distinguish a stranger from an account should call
+    /// <see cref="Spend"/> instead and say so itself — otherwise a seed twin aimed at that check
+    /// lands here, in a helper three checks share, and proves nothing about any of them.</para>
+    /// </summary>
+    public static async Task<string> SignIn(Harness harness, string slot)
+    {
+        var (_, email, displayName) = Seeded(slot);
+
+        if (await Spend(harness, slot)) return displayName;
+
+        var banner = await harness.Eval<string?>(
+            "document.querySelector('.banner-account')?.textContent?.trim() ?? null");
+
+        throw new ControlFailedException(
+            $"the seeded {slot} link did not sign anybody in — the banner reads "
+            + $"\"{banner}\" rather than \"{displayName}\" ({email}). The application spent the "
+            + "token and refused it, which is what it does for a token that has expired, been "
+            + "used, or belongs to an address the invitation list no longer carries.");
     }
 
     /// <summary>A string as a JavaScript literal, so a name with a quote in it cannot break a wait.</summary>
