@@ -94,7 +94,9 @@ printed rule, which is the strongest in the book.
 
 Halves always round **up** — the rulebook has a global rule for this (the Glossary in the Introduction, p.7, "Half").
 
-Highest relevant rank = max(all ability ranks, effective ranks of powers where `affects_resolve == true`). Talents excluded. Movement and Sensory category powers excluded by default; `PowerModel.AffectsResolve` overrides this per-power (`super_speed` is explicitly true; 11 non-combat Utility/Special powers are explicitly false). This reproduces the rulebook's list of Resolve-exempt powers exactly — do not "fix" it by naming powers individually.
+Highest relevant rank = max(all ability ranks, effective ranks of powers where `affects_resolve == true`). Talents excluded. Movement and Sensory category powers excluded by default; `PowerModel.AffectsResolve` overrides this per-power (`super_speed` is explicitly true; 11 non-combat Utility/Special powers are explicitly false). This reproduces the rulebook's list of Resolve-exempt powers — do not "fix" it by naming powers individually.
+
+**With one known divergence: an Expertise nominated to a combat skill should count towards Resolve and does not.** Ch.5 p.83 exempts "Expertise (except for combat skills)", and `affects_resolve` is one unconditional flag on one entry, so the carve-out cannot be expressed there at all — a Standard-tier 6d character with Expertise (Martial Arts) at the 12d cap gets 12 Resolve here where the page wants 0. It is recorded rather than repaired: `PlayRulesDataTests.ADivergenceTheEngineCannotYetExpress` asserts the engine's present answer and fails the day the carve-out lands, and closing it is `PROGRESS.md` item 14's engine work. See [`play-rules.md`](play-rules.md).
 
 
 ## Power cost formula

@@ -1,0 +1,564 @@
+{
+  "header": {
+    "what_this_is": "Every mechanic printed in Chapter 5, Resolve and Adversity (pp.83-86), as data: where a Hero's opening pool comes from, which Traits are counted when it is worked out, how more is earned over an issue, what it buys, and the parallel pool the GM spends against the party. The dice model these entries lean on - pool, success map, net successes, the book-wide rounding rule - is in play_meta.json beside this file, and the challenge roll itself is in challenge.json.",
+    "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
+    "not_logic": "Data only. No engine reads this file, and none may. The one mechanic here that IS implemented is the opening-pool formula, in engine/DerivedStatsCalculator.CalculateResolve - which computes it from the character rules rather than from these bytes, and a test holds the two to the same answer on three worked ranks.",
+    "deliberately_omitted": "The chapter opening (p.83) is not here: it is an essay on what makes a character a Hero, and carries no number and no procedure. Nor is the advice to keep track of either pool with poker chips or glass beads, which the chapter prints twice - it is a suggestion about the table, not a rule of the game. Interludes are recorded as a way to earn, because this chapter says they are one, but what an interlude IS belongs to Chapter 9 and is not transcribed here - the same treatment the six combat spends get, which name Chapter 4 rather than repeating it. Printed p.86 carries no chapter text: the corpus extracts sections for pp.83-85 only, and the range in every source_ref below is the chapter's, not a claim that p.86 was read.",
+    "verified_fields_closed_list": [
+      "trigger",
+      "roll",
+      "threshold",
+      "effect",
+      "duration",
+      "cost",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, pp.83-86"
+  },
+  "entries": [
+    {
+      "id": "starting_resolve",
+      "name": "Starting Resolve",
+      "kind": "formula",
+      "printed_under": "RESOLVE",
+      "starting_resolve": {
+        "granted_at": "the start of every issue",
+        "issue_is_a_game_session": true,
+        "depends_on": "the character's highest ranked Ability or Power, subject to the exceptions",
+        "measured_from": "trait_cap",
+        "at_trait_cap": 0,
+        "resolve_per_rank_below_cap": 2,
+        "formula": "resolve = (trait_cap - highest_relevant_rank) * 2",
+        "table_rows": [
+          { "ranks_below_trait_cap": 0, "resolve": 0 },
+          { "ranks_below_trait_cap": 1, "resolve": 2 },
+          { "ranks_below_trait_cap": 2, "resolve": 4 },
+          { "ranks_below_trait_cap": 3, "resolve": 6 }
+        ],
+        "table_continues_beyond_the_printed_rows": true
+      },
+      "description": "The opening pool is the gap between a character's best counted Trait and the ceiling their tier allows, priced at two points a die. Somebody built right up to that ceiling opens on nothing; somebody who left three dice unbought opens on six. Four rows are printed and the column is then marked as continuing, so the ladder has no stated end. This is the one mechanic in the chapter the engine already computes - DerivedStatsCalculator.CalculateResolve works it out from the character rules rather than from this file, and a test requires the two to agree.",
+      "verified_fields": ["trigger", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
+      "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.11"],
+      "ambiguity": "The ladder is measured from the Trait Cap rather than from an absolute rank, so it says nothing about a character whose best Trait sits above the cap - a state the tier rules treat as an error rather than as a position on this table. It stops at three dice below the cap and is then marked as continuing, so every row past the fourth is inferred and no ceiling is stated. And the two other sources of opening Resolve the book prints - Determination, and the Condition and Plot Hook Flaws, both Chapter 2's - are not mentioned here at all, so whether this table is the whole of a character's opening pool or only its base is left to the reader. The engine reads it as a base and adds them."
+    },
+    {
+      "id": "resolve_exceptions",
+      "name": "Traits that are not counted",
+      "kind": "narrative",
+      "printed_under": "EXCEPTIONS",
+      "exceptions": {
+        "talents_count": false,
+        "criterion": "a Power that cannot be used for attack, defense, or to affect other characters or objects",
+        "named_powers": [
+          "Danger Sense",
+          "Detection",
+          "Expertise",
+          "Flight",
+          "Leaping",
+          "Running",
+          "Super Senses",
+          "Swimming",
+          "Swinging",
+          "Teleportation",
+          "Tunneling"
+        ],
+        "expertise_qualifier": "except for combat skills",
+        "named_list_is_qualified_as_usual": true,
+        "gm_has_final_say": true
+      },
+      "description": "Not every Trait is looked at when the opening pool is worked out. Talents are out altogether, on the grounds that a trained skill is not the same order of thing as a superpower. So is any Power that cannot be turned on somebody or something - eleven are named as illustrations rather than as a closed list, and the sentence naming them is hedged at both ends: it opens by offering them as examples and stops short of saying they never count. One of the eleven carries a carve-out of its own, since an Expertise is exempt only while it is not a combat skill. The last word belongs to the GM in every case.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
+      "ambiguity": "The eleven Powers are introduced as examples of the criterion rather than as the exhaustive list, and the sentence carrying them says they do not USUALLY count, so a simulator cannot treat the list as a lookup table without deciding what the hedge is worth. The Expertise entry carves out combat skills without saying how a combat skill is told from any other, and this repository's powers.json has one Expertise entry with one flag, so the carve-out cannot be expressed there at all. Nor is it said whether the criterion is judged against the Power as printed or against the use a particular character has put it to."
+    },
+    {
+      "id": "boost_and_shapeshifting_count_at_maximum",
+      "name": "A rank another Power can raise counts at its maximum",
+      "kind": "scalar",
+      "printed_under": "RESOLVE",
+      "maximum_possible_rank": {
+        "applies_when": "another Power can raise the rank of an Ability or Power",
+        "powers_named": ["Boost", "Shapeshifting"],
+        "rank_used": "maximum possible rank"
+      },
+      "description": "Where a character owns a Power that can push one of their own Traits up, the pushed-up figure is the one that goes into the table, not the resting one. Two Powers are named as the cases this arises in. The effect is to price the potential rather than the starting position, so a character cannot open on a large pool and then climb out of the bracket that granted it.",
+      "verified_fields": ["trigger", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
+      "ambiguity": "'Maximum possible rank' is not defined against anything. It could mean the highest rank the raising Power can currently reach, the highest it could reach if every point were spent on one Trait, or the highest the Trait Cap would permit - and the three differ for most characters who own either Power. Nothing says whether a raise that costs a resource to switch on counts when it is off, and nothing says what happens when two such Powers could raise the same Trait."
+    },
+    {
+      "id": "carryover",
+      "name": "Resolve does not carry over",
+      "kind": "scalar",
+      "printed_under": "CARRYOVER RESOLVE",
+      "carryover": {
+        "carries_over_between_issues": false,
+        "unspent_is_lost_at_issue_end": true,
+        "gm_may_allow_carryover": true,
+        "gm_carryover_should_be_rare": true
+      },
+      "description": "Whatever is left in a pool when the session ends is gone, and the stated purpose of that is to stop anybody saving. A GM is permitted to waive it now and again, and is warned in the same breath that doing so often produces exactly the hoarding the rule exists to prevent.",
+      "verified_fields": ["duration", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
+      "ambiguity": null
+    },
+    {
+      "id": "resolve_earning_overview",
+      "name": "Earning Resolve",
+      "kind": "narrative",
+      "printed_under": "EARNING RESOLVE",
+      "earning_overview": {
+        "gm_may_award_whenever_they_see_fit": true,
+        "listed_ways_are_examples_not_a_closed_list": true
+      },
+      "interpretation": {
+        "what_this_is": "This repository's reading of the six ways below, not a distinction the book draws: which of them a simulator could apply on its own, and which need a person at the table to decide that something happened. It is kept out of the transcription and labelled so nobody cites it back as the rulebook, and it is derived by a test from the entries' own kind rather than typed out here.",
+        "mechanisable_entry_ids": ["earn_defeat", "earn_sacrifice"]
+      },
+      "description": "Six ways to add to a pool during play are listed, and the section closes by saying they are illustrations of a broader licence rather than the whole of it - a GM may hand out a point for anything that made the evening better. Two of the six state a condition a program could test; the other four turn on somebody deciding that a moment was worth it.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
+      "ambiguity": null
+    },
+    {
+      "id": "earn_defeat",
+      "name": "Defeats",
+      "kind": "formula",
+      "printed_under": "DEFEATS",
+      "earning": {
+        "award_resolve": 1,
+        "trigger": "a significant defeat, failure or setback",
+        "may_be_outside_combat": true,
+        "limit_per_battle": 1
+      },
+      "description": "Going down earns a point, and the point is capped at one for each fight however many times the character is put down inside it. The trigger is deliberately wider than combat: a plan that collapses or a rescue that fails counts as readily as being knocked out.",
+      "verified_fields": ["trigger", "effect", "duration", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
+      "ambiguity": "The cap is written per battle and the trigger explicitly reaches setbacks that involve no battle at all, so nothing bounds how often a character can earn this away from a fight. Whether 'significant' is the GM's judgement or the player's is also unstated, though the surrounding section puts every other award in the GM's hands."
+    },
+    {
+      "id": "earn_flaw",
+      "name": "Flaws",
+      "kind": "narrative",
+      "printed_under": "FLAWS",
+      "earning": {
+        "award_resolve": 1,
+        "trigger": "bringing one of your own Flaws into play so that it causes trouble for you or for your allies",
+        "must_fit_the_situation": true,
+        "some_flaws_award_per_issue_instead": 1
+      },
+      "description": "A player who lets one of their own weaknesses bite, and pays for it, takes a point. The weakness has to be plausible where it lands - the book's own example refuses a fear of heights invoked at sea level. Some Flaws are priced differently and simply hand over a point once a session instead.",
+      "verified_fields": ["trigger", "effect", "duration", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
+      "ambiguity": "Which Flaws pay once an issue rather than on use is not stated here and has to be read off each Flaw's own entry in Chapter 2. Nor is it said whether one Flaw can be brought into play more than once in an issue, or whether a Hero who owns several may earn from each of them in the same scene."
+    },
+    {
+      "id": "earn_interlude",
+      "name": "Interludes",
+      "kind": "narrative",
+      "printed_under": "INTERLUDES",
+      "earning": {
+        "award_stated": false,
+        "trigger": "creating and playing out an interlude",
+        "interlude_is": "a short scene involving the Heroes but set aside from the current story",
+        "detail_chapter": "Ultimate Edition, Ch.9 Superhero Gaming"
+      },
+      "description": "Playing out a scene that steps away from the main plot pays, and the chapter hands the mechanics of doing so to a much later one rather than restating them. It is the only earning entry here that names no amount.",
+      "verified_fields": ["trigger", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": "No figure is printed. Every other way of earning in this section states one point; this one says only that Resolve can be earned, and points at Chapter 9 for what an interlude is rather than for what it pays. Whether the award is the same one point, whether it scales with the scene, and whether a GM may refuse an interlude offered purely for the payment are all open."
+    },
+    {
+      "id": "earn_motivation",
+      "name": "Motivation",
+      "kind": "narrative",
+      "printed_under": "MOTIVATION",
+      "earning": {
+        "award_resolve": 1,
+        "trigger": "acting unwisely, out of character, or to your own or your allies' cost because of your motivation",
+        "not_an_invitation_to_derail_the_game": true
+      },
+      "description": "Standing by what the character believes when it costs them something pays a point, on the reasoning that a conviction only counts when it is inconvenient. The entry immediately guards against the obvious abuse: it is not a licence for recklessness or for wrecking somebody else's evening.",
+      "verified_fields": ["trigger", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": null
+    },
+    {
+      "id": "earn_roleplaying",
+      "name": "Roleplaying",
+      "kind": "narrative",
+      "printed_under": "ROLEPLAYING",
+      "earning": {
+        "award_resolve": 1,
+        "trigger": "play the GM judges exceptionally clever, dramatic, funny, heroic or cool",
+        "gm_judged": true,
+        "examples_given": [
+          "great roleplaying",
+          "brilliant comedy",
+          "clever problem solving",
+          "strategic thinking",
+          "helping a new player"
+        ]
+      },
+      "description": "A point for a moment the GM thought was worth one. Five illustrations are offered and the last is not about the fiction at all: making room for somebody new at the table is listed beside the clever plan and the good joke.",
+      "verified_fields": ["trigger", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": null
+    },
+    {
+      "id": "earn_sacrifice",
+      "name": "Sacrifice",
+      "kind": "formula",
+      "printed_under": "SACRIFICE",
+      "earning": {
+        "award_resolve": 1,
+        "available_when": "you are out of Resolve and in a pinch",
+        "must_be_spent_on_the_same_page": true,
+        "then_unconscious": true,
+        "unconscious_until": "the end of the scene"
+      },
+      "description": "A character with an empty pool can force one more point out of themselves. It has to go straight back out again on the same page, and the moment it does they drop and stay down until the scene finishes. It is the only entry in this section that costs the character something to collect.",
+      "verified_fields": ["trigger", "effect", "duration", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": "The point 'has to be used immediately', and it is not said whether giving it to an ally under the sharing rule counts as using it - which matters, because sharing is the one spend whose benefit lands on somebody else while the cost of collapsing lands on the giver. Nor is it said whether a character can do this more than once in a scene, whether the collapse is Health damage or merely unconsciousness, or what happens if the point is somehow not spent."
+    },
+    {
+      "id": "resolve_spending_overview",
+      "name": "Spending Resolve",
+      "kind": "narrative",
+      "printed_under": "SPENDING RESOLVE",
+      "spending_overview": {
+        "gm_may_expand_the_uses": true,
+        "listed_uses_are_the_basic_ones": true
+      },
+      "description": "The pool is the game's narrative currency, and what follows is described as the basic set of things it buys rather than the complete one. A GM is invited to add to it, which is the same open door the earning section leaves.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": null
+    },
+    {
+      "id": "spend_assisting_allies",
+      "name": "Assisting allies",
+      "kind": "formula",
+      "who": "hero",
+      "printed_under": "ASSISTING ALLIES",
+      "spend": {
+        "currency": "resolve",
+        "cost_per_point_shared_when_unable_to_assist": 2,
+        "points_shared_limit": "as many as you wish",
+        "must_narrate_the_assistance": true,
+        "narration_has_no_mechanical_effect": true,
+        "unable_to_assist_examples": ["unconscious", "not in the scene", "otherwise occupied"],
+        "flashback_required_when_unable": true
+      },
+      "interpretation": {
+        "what_this_is": "This repository's reading, and not a figure the page prints. Page 84 states exactly one rate - two points of Resolve for every point shared - and charges it only to a giver who could not actually be assisting. What an ordinary share costs is nowhere on the page: 'as many points as you wish' says how many may move, never what each one costs. One point for one point is the inference from the stated rate being a penalty on something, and it is kept out of the transcription and labelled so nobody cites it back as the rulebook. A test derives it from the printed penalty rather than reading it from here.",
+        "inferred_cost_per_point_shared": 1
+      },
+      "description": "Points move between characters at par, with no stated ceiling on how many, provided the giver says how they are helping - and that saying so is expressly cosmetic, buying nothing beyond the transfer itself. A character who could not plausibly be helping at all still may, at twice the price, and owes the table a flashback instead of a present-tense assist.",
+      "verified_fields": ["effect", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": "The ordinary rate is not printed at all. The page prices only the doubled share a giver who cannot assist pays, so one point for one point is this repository's inference and is recorded beside the entry as an interpretation rather than inside it as a transcribed cost - a fact field is a claim that the page states the thing, and the page states the exception. Nothing says whether a receiver can be pushed past the pool they opened the issue with, or past any figure at all - the chapter states a starting amount and never states a maximum, so on a plain reading a party can pile its whole supply onto one character. It is also unstated whether the doubled rate is charged per point or per transfer, whether an unconscious giver can act at all in order to spend, and whether a point handed over may be handed on again."
+    },
+    {
+      "id": "spend_challenge_roll_dice",
+      "name": "Extra dice on a challenge roll",
+      "kind": "formula",
+      "who": "hero",
+      "printed_under": "CHALLENGE ROLLS",
+      "spend": {
+        "currency": "resolve",
+        "cost_resolve": 1,
+        "dice_gained": 1,
+        "unlimited": true,
+        "decided_after_the_roll": true
+      },
+      "description": "One point buys one die on a challenge roll, with no cap on how many go in, and the decision is made with the dice already on the table. Chapter 3's Defining Moment is the same purchase at three times the rate.",
+      "verified_fields": ["roll", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": null
+    },
+    {
+      "id": "spend_reroll_challenge_roll",
+      "name": "Rerolling a challenge roll",
+      "kind": "formula",
+      "who": "hero",
+      "printed_under": "CHALLENGE ROLLS",
+      "spend": {
+        "currency": "resolve",
+        "cost_resolve": 1,
+        "rerolls": "the whole challenge roll",
+        "includes_dice_bought_with_resolve": true
+      },
+      "description": "A single point picks the entire roll back up, and dice that were themselves bought with points come back up with it rather than being stranded on their first result.",
+      "verified_fields": ["roll", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": null
+    },
+    {
+      "id": "spend_reroll_other_roll",
+      "name": "Rerolling any other roll",
+      "kind": "formula",
+      "who": "hero",
+      "printed_under": "CHALLENGE ROLLS",
+      "spend": {
+        "currency": "resolve",
+        "cost_resolve": 1,
+        "applies_to": "any roll that is not a challenge roll",
+        "example_given": "the roll that decides whether an Unreliable Power works"
+      },
+      "description": "The same point buys the same second attempt at anything else the dice are asked, which the book illustrates with the check an unreliable Power makes to see whether it fires at all.",
+      "verified_fields": ["roll", "effect", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": null
+    },
+    {
+      "id": "spend_combat",
+      "name": "Combat spends",
+      "kind": "narrative",
+      "who": "hero",
+      "printed_under": "COMBAT SPENDS",
+      "spend": {
+        "currency": "resolve",
+        "transcribed_here": false,
+        "detail_chapter": "Ultimate Edition, Ch.4 Combat",
+        "combat_spend_refs": [
+          "seize_initiative",
+          "recover_from_a_defeat_or_special_effect",
+          "knock_a_target_backwards",
+          "lure_an_attacker_into_hitting_something_else",
+          "make_a_team_attacks_dice_explode",
+          "reduce_the_impact_of_a_gritty_combat_rule"
+        ]
+      },
+      "description": "Six more uses are listed by name and handed straight to the combat chapter, which is where each of them is actually specified. They are recorded here as references and nothing more: the mechanics belong to Chapter 4 and transcribing them into a Chapter 5 file would create a second copy to disagree with the first. The initiative one is named here with an alternative the GM may prefer attached to it, and Chapter 4 prints that alternative in full on its own page, so it is not recorded here either.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": "The list is introduced as several ways rather than as all of them, so whether Chapter 4 holds exactly these six is a question this entry cannot answer from this page. The initiative spend is named with two effects joined by the GM's preference, and nothing on either page says whether that preference is settled once for a table, once per campaign, or per purchase - which is Chapter 4's to record when it is transcribed, not this entry's."
+    },
+    {
+      "id": "spend_lucky_break",
+      "name": "Lucky breaks",
+      "kind": "narrative",
+      "who": "hero",
+      "printed_under": "LUCKY BREAKS",
+      "spend": {
+        "currency": "resolve",
+        "cost_resolve": 1,
+        "invents": "a minor detail of the game world, usually a coincidence in the spender's favour",
+        "subject_to_gm_approval": true,
+        "example_given": "landing on discarded mattresses after being knocked off a roof"
+      },
+      "description": "A point buys the right to add a small fact to the setting, generally one that happens to help. The GM keeps a veto, which is what separates this from simply narrating.",
+      "verified_fields": ["effect", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": null
+    },
+    {
+      "id": "spend_power_stunt",
+      "name": "Power stunts",
+      "kind": "formula",
+      "who": "hero",
+      "printed_under": "POWER STUNTS",
+      "spend": {
+        "currency": "resolve",
+        "cost_resolve": 1,
+        "uses": "an Ability or Power the character already has, in a way that imitates a different Power",
+        "imitated_power_rank_source": "the Ability or Power doing the imitating",
+        "requires_remotely_reasonable": true,
+        "grants_a_new_power": false
+      },
+      "description": "For one point a Trait already on the sheet does something another Power would normally do, at the rank of the Trait doing the imitating rather than at any rank of its own. The bar for whether it is allowed is set very low - remotely reasonable - and the entry is emphatic that nothing is added to the character afterwards.",
+      "verified_fields": ["trigger", "effect", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": "The rank rule is conditioned on the stunt being at least remotely reasonable, and nothing says what rank an imitation gets when it clears the bar for being allowed but not that one - or whether such a stunt is simply refused. How long the imitation lasts is not stated either: 'momentarily' is the only word offered, which is not one of the durations the rest of the game uses."
+    },
+    {
+      "id": "spend_using_powers",
+      "name": "Powers that require Resolve",
+      "kind": "narrative",
+      "who": "hero",
+      "printed_under": "USING POWERS",
+      "spend": {
+        "currency": "resolve",
+        "some_powers_require_resolve": true,
+        "only_heroes_have_resolve": true,
+        "player_must_spend_for_a_friendly_extra": true,
+        "extra_cannot_use_the_power_if_nobody_spends": true,
+        "applies_only_while_the_extra_is_with_the_heroes": true
+      },
+      "description": "Some Powers charge a point to switch on, and because the currency exists only on the players' side of the table, an allied bit-part character who owns one needs a player to pay for it. Nobody is obliged to, and if nobody does the Power stays off. The constraint is explicitly local: the same character is assumed to use the Power freely when the party is not watching.",
+      "verified_fields": ["trigger", "effect", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
+      "ambiguity": "The rule is written about Extras, and Chapter 8 gives the GM three other grades of character; nothing says whether a friendly Foe or Minion with such a Power is covered, or whether an Extra the party has never met but who is nominally on their side counts as being around them. Whether the paying player must be able to reach the Extra, as the sharing rule requires, is also unaddressed."
+    },
+    {
+      "id": "reroll_floor",
+      "name": "A reroll may not make things worse",
+      "kind": "narrative",
+      "printed_under": "SUPER TIP!",
+      "reroll_floor": {
+        "spending_should_never_make_things_worse": true,
+        "keep_the_first_roll_if_the_reroll_is_worse": true,
+        "applies_to": "a reroll bought with Resolve"
+      },
+      "description": "A short aside sets a floor under every purchase in this chapter: paying for a second attempt must never leave a character behind where they started, so if the new dice come up worse the old ones stand. It is the only place the chapter states a general principle about what a spend is allowed to do.",
+      "verified_fields": ["roll", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
+      "ambiguity": "It is printed as a tip and phrased as an instruction to the GM to let the player keep the better result, so whether it is a rule or a recommendation is genuinely unclear. The opening sentence is general - spending should never make things worse - while the sentence that gives it teeth is about rerolls alone, which leaves the other spends uncovered. And because the GM's pool can do everything this one can, it is unstated whether an NPC reroll enjoys the same floor."
+    },
+    {
+      "id": "adversity_pool",
+      "name": "The GM's Adversity pool",
+      "kind": "formula",
+      "printed_under": "EARNING ADVERSITY",
+      "adversity": {
+        "points_per_hero_per_issue": 1,
+        "held_by": "gm",
+        "carries_over_between_issues": false,
+        "is_more_of_a_fixed_resource_than_resolve": true,
+        "gm_may_add_ways_to_earn": true,
+        "should_not_be_as_easy_to_earn_as_resolve": true
+      },
+      "description": "The GM opens each session with one point per Hero - which Heroes are counted is a question the chapter leaves open, and the ambiguity below carries it - and, like the players, keeps nothing at the end of it. The chapter is explicit that this side of the economy is meant to be tighter: the GM may invent further ways to earn, but is told not to make them as easy as the players'.",
+      "verified_fields": ["effect", "duration", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
+      "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.11"],
+      "ambiguity": "'Every Hero in the game' is not defined against attendance: a party of six with two players absent is either a six-point opening or a four-point one, and the two readings differ by a third of the pool. Nothing says whether a Hero who joins mid-issue adds a point."
+    },
+    {
+      "id": "adversity_earn_challenge_level",
+      "name": "Challenge Level",
+      "kind": "formula",
+      "printed_under": "CHALLENGE LEVEL",
+      "challenge_level": {
+        "award_factors": ["challenge_level", "hero_count"],
+        "award_operation": "product",
+        "awarded_at": "the start of the scene",
+        "typical_level_min": 1,
+        "typical_level_max": 3,
+        "level_three_may_be_exceeded": true,
+        "only_a_handful_of_scenes_per_story": true,
+        "may_be_saved_for_later_in_the_issue": true,
+        "level_guidance": [
+          { "level": 1, "used_for": "high-stakes action scenes and ordinary fights against super-powered enemies" },
+          { "level": 2, "used_for": "pivotal action scenes and climactic fights against especially powerful or recurring Villains" },
+          { "level": 3, "used_for": "battles against nigh-unstoppable foes and other truly epic scenes" }
+        ]
+      },
+      "description": "A scene can be marked as dangerous by giving it a level, usually one of three, and the GM is handed that level multiplied by the size of the party when the scene opens. The points are not tied to the scene that produced them and may be held back for later in the session. Only a few scenes in a story are supposed to carry a level at all, and the three are pitched at ordinary super-powered fights, at set pieces, and at the end of an arc.",
+      "verified_fields": ["trigger", "effect", "duration", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
+      "ambiguity": "The range is given as usual rather than as a limit and the third row is written as three or more, so there is no printed ceiling - which matters, because the award is a product and a fourth level in a party of five is twenty points from one scene. 'The number of Heroes in the game' has the same attendance question the opening pool has. And nothing says whether a scene's level may be set after it has begun, or whether one scene can be given a level twice."
+    },
+    {
+      "id": "adversity_earn_unheroic_action",
+      "name": "Unheroic actions",
+      "kind": "formula",
+      "printed_under": "UNHEROIC ACTIONS",
+      "unheroic_action": {
+        "award_adversity": 1,
+        "awarded_immediately": true,
+        "triggers": ["cowardly", "selfish", "treacherous", "otherwise unheroic"],
+        "also_when_contrary_to_motivation": true,
+        "applies_even_if_coerced": true,
+        "coercion_forms": ["coerced", "forced", "tricked"]
+      },
+      "description": "Every time a Hero behaves in a way the genre would not, the GM takes a point on the spot, and the same applies to anything that cuts against what the character says they are for. The rule is deliberately blind to why: being forced or deceived into it earns the GM the point just the same.",
+      "verified_fields": ["trigger", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
+      "ambiguity": "Acting against your motivation earns the GM a point here, and Chapter 5 also pays the player a point for acting on their motivation to their own cost - the two are different triggers but they meet in the middle, and nothing says what happens to a single choice a table reads as both. Whether one action can earn more than one point when it is several kinds of unheroic at once is also unstated."
+    },
+    {
+      "id": "adversity_spend_anything_resolve_can",
+      "name": "Adversity buys anything Resolve buys",
+      "kind": "narrative",
+      "who": "gm",
+      "printed_under": "SPENDING ADVERSITY",
+      "spend": {
+        "currency": "adversity",
+        "can_do_anything_resolve_can": true,
+        "may_be_spent_on_any_npc": true,
+        "npc_kinds": ["Villains", "Foes", "Minions", "Extras"],
+        "all_npcs_share_one_pool": true,
+        "exclusive_spends_count": 3
+      },
+      "description": "Anything the players' currency buys, the GM's buys too, and it buys it for any character on that side of the screen - all four grades of antagonist draw on one pool, so the sharing rule the players need has no counterpart here. Three further uses belong to the GM alone and are recorded below.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
+      "ambiguity": "The equivalence is stated in both directions at once - anything the rules let Resolve do, Adversity does - and it is not said whether that reaches the spends whose text names a Hero specifically, such as a Hero declaring a Defining Moment or an Extra needing a player to pay for a Power. Nor is it said whether the reroll floor printed for players covers a GM's reroll."
+    },
+    {
+      "id": "adversity_spend_suppress_flaw",
+      "name": "Suppressing an NPC's Flaw",
+      "kind": "formula",
+      "who": "gm",
+      "printed_under": "FLAWS",
+      "spend": {
+        "currency": "adversity",
+        "cost_adversity": 1,
+        "prevents": "a Flaw getting the better of the character",
+        "duration": "the rest of the scene",
+        "eligible_characters": ["Villain", "Foe", "Extra"],
+        "limit_per_character_per_issue": 1,
+        "npc_flaws_bite_when_the_opportunity_arises": true,
+        "npcs_cannot_choose_when_their_flaws_bite": true
+      },
+      "description": "On the GM's side a Flaw is not a way to earn anything - it is a weakness that surfaces whenever the fiction gives it the chance, which is the whole of why a Villain's slots are worth spending carefully. One point buys a character out of one for the remainder of a scene, and no character may be bought out twice in the same session.",
+      "verified_fields": ["trigger", "effect", "duration", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
+      "ambiguity": "Three grades of character are named as eligible and Minions are not among them, which reads either as a deliberate exclusion or as an oversight in a sentence that lists three of the four kinds the previous paragraph had just enumerated. The limit is written per character per issue and it is not said whether it is per character or per Flaw, which differ for anyone carrying two. Nor is it said whether the point may be spent pre-emptively or only once the Flaw is already in play."
+    },
+    {
+      "id": "adversity_spend_misfortune",
+      "name": "Misfortunes",
+      "kind": "narrative",
+      "who": "gm",
+      "printed_under": "MISFORTUNES",
+      "spend": {
+        "currency": "adversity",
+        "cost_adversity": 1,
+        "what_it_is": "a random problem, obstacle or piece of bad luck aimed at the Heroes",
+        "examples_given": [
+          "a weapon malfunctions or runs out of ammunition",
+          "a stray attack endangers civilians",
+          "a Hero loses their mask in a fight"
+        ],
+        "must_be_a_challenge_not_a_punishment": true,
+        "must_not_be_a_plot_device": true
+      },
+      "description": "One point throws a piece of bad luck at the party. What arrives is defined entirely by example - a jammed weapon, a civilian in the line of fire, an identity nearly blown - and by two prohibitions: it must be interesting, and it must not be the GM moving the plot by force.",
+      "verified_fields": ["effect", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
+      "ambiguity": "Nothing here is mechanical. A misfortune is described by three examples and two prohibitions, and no roll, threshold, duration or means of resisting one is stated anywhere - so what a point actually buys is whatever the GM narrates, and two tables applying the rule correctly can produce effects an order of magnitude apart. It is also unstated whether a Hero may spend to refuse one, whether one costs the target an action, and whether more than one may land in a scene."
+    },
+    {
+      "id": "adversity_spend_villainy",
+      "name": "Villainy",
+      "kind": "formula",
+      "who": "gm",
+      "printed_under": "VILLAINY",
+      "spend": {
+        "currency": "adversity",
+        "cost_adversity": 1,
+        "limit_per_story": 1,
+        "automatic": true,
+        "effect": "a Villain does whatever the story needs them to do",
+        "examples_given": [
+          "throwing a switch",
+          "grabbing hostages",
+          "escaping to face the Heroes another time"
+        ],
+        "eligible_characters": ["Villain"],
+        "excluded_characters": ["Foe", "Minion"],
+        "use_sparingly": true
+      },
+      "description": "Once in a story, one point lets a Villain simply succeed at something the plot requires - pulling the lever, taking the hostage, getting away. It is the bluntest tool in the chapter and comes with the bluntest warning: used often, it tells the players their choices did not matter. Only full Villains can be handed it.",
+      "verified_fields": ["effect", "duration", "cost", "description"],
+      "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
+      "ambiguity": "The limit is once per story, and a story is not a unit this chapter defines anywhere - the pools it governs are counted per issue, and the two are only the same thing in a one-session game. Extras are named as eligible for the Flaw spend above and appear in neither list here, so whether they are excluded alongside Foes and Minions or simply not considered is unclear."
+    }
+  ]
+}
