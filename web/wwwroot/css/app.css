@@ -1690,6 +1690,18 @@ label {
 }
 .banner-tool:hover { opacity: 0.75; }
 
+/* **The search control does not fade under the cursor, and it is the only one of the three that
+   does not.** The fade above says "this is pressable"; two of these tools are pressable and this
+   one is a text box, so on it the marking is a lie the reader finds out about by clicking and
+   getting a caret.
+
+   **It is cancelled on the wrapper rather than on the field, and that is forced.** `opacity` on a
+   parent composites the whole subtree — a child cannot opt out of it — so a rule setting the input
+   back to 1 would do nothing at all while the wrapper was at 0.75. Silently, which is why this is
+   written here with the reason attached. The chord's key boxes go with it: they are a hint printed
+   beside the control, not a second control, and half a control fading is worse than none. */
+.banner-tool.palette-open:hover { opacity: 1; }
+
 /* The caret, and the only thing that tells the three tools apart. It says this one opens a menu
    rather than going somewhere or covering the page.
 
@@ -1711,14 +1723,116 @@ label {
     align-self: center;
 }
 
-/* The word alone takes the tracking; the keys stay in the body face beside it. A key is a name
-   printed on a physical keyboard — setting it in capitals would say CTRL, which is not what is
-   written on the key.
+/* **The field wears the button's face and none of its own box**, and every declaration here is
+   undoing something rather than choosing something.
 
-   The keys sit tighter to each other than to the word, because Ctrl and K are one chord and the
-   label is a separate thing beside it. Equal gaps read as three items in a row. */
-.palette-open-label { margin-right: var(--space-1); }
+   An `<input>` arrives with a border, a fill, padding and a `line-height` of the browser's
+   choosing, and the rule every text box on this site shares adds a panel ground and a rule border
+   on top of that — all of it right inside a form and all of it wrong on a band that is a row of
+   words rather than a form. Stripped back to type, the field's baseline is its text's baseline,
+   which `.palette-open`'s own `align-items: baseline` then sets on the row beside the key boxes.
 
+   **`proof-align.html` does not hold this rule, and saying it did would be the wrong claim on the
+   one page in this repository that gets read as evidence.** Measured: deleting the `border` and
+   `padding` lines below moves all seven measured items from 32.00 to 33.00 *together* and leaves
+   the spread at 0.00px, still a PASS — because `align-items: baseline` re-aligns the band to
+   whatever baseline the field ends up with, and a spread cannot see a band that moved as one. What
+   that proof does hold is the field's place *relative to the band*, and it holds it in two rows
+   (the control and the chord), each of which was measured catching a defect the other misses — see
+   `AlignHarness` in `ProofPages.cs` for both mutations and their numbers. The border and the fill
+   are held by the pixel goldens, where a box drawn around the word is what a golden is for.
+
+   **`letter-spacing` and `text-transform` are set rather than left to inherit**, because they are
+   inherited properties everywhere except on a form control: the browser's own stylesheet declares
+   both on an input, and a declaration beats inheritance. Left out, the word here would lose the
+   tracking the two tools beside it carry.
+
+   **And the selector is two classes on purpose.** `input[type="search"]` is a type plus an
+   attribute and outranks a bare class, so `.palette-field` alone would lose to the very border and
+   padding it exists to undo — silently, since nothing about the rule would look wrong.
+
+   The word alone takes the tracking, and the keys sit tighter to each other than to it, because
+   Ctrl and K are one chord and the label is a separate thing beside it. Equal gaps read as three
+   items in a row. */
+.palette-open .palette-field {
+    /* The native search-field chrome, which is a rounded box and its own metrics on one engine
+       and nothing at all on the others — a single-platform difference in the band this file
+       measures to a half-pixel. */
+    appearance: none;
+    background: none;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin-right: var(--space-1);
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+
+    /* **What the reader types is not uppercased, and the word printed here is.** They are two
+       different pieces of text in one control: `Search` is this band's label and wears the band's
+       idiom, and what somebody types is their own query, which the palette's own box a second later
+       shows exactly as they typed it. Left to inherit, a reader typing `plasticity` in the banner
+       watched it come out `PLASTICITY` here and `plasticity` there — the app disagreeing with
+       itself about a reader's own words inside one second. The placeholder keeps the capitals in
+       its own rule below.
+
+       Lower-casing both was the other way to settle it and is the wrong one: the word `Search` sits
+       between two tracked capital labels and would be the only thing in the strip in sentence
+       case. */
+    text-transform: none;
+
+    /* **A width in characters, sized for the word this control actually prints.** It was
+       `size="10"` on the element — a number with no arithmetic behind it, in the markup, where
+       nothing about the type it is sizing is visible.
+
+       Measured, in the shipped face at this size and tracking: `SEARCH` under `--label-track` is
+       6.995ch. Eight is that rounded up plus one character of slack, which is what pays for the
+       fallback faces — `ch` is the advance of `0` and the ratio between that and six tracked
+       capitals is a property of whichever face actually loaded, not a constant. Six letters is what
+       `BannerTests` holds the placeholder to, so a longer word cannot arrive without this number
+       being reconsidered — and a change to it is a change to the banner's geometry, which means
+       regenerating the pixel goldens (`visual-goldens.yml`). */
+    width: 8ch;
+
+    /* A text box, and the pointer says so. Inherited from `.banner-tool`, this was `pointer`: the
+       cursor of something that will happen when you press it, over a control that gives you a
+       caret. */
+    cursor: text;
+}
+
+/* **WebKit draws its own clear button inside a `type="search"` box, and it would land in this
+   band.** A grey glyph that appears the moment anybody types, positioned and sized by the engine,
+   in the one row in this app whose alignment is measured to a half-pixel — and it exists on exactly
+   one engine, so nothing else here would show it.
+
+   **Reset blind, and saying so is the point.** This repository has no Safari harness: the pixel
+   goldens are Linux Chrome, the browser proofs are headless Chrome, and the owner's own browser is
+   Safari. So this is a rule nothing in CI can see the effect of, kept because the alternative is a
+   defect only the owner can find. `appearance: none` is what the engine documents; `display: none`
+   is there because the button has been reachable past `appearance` on some versions. */
+.palette-open .palette-field::-webkit-search-cancel-button,
+.palette-open .palette-field::-webkit-search-decoration {
+    appearance: none;
+    display: none;
+}
+
+/* The placeholder *is* the visible label on this control, so it is the band's own ink rather than
+   the browser's grey — which is chosen for the ground a form sits on and is close to unreadable on
+   `--primary`. `inherit` names no colour, the same way `currentColor` on `.key`'s border does
+   not. */
+.palette-open .palette-field::placeholder {
+    color: inherit;
+    opacity: 1;
+
+    /* **The capitals live here and not on the field**, because the field carries two pieces of text
+       and only one of them is this band's own. This word is the label a reader sees, so it wears
+       the strip's idiom; what somebody types is theirs, and the rule above leaves it alone. */
+    text-transform: uppercase;
+}
+
+/* The keys stay in the body face and in lower case beside the word. A key is a name printed on a
+   physical keyboard — setting it in capitals would say CTRL, which is not what is written on the
+   key. */
 .palette-open .key {
     border-color: currentColor;
     font-size: var(--text-xs);

@@ -2142,6 +2142,14 @@ public sealed class ProofPages
     /// baseline to its top edge, which is the line's baseline, exactly and independently of the
     /// face.</para>
     ///
+    /// <para><b>Seven items now, and the seventh is why this harness had to be touched at all.</b>
+    /// The banner's Search control is a field rather than a button, and an <c>&lt;input&gt;</c>
+    /// brings its own box model — a border, a fill, padding and a <c>line-height</c> of the
+    /// browser's choosing, none of which any rule in this repository states. It is measured as two
+    /// rows: the control, whose flex line is the baseline the band aligns it by and the one its
+    /// text sits on, and the key box beside it, which holds text of its own. Either alone could be
+    /// right while the other was not.</para>
+    ///
     /// <para><b>The wordmark is excluded and that is a decision, not an oversight.</b> It is two
     /// lines — the name and the subtitle — so it has no single text line to be on, and
     /// <c>app.css</c> gives it <c>align-self: center</c> for that reason. Putting a two-line block
@@ -2210,11 +2218,43 @@ public sealed class ProofPages
             // text. `.banner-title` is deliberately absent — two lines, `align-self: center`,
             // no single baseline to share — and so is `.save-status`, which renders no text
             // between saves and so has none to measure here.
+            // **Search is two rows now, and that is the field's arrival rather than padding.**
+            // The control used to be a button whose label was a span holding text; it is an
+            // `<input>` with the chord beside it, and an input has no children to put a probe
+            // inside. So the field's line is read off the control itself — the probe joins its
+            // flex line and settles on the baseline the input's own text sets, which is also the
+            // baseline `.banner-tools` aligns the whole control by — and the chord is measured
+            // separately, in the key box, which does hold text.
+            //
+            // **Two rows rather than one, and each was measured catching a defect the other
+            // reports as a tidy band.** The control's baseline is what the band aligns the whole
+            // thing by; the key box's is what a reader sees beside the field. Neither subsumes
+            // the other, and the two mutations that establish that are worth naming exactly,
+            // because the obvious guess about which row catches which is wrong:
+            //
+            //   * `.palette-open { align-items: center }` — the wrapper stops sharing its
+            //     children's baseline. The **control** reads 28.17 against the band's 32.00 and
+            //     the chord reads 32.25. Spread 4.08px, FAIL. On the chord row alone the spread
+            //     is 0.25px, which is a PASS: the row that catches this is the control.
+            //   * `.palette-open .key { align-self: center; position: relative; top: 3px }` — a
+            //     defect confined to the key boxes. The control stays on 32.00 with the rest of
+            //     the band and the chord reads 37.00. Spread 5.00px, FAIL. On the control row
+            //     alone the spread is 0.00px, a clean PASS over a chord sitting 5px off the
+            //     line: the row that catches this is the chord.
+            //
+            // **And the field's own box model is not what this proof holds.** Deleting
+            // `.palette-field`'s `border: none` and `padding: 0` — restoring the UA border and
+            // fill the rule exists to undo — moves every one of the seven items from 32.00 to
+            // 33.00 together and leaves the spread at 0.00px. `align-items: baseline` re-aligns
+            // the band to the field's new baseline, so a *spread* cannot see it. Those
+            // declarations are held by the pixel goldens and by the eye, not by this page; see
+            // the note on the rule itself in `app.css`.
             const parts = [
               ['build',    '.avenue-nav .banner-link'],
               ['rules',    '.avenue-nav .banner-link'],
               ['character','.character-switch-name'],
-              ['search',   '.palette-open-label'],
+              ['search',   '.palette-open'],
+              ['chord',    '.palette-open .key'],
               ['account',  '.banner-account'],
               ['settings', '.settings-open-label'],
             ];
@@ -2226,6 +2266,13 @@ public sealed class ProofPages
             // range rect is the line box, whose height follows the font size, so two items
             // genuinely sharing a baseline in two sizes measure several tenths of a pixel apart.
             // The banner has two faces and two sizes in it, so that error is not hypothetical.
+            //
+            // **Appended to a flex container the probe is a flex item, and that is the reading
+            // wanted for the search field.** `.palette-open` is `align-items: baseline`, so the
+            // probe joins the same baseline group the field's text and the key boxes are in, and
+            // its single edge lands on that shared line — which is the line the band aligns the
+            // whole control by. It is the only way to read an `<input>`'s baseline from the
+            // outside: an input takes no children, so there is nowhere inside it to put a probe.
             const baselineOf = (el) => {
               const probe = d.createElement('span');
               probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
@@ -2233,6 +2280,15 @@ public sealed class ProofPages
               const top = probe.getBoundingClientRect().top;
               probe.remove();
               return top;
+            };
+
+            // What to print beside a measurement, so a dump says which control it read. An input
+            // holds no text, so the row for the search control would otherwise be captioned with
+            // the two key boxes beside it — a dump naming the wrong thing is how a proof comes to
+            // be read as evidence for something it did not measure.
+            const shown = (el) => {
+              const box = el.matches('input') ? el : el.querySelector('input');
+              return ((box ? (box.value || box.placeholder) : el.textContent) || '').trim().slice(0, 24);
             };
 
             const rows = [];
@@ -2251,7 +2307,7 @@ public sealed class ProofPages
 
               const at = baselineOf(el);
               found.push(at);
-              rows.push(`    ${name.padEnd(10)} baseline ${at.toFixed(2)}  "${(el.textContent || '').trim().slice(0, 24)}"`);
+              rows.push(`    ${name.padEnd(10)} baseline ${at.toFixed(2)}  "${shown(el)}"`);
             }
 
             const spread = found.length ? Math.max(...found) - Math.min(...found) : 999;
@@ -2323,7 +2379,7 @@ public sealed class ProofPages
         // reporting a perfectly aligned row.
         ["proof-align.html"] =
         [
-            ".banner-account", ".palette-open-label", ".settings-open-label",
+            ".banner-account", ".palette-open", ".palette-open .key", ".settings-open-label",
             "vertical-align:baseline", "getBoundingClientRect",
             "ALIGN: PASS", "ALIGN: FAIL", "measuring",
             "complete && spread", "document.title",
@@ -2333,7 +2389,7 @@ public sealed class ProofPages
         ],
         ["proof-align-broken.html"] =
         [
-            ".banner-account", ".palette-open-label", ".settings-open-label",
+            ".banner-account", ".palette-open", ".palette-open .key", ".settings-open-label",
             "vertical-align:baseline", "getBoundingClientRect",
             "ALIGN: PASS", "ALIGN: FAIL", "measuring",
             "complete && spread", "document.title",

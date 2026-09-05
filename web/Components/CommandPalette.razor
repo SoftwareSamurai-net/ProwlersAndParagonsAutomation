@@ -137,19 +137,14 @@
     private static string RowId(int index) => $"palette-row-{index}";
 
     /// <summary>
-    /// What the box calls itself, and it promises the book only to somebody who will be shown it.
-    ///
-    /// <para><b>A label promising a rulebook to an anonymous reader is the wrong promise</b> — the
-    /// server refuses them the book on the prefix and the palette makes no request on their
-    /// behalf, so naming it here would advertise a thing they will type into and never see. It is
-    /// the same objection the banner's control was kept a button for.</para>
+    /// What the box calls itself. <b>One sentence, decided in <see cref="Commands.Prompt"/></b>,
+    /// because the banner's field is labelled with the same promise a second before this box is —
+    /// and two spellings of it would be two promises made to one reader.
     ///
     /// <para><b>The <c>aria-label</c> is the label and the placeholder carries the same words as a
     /// hint.</b> A placeholder is not a label: it goes away the moment anybody types.</para>
     /// </summary>
-    private string Prompt => Commands.BookIsOffered
-        ? "Go to a step, find a Power, or search the book"
-        : "Go to a step, or find a Power";
+    private string Prompt => Commands.Prompt;
 
     /// <summary>Whether this row is the first of the book's, and so wants the heading above it.</summary>
     private bool StartsTheBook(int index) =>
@@ -167,6 +162,7 @@
     protected override void OnInitialized()
     {
         Commands.Changed += Refresh;
+        Commands.Retyped += Replace;
         Commands.BookAnswered += Redraw;
         Recount();
     }
@@ -174,9 +170,16 @@
     /// <summary>
     /// The palette opened or closed somewhere else — the key, or a row being chosen.
     ///
-    /// <para>The query is cleared on the way <i>in</i> rather than on the way out, so that
-    /// re-opening always starts from an empty box. Clearing on close would do the same thing
+    /// <para>The query is set on the way <i>in</i> rather than cleared on the way out, so that
+    /// re-opening always starts from whatever opened it. Clearing on close would do the same thing
     /// until something closed the palette without coming through this component.</para>
+    ///
+    /// <para><b>And it is <see cref="Commands.TakeOpeningQuery"/> rather than a blank string,
+    /// which is the whole of the banner field's mechanism on this side.</b> Somebody typing into
+    /// the banner is typing into a control with no matcher of its own; the letter arrives here, in
+    /// the box that has one, and everything below this line — the steps, the Powers, the pause,
+    /// the book — runs exactly as it does for a letter typed into the box itself. Empty for every
+    /// other way in.</para>
     /// </summary>
     /// <remarks>
     /// <b>The whole body is dispatched, not just the redraw.</b> This runs on whatever thread
@@ -189,18 +192,49 @@
     {
         if (Commands.IsOpen)
         {
-            _query = "";
+            _query = Commands.TakeOpeningQuery();
             _active = 0;
             _entering = true;
 
-            // The box is empty again, so whatever the book last answered is about a question
-            // nobody is asking. This clears those rows through the same path a keystroke takes,
-            // which is what makes an answer already in flight land on nothing.
-            _ = Commands.AskTheBookAsync("");
+            // Asked for whatever the box now holds, which is empty for the chord and a word for
+            // the banner's field. Empty, it clears whatever the book last answered — a question
+            // nobody is asking — through the same path a keystroke takes, which is what makes an
+            // answer already in flight land on nothing. Carrying a word, it is the first ask of
+            // that word, and there is exactly one: the field does not search, so nothing has
+            // asked before this.
+            _ = Commands.AskTheBookAsync(_query);
 
             Recount();
         }
 
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Somebody is still typing into the banner while the palette is already open, because focus
+    /// has not crossed yet. Take the whole of what they have typed.
+    ///
+    /// <para><b>The same body as <see cref="Typed"/>, on purpose.</b> A letter that arrives here
+    /// arrived in the banner instead of in this box only because an interop hop had not finished,
+    /// and it must reach the same rows, the same pause and the same book it would have reached had
+    /// it landed a few milliseconds later. Anything less is the palette answering a question
+    /// nobody asked: it searched the first letter and stopped.</para>
+    ///
+    /// <para><b>A replacement, never an append.</b> The banner hands over the whole of its field on
+    /// every input, so two of these arriving out of order — or one arriving twice — settle on the
+    /// same text rather than on a doubled one.</para>
+    /// </summary>
+    private void Replace(string query) => _ = InvokeAsync(() =>
+    {
+        _query = query;
+        _active = 0;
+
+        // Asked before the rows are counted, for the reason `Typed` gives at length: the service
+        // drops the book's rows before its first await, so counting afterwards is what puts this
+        // render on the new query rather than on the last one's passages.
+        _ = Commands.AskTheBookAsync(_query);
+
+        Recount();
         StateHasChanged();
     });
 
@@ -382,6 +416,7 @@
     public ValueTask DisposeAsync()
     {
         Commands.Changed -= Refresh;
+        Commands.Retyped -= Replace;
         Commands.BookAnswered -= Redraw;
         _self?.Dispose();
         return ValueTask.CompletedTask;

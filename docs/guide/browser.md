@@ -72,8 +72,9 @@ was written down was **inside the palette** — on the row of keys along its own
 somebody who had already pressed it. That is the whole of what "a shortcut for whoever wrote it"
 means, and the owner named it as a defect about today rather than a note about a future design.
 
-The banner carries a `.palette-open` button now: the word **Search**, and the chord beside it in
-two `.key` boxes.
+The banner carries a `.palette-open` control now: the word **Search**, and the chord beside it in
+two `.key` boxes. It is a field — see the reversal four bullets down — and the word is its
+placeholder.
 
 - **On every route, because the chord works on every route.** The step band and the budget strip
   are the builder's and are drawn there alone; this is not one of those. A button that appeared
@@ -89,22 +90,105 @@ two `.key` boxes.
   which is exactly what the "no component names a typeface" rule exists to prevent.
 - **A missing script prints no chord at all.** That is the deployment where the key does nothing,
   so `Shortcuts`' reading call answers `null` on a swallowed failure rather than a default — a
-  default there is a claim about a keyboard made by a script that never ran. The button still
-  opens the palette, because that is a click Blazor handles. `RenderContext` answers `false` for
+  default there is a claim about a keyboard made by a script that never ran. The field still
+  opens the palette, because a click and a keystroke are things Blazor handles. `RenderContext` answers `false` for
   every test and proof page, so what renders is an ordinary Windows reader rather than a broken
   deployment; `GuardedInteropTests` owns the `null`.
-- **Still a button and not a text box, and the field is what remains of this bullet.** The corpus
-  moved behind the chord — see the section below — so the objection the button was kept for is
-  half spent: the rulebook is no longer a thing the palette does not do. What keeps it a button is
-  `proof-align.html`. (What is left of [`PROGRESS.md`](../../PROGRESS.md)'s item 12 is a question
-  for that file and not for this one — a guide that counts somebody else's halves is a second
-  progress list, and it goes stale the moment the first one moves.) The banner's baseline is measured on every CI run and the
-  `.key` boxes inside this control are part of that arithmetic, so swapping it for a field is a
-  change to the one band in the app whose alignment is proved in a browser rather than reasoned
-  about. **If you do it: keep the field on the `.banner-tool` baseline idiom, give it a visible
-  label or an `aria-label`, and make typing into it open the palette with the text carried in.** A
-  second search implementation in the banner is the thing to refuse — there is one palette and one
-  `Commands`.
+- **A field now, and the reversal is the point of this bullet rather than a correction to it.** It
+  read "a button and not a text box" for as long as the box would have been lying: a control that
+  says *search* while searching six step names and 141 Powers promises the rulebook and does not
+  have it, and the rulebook was behind an account. **The corpus is behind the chord now** — see the
+  section below — so the promise the box makes is true, and the field is what was left of the
+  decision. Ten things hold it in place:
+  - **It searches nothing itself, and that is the line.** Typing hands the word to
+    `Commands.Open(query)`; the palette takes it on the way in and matches it exactly as if it had
+    been typed into the box — the steps, the Powers, the pause, the race guard, the book. There is
+    one palette, one matcher and one corpus reader, and a second search implementation in the
+    banner is the thing to refuse. It is asserted **on the wire**, not on screen: one request for
+    one keystroke, because a field that also asked on its own behalf would put two requests up and
+    look perfectly correct, the second answer landing on the first one's rows.
+  - **Who is asking is settled *before* the carried word is asked about, and this was a defect.**
+    The palette asks the book from `Refresh`, on the way in, and asks who is here one interop hop
+    later in `OnAfterRenderAsync`. For the chord that costs nothing — the box opens empty. For a
+    word from the banner it cost the whole feature after a sign-in inside the visit: `Accounts`
+    said yes, `Commands.BookIsOffered` still said no, the carried word took the "not offered"
+    branch, no request went, the offer flipping a moment later only redrew, and the reader was
+    shown *Nothing here matches what you typed* over a rulebook with three entries for their word.
+    So the offer turning **on** re-asks whatever `_wanted` already holds. It is fire-and-forget on
+    purpose: `NoteWhoIsAskingAsync` is awaited immediately before the caret is moved into the box,
+    and awaiting a fifth-of-a-second pause and a round trip there is a box that cannot be typed
+    into for as long as the network takes.
+  - **The shell is not woken by the book's answers.** The banner's label follows `Commands.Prompt`,
+    which moves on a sign-in, a sign-out or a refusal and at no other time — so the layout is on
+    `Commands.OfferChanged` and deliberately not on `BookAnswered`, which rings once per burst of
+    typing into a box behind the palette's own scrim. It was on `BookAnswered`, and every keystroke
+    redrew the banner, the step band, the budget strip and the body. **A render count cannot see
+    this**: bUnit's `RenderCount` moves when a descendant re-renders, and the palette is a child of
+    the layout and does redraw on every answer, correctly. The guard reads the delegates off the
+    running `Commands` instead.
+  - **The first keystroke opens it; focus does not.** A field that opened the overlay when the
+    caret landed in it is a keyboard trap for everybody tabbing *past* it towards the page — the
+    palette takes the screen and leaving it means dismissing something nobody asked for. Typing is
+    an intention and arriving is not. Held by a test that also asserts no focus handler is bound,
+    because bUnit has no caret and nothing else in the suite could tell.
+  - **The letters typed inside that hop are forwarded, not dropped.** The palette opens on the
+    first keystroke and takes the caret one interop hop later, so everything pressed in between is
+    delivered to the banner's field, which still has focus. `Commands.Open` early-returned while
+    the palette was open and every one of those went on the floor: a reader typing at any ordinary
+    speed searched their first letter and nothing else. `Open` now raises `Commands.Retyped` with
+    the whole of what the field holds, and the palette applies it exactly as it applies its own
+    `oninput`. **A replacement, never an append** — the field hands over its whole value each time,
+    so applying one twice, or applying a stale one after a newer one, settles on the same text.
+    Deliberately not `Changed` and not `_opensWith`: the opening query is read once and cleared, so
+    two opens racing one render would leave the second handler taking the blank the first left
+    behind, which is the box emptying itself under somebody's hands.
+  - **A click on the empty field opens it, which is what the button did.** The field is empty
+    whenever it can be clicked: anything typed into it has already opened the palette, and the
+    scrim is over this band while it is open.
+  - **`aria-label`, and it opens with the visible word.** A placeholder is not a label — it goes
+    the moment somebody types — so the label is mandatory here, where the only word on screen is
+    printed inside the control. It reads `Search — ` and then `Commands.Prompt`: the visible word
+    first, because an accessible name that does not contain the label on screen is a control voice
+    control cannot be told to use (WCAG 2.5.3), and the palette's own sentence after it, which
+    names the book only to a reader who will be shown it.
+  - **`Commands.Prompt` is where that sentence lives, and it moved there for this.** Two controls
+    say it now, a second apart, and two spellings is how the app comes to promise the book on one
+    surface and not the other to the same person in the same second.
+  - **Four things `.banner-tool` gives a button that are wrong on a box, and each is undone by
+    name.** The idiom was written for a button, a link and a disclosure, and a text field inherits
+    it whole.
+    - **`cursor: text`**, not the `pointer` that says "this happens when you press it" over a
+      control that gives you a caret.
+    - **No hover fade.** Cancelled on the wrapper — `.banner-tool.palette-open:hover` — and not on
+      the field, because `opacity` on a parent composites the whole subtree and a child cannot opt
+      out of it: a rule setting the input back to `1` would do nothing at all, silently. The
+      chord's key boxes go with it; they are a hint printed beside the control, not a second one.
+    - **`text-transform: none` on what is typed, `uppercase` on `::placeholder`.** They are two
+      pieces of text in one control: `Search` is this band's label and wears its idiom, and what
+      somebody types is their own words, which the palette's box shows a second later exactly as
+      typed. Inherited, a reader typing `plasticity` here watched it come out `PLASTICITY` in the
+      banner and `plasticity` in the palette — the app disagreeing with itself about a reader's own
+      words inside one second. Lower-casing both was the other way to settle it and is worse: the
+      word would be the only thing in the strip in sentence case.
+    - **The width is `8ch` in the stylesheet**, not `size="10"` in the markup — a number with no
+      arithmetic behind it, in a file where the type it was sizing is not visible. Measured,
+      `SEARCH` under `--label-track` in the shipped face is 6.995ch; eight is that rounded up plus
+      one character of slack for the fallback faces, since `ch` is the advance of `0` and its ratio
+      to six tracked capitals belongs to whichever face actually loaded. `BannerTests` reads the
+      number out of `app.css` and holds the placeholder to a word that fits it.
+    - And **WebKit's own clear glyph is reset** — `::-webkit-search-cancel-button` and
+      `::-webkit-search-decoration`, `appearance: none; display: none` — because `type="search"`
+      draws one on exactly one engine, positioned and sized by that engine, in the row this app
+      measures to a half-pixel. **Nothing in CI can see the effect of that rule**: the goldens are
+      Linux Chrome, the proofs are headless Chrome, and there is no Safari harness. It is kept
+      because the alternative is a defect only the owner's own browser can find.
+  - **And it is measured.** The banner's baseline is proved in a browser on every CI run, and an
+    `<input>` brings a box model no rule in this repository states — a border, a fill, padding and
+    a `line-height` of the browser's choosing, with the shared rule for every text box on the site
+    adding a panel ground on top. `.palette-field` undoes all of it, and the proof reads the field
+    and the chord as two of seven items — **its place in the row, not its box**, which is a
+    distinction the baseline section below records with the measurement behind it, because the
+    natural assumption is the other one.
 - **The word is "Search" and the palette still calls itself "Go to".** The label has to survive
   being read at a glance beside the other tools; "Go to" between two underlined links read as a
   third link with no destination. What the palette offers is unchanged and its own box says so in
@@ -161,7 +245,9 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   step, find a Power, or search the book" for a signed-in reader and the old two-thirds for
   everybody else — a label naming a rulebook to a reader the server will refuse is the wrong
   promise, which is the same objection the banner's control was kept a button for. A placeholder
-  is still not a label: both are set and both say the same words.
+  is still not a label: both are set and both say the same words. **The sentence is
+  `Commands.Prompt` and not a string in this component**, because the banner's field is labelled
+  with it too — one promise, made a second earlier, to the same reader.
 - **There is no "sign in to search the book" row, deliberately.** An inert row that does nothing is
   the fault `/rules`' "What is here" panel was fixed for, and a row that *did* navigate to sign-in
   would answer a question about Plasticity with an advertisement for an account. `/rules` is where
@@ -357,11 +443,47 @@ the spread under 0.5px. Twenty-one browser verdicts now, not nineteen.
   independently of the face. No computed style exposes that number and a range box gives the line
   box instead.
 - **The positive control is the count.** A spread over one found item is 0.00 and passes, so a
-  banner that had lost five of its six controls would report a perfectly aligned row. Proved by
-  mutation: deleting `<SettingsMenu />` gave `FAIL` at `items 5 of 6` with a spread of 0.00.
+  banner that had lost six of its seven controls would report a perfectly aligned row. Proved by
+  mutation: dropping the `.key` class from the chord's two spans gave `FAIL` at `items 6 of 7`
+  with a spread of 0.00 — the six that were still found genuinely did share a line, which is
+  exactly the reading the count exists to refuse.
+- **Seven items, because the search control is a field and is measured as two of them.** The
+  `<input>` takes no children, so its baseline is read off `.palette-open` — the probe joins that
+  flex line — and the chord is read separately in a `.key` box, which holds text of its own.
+  **Each row was measured catching a defect the other reports as a tidy band**, which is why there
+  are two: `.palette-open { align-items: center }` puts the control on 28.17 against the band's
+  32.00 while the chord stays within 0.25px (chord row alone: PASS), and a defect confined to the
+  key boxes leaves the control on 32.00 with everything else while the chord goes to 37.00
+  (control row alone: PASS at 0.00px, over a chord 5px off the line).
+- **What this page does *not* hold is the field's own box model.** Restoring the UA border and
+  padding `.palette-field` strips moves all seven items from 32.00 to 33.00 *together* and leaves
+  the spread at 0.00px, still `PASS`: `align-items: baseline` re-aligns the band to the field's new
+  baseline, and a spread cannot see a band that moved as one. Recorded because the opposite is the
+  natural assumption and this page is read as evidence — those declarations are held by the pixel
+  goldens, not here.
+- **And it does not see x-position either.** Every measurement on this page is a `top`; the field's
+  width, the gaps between the tools and where the cluster sits in the row are invisible to it. A
+  band with its seven items on one baseline and the search box twice as wide as it should be is a
+  `PASS` here. **So a change to the banner's geometry is a change nothing in the ordinary CI run
+  will catch, and it has to go through the pixel goldens.** `tests/visual-goldens/*.png` includes
+  the four `proof-shell-*` pages, which draw this whole band; regenerating them is
+  `.github/workflows/visual-goldens.yml`, which is `workflow_dispatch` only and **commits nothing** —
+  it uploads the PNGs for somebody to look at and commit, because a golden updated as a side effect
+  of an unrelated change is a regression signed off by nobody:
+
+  ```bash
+  gh workflow run visual-goldens.yml --ref <branch>
+  gh run download <run-id> --name visual-goldens --dir tests/visual-goldens
+  # look at the PNGs — they are real images — then commit them
+  ```
+
+  It has to be that workflow and not a local run: the goldens and the check must come from the same
+  Chrome, and `scripts/visual-regression.sh` drives a Docker Chrome off Linux and the runner's own
+  Chrome on it. Changes that need this: the field's `width`, its `margin`, the tracking or transform
+  that decide what a `ch` measures, anything about the `.key` boxes, and adding or removing a tool.
 - **A twin reproduces `align-items: center`** — the owner's reported defect — driving the
   byte-identical script, and CI requires it to say `FAIL`. Measured: PASS at 0.00px, twin FAIL at
-  1.00px. **The C# suites stay green against that mutation**, which is the whole reason the harness
+  2.00px. **The C# suites stay green against that mutation**, which is the whole reason the harness
   exists: a CSS guard asserting `align-items: baseline` would pass the day somebody adds a taller
   child the baseline no longer saves.
 
