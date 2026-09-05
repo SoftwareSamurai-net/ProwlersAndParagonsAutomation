@@ -220,10 +220,13 @@ export const DEFECTS = [
         check: 'ACCOUNT_SAVE',
         why: 'The second browser context is signed in with a token minted for a different '
             + 'invited account, so the character built in the first context is not that '
-            + "account's. The check has to notice: a character that followed the *browser* would "
-            + 'still be absent from a fresh context, and one the server handed to whoever asked '
-            + 'would still be present — so this is the twin that proves the check reads the '
-            + 'account rather than either.',
+            + "account's and must not be in the wizard there. That is the sentence this whole "
+            + 'harness was argued for, and until the assertions in AccountSave.cs were put in '
+            + 'the order they are asked in, this twin never reached it: an identity assertion '
+            + 'above the navigation went red first, so deleting the navigation, the wait and the '
+            + 'assertion changed neither the real run nor this twin. If the server ever serves '
+            + 'the character to whoever asks, this twin reports ACCOUNT_SAVE green and e2e.sh '
+            + 'fails the run on a twin that cannot turn its own check red.',
         seed: { slots: { SAVE_2: { account: 'saveOther' } } },
     },
 ];

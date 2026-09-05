@@ -19,18 +19,24 @@ namespace ProwlersAndParagons.E2e.Checks;
 ///     under 400, which is what "nothing ever wrote to the store" would not produce;</item>
 ///   <item>the second context began with local storage that has never heard of this character, so
 ///     anything it shows came over the network;</item>
-///   <item>the second context signed in as somebody.</item>
+///   <item>the second context signed in as somebody — <see cref="Account.SignIn"/> throws a control
+///     failure if the seeded link left the banner naming nobody.</item>
 /// </list>
 ///
-/// <para><b>Outcome</b>: the second context is signed in as the same account, and the wizard there
-/// holds the character. Those are two sentences because they fail differently — a character that
-/// came back under the wrong name is a leak and a character that did not come back is a loss.</para>
+/// <para><b>Outcome</b>: the wizard in the second context holds the character. One sentence, and
+/// the ordering is the fix: an <c>Outcome(reader == owner)</c> used to run <em>before</em> the
+/// navigation that asks it, so <c>second-context-is-another-account</c> went red on the identity
+/// and never reached the wizard at all — deleting the navigation, the wait and the assertion
+/// changed neither the real run nor the twin.</para>
 ///
-/// <para><b>The twin is the second half of that pair.</b>
-/// <c>second-context-is-another-account</c> hands the second context a token minted for a different
-/// invited account. The character must then not be there — and if the server handed it over
-/// anyway, the identity assertion catches it instead. Either way this check goes red, which is what
-/// makes its green verdict a statement about the account rather than about a browser.</para>
+/// <para><b>The identity assertion is gone rather than moved</b>, because against the real site it
+/// could not fail: <c>SAVE_1</c> and <c>SAVE_2</c> are seeded for the same account at the same
+/// address, so it was true by construction and could only ever fire in a twin. The leak it named is
+/// caught better without it — <c>second-context-is-another-account</c> hands the second context a
+/// token minted for a different invited account, and if the server ever served this character to
+/// whoever asked, that twin would report <c>ACCOUNT_SAVE</c> <em>green</em> and <c>e2e.sh</c> would
+/// fail the run on a twin that cannot turn its own check red. Which is the louder verdict of the
+/// two, and it does not depend on a check reading a name it seeded itself.</para>
 /// </summary>
 public static class AccountSave
 {
@@ -97,11 +103,22 @@ public static class AccountSave
 
         var reader = await Account.SignIn(second, "SAVE_2");
 
-        Harness.Outcome(reader == owner,
-            $"the second context signed in as {reader} rather than {owner}. Whatever it is shown "
-            + "is somebody else's screen, and a character of this account's appearing on it would "
-            + "be a leak rather than a pass");
-
+        // **The outcome this check exists for, and it is first now.**
+        //
+        // An `Outcome(reader == owner)` used to sit above this navigation, and it swallowed the
+        // twin whole: `second-context-is-another-account` signs the second context in as a
+        // different invited account, so that line went red before anything below it ran, and
+        // deleting the navigation, the wait and the assertion changed *neither* the real run nor
+        // the twin. "The character followed the account" — the sentence the whole harness was
+        // argued for — had no negative control.
+        //
+        // It is gone rather than reordered, because against the real site it could not fail:
+        // `SAVE_1` and `SAVE_2` are seeded for the same account at the same address, so it was
+        // true by construction and could only ever fire in a twin. **The leak it was there for is
+        // caught better by the twin machinery**: if the server ever handed this character to
+        // whoever asked, the twin below would find it, report ACCOUNT_SAVE green, and `e2e.sh`
+        // would fail the run on a twin that cannot turn its own check red.
+        //
         // Opening the account's character is what the sign-in page does on the way in — it reads
         // the account's own store and opens what it finds. Going to the wizard is a reader looking
         // at it, and the field is the application's own rendering of what came back.
@@ -123,12 +140,13 @@ public static class AccountSave
         }
 
         Harness.Outcome(held == Name,
-            $"a fresh browser signed in as {owner} was shown \"{held}\" rather than \"{Name}\". "
-            + "The character was written to this browser and not to the account, which is the "
-            + "defect class this check exists for");
+            $"a fresh browser signed in as {reader} was shown \"{held}\" rather than \"{Name}\", "
+            + $"which {owner} built and the application said it had written to the account. Either "
+            + "the character was written to that browser rather than to the account — the defect "
+            + "class this check exists for — or it did not follow the account here");
 
-        return $"built as {owner} in one browser, and read back from the account in another that "
-            + "had never held it";
+        return $"built as {owner} in one browser, and read back by {reader} in another that had "
+            + "never held it";
     }
 
     /// <summary>

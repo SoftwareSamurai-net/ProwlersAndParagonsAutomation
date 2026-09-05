@@ -375,11 +375,21 @@ reason.
 |---|---|---|
 | `ADMIN` | the link signed somebody in; `/admin` rendered its own heading; the banner *still* names that account on that page | the page says there is nothing here for this account, **and** does not carry the list |
 | `RULES` | `/rules` rendered; the banner **there** names the seeded account; a search box arrived; a search came back | ≥1 passage with a printed page citation and real prose — then, in a context that never signed in, a `401` from `/api/rulebook/` **read off the wire** and the page saying so |
-| `ACCOUNT_SAVE` | signed in; a non-`GET` to `/api/characters` was answered under 400; a second context began with storage that had never heard of the character; it signed in | the second context is signed in as the same account **and** the wizard there holds the character |
+| `ACCOUNT_SAVE` | signed in; a non-`GET` to `/api/characters` was answered under 400; a second context began with storage that had never heard of the character; it signed in | the wizard in the second context holds the character |
 
 **`ADMIN` is the one that is easiest to get vacuous and the brief said so in advance.** "Not
 allowed" is satisfied by a page that failed to load, by a page that refused because nobody was
 signed in, and by a page that never asked the server anything. All three are excluded by name.
+
+**And an assertion has to run before it can be a check.** `ACCOUNT_SAVE` asserted *the second
+context is the same account* before it navigated to the wizard, so
+`second-context-is-another-account` — which signs that context in as a different invited account —
+went red on the identity and never reached the character at all: deleting the navigation, the wait
+and "the wizard holds it" changed neither the real run nor the twin. The character assertion is the
+outcome now and the identity one is gone, because against the real site it could not fail — both
+slots are seeded for the same account at the same address, so it was true by construction. The leak
+it named is caught more loudly without it: a server that served the character to whoever asked would
+turn that twin **green**, and a twin that cannot turn its own check red fails the run.
 
 **A twin has to land inside the check it names, and `rules-token-expired` did not.** It expires the
 seeded token, so `Account.SignIn` threw on the way in — a helper `ADMIN` and `ACCOUNT_SAVE` share,
