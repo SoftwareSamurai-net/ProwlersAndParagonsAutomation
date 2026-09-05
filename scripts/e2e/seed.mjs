@@ -55,6 +55,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 import { DEFECTS, kindOf } from './defects.mjs';
 
@@ -124,8 +125,16 @@ const SLOTS = {
 const LIFETIME_MS = 15 * 60 * 1000;
 const LONG_EXPIRED_MS = 60 * 60 * 1000;
 
-/** SHA-256 as lower-case hex — `worker/crypto.js`'s `hash`, which is what the table stores. */
-const hash = secret => createHash('sha256').update(secret, 'utf8').digest('hex');
+/**
+ * SHA-256 as lower-case hex — `worker/crypto.js`'s `hash`, which is what the table stores.
+ *
+ * <p><b>Exported so the agreement can be asserted rather than asserted about.</b> This is Node's
+ * `crypto` and that one is WebCrypto; if the two ever disagreed, every seeded row would be a hash
+ * the server looks up and never finds, and the whole of stage two would fail as "the link did not
+ * sign anybody in" with nothing saying why. `tests/worker/e2e-seed.test.mjs` runs both over a
+ * fixed input.</p>
+ */
+export const hash = secret => createHash('sha256').update(secret, 'utf8').digest('hex');
 
 /**
  * A fresh token, shaped like the ones `worker/crypto.js` mints: 256 bits, base64url.
@@ -171,9 +180,17 @@ function profileFor(name, slug, overrides, now) {
     return { name, slug, tokens };
 }
 
-/** Everything the run needs: the real profile, and one per seed twin. */
-export function plan(now = Date.now()) {
-    for (const defect of DEFECTS) {
+/**
+ * Everything the run needs: the real profile, and one per seed twin.
+ *
+ * <p><b>`defects` is a parameter so this can be driven over a list that is not the shipped one.</b>
+ * Both of the properties below — an override naming a slot or an account this file does not mint
+ * throws, and a twin whose plan is identical to the real run's throws — are only worth having if
+ * they have been watched to fire, and the shipped list is (correctly) a list on which neither
+ * does. `tests/worker/e2e-seed.test.mjs` passes synthetic defects that trip each one.</p>
+ */
+export function plan(now = Date.now(), defects = DEFECTS) {
+    for (const defect of defects) {
         if (kindOf(defect) !== 'seed') continue;
 
         for (const slot of Object.keys(defect.seed.slots)) {
@@ -190,7 +207,7 @@ export function plan(now = Date.now()) {
 
     let index = 0;
 
-    for (const defect of DEFECTS) {
+    for (const defect of defects) {
         if (kindOf(defect) !== 'seed') continue;
 
         // A short slug rather than the twin's own name, because it goes into an email address and
@@ -290,9 +307,20 @@ export function envFor(profile) {
 //   --plan <sql-out> <json-out>   mint every profile: write the SQL to run, and the plan to read
 //   --env  <json-in> [profile]    the environment one drive runs under; default profile 'real'
 
-const [command, ...rest] = process.argv.slice(2);
+// **Guarded, for the same reason `scripts/e2e/defects.mjs`'s block is.** Without it this ran on
+// import: `node -e "import('./scripts/e2e/seed.mjs')"` printed the usage line and exited 2, so
+// `plan`, `sqlFor` and `envFor` could not be called from a test at all — the three functions whose
+// two throwing properties are the whole of a seed twin's honesty. A module that kills whoever
+// imports it is a module nothing can check.
 
-if (command === '--plan') {
+const invokedDirectly = process.argv[1] !== undefined
+    && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+const [command, ...rest] = invokedDirectly ? process.argv.slice(2) : ['--imported'];
+
+if (command === '--imported') {
+    // Nothing. Imported for plan, sqlFor, envFor and hash.
+} else if (command === '--plan') {
     const [sqlOut, jsonOut] = rest;
     const now = Date.now();
     const profiles = plan(now);

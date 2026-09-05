@@ -441,6 +441,17 @@ twin's plan comes out identical to the real run's — compared on what the *appl
 apart (which account each slot signs in as, and whether its token is live), never on the token
 strings, which differ by construction and would make the assertion pass for free.
 
+**Neither of those had ever been watched to fire, and the module could not be imported to make
+them.** `seed.mjs` ran its command line on import, so `import('scripts/e2e/seed.mjs')` printed a
+usage line and exited 2 — it took whoever imported it with it, the same fault `defects.mjs`'s
+`invokedDirectly` guard already fixed one file over. It has that guard now, `plan(now, defects)`
+takes the defect list so a test can pass synthetic ones, and `tests/worker/e2e-seed.test.mjs`
+drives both throws plus the one claim about *this server*: that the hash a row is seeded under is
+`worker/crypto.js`'s. If those two ever disagreed, every seeded link would be a lookup that finds
+nothing and the whole of stage two would fail as "the link did not sign anybody in", with nothing
+in the output saying why. It lives in the accounts server's suite because `scripts/test-worker.sh`
+is this repository's only Node test runner, and because half of what it asserts is about `worker/`.
+
 **A seed twin costs one drive and no server.** All four worlds — the real run's and one per twin —
 are minted in a single `wrangler d1 execute --file` before the first server starts, so the three
 seed twins share one server and add three `--only` drives rather than three of each. That is what
