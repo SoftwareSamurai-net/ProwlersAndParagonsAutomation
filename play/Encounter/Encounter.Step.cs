@@ -77,6 +77,8 @@ public sealed partial class Encounter
                 $"{actor.Name} has no rank in {attack.TraitId}, so there is no pool to throw");
         }
 
+        if (attack.Charge && ChargeRefused(state, actor, attack, lines) is { } refused) return refused;
+
         var pool = rank + AttackModifiers(state, actor, attack, lines);
         var attackRoll = _counter.Roll(pool, _dice);
 
@@ -99,7 +101,118 @@ public sealed partial class Encounter
 
         after = ApplyAttackOutcome(after, attack, resolved, lines);
 
+        if (attack.Charge && !defenceIsActive)
+        {
+            after = TheImpactComesBack(
+                after, actor, target, attack, attackRoll.Successes, defenceRoll.Successes, lines);
+        }
+
         return after with { LastAttack = resolved };
+    }
+
+    /// <summary>
+    /// Whether <c>charge_attacks</c>'s <c>attack_traits</c> admit the Trait this charge is rolling,
+    /// and a refusal on the ledger where they do not.
+    ///
+    /// <para><b>The list was modelled and never read, so a charge could be made with anything at
+    /// all</b> — including a mental Power, which is not a thing anybody slams into a target with, and
+    /// which collected the +2d and the halved defences anyway.</para>
+    ///
+    /// <para><b>Three of the entry's four clauses are ids and one is prose, and the prose is where
+    /// the reading is.</b> "Density", "Growth" and "any Travel Power" resolve to Trait ids; "any
+    /// Trait usable for a close combat attack" does not, and Chapter 2 has no close-combat flag. This
+    /// engine reads it as the attack Trait of p.75's two close-combat rows — Unarmed and Melee
+    /// Weapon, both Might — which is the narrowest reading that keeps every charge the book
+    /// describes legal. <c>docs/guide/play-engine.md</c> records it.</para>
+    /// </summary>
+    private EncounterState? ChargeRefused(
+        EncounterState state, Combatant actor, Attack attack, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("charge_attacks");
+        var allowed = ChargeTraits();
+
+        if (allowed.Contains(attack.TraitId)) return null;
+
+        return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+            $"{actor.Name} cannot charge with {attack.TraitId}: p.78 allows "
+            + $"{string.Join(", ", entry.Charge!.AttackTraits)}, which for this engine is "
+            + $"{string.Join(", ", allowed.Order(StringComparer.Ordinal))}");
+    }
+
+    /// <summary>Every Trait id a charge may be rolled with, out of the entry and out of p.75's table.</summary>
+    private HashSet<string> ChargeTraits()
+    {
+        var entry = _play.GetCombat("charge_attacks");
+        var table = _play.GetCombat("attack_and_defense_table");
+
+        var closeCombat = table.AttackDefenseTable!
+            .Where(r => r.Type.Contains("Unarmed", StringComparison.Ordinal)
+                        || r.Type.Contains("Melee", StringComparison.Ordinal))
+            .Select(r => Normalise(r.AttackTrait));
+
+        var named = entry.Charge!.AttackTraits
+            .Where(t => !t.StartsWith("any ", StringComparison.OrdinalIgnoreCase))
+            .Select(Normalise);
+
+        return [.. closeCombat, .. named, .. Movement.TravelPowerIds];
+    }
+
+    /// <summary>
+    /// p.78's price on a charge that meets a braced target: <c>if_the_target_uses_a_passive_defense</c>
+    /// — "the charger makes their own passive defense roll against the attack to see whether the
+    /// impact hurts them" — less <c>self_damage_reduced_by</c>, "the damage inflicted on the target".
+    ///
+    /// <para><b>Both fields were modelled and neither was read</b>, so a charge was two free dice
+    /// against anybody who stood still, and a balance run would have said charging is always worth
+    /// it.</para>
+    ///
+    /// <para><b>The arithmetic is a reading and the guide records it.</b> The page says the charger
+    /// rolls their passive defence "against the attack", which this engine takes to mean against the
+    /// attack roll's own successes — the only figure on the table for it — and turns the net into
+    /// damage at <c>damage.damage_per_net_success</c>, the one rate the book has. "Reduced by the
+    /// damage inflicted on the target" is then a subtraction floored at nothing, because a charge
+    /// that hurt the target more than it hurt the charger cannot heal the charger.</para>
+    /// </summary>
+    private EncounterState TheImpactComesBack(
+        EncounterState state, Combatant actor, Combatant target, Attack attack,
+        int attackSuccesses, int defenceSuccesses, List<LedgerLine> lines)
+    {
+        var charge = _play.GetCombat("charge_attacks");
+        var damage = _play.GetCombat("damage");
+        var rate = damage.Damage!.DamagePerNetSuccess;
+
+        var defenses = _play.GetCombat("active_and_passive_defenses").Defenses!;
+        var actives = defenses.CommonActiveTraits.Select(Normalise).ToHashSet(StringComparer.Ordinal);
+
+        var own = actor.Defences
+            .Where(d => !actives.Contains(d))
+            .Select(d => (Trait: d, Rank: actor.Rank(d)))
+            .OrderByDescending(d => d.Rank)
+            .ThenBy(d => d.Trait, StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        var roll = _counter.Roll(own.Rank, _dice);
+
+        var inflicted = attack.Effect is null
+                        && target.Kind != CombatantKind.MinionGroup
+                        && attackSuccesses - defenceSuccesses > 0
+            ? (attackSuccesses - defenceSuccesses) * rate
+            : 0;
+
+        var impact = Math.Max(0, (attackSuccesses - roll.Successes) * rate - inflicted);
+        var health = Math.Max(
+            state.Table.FatalDamage ? int.MinValue : damage.Damage.DefeatedAtHealth,
+            state[actor.Id].CurrentHealth - impact);
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, charge.Id, charge.SourceRef,
+            $"{target.Name} braced, so {charge.Charge!.IfTheTargetUsesAPassiveDefense}: "
+            + $"{actor.Name} answers their own {attackSuccesses} with "
+            + $"{(own.Trait is null ? "no passive defence" : $"{own.Trait} {own.Rank}d")} for "
+            + $"{roll.Successes}, and the impact of {(attackSuccesses - roll.Successes) * rate} less "
+            + $"{charge.Charge.SelfDamageReducedBy} ({inflicted}) leaves them on {health} Health"));
+
+        return impact == 0 ? state : state.With(state[actor.Id].WithHealth(health));
     }
 
     /// <summary>

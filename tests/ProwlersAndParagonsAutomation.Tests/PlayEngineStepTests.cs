@@ -440,6 +440,127 @@ public sealed class PlayEngineStepTests
         Assert.Equal(!penetrates, said);
     }
 
+    /// <summary>
+    /// <b>A charge against a braced target comes back on the charger.</b>
+    ///
+    /// <para>p.78: "if the target uses a passive defense, the charger makes their own passive
+    /// defense roll against the attack to see whether the impact hurts them", less "the damage
+    /// inflicted on the target". Both fields were modelled and neither was read, so a charge was two
+    /// free dice against anybody who stood still and a balance run would have said charging is
+    /// always worth it.</para>
+    ///
+    /// <para>The dice are scripted so the arithmetic is the fixture's rather than a seed's: the
+    /// charger's 12d Might scores 8 against a braced 2d Toughness scoring 1, which is 7 net and 7
+    /// damage on the target; the charger's own 4d Toughness then answers those 8 successes with 2,
+    /// so the impact is 6 and 6 less 7 is nothing. Dropping the target's Toughness to a rank that
+    /// takes less damage is what makes the subtraction visible, which the second half does.</para>
+    /// </summary>
+    [Fact]
+    public void AChargeAgainstABracedTargetComesBackOnTheCharger()
+    {
+        var charger = Combatant.Villain("charger", "the charger", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 10, ["toughness"] = 4 },
+            ["toughness"]);
+
+        // A Toughness of 2 against a lethal charge is a 1d defence, and no Agility at all, so the
+        // target has nothing but a passive defence — which is the case p.78 prices.
+        var braced = Combatant.Hero("braced", "the braced Hero", edge: 5, health: 30, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2, ["might"] = 3 },
+            ["toughness"]);
+
+        // 12d for the charge (10 Might + p.78's two), then the target's 1d, then the charger's 4d.
+        var dice = new ScriptedDice([.. FacesFor(12, 8), .. FacesFor(1, 0), .. FacesFor(4, 2)]);
+        var encounter = new Encounter(_play, dice);
+
+        var state = encounter.Begin([charger, braced]);
+        var step = encounter.Step(state, new Attack("charger", "braced", "might", Charge: true));
+
+        // The controls: the rolls are the ones the arithmetic below is about, and no others.
+        Assert.Equal(8, step.State.LastAttack!.AttackSuccesses);
+        Assert.Equal(0, step.State.LastAttack.DefenceSuccesses);
+        Assert.Equal(0, dice.Remaining);
+
+        var impact = Assert.Single(step.Added, l =>
+            string.Equals(l.Rule, "charge_attacks", StringComparison.Ordinal)
+            && l.Text.Contains("braced", StringComparison.Ordinal));
+
+        Assert.Contains("toughness 4d", impact.Text, StringComparison.Ordinal);
+
+        // 8 net on the target is 8 damage; the charger's own 6 net is 6, less the 8 they dealt, is
+        // nothing at all — the charger walks away from a charge that landed hard.
+        Assert.Equal(22, step.State["braced"].CurrentHealth);
+        Assert.Equal(20, step.State["charger"].CurrentHealth);
+
+        // And the other side of it: a target who soaks the blow leaves the impact behind. A
+        // Toughness of 8 answers a lethal charge with 4d and scores 3, so 3 of the charger's 6 net
+        // never land on the target — and those 3 are exactly what comes back.
+        var stiff = Combatant.Hero("stiff", "the stiff Hero", edge: 4, health: 30, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 8, ["might"] = 3 },
+            ["toughness"]);
+
+        var soaked = new ScriptedDice([.. FacesFor(12, 6), .. FacesFor(4, 3), .. FacesFor(4, 0)]);
+        var second = new Encounter(_play, soaked);
+
+        var hard = second.Step(
+            second.Begin([charger, stiff]), new Attack("charger", "stiff", "might", Charge: true));
+
+        Assert.Equal(0, soaked.Remaining);
+        Assert.Equal(27, hard.State["stiff"].CurrentHealth);     // 3 net, 3 damage
+        Assert.Equal(17, hard.State["charger"].CurrentHealth);   // 6 impact less the 3 dealt
+    }
+
+    /// <summary>
+    /// <b>A charge with a Trait p.78 does not allow is refused, not quietly given the two dice.</b>
+    ///
+    /// <para><c>charge_attacks.attack_traits</c> was modelled and never read, so a charge could be
+    /// made with anything — a mental Power included — and collect the +2d and the halved active
+    /// defences for it. Three of the entry's four clauses resolve to Trait ids; the fourth is prose,
+    /// and the guide records how it is read.</para>
+    /// </summary>
+    [Fact]
+    public void AChargeWithATraitThePageDoesNotAllowIsRefused()
+    {
+        var charger = Combatant.Villain("charger", "the charger", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 8, ["flight"] = 7, ["mind_control"] = 9, ["toughness"] = 4
+            },
+            ["toughness"]);
+
+        var target = Combatant.Hero("target", "the target", edge: 5, health: 30, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4, ["might"] = 3 },
+            ["toughness"]);
+
+        // The controls: Might is the attack Trait of p.75's close-combat rows and Flight is a Travel
+        // Power, so both charges are resolved rather than refused.
+        foreach (var trait in (string[])["might", "flight"])
+        {
+            var allowed = Encounter(new Attack("charger", "target", trait, Charge: true));
+
+            Assert.Contains(allowed, l =>
+                string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+                && l.Text.Contains("defends with", StringComparison.Ordinal));
+        }
+
+        var refused = Encounter(new Attack(
+            "charger", "target", "mind_control", DamageKind.Psychic, AttackType.MentalPower,
+            Charge: true));
+
+        Assert.Contains(refused, l =>
+            string.Equals(l.Rule, "charge_attacks", StringComparison.Ordinal)
+            && l.Text.Contains("cannot charge with mind_control", StringComparison.Ordinal));
+
+        // And nothing else happened: no roll, no bonus dice, no halved defences.
+        Assert.DoesNotContain(refused, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+
+        IReadOnlyList<LedgerLine> Encounter(Attack attack)
+        {
+            var encounter = new Encounter(_play, new SeededDice(13));
+            return encounter.Step(encounter.Begin([charger, target]), attack).Added;
+        }
+    }
+
     // ── Defeat ───────────────────────────────────────────────────────────────
 
     /// <summary>
