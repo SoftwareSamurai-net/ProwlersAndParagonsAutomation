@@ -92,7 +92,7 @@ Three properties of it are load-bearing:
 
 ## What is real, and what says `NotYetImplemented`
 
-**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `Stabilise`, `EndTurn`, `EndPage`, and six spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`, `Stabilise` and `InstantRecovery`.
+**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `Stabilise`, `EndTurn`, `EndPage`, six Resolve spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`, `Stabilise` and `InstantRecovery` — and `SpendAdversity(AnythingResolveCan)` naming one of the first two.
 
 ### Not applied, and named in the code so the two lists cannot drift
 
@@ -104,7 +104,6 @@ Three properties of it are load-bearing:
 | `knockback` | Ch.4 p.78. `SpendResolve(Knockback)` refuses by name. |
 | `luring` | Ch.4 p.79. `SpendResolve(Luring)` refuses by name. |
 | `team_attacks` | Ch.4 p.79. `SpendResolve(TeamAttack)` refuses by name. |
-| `adversity_spend_anything_resolve_can` | Ch.5 p.85. Every `SpendAdversity` refuses by name. |
 | `adversity_spend_suppress_flaw` | Ch.5 p.85. |
 | `adversity_spend_misfortune` | Ch.5 p.85. |
 | `adversity_spend_villainy` | Ch.5 p.85. |
@@ -127,6 +126,8 @@ The last three are listed rather than left silent because a reader of a balance 
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
 The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, and the initiative variant beside them.
+
+**p.85's first Adversity purchase is applied**, and it is the one that is not a rule of its own: "whatever a point of Resolve could have done, on behalf of any NPC" is the Resolve purchases with the GM's money behind them. `SpendAdversity` carries which one — a point spent on nothing in particular would be a point spent on nothing — the pool pays, and the NPC's non-existent Resolve is never touched. `ExtraDice` and `Reroll` are the two that exist to be bought; the rest refuse by name. The other three Adversity spends are effects on a scene rather than on a roll, and stay on the list above.
 
 **One clause inside a rule that is otherwise applied**: `minions_attacking.the_group_bonus_does_not_apply_to` — the size bonus is not supposed to count towards penetrating cover or hurting somebody behind Armor or a Force Field. The entry's own `ambiguity` is why it is not applied: both of those are decided by the same attack roll the bonus is granted to, so read strictly it asks for two attack totals against one defence roll and the page offers no mechanism. The ledger line says so rather than claiming the bonus is "on the attack roll and nothing else", which is what it used to say. The per-target caps in the same entry **are** applied.
 

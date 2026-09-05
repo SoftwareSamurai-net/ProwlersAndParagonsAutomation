@@ -1003,6 +1003,396 @@ public sealed class PlayEngineStepTests
         Assert.Equal("might", Assert.IsType<Attack>(typed.Choose(state, state["exotic"])).TraitId);
     }
 
+    // ── The branches no printed example reaches ──────────────────────────────
+
+    /// <summary>
+    /// <b>Moving takes the pages p.74 prices it at, and a Travel Power halves the bill.</b>
+    ///
+    /// <para>The `Move` intent had no fixture at all: the two printed movement examples go through
+    /// <see cref="Movement"/>'s pure functions, so the banking of part-crossings, the range band
+    /// actually changing and the note that moving does not use up the turn were unexercised.</para>
+    ///
+    /// <para>It is also where the Travel Power reading is checked. The list of eight ids is this
+    /// engine's, not the data's — Chapter 2 has no such category — so the fixture drives one id from
+    /// the list and one Power that is not on it, and requires the second to take the long way.</para>
+    /// </summary>
+    [Fact]
+    public void MovingCrossesARangeClassAtThePriceThePageSets()
+    {
+        var rule = _play.GetCombat("movement").Movement!;
+
+        // The controls on the data: two pages on foot, one with a Travel Power at the entry's rank.
+        Assert.Equal(2, rule.PagesPerRangeClass);
+        Assert.Equal(1, rule.PagesPerRangeClassWithATravelPower);
+
+        var walker = Combatant.Hero("walker", "the walker", edge: 9, health: 10, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 4, ["mind_control"] = 12   // a big Power, and not a Travel one
+            },
+            ["toughness"]);
+
+        var flier = Combatant.Hero("flier", "the flier", edge: 8, health: 10, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 4, ["flight"] = rule.TravelPowerRankRequired
+            },
+            ["toughness"]);
+
+        // The control on the reading: one of these is on the engine's Travel Power list and the
+        // other is not, which is what the two answers below turn on.
+        Assert.Contains("flight", Movement.TravelPowerIds, StringComparer.Ordinal);
+        Assert.DoesNotContain("mind_control", Movement.TravelPowerIds, StringComparer.Ordinal);
+
+        var encounter = new Encounter(_play, new SeededDice(23));
+        var state = encounter.Begin([walker, flier], opening: RangeBand.Distant);
+
+        // The flier closes in one page.
+        var flown = encounter.Step(state, new Attack("walker", "flier", "might"));   // walker acts first
+        state = encounter.Step(flown.State, new EndTurn("walker")).State;
+
+        var closed = encounter.Step(state, new Move("flier", "walker"));
+
+        Assert.Equal(RangeBand.Close, closed.State.RangeBetween("flier", "walker"));
+        Assert.Contains(closed.Added, l =>
+            string.Equals(l.Rule, "movement", StringComparison.Ordinal)
+            && l.Text.Contains("closes to Close Range", StringComparison.Ordinal));
+
+        // Moving does not use up the turn's action, which the line says and the entry decides.
+        Assert.Contains(closed.Added, l =>
+            l.Text.Contains($"MovingPreventsActions is {rule.MovingPreventsActions}", StringComparison.Ordinal));
+
+        // The walker banks a page and arrives on the second, which is the branch nothing reached.
+        var fresh = new Encounter(_play, new SeededDice(23));
+        var opening = fresh.Begin([walker, flier], opening: RangeBand.Distant);
+
+        var first = fresh.Step(opening, new Move("walker", "flier"));
+
+        Assert.Equal(RangeBand.Distant, first.State.RangeBetween("walker", "flier"));
+        Assert.Contains(first.Added, l =>
+            l.Text.Contains("1 of the 2 a range class takes them", StringComparison.Ordinal));
+
+        var second = fresh.Step(first.State, new Move("walker", "flier"));
+        Assert.Equal(RangeBand.Close, second.State.RangeBetween("walker", "flier"));
+
+        // And opening again puts the distance back.
+        var away = fresh.Step(second.State, new Move("walker", "flier", Closer: false));
+        away = fresh.Step(away.State, new Move("walker", "flier", Closer: false));
+
+        Assert.Equal(RangeBand.Distant, away.State.RangeBetween("walker", "flier"));
+    }
+
+    /// <summary>
+    /// <b>Wound Penalties, and the reading that the deeper band replaces the shallower one.</b>
+    ///
+    /// <para>p.81 prints the two as thresholds rather than steps and never says whether they stack;
+    /// at zero Health a character is already below half of any positive Health, so a stacking reading
+    /// would make every −4d a −6d. The fixture drives both bands and requires the deeper one to be
+    /// the entry's own figure and not the sum of the two.</para>
+    ///
+    /// <para>The deeper band is reached through p.79's stabilisation roll, which is the one thing a
+    /// character below the defeat figure may still do — everything else is refused, which is what
+    /// makes this the branch to check it on.</para>
+    /// </summary>
+    [Fact]
+    public void WoundPenaltiesDeeperBandReplacesTheShallowerOne()
+    {
+        var rule = _play.GetGritty("gritty_wound_penalties").WoundPenalties!;
+
+        // The controls on the data.
+        Assert.Equal(-2, rule.AtOrBelowHalfFullHealthPenaltyDice);
+        Assert.Equal(-4, rule.AtOrBelowZeroHealthPenaltyDice);
+
+        var table = TableRules.Book with { WoundPenalties = true, FatalDamage = true };
+
+        var hurt = Combatant.Hero("hurt", "the hurt Hero", edge: 9, health: 8, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 10, ["medicine"] = 10, ["toughness"] = 4
+            },
+            ["toughness"]).WithHealth(4);
+
+        var target = Combatant.Villain("target", "the target", edge: 4, health: 30,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 4 }, []);
+
+        var encounter = new Encounter(_play, new SeededDice(24), table);
+        var state = encounter.Begin([hurt, target], challengeLevel: 0);
+
+        // Half of 8 is 4, so the shallower band: 10d becomes 8d.
+        var shallow = encounter.Step(state, new Attack("hurt", "target", "might"));
+
+        Assert.Contains(shallow.Added, l =>
+            string.Equals(l.Rule, "gritty_wound_penalties", StringComparison.Ordinal)
+            && l.Text.Contains("is on 4 of 8 Health: -2d", StringComparison.Ordinal));
+        Assert.Contains("with might 8d", shallow.Added.Single(l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("attacks", StringComparison.Ordinal)).Text, StringComparison.Ordinal);
+
+        // Below nothing, the deeper band — and it replaces rather than adds, so 10d becomes 6d and
+        // not 4d. p.79's stabilisation roll is the one thing left to roll it on.
+        var dying = state.With(state["hurt"].WithHealth(-1).Bleeding(dying: true));
+        var deep = encounter.Step(dying, new Stabilise("hurt", "hurt"));
+
+        Assert.Contains(deep.Added, l =>
+            string.Equals(l.Rule, "gritty_wound_penalties", StringComparison.Ordinal)
+            && l.Text.Contains("is on -1 of 8 Health: -4d", StringComparison.Ordinal));
+
+        Assert.Single(deep.Added, l =>
+            string.Equals(l.Rule, "gritty_wound_penalties", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>p.79's Gritty rule charging for a second active defence on a page.</b> The first is free
+    /// and each one after it costs a die more than the last, counted per page — a branch of
+    /// <c>ChooseDefence</c> nothing exercised.
+    /// </summary>
+    [Fact]
+    public void ASecondActiveDefenceOnAPageCostsWhatTheEntrySays()
+    {
+        var rule = _play.GetGritty("gritty_active_defenses").ActiveDefensePenalty!;
+
+        Assert.Equal(-1, rule.CumulativePenaltyDicePerExtraActiveDefense);
+        Assert.True(rule.FirstActiveDefenseOnAPageIsUnpenalised);
+
+        var dodger = Combatant.Hero("dodger", "the dodger", edge: 1, health: 30, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["agility"] = 8, ["might"] = 3 },
+            ["agility"]);
+
+        var first = Combatant.Villain("first", "the first attacker", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 5 }, ["toughness"]);
+
+        var second = Combatant.Villain("second", "the second attacker", edge: 8, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 5 }, ["toughness"]);
+
+        var encounter = new Encounter(
+            _play, new SeededDice(25), TableRules.Book with { ActiveDefensesCost = true });
+
+        var state = encounter.Begin([first, second, dodger]);
+
+        var one = encounter.Step(state, new Attack("first", "dodger", "might"));
+        Assert.Contains("defends with agility 8d", Defence(one), StringComparison.Ordinal);
+
+        state = encounter.Step(one.State, new EndTurn("first")).State;
+
+        var two = encounter.Step(state, new Attack("second", "dodger", "might"));
+
+        Assert.Contains("defends with agility 7d", Defence(two), StringComparison.Ordinal);
+        Assert.Contains(two.Added, l =>
+            string.Equals(l.Rule, "gritty_active_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("active defence number 2 this page is -1d", StringComparison.Ordinal));
+
+        // And the count resets when the page turns, which is what "counted per page" means.
+        var turned = encounter.Step(
+            encounter.Step(two.State, new EndTurn("second")).State, new EndTurn("dodger")).State;
+
+        turned = encounter.Step(turned, new EndPage("")).State;
+
+        var next = encounter.Step(turned, new Attack("first", "dodger", "might"));
+        Assert.Contains("defends with agility 8d", Defence(next), StringComparison.Ordinal);
+
+        static string Defence(StepResult step) => step.Added.Single(l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal)).Text;
+    }
+
+    /// <summary>
+    /// <b>p.73's optional Edge roll, and the successes standing in for the whole battle.</b> The
+    /// order comes off the rolls rather than off the derived figures, and a Minion group is left out
+    /// because the entry says they have no Edge to roll.
+    /// </summary>
+    [Fact]
+    public void RandomInitiativeRollsForTheOrderAndTheRollStands()
+    {
+        var slow = Combatant.Villain("slow", "the slow one", edge: 4, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 5 }, ["toughness"]);
+
+        var quick = Combatant.Hero("quick", "the quick one", edge: 12, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 5 }, ["toughness"]);
+
+        var minions = Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 3, "threat");
+
+        // The control: on the derived figures the quick one leads.
+        var plain = new Encounter(_play, new SeededDice(26)).Begin([slow, quick, minions]);
+        Assert.Equal(["quick", "slow", "minions"], plain.TurnOrder);
+
+        // Rolled: the slow one's 4d scores more than the quick one's 12d, and the order follows.
+        // Slow rolls 4 successes; quick rolls 1.
+        var dice = new ScriptedDice([.. FacesFor(4, 4), .. FacesFor(12, 1)]);
+
+        var encounter = new Encounter(
+            _play, dice, TableRules.Book with { RandomInitiative = true });
+
+        var rolled = encounter.Begin([slow, quick, minions]);
+
+        // The control: exactly two Edge rolls were made — the Minions were left out. (The entry is
+        // also the switch's own, so `Begin` writes a third line announcing the setting; the rolls
+        // are the ones that say what they scored.)
+        Assert.Equal(0, dice.Remaining);
+        Assert.Equal(2, rolled.Ledger.Lines.Count(l =>
+            string.Equals(l.Rule, "edge_order", StringComparison.Ordinal)
+            && l.Text.Contains("Edge for the order", StringComparison.Ordinal)));
+
+        Assert.Equal(4, rolled.EffectiveEdge["slow"]);
+        Assert.Equal(1, rolled.EffectiveEdge["quick"]);
+        Assert.Equal(0, rolled.EffectiveEdge["minions"]);
+
+        Assert.Equal(["slow", "quick", "minions"], rolled.TurnOrder);
+
+        // And it stands "for this battle": the next page uses the same figures, not new rolls.
+        var page = encounter.Step(
+            encounter.Step(
+                encounter.Step(
+                    encounter.Step(rolled, new EndTurn("slow")).State, new EndTurn("quick")).State,
+                new EndTurn("minions")).State,
+            new EndPage(""));
+
+        Assert.Equal(["slow", "quick", "minions"], page.State.TurnOrder);
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>The all-out and charge penalties expire at the end of the following page.</b>
+    ///
+    /// <para>p.78 says "until after your next turn to act", which is a turn rather than a page; this
+    /// engine expires it at the end of the page after the one it was taken on, which is that sentence
+    /// to within a turn and is recorded in the guide as a reading. It had no fixture, so the expiry
+    /// was a claim in a doc comment.</para>
+    /// </summary>
+    [Fact]
+    public void TheAllOutPenaltyExpiresAtTheEndOfTheFollowingPage()
+    {
+        var reckless = Combatant.Hero("reckless", "the reckless Hero", edge: 9, health: 30, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 8 },
+            ["toughness"]);
+
+        var patient = Combatant.Villain("patient", "the patient one", edge: 8, health: 30,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 12 }, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(27));
+        var state = encounter.Begin([reckless, patient]);
+
+        state = encounter.Step(state, new Attack("reckless", "patient", "might", AllOut: true)).State;
+        state = encounter.Step(state, new EndTurn("reckless")).State;
+
+        // Page 1, the page it was taken on: a Toughness of 8 answers a lethal blow at 4 and the
+        // all-out halving takes it to 2.
+        Assert.Contains("defends with toughness 2d", Struck(state), StringComparison.Ordinal);
+
+        state = encounter.Step(state, new EndTurn("patient")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+        Assert.Equal(2, state.Page);
+
+        // Page 2, still inside "until after your next turn to act".
+        state = encounter.Step(state, new EndTurn("reckless")).State;
+        Assert.Contains("defends with toughness 2d", Struck(state), StringComparison.Ordinal);
+
+        state = encounter.Step(state, new EndTurn("patient")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+        Assert.Equal(3, state.Page);
+
+        // Page 3: gone.
+        state = encounter.Step(state, new EndTurn("reckless")).State;
+        Assert.Contains("defends with toughness 4d", Struck(state), StringComparison.Ordinal);
+
+        string Struck(EncounterState now) => encounter
+            .Step(now, new Attack("patient", "reckless", "might", Type: AttackType.MeleeWeapon))
+            .Added
+            .Single(l => string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+                         && l.Text.Contains("defends with", StringComparison.Ordinal))
+            .Text;
+    }
+
+    /// <summary>
+    /// <b>The GM's pool buys for an NPC what Resolve buys for a Hero.</b>
+    ///
+    /// <para>Every `SpendAdversity` used to refuse, which made the whole of p.85's first purchase a
+    /// name on a list. It is not a rule of its own — "whatever a point of Resolve could have done, on
+    /// behalf of any NPC" is the Resolve purchases with different money behind them — so the intent
+    /// names which one, the GM's pool pays, and the NPC's non-existent Resolve is never touched.</para>
+    /// </summary>
+    [Fact]
+    public void AdversityBuysAnNpcTheDiceResolveWouldHaveBought()
+    {
+        var villain = Combatant.Villain("villain", "the Villain", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 5, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4, ["might"] = 4 },
+            ["toughness"]);
+
+        // 6d for 2, the Hero's 2d Toughness for 2 — nothing lands — then the two bought dice for 2.
+        var dice = new ScriptedDice([.. FacesFor(6, 2), .. FacesFor(2, 2), .. FacesFor(2, 2)]);
+        var encounter = new Encounter(_play, dice);
+
+        // A Challenge Level puts enough in the GM's pool to buy two dice: one Hero is one point an
+        // issue, and p.85's scene award is what a fight of any size actually opens on.
+        var state = encounter.Begin([villain, hero], challengeLevel: 2);
+        var opening = state.Adversity;
+
+        Assert.True(opening >= 2, $"the GM opened on {opening} Adversity and the spend costs 2");
+
+        state = encounter.Step(state, new Attack(
+            "villain", "hero", "might", Type: AttackType.MeleeWeapon)).State;
+
+        // The controls: the attack went nowhere, and the NPC holds no Resolve to have paid with.
+        Assert.Equal(2, state.LastAttack!.AttackSuccesses);
+        Assert.Equal(2, state.LastAttack.DefenceSuccesses);
+        Assert.Equal(20, state["hero"].CurrentHealth);
+        Assert.False(state["villain"].HoldsResolve);
+
+        var spent = encounter.Step(state, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, Points: 2, AsResolve: ResolveSpend.ExtraDice));
+
+        Assert.Equal(0, dice.Remaining);
+
+        // The GM's pool paid, the Villain's did not, and the blow landed.
+        Assert.Equal(opening - 2, spent.State.Adversity);
+        Assert.Equal(0, spent.State["villain"].Resolve);
+        Assert.Equal(4, spent.State.LastAttack!.AttackSuccesses);
+        Assert.Equal(18, spent.State["hero"].CurrentHealth);
+
+        Assert.Contains(spent.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal));
+        Assert.Contains(spent.Added, l =>
+            l.Text.Contains("the GM spends 2 Adversity on the Villain", StringComparison.Ordinal));
+
+        // The other three purchases are effects on a scene rather than on a roll, and still refuse.
+        var scene = encounter.Step(state, new SpendAdversity("villain", AdversitySpend.Villainy));
+
+        Assert.Contains(scene.Added, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+        Assert.Equal(opening, scene.State.Adversity);
+    }
+
+    /// <summary>
+    /// <b>An odd pool banking automatic successes keeps the even half and nothing for the leftover
+    /// die.</b>
+    ///
+    /// <para>p.67 prices the offer in pairs and its printed example is 12d, which is even and settles
+    /// nothing; the entry's own `ambiguity` says so. Integer division is the reading that never gives
+    /// a character more than the page promises, and it had no fixture — the arm-wrestling example
+    /// only ever banks an even pool.</para>
+    /// </summary>
+    [Fact]
+    public void AnOddPoolBanksTheEvenHalfAndNoMore()
+    {
+        var counter = new SuccessCounter(_play);
+        var rate = _play.GetMeta("automatic_successes").AutomaticSuccesses!.DicePerSuccess;
+
+        // The control: the rate is the entry's, and the printed example is the even case.
+        Assert.Equal(2, rate);
+        Assert.Equal(6, counter.AutomaticSuccesses(12));
+
+        // The odd cases: the leftover die buys nothing, in either direction.
+        Assert.Equal(5, counter.AutomaticSuccesses(11));
+        Assert.Equal(5, counter.AutomaticSuccesses(10));
+        Assert.Equal(0, counter.AutomaticSuccesses(1));
+        Assert.Equal(0, counter.AutomaticSuccesses(0));
+
+        // And rounding the other way would give six for eleven, which is the reading this is not.
+        Assert.NotEqual((int)Math.Ceiling(11 / 2.0), counter.AutomaticSuccesses(11));
+    }
+
     // ── The dice ─────────────────────────────────────────────────────────────
 
     /// <summary>

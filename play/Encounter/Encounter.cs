@@ -104,7 +104,6 @@ public sealed partial class Encounter
         "team_attacks",
 
         // The GM's four, Ch.5 p.85.
-        "adversity_spend_anything_resolve_can",
         "adversity_spend_suppress_flaw",
         "adversity_spend_misfortune",
         "adversity_spend_villainy",

@@ -184,7 +184,20 @@ public sealed record BreakFree(string Actor, string TraitId, int Threshold) : In
 public sealed record SpendResolve(string Actor, ResolveSpend Kind, int Points = 1) : Intent(Actor);
 
 /// <summary>One of the GM's purchases out of the Adversity pool.</summary>
-public sealed record SpendAdversity(string Actor, AdversitySpend Kind, int Points = 1) : Intent(Actor);
+/// <param name="Actor">The NPC the point is spent on behalf of.</param>
+/// <param name="Kind">Which of p.85's four purchases.</param>
+/// <param name="Points">How many points.</param>
+/// <param name="AsResolve">
+/// For <see cref="AdversitySpend.AnythingResolveCan"/>: which Resolve purchase the GM is buying.
+/// p.85 says a point of Adversity does "whatever a point of Resolve could have done, on behalf of
+/// any NPC", so the purchase has to be named — a spend that did not say which one would be a point
+/// spent on nothing in particular.
+/// </param>
+public sealed record SpendAdversity(
+    string Actor,
+    AdversitySpend Kind,
+    int Points = 1,
+    ResolveSpend? AsResolve = null) : Intent(Actor);
 
 /// <summary>
 /// p.79's Fatal Damage rule: spending a turn steadying somebody who is bleeding out, rolling the

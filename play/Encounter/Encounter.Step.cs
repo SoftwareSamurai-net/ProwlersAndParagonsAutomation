@@ -1366,7 +1366,9 @@ public sealed partial class Encounter
     /// Hero who spent two points on a 10d attack and then bought a reroll threw ten dice for it and
     /// silently lost what they had paid for.</para>
     /// </summary>
-    private EncounterState BuyDice(EncounterState state, Combatant actor, int points, List<LedgerLine> lines)
+    private EncounterState BuyDice(
+        EncounterState state, Combatant actor, int points, List<LedgerLine> lines,
+        bool fromAdversity = false)
     {
         var entry = _play.GetResolve("spend_challenge_roll_dice");
         var spend = entry.Spend!;
@@ -1380,13 +1382,14 @@ public sealed partial class Encounter
         var cost = spend.CostResolve!.Value * points;
         var extra = spend.DiceGained!.Value * points;
 
-        if (CannotAfford(state, actor, cost, entry.Id, entry.SourceRef, lines)) return state;
+        if (!fromAdversity && CannotAfford(state, actor, cost, entry.Id, entry.SourceRef, lines)) return state;
 
         var roll = _counter.Roll(extra, _dice);
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{actor.Name} spends {cost} Resolve for {extra} more dice after the roll, scoring "
+            $"{(fromAdversity ? "the GM spends " + cost + " Adversity on " + actor.Name : actor.Name + " spends " + cost + " Resolve")}"
+            + $" for {extra} more dice after the roll, scoring "
             + $"{roll.Successes} more: {last.AttackSuccesses} becomes {last.AttackSuccesses + roll.Successes}, "
             + $"and the roll on the table is now {last.AttackPool + extra}d"));
 
@@ -1396,17 +1399,32 @@ public sealed partial class Encounter
             AttackSuccesses = last.AttackSuccesses + roll.Successes
         };
 
-        var after = state.With(actor.Spending(cost));
+        var after = Charge(state, actor, cost, fromAdversity);
         after = ReapplyLastAttack(after, improved, lines);
 
         return after with { LastAttack = improved };
     }
 
     /// <summary>
+    /// Takes the price out of whichever pool is paying: a Hero's Resolve, or the GM's Adversity.
+    ///
+    /// <para>p.85's first purchase is "whatever a point of Resolve could have done, on behalf of any
+    /// NPC", so the two are the same purchase with different money behind them — and an NPC has no
+    /// Resolve pool to draw on, which <see cref="Combatant.Spending"/> makes unconstructible rather
+    /// than merely wrong.</para>
+    /// </summary>
+    private static EncounterState Charge(
+        EncounterState state, Combatant actor, int cost, bool fromAdversity) =>
+        fromAdversity
+            ? state with { Adversity = state.Adversity - cost }
+            : state.With(actor.Spending(cost));
+
+    /// <summary>
     /// Ch.5 p.84: one point picks the whole roll back up — and p.85's tip puts a floor under it, so
     /// a worse reroll is discarded and the first roll stands.
     /// </summary>
-    private EncounterState BuyReroll(EncounterState state, Combatant actor, List<LedgerLine> lines)
+    private EncounterState BuyReroll(
+        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
     {
         var entry = _play.GetResolve("spend_reroll_challenge_roll");
         var floor = _play.GetResolve("reroll_floor");
@@ -1419,7 +1437,21 @@ public sealed partial class Encounter
 
         var cost = entry.Spend!.CostResolve!.Value;
 
-        if (CannotAfford(state, actor, cost, entry.Id, entry.SourceRef, lines)) return state;
+        // <b>That a reroll picks up the dice a Hero bought is the entry's own field, not a
+        // reading.</b> `includes_dice_bought_with_resolve` says so in as many words, which is why
+        // `BuyDice` grows `AttackPool` rather than leaving it where the attack was rolled. This
+        // engine keeps one pool figure and could not separate the bought dice from the rest, so an
+        // entry that said otherwise is a rule it cannot apply.
+        if (entry.Spend.IncludesDiceBoughtWithResolve != true)
+        {
+            throw new InvalidOperationException(
+                "spend_reroll_challenge_roll's includes_dice_bought_with_resolve is now "
+                + $"'{entry.Spend.IncludesDiceBoughtWithResolve}'. This engine keeps the roll on the "
+                + "table as one pool and cannot strand the dice that were bought on their first "
+                + "result.");
+        }
+
+        if (!fromAdversity && CannotAfford(state, actor, cost, entry.Id, entry.SourceRef, lines)) return state;
 
         var roll = _counter.Roll(last.AttackPool, _dice);
 
@@ -1429,12 +1461,13 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{actor.Name} spends {cost} Resolve to reroll {last.AttackPool}d: {roll.Successes} "
+            $"{(fromAdversity ? "the GM spends " + cost + " Adversity on " + actor.Name : actor.Name + " spends " + cost + " Resolve")}"
+            + $" to reroll {last.AttackPool}d: {roll.Successes} "
             + $"against the first {last.AttackSuccesses}, keeping {kept}"));
 
         var improved = last with { AttackSuccesses = kept };
 
-        var after = state.With(actor.Spending(cost));
+        var after = Charge(state, actor, cost, fromAdversity);
         after = ReapplyLastAttack(after, improved, lines);
 
         return after with { LastAttack = improved };
@@ -1734,8 +1767,40 @@ public sealed partial class Encounter
                 $"the GM has {state.Adversity} Adversity and the spend costs {spend.Points}");
         }
 
-        return NotYetImplementedSpend(
-            state, spend.Actor, spend.Kind.ToString(), entry.Id, entry.SourceRef, lines);
+        // <b>p.85's first purchase is the one that is not a rule of its own.</b> "Whatever a point of
+        // Resolve could have done, on behalf of any NPC" is the Resolve purchases with different
+        // money behind them, so the intent names which one and the engine runs it against the GM's
+        // pool. The other three are effects on a scene rather than on a roll, and stay listed.
+        if (spend.Kind != AdversitySpend.AnythingResolveCan)
+        {
+            return NotYetImplementedSpend(
+                state, spend.Actor, spend.Kind.ToString(), entry.Id, entry.SourceRef, lines);
+        }
+
+        var npc = state[spend.Actor];
+
+        if (spend.AsResolve is not { } as_)
+        {
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"a point of Adversity does what a point of Resolve would have done, and this spend "
+                + $"on {npc.Name} does not say which purchase that is");
+        }
+
+        if (as_ is not (ResolveSpend.ExtraDice or ResolveSpend.Reroll))
+        {
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"the GM's pool buys an NPC the two purchases decided after the roll, and {as_} is "
+                + "not one of them in this slice — see docs/guide/play-engine.md");
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, npc.Id, entry.Id, entry.SourceRef,
+            $"the GM spends Adversity on {npc.Name}, which buys {as_}: p.85 says one point does "
+            + "whatever a point of Resolve could have done, on behalf of any NPC"));
+
+        return as_ == ResolveSpend.ExtraDice
+            ? BuyDice(state, npc, spend.Points, lines, fromAdversity: true)
+            : BuyReroll(state, npc, lines, fromAdversity: true);
     }
 
     // ── Turns and pages ──────────────────────────────────────────────────────
