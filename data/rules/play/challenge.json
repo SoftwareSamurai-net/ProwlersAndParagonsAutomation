@@ -52,21 +52,26 @@
       "name": "Thresholds table",
       "kind": "table",
       "thresholds": [
-        { "difficulty": "Easy", "threshold_min": 0, "threshold_max": 0, "gm_discretion": false },
-        { "difficulty": "Average", "threshold_min": 1, "threshold_max": 1, "gm_discretion": false },
-        { "difficulty": "Hard", "threshold_min": 2, "threshold_max": 2, "gm_discretion": false },
-        { "difficulty": "Daunting", "threshold_min": 3, "threshold_max": 3, "gm_discretion": false },
-        { "difficulty": "Brutal", "threshold_min": 4, "threshold_max": 4, "gm_discretion": false },
-        { "difficulty": "Inhuman", "threshold_min": 5, "threshold_max": 5, "gm_discretion": false },
-        { "difficulty": "Superhuman", "threshold_min": 6, "threshold_max": 8, "gm_discretion": true },
-        { "difficulty": "Legendary", "threshold_min": 9, "threshold_max": 11, "gm_discretion": true },
-        { "difficulty": "Godlike", "threshold_min": 12, "threshold_max": null, "gm_discretion": true }
+        { "difficulty": "Easy", "threshold_min": 0, "threshold_max": 0 },
+        { "difficulty": "Average", "threshold_min": 1, "threshold_max": 1 },
+        { "difficulty": "Hard", "threshold_min": 2, "threshold_max": 2 },
+        { "difficulty": "Daunting", "threshold_min": 3, "threshold_max": 3 },
+        { "difficulty": "Brutal", "threshold_min": 4, "threshold_max": 4 },
+        { "difficulty": "Inhuman", "threshold_min": 5, "threshold_max": 5 },
+        { "difficulty": "Superhuman", "threshold_min": 6, "threshold_max": 8 },
+        { "difficulty": "Legendary", "threshold_min": 9, "threshold_max": 11 },
+        { "difficulty": "Godlike", "threshold_min": 12, "threshold_max": null }
       ],
+      "interpretation": {
+        "what_this_is": "This repository's reading of the rows above, not a column the book prints. It is kept out of the transcription and labelled so nobody cites it back as the rulebook.",
+        "gm_discretion_difficulties": ["Superhuman", "Legendary", "Godlike"],
+        "gm_discretion_rule": "a row whose printed threshold is a range rather than a single number leaves the GM to choose inside it"
+      },
       "naming_convention": "difficulty, threshold in brackets, then the Trait - an Average (1) Might roll",
       "description": "With nobody resisting, the GM picks the number to beat off a nine-step ladder running from a standing start up to twelve or more. The bottom six steps are a single number each; the top three are ranges, so the GM chooses within them.",
       "verified_fields": ["threshold", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
-      "ambiguity": "The top three steps are bands rather than values, and nothing says how to place an action inside one - a Superhuman action might be set at 6, 7 or 8 with no stated tie-breaker, and Godlike has no ceiling at all. Flagged per row as gm_discretion so a simulator cannot silently pick the low end and call it the rule."
+      "ambiguity": "The top three steps are bands rather than values, and nothing says how to place an action inside one - a Superhuman action might be set at 6, 7 or 8 with no stated tie-breaker, and Godlike has no ceiling at all. Which rows that leaves to the GM is recorded under interpretation rather than in the table, because the book prints no such column: it is derived from the rows whose printed threshold is a range, and it exists so a simulator cannot silently pick the low end and call it the rule."
     },
     {
       "id": "opposed_threshold",

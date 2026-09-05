@@ -20,10 +20,19 @@ public static class CanonicalChallengeRules
     public sealed record Band(int? Min, int? Max, string Outcome, bool? Embellishment);
 
     /// <summary>
-    /// One row of the Thresholds table. <paramref name="Max"/> differs from
+    /// One row of the Thresholds table, and <b>nothing but what the row prints</b>:
+    /// "Easy 0 · Average 1 · Hard 2 · Daunting 3 · Brutal 4 · Inhuman 5 · Superhuman 6 to 8 ·
+    /// Legendary 9 to 11 · Godlike 12 or more". <paramref name="Max"/> differs from
     /// <paramref name="Min"/> only on the three banded rows, and null means no ceiling.
+    ///
+    /// <para><b>There is no <c>GmDiscretion</c> here and there must not be one.</b> The book prints
+    /// two columns; "the GM chooses inside this row" is this repository's reading of the three rows
+    /// that print a range, and a reading has no business in a file whose whole standing is that it
+    /// was transcribed from the page. It lives in the data under <c>interpretation</c>, labelled as
+    /// ours, and is asserted by deriving it from <paramref name="Max"/> — never from a hand-typed
+    /// count, which is what a canonical column had made it.</para>
     /// </summary>
-    public sealed record Threshold(string Difficulty, int Min, int? Max, bool GmDiscretion);
+    public sealed record Threshold(string Difficulty, int Min, int? Max);
 
     /// <summary>One row of the Judging Thresholds guideline.</summary>
     public sealed record Judging(string Descriptor, string Difficulty, int ThresholdValue);
@@ -81,15 +90,15 @@ public static class CanonicalChallengeRules
 
     public static readonly IReadOnlyList<Threshold> Thresholds =
     [
-        new("Easy", 0, 0, false),
-        new("Average", 1, 1, false),
-        new("Hard", 2, 2, false),
-        new("Daunting", 3, 3, false),
-        new("Brutal", 4, 4, false),
-        new("Inhuman", 5, 5, false),
-        new("Superhuman", 6, 8, true),
-        new("Legendary", 9, 11, true),
-        new("Godlike", 12, null, true)
+        new("Easy", 0, 0),
+        new("Average", 1, 1),
+        new("Hard", 2, 2),
+        new("Daunting", 3, 3),
+        new("Brutal", 4, 4),
+        new("Inhuman", 5, 5),
+        new("Superhuman", 6, 8),
+        new("Legendary", 9, 11),
+        new("Godlike", 12, null)
     ];
 
     // ── Traditional Results table, p.69 ──────────────────────────────────────

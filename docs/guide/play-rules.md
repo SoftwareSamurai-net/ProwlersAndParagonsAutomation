@@ -49,6 +49,16 @@ An entry's `verified_fields` must be non‑empty, must be a subset of that list,
 
 Every entry also carries a `source_ref` in the existing spelling (`"Ultimate Edition, Ch.3 Action, p.67"`) naming a page in 67–72, or p.7 for the Glossary's rounding rule. A test enforces the range, so a value pasted in from another chapter cannot pass as Chapter 3's.
 
+## A reading of the page is not a transcription of it: label it, and derive it
+
+`CanonicalChallengeRules` has the same standing as `CanonicalPowers` — **it is the rulebook** — so a value that is this project's reading rather than the book's words has no place in it, and no place in an entry's transcribed rows either.
+
+The Thresholds table is the case that made the rule. The book prints two columns, Difficulty and Threshold; **"the GM chooses inside this row" is nowhere on the page.** It was nonetheless a `gm_discretion` boolean on every row of `challenge.json` and a field of the canonical `Threshold` record, which made a reading look like a third printed column and put it behind the "do not edit this to match the code" notice.
+
+It is now one `interpretation` object beside the table, saying in its own first field that it is ours. **And its value is derived rather than typed**: `TheRowsLeftToGmDiscretionAreExactlyTheOnesPrintedAsARange` computes the list from the rows whose printed threshold is a range — Superhuman 6 to 8, Legendary 9 to 11, Godlike 12 or more — and compares. The version it replaced asserted `Assert.Equal(3, …GmDiscretion)`, which is a count agreeing with the table by coincidence and would go on agreeing after somebody widened a row.
+
+So: **a derived field is named as derived, kept out of the transcription, and asserted from the transcribed values it is derived from.**
+
 ## Descriptions are ours; the book's words are the corpus's
 
 The rule from [`rules-engine.md`](rules-engine.md) applies here unchanged: **a `description` in `data/rules/` is original text written from the entry, never rulebook prose.** The printed text lives in `data/rulebook/` under a permission that does not travel with a fork.

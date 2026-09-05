@@ -87,8 +87,17 @@ public sealed class PlayRulesDataTests
         bool GmIsOpponentWhenUnopposed,
         string GmAcceptsPlayerInputWhenActorIsNpc);
 
-    private sealed record ThresholdModel(
-        string Difficulty, int ThresholdMin, int? ThresholdMax, bool GmDiscretion);
+    private sealed record ThresholdModel(string Difficulty, int ThresholdMin, int? ThresholdMax);
+
+    /// <summary>
+    /// <b>This repository's reading of the Thresholds table, kept apart from the transcription of
+    /// it.</b> "The GM chooses inside this row" is not a column the book prints, and it sat in the
+    /// canonical file and in the table's own rows as though it were one.
+    /// </summary>
+    private sealed record ThresholdsInterpretationModel(
+        string WhatThisIs,
+        IReadOnlyList<string> GmDiscretionDifficulties,
+        string GmDiscretionRule);
 
     private sealed record OpposedModel(string ThresholdSource, string StaticThresholdUsedWhen);
 
@@ -179,6 +188,7 @@ public sealed class PlayRulesDataTests
         IReadOnlyList<BandModel>? Bands,
         ActorSelectionModel? ActorSelection,
         IReadOnlyList<ThresholdModel>? Thresholds,
+        ThresholdsInterpretationModel? Interpretation,
         string? NamingConvention,
         OpposedModel? Opposed,
         ConditionModifierModel? ConditionModifier,
@@ -384,14 +394,48 @@ public sealed class PlayRulesDataTests
             Assert.Equal(expected.Difficulty, actual[i].Difficulty);
             Assert.Equal(expected.Min, actual[i].ThresholdMin);
             Assert.Equal(expected.Max, actual[i].ThresholdMax);
-            Assert.Equal(expected.GmDiscretion, actual[i].GmDiscretion);
         }
 
-        // The three banded rows are the ones where the book gives a range and no way to choose
-        // inside it. Flagging them is what stops a simulator picking the floor and calling it
-        // the rule, so the count is pinned rather than left to the loop above.
-        Assert.Equal(3, actual.Count(t => t.GmDiscretion));
         Assert.Contains($"p.{CanonicalChallengeRules.ThresholdsPage}", entry.SourceRef, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>"The GM chooses inside this row" is ours, and it is asserted from the printed rows rather
+    /// than from a hand-typed list.</b> The book prints Difficulty and Threshold and nothing else;
+    /// the discretion flag used to sit in the table's own rows and in the canonical transcription,
+    /// where it read as a third printed column. It is now one labelled <c>interpretation</c> object
+    /// beside the table, and what makes it true is derived here: a row leaves the GM a choice
+    /// exactly when its printed threshold is a range rather than a single number — "Superhuman 6 to
+    /// 8", "Legendary 9 to 11", "Godlike 12 or more".
+    ///
+    /// <para>Deriving it is the point. A count of three, or a second hand-typed list, would agree
+    /// with the table by coincidence and keep agreeing after somebody widened a row.</para>
+    /// </summary>
+    [Fact]
+    public void TheRowsLeftToGmDiscretionAreExactlyTheOnesPrintedAsARange()
+    {
+        var entry = ChallengeEntryById("thresholds");
+        var rows = entry.Thresholds;
+        var interpretation = entry.Interpretation;
+
+        Assert.NotNull(rows);
+        Assert.NotNull(interpretation);
+
+        var ranged = rows
+            .Where(r => r.ThresholdMax is null || r.ThresholdMax != r.ThresholdMin)
+            .Select(r => r.Difficulty)
+            .ToList();
+
+        // Positive control: the derivation has to find something, or an empty list would match an
+        // empty claim and this test would assert nothing at all.
+        Assert.NotEmpty(ranged);
+
+        Assert.Equal(ranged, interpretation.GmDiscretionDifficulties);
+
+        // And the flat rows really are flat, so "a range" is a distinction the table can make.
+        Assert.Equal(
+            rows.Count - ranged.Count,
+            rows.Count(r => r.ThresholdMax is not null && r.ThresholdMax == r.ThresholdMin));
     }
 
     [Fact]
