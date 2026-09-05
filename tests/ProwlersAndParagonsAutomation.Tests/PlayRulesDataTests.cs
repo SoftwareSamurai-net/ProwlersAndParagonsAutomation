@@ -2971,10 +2971,13 @@ public sealed class PlayRulesDataTests
         Assert.NotNull(order);
         Assert.NotNull(bands);
 
-        // Turn order: three Edge scores sorted downward, then the Minions, who have none.
+        // Turn order: three Edge scores sorted downward, and then the Minions — who go where the
+        // file puts them. Appending them was the fixture answering its own question: the whole
+        // content of "Minions act last" is tie_break.minions_act, so that field decides, and a file
+        // that moved them to the front builds an order p.81 does not print.
         Assert.False(order.MinionsHaveAnEdge);
 
-        var byEdge = new[]
+        var named = new[]
             {
                 ("Citizen Soldier", CanonicalCombatRules.ExampleOfCombat.CitizenSoldierEdge),
                 ("the mecha", CanonicalCombatRules.ExampleOfCombat.MechaEdge),
@@ -2982,10 +2985,18 @@ public sealed class PlayRulesDataTests
             }
             .OrderByDescending(c => c.Item2)
             .Select(c => c.Item1)
-            .Append("the robotic Minions")
             .ToArray();
 
-        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.TurnOrder, byEdge);
+        var byEdge = order.MinionsAct switch
+        {
+            "after everyone else" => named.Append(CanonicalCombatRules.ExampleOfCombat.MinionsLabel),
+            "before everyone else" => named.Prepend(CanonicalCombatRules.ExampleOfCombat.MinionsLabel),
+            var other => throw new InvalidOperationException(
+                $"tie_break.minions_act '{other}' does not say where in the order the Minions go, "
+                + "so the Example of Combat's turn order cannot be built from the data.")
+        };
+
+        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.TurnOrder, byEdge.ToArray());
 
         // "With a total of 2 net successes, a giant mechanical foot stomps Gate into the ground,
         // inflicting 2 points of damage."
@@ -3001,9 +3012,23 @@ public sealed class PlayRulesDataTests
 
         var couldDefeat = minionNet * minions.MinionsDefeatedPerNetSuccess;
         Assert.Equal(CanonicalCombatRules.ExampleOfCombat.MinionsCouldHaveBeenDefeated, couldDefeat);
-        Assert.Equal(
-            CanonicalCombatRules.ExampleOfCombat.MinionsPresent,
-            Math.Min(couldDefeat, CanonicalCombatRules.ExampleOfCombat.MinionsPresent));
+
+        // The cap has to be doing work on this fixture, or Math.Min below is the identity and
+        // asserting its result against MinionsPresent is a tautology — which is what this was.
+        // "Could have defeated up to five … turns these four into scrap" is precisely an allowance
+        // that overshoots the mob, so the overshoot is the positive control.
+        var present = CanonicalCombatRules.ExampleOfCombat.MinionsPresent;
+
+        Assert.True(
+            couldDefeat > present,
+            $"The rate allows {couldDefeat} and {present} are present. p.81's sentence is an "
+            + "allowance that overshoots the mob; if it no longer does, this step proves nothing "
+            + "about the cap and the fixture needs a different example.");
+
+        var actuallyDefeated = Math.Min(couldDefeat, present);
+
+        Assert.Equal(present, actuallyDefeated);
+        Assert.NotEqual(couldDefeat, actuallyDefeated);
 
         // "the mecha also gets 9 successes when it rolls its 15d Armor for defense. Gatecrasher's
         // attack has no effect."

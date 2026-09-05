@@ -1166,6 +1166,11 @@ public static class CanonicalCombatRules
         public static readonly string[] TurnOrder =
             ["the mecha", "Citizen Soldier", "Gatecrasher", "the robotic Minions"];
 
+        /// <summary>The Example's own name for the mob. The fixture places it using
+        /// <c>tie_break.minions_act</c> rather than appending it to the three named characters, so
+        /// a file that stopped putting Minions last would move the order the fixture builds.</summary>
+        public const string MinionsLabel = "the robotic Minions";
+
         /// <summary>
         /// "It rolls its 13d Might and gets 8 successes. Gate uses his 12d Armor to defend himself and
         /// rolls 6 successes. With a total of 2 net successes, a giant mechanical foot stomps Gate into
