@@ -1,8 +1,10 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
+using static ProwlersAndParagons.Web.Tests.BusyRenderer;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -76,12 +78,16 @@ public sealed class CommandPaletteTests
     /// wiring as well as the matching.</para>
     /// </summary>
     [Fact]
-    public void TypingFindsAPower()
+    public async Task TypingFindsAPower()
     {
         using var ctx = Opened();
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("plast");
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "plast" }),
+            "the word typed into the box");
 
         var labels = page.FindAll(".palette-row .palette-label").Select(e => e.TextContent).ToList();
 
@@ -101,7 +107,7 @@ public sealed class CommandPaletteTests
     /// first row for ever.</para>
     /// </summary>
     [Fact]
-    public void TheArrowKeysMoveTheCurrentRowAndWrap()
+    public async Task TheArrowKeysMoveTheCurrentRowAndWrap()
     {
         using var ctx = Opened();
 
@@ -110,16 +116,21 @@ public sealed class CommandPaletteTests
 
         Assert.Equal(0, CurrentIndex(page));
 
-        box.KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+        await Occupying(page, () => box.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" }),
+            "the first press down");
         Assert.Equal(1, CurrentIndex(page));
 
         // Up from the first row is the last one: a list this short is a ring.
-        box.KeyDown(new KeyboardEventArgs { Key = "ArrowUp" });
-        box.KeyDown(new KeyboardEventArgs { Key = "ArrowUp" });
+        await Occupying(page, async () =>
+        {
+            await box.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowUp" });
+            await box.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowUp" });
+        }, "the two presses up");
         Assert.Equal(Commands.Steps.Count - 1, CurrentIndex(page));
 
         // ...and down from the last is the first again.
-        box.KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+        await Occupying(page, () => box.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" }),
+            "the press down that wraps");
         Assert.Equal(0, CurrentIndex(page));
     }
 
@@ -132,13 +143,15 @@ public sealed class CommandPaletteTests
     /// rendered announces nothing while looking exactly like naming one that is.</para>
     /// </summary>
     [Fact]
-    public void TheCurrentRowIsNamedByAnIdThatExists()
+    public async Task TheCurrentRowIsNamedByAnIdThatExists()
     {
         using var ctx = Opened();
 
         var page = ctx.Render<CommandPalette>();
         var box = page.Find(".palette-box");
-        box.KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        await Occupying(page, () => box.KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" }),
+            "the press that moves the current row");
 
         var named = page.Find(".palette-box").GetAttribute("aria-activedescendant");
         Assert.False(string.IsNullOrEmpty(named));
@@ -154,12 +167,15 @@ public sealed class CommandPaletteTests
     /// kept pointing at row zero would be naming an element that is not in the document.</para>
     /// </summary>
     [Fact]
-    public void WithNoMatchesItSaysSoAndNamesNoRow()
+    public async Task WithNoMatchesItSaysSoAndNamesNoRow()
     {
         using var ctx = Opened();
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("qzqzqz");
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "qzqzqz" }),
+            "the word nothing matches");
 
         Assert.Empty(page.FindAll(".palette-row"));
         Assert.Single(page.FindAll(".palette-empty"));
@@ -168,7 +184,7 @@ public sealed class CommandPaletteTests
 
     /// <summary>Escape closes it, and the service is what holds that rather than the component.</summary>
     [Fact]
-    public void EscapeCloses()
+    public async Task EscapeCloses()
     {
         using var ctx = Opened();
         var commands = CommandsOf(ctx);
@@ -176,7 +192,11 @@ public sealed class CommandPaletteTests
         var page = ctx.Render<CommandPalette>();
         Assert.True(commands.IsOpen);
 
-        page.Find(".palette-box").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        await Occupying(
+            page,
+            () => page.Find(".palette-box")
+                      .KeyDownAsync(new KeyboardEventArgs { Key = "Escape" }),
+            "the Escape that closes the palette");
 
         Assert.False(commands.IsOpen);
         Assert.Empty(page.FindAll(".palette"));
@@ -191,7 +211,7 @@ public sealed class CommandPaletteTests
     /// character itself. The sheet is asserted unchanged for exactly that reason.</para>
     /// </summary>
     [Fact]
-    public void EnterOnAPowerRequestsItAndAddsNothing()
+    public async Task EnterOnAPowerRequestsItAndAddsNothing()
     {
         using var ctx = Opened();
         var commands = CommandsOf(ctx);
@@ -199,8 +219,15 @@ public sealed class CommandPaletteTests
         var before = ctx.Session.Sheet.SelectedPowers.Count;
 
         var page = ctx.Render<CommandPalette>();
-        page.Find(".palette-box").Input("plasticity");
-        page.Find(".palette-box").KeyDown(new KeyboardEventArgs { Key = "Enter" });
+        // Both awaited, and in one occupation: Enter runs whatever row the keystroke before it
+        // left current, so a posted `Input` means Enter lands on the steps rather than on a Power.
+        await Occupying(page, async () =>
+        {
+            await page.Find(".palette-box")
+                      .InputAsync(new ChangeEventArgs { Value = "plasticity" });
+            await page.Find(".palette-box")
+                      .KeyDownAsync(new KeyboardEventArgs { Key = "Enter" });
+        }, "the word and the Enter on it");
 
         Assert.Equal("plasticity", commands.RequestedPowerId);
         Assert.False(commands.IsOpen);
