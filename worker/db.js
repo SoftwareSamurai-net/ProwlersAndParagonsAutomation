@@ -798,3 +798,99 @@ export async function listErrorLog(db) {
 
     return result.results;
 }
+
+// ── The accounts an administrator can see, scoped to their own campaigns ───────────────────
+//
+// **Three statements that never leave the caller's own table.** The scope is `campaign_members`:
+// an account is visible here because it is a player in a campaign this caller runs, and for no
+// other reason. That is the decision `PROGRESS.md` item 19 records — an all-accounts list would
+// not bite while `isAdministrator` is one person, and would the moment a second GM is made one.
+//
+// **`users.id` never leaves this file.** A row is keyed by `email`, which the administrator is
+// already reading off the invitation list on the same page; the account id stays an internal key,
+// the same way it does in the membership design. See `worker/adminAccounts.js`.
+
+/**
+ * Every account that is a player in one of this caller's campaigns.
+ *
+ * <p><b>The caller is excluded, and that is a rule rather than a tidiness point.</b> A GM can
+ * redeem their own join code, so without the `u.id <> ?` they could appear in their own list —
+ * and this screen sets `character_limit`, which `docs/CHARACTERS-API.md` states must not be
+ * self-service: <i>a cap somebody can raise on themselves is not a cap</i>. Excluding them here
+ * and in <see>setCharacterLimit</see> is what keeps that true of the screen as well as of the
+ * database.</p>
+ *
+ * <p><b>The count is a correlated subquery rather than a join.</b> A `LEFT JOIN … GROUP BY` over
+ * `characters` would work and would put the payload column's table in the middle of a list query;
+ * this counts rows against the index on `characters (user_id, id)` and reads nothing else.</p>
+ *
+ * <p>`DISTINCT` is not needed and is deliberately absent: the `EXISTS` answers once per account
+ * however many of this GM's campaigns they are in.</p>
+ */
+export async function listPlayersOfGm(db, gmUserId) {
+    const result = await db.prepare(
+        'SELECT u.email AS email, u.display_name AS display_name, '
+        + '       u.character_limit AS character_limit, '
+        + '       (SELECT COUNT(*) FROM characters c WHERE c.user_id = u.id) AS character_count '
+        + 'FROM users u '
+        + 'WHERE u.id <> ? '
+        + '  AND EXISTS (SELECT 1 FROM campaign_members m '
+        + '              WHERE m.gm_user_id = ? AND m.player_user_id = u.id) '
+        + 'ORDER BY u.email ASC')
+        .bind(gmUserId, gmUserId).all();
+
+    return result.results;
+}
+
+/**
+ * One of those accounts, by address, or null — for a caller who wants that account's characters.
+ *
+ * <p>The same `WHERE` as the list, so an address outside the caller's campaigns and an address
+ * nobody has ever used are the same answer: null. The caller turns that into the 404 an unrouted
+ * address gets.</p>
+ */
+export async function playerOfGm(db, { gmUserId, email }) {
+    return await db.prepare(
+        'SELECT u.id AS id, u.email AS email, u.display_name AS display_name, '
+        + '       u.character_limit AS character_limit, '
+        + '       (SELECT COUNT(*) FROM characters c WHERE c.user_id = u.id) AS character_count '
+        + 'FROM users u '
+        + 'WHERE u.email = ? AND u.id <> ? '
+        + '  AND EXISTS (SELECT 1 FROM campaign_members m '
+        + '              WHERE m.gm_user_id = ? AND m.player_user_id = u.id)')
+        .bind(email, gmUserId, gmUserId).first();
+}
+
+/**
+ * Set one player's cap, and hand back the row as it now stands.
+ *
+ * <p><b>One statement, with the scope inside its `WHERE`.</b> A read that checked the account was
+ * in one of this caller's campaigns, followed by an `UPDATE` that trusted the answer, is the shape
+ * every statement in this file is written to avoid — and here it would be worse than a lost
+ * update: a membership ended between the two would leave a write landing on an account the caller
+ * may no longer see. `RETURNING` is how the caller learns which happened — a row back means the
+ * account was in scope and is now capped at this number, nothing back means it was not, which is
+ * the same answer an address nobody has ever used gives.</p>
+ *
+ * <p><b>A plain `UPDATE` is enough here and `putCharacter`'s `INSERT … SELECT` is not the model
+ * to copy.</b> That statement has to read a count and decide on it, so the decision has to be
+ * inside the write. This one writes a number the caller supplied: two administrators setting the
+ * cap at the same moment leave whichever landed second, which is the correct end state for a
+ * value nobody is incrementing.</p>
+ *
+ * <p>The lowered cap is never reconciled against what the account already holds, deliberately.
+ * `putCharacter`'s first `WHERE` clause lets an id the account already owns through however full
+ * it is, so dropping somebody from 25 to 3 while they hold ten keeps all ten openable, editable
+ * and saveable and simply refuses the eleventh. There is nothing to clean up and nothing to
+ * refuse here.</p>
+ */
+export async function setCharacterLimit(db, { gmUserId, email, characterLimit }) {
+    return await db.prepare(
+        'UPDATE users SET character_limit = ? '
+        + 'WHERE email = ? AND id <> ? '
+        + '  AND EXISTS (SELECT 1 FROM campaign_members m '
+        + '              WHERE m.gm_user_id = ? AND m.player_user_id = users.id) '
+        + 'RETURNING email, display_name, character_limit, '
+        + '  (SELECT COUNT(*) FROM characters c WHERE c.user_id = users.id) AS character_count')
+        .bind(characterLimit, email, gmUserId, gmUserId).first();
+}

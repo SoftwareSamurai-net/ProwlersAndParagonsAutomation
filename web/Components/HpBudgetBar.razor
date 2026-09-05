@@ -150,9 +150,12 @@
                    the meters above — a Trait Cap is not part of the total — so it sits apart
                    the way the sheet sets a rule apart from a figure. *@
                 <div class="breakdown-note">
-                    <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b></span>
+                    <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b>@if (Session.TraitCapIsNotTheTiers)
+                        {
+                            <span class="muted"> · this game's, not the tier's @(Session.TierTraitCap)d</span>
+                        }</span>
                     <Tooltip Term="the Trait Cap"
-                        Text="The highest rank any single Trait may reach at this tier. It applies to Abilities, Talents and a Power's effective rank alike, and the GM review step names anything over it." />
+                        Text="The highest rank any single Trait may reach. It applies to Abilities, Talents and a Power's effective rank alike, and the GM review step names anything over it. It is the tier's ceiling unless this game has set a tighter one — and Resolve is measured from whichever it is, so a tighter cap pays less for staying under it." />
                 </div>
             </div>
         }

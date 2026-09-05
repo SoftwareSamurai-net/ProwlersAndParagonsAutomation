@@ -117,7 +117,11 @@ public sealed class Judgement
                 ["budget"]    = tier?.HeroPoints,
                 ["remaining"] = spent is null || tier is null ? null : tier.HeroPoints - spent
             },
-            ["trait_cap"] = tier?.TraitCapRank,
+            // <b>The cap in force, and the tier's beside it.</b> A house Trait Cap on the
+            // character substitutes for the tier's — Resolve is measured from it — so a caller
+            // reading one figure alone cannot tell a specialist from a table's rule.
+            ["trait_cap"]      = DerivedStatsCalculator.EffectiveTraitCap(sheet, tier),
+            ["tier_trait_cap"] = tier?.TraitCapRank,
             ["derived"]   = new JsonObject
             {
                 ["edge"]    = Answer(() => _derived.CalculateEdge(sheet)),

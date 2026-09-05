@@ -46,18 +46,22 @@
        pairing.
 
        **The individual pips stay `aria-hidden`.** They are the slider's own rendering, and a
-       reader told "4d Noteworthy, slider" does not also want twelve unlabelled children. *@
+       reader told "4d Noteworthy, slider" does not also want twelve unlabelled children.
+
+       **The row is drawn to `Ceiling`, not to `Max`** — see the doc comment on it. A cap tighter
+       than what the character already has, or than what a package grants, is a finding the
+       validator reports on this very row; it is not this component's to hide or to repair. *@
     <div class="pips"
          @ref="_pips"
          role="slider"
          tabindex="0"
          aria-label="@($"{Name} rank")"
          aria-valuemin="@Min"
-         aria-valuemax="@Max"
+         aria-valuemax="@Ceiling"
          aria-valuenow="@Rank"
          aria-valuetext="@ValueText"
          @onkeydown="Key">
-        @for (var i = 1; i <= Max; i++)
+        @for (var i = 1; i <= Ceiling; i++)
         {
             var rank = i;
             var cls = i <= PackageFloor ? "pip on package" : i <= Rank ? "pip on" : "pip";
@@ -71,7 +75,7 @@
                 @onclick="() => Set(Rank - 1)">−</button>
         <span class="value">@(Rank)d</span>
         <button type="button" aria-label="@($"Raise {Name}")"
-                disabled="@(Rank >= Max)"
+                disabled="@(Rank >= Ceiling)"
                 @onclick="() => Set(Rank + 1)">+</button>
     </div>
 
@@ -173,6 +177,33 @@
     private int Min => Math.Max(Floor, PackageFloor);
 
     /// <summary>
+    /// <b>The highest rank this row draws and can be set to.</b> Normally
+    /// <see cref="Max"/> — the Trait Cap in force — but never below <see cref="Min"/> and never
+    /// below the rank the character already carries.
+    ///
+    /// <para><b>The first half stops this component throwing.</b> A house Trait Cap is a number a
+    /// GM types, and a campaign capped at 2d over a package that grants 3d makes
+    /// <c>Min &gt; Max</c> — at which point <c>Math.Clamp</c> throws
+    /// <c>ArgumentException</c> on the first pip click, taking the whole step down. A cap under a
+    /// package floor is a character the validator already reports
+    /// (<c>TRAIT_CAP_BELOW_MINIMUM</c>, <c>TRAIT_ABOVE_CAP</c>), and a row that crashes reports
+    /// nothing at all.</para>
+    ///
+    /// <para><b>The second half keeps the ARIA honest.</b> A character built to 8d whose table
+    /// then caps at 6d used to render six pips with <c>aria-valuenow="8"</c> against
+    /// <c>aria-valuemax="6"</c> — a <c>slider</c> announcing a value outside its own range, which
+    /// is the same fault the budget strip records for <c>progressbar</c>. The eight pips are drawn
+    /// plainly, in the classes every other row uses; there is no "over the cap" ink and inventing
+    /// one here would be a second way of saying what the finding beneath the row already says.</para>
+    ///
+    /// <para><b>Reported, never repaired — and it ratchets rather than sticking.</b> Nothing here
+    /// lowers the rank: the ceiling gives way to what is already on the sheet. Stepping 8d down to
+    /// 7d moves the ceiling to 7d with it, so an over-cap Trait can come down and cannot climb
+    /// again, which is the honest reading of a cap that is in force.</para>
+    /// </summary>
+    private int Ceiling => Math.Max(Math.Max(Max, Min), Rank);
+
+    /// <summary>
     /// What a screen reader is told the value is. The bare number would be read as a quantity;
     /// the rulebook's own word for the rung is the thing a player is choosing between, and it is
     /// already on screen for everybody else.
@@ -200,12 +231,18 @@
         "ArrowRight" or "ArrowUp" => Set(Rank + 1),
         "ArrowLeft" or "ArrowDown" => Set(Rank - 1),
         "Home" => Set(Min),
-        "End" => Set(Max),
+        "End" => Set(Ceiling),
         _ => Task.CompletedTask,
     };
 
+    /// <summary>
+    /// The one place a rank is bounded, so the announced bounds and the enforced ones cannot
+    /// disagree. <see cref="Ceiling"/> rather than <see cref="Max"/>, and the ordering matters:
+    /// <c>Math.Clamp</c> throws when its low bound is above its high one, which a house Trait Cap
+    /// below a package's granted rank really does produce.
+    /// </summary>
     private Task Set(int value) =>
-        RankChanged.InvokeAsync(Math.Clamp(value, Min, Max));
+        RankChanged.InvokeAsync(Math.Clamp(value, Min, Ceiling));
 
     /// <summary>The slider element, guarded against Home/End on first render. See <see cref="Sliders"/>.</summary>
     private ElementReference _pips;

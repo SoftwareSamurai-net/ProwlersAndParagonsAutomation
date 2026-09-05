@@ -20,7 +20,19 @@ You will get the arithmetic wrong if you try it. Do not try it.
 
 ```bash
 dotnet run -- build --from character.json
+
+# A whole roster in one process, and one report covering all of it
+dotnet run -- build --from-dir campaign/ --no-export --traits-above 6
+
+# --no-build when anything else may be building this working tree
+dotnet run --no-build -- build --from character.json --no-export
 ```
+
+**Use `dotnet run --no-build` whenever you are not the only thing in this checkout.** Several
+`dotnet run` commands at once collide on the compiler — one of them fails on a file another is
+writing, and the failure has nothing to do with the character. `--no-build` skips the build and
+runs the last one, which is what makes several agents driving one working tree safe. Build once
+yourself first if you have just changed the code.
 
 **This skill is for working inside this repository.** There is a second way in for somebody who
 has not checked it out: `mcp/` is an MCP server over the same engine, and its own document —
@@ -30,10 +42,15 @@ call the same `CostCalculator` and `CharacterValidator`.
 
 | | |
 |---|---|
-| `--from <file>` | The character. `-` reads it from standard input. |
+| `--from <file>` | The character. `-` reads it from standard input, and may be given at most once. **Repeatable** — pass it once per character to check a roster in one process. |
+| `--from-dir <dir>` | Every `*.json` directly in `<dir>`, in name order. Not recursive, so an `output/` of previous exports underneath it is not swept up. Combines with `--from`. |
 | `--out <dir>` | Where the `.txt` and `.json` sheets go. A relative path is relative to where you are; with no `--out` they go to `output/` beside the program instead. The report gives absolute paths either way. |
 | `--no-export` | Cost and validate only. Use this while iterating. |
+| `--overwrite` | Name each export after its character alone, with no timestamp, replacing any file of that name. Without it every run *adds* a pair — right for one export, wrong for a roster re-checked after an edit. Two characters whose names reduce to the same file name come back with an `EXPORT_NAME_COLLISION` warning rather than one writing over the other. |
+| `--traits-above <n>` | Add to the roster section every Ability, Talent and Power whose effective rank is above `n`, and the Trait a Power's baseline is derived from — so you can see whether the Power justifies the rank. |
+| `--trait-cap <n>` | Build **every** character in the run to a house Trait Cap of `n` rather than the tier's, overriding the `TraitCapRank` field on the file. A campaign may cap tighter than any tier does — Pinnacle City caps a non-superhuman at 6d. **It moves Resolve**, which is measured from the cap; the report carries the cap in force as `trait_cap` and the tier's as `tier_trait_cap`. A value that is not a whole number is exit 2; one that makes no sense (0d, or above the tier's) is a finding on the character, as it is when the file carries it. |
 | `--help` | The same table, from the program. |
+| `--no-build` | Not this command's flag — it goes before the `--`, as `dotnet run --no-build -- build …`. Skips the compile, which is what stops several agents in one working tree colliding. |
 
 **Exit 0** the character is legal — there may still be warnings.
 **Exit 1** it breaks a rule; every issue is in the report.
@@ -51,7 +68,8 @@ The report:
   "exit_code": 1,
   "character": { "name": "…", "tier": "standard", "package": "hero_package" },
   "hero_points": { "spent": 131, "budget": 125, "remaining": -6 },
-  "trait_cap": 12,
+  "trait_cap": 12,                // the cap in force — the house one if there is one
+  "tier_trait_cap": 12,           // the tier's own, so you can see when they differ
   "derived": { "edge": 14, "health": 8, "resolve": 6 },
   "issues": [ … ],
   "exports": { "text": "…absolute path", "json": "…absolute path" }
@@ -61,6 +79,49 @@ The report:
 `exports` is null when you passed `--no-export` — and also when the sheets could not be
 written, which comes with an `EXPORTS_NOT_WRITTEN` warning. Check it before telling anyone
 their sheet is ready.
+
+### More than one character
+
+**One character reports exactly the document above.** Give the command two or more — repeated
+`--from`, or `--from-dir` — and standard output is still exactly one JSON document, wrapping
+them:
+
+```jsonc
+{
+  "ok": false,                  // true only when every character is legal
+  "exit_code": 2,               // the highest of theirs: 2 beats 1 beats 0
+  "characters": [
+    { /* the report above, plus "source": the file it was read from */ }
+  ],
+  "roster": {
+    "character_count": 3,
+    "read_count": 2,            // a file that could not be read is in characters, not here
+    "traits_above": [           // only with --traits-above
+      { "source": "…", "name": "…", "traits": [
+        { "kind": "ability", "id": "might", "rank": 9 },
+        { "kind": "power", "id": "armor", "rank": 9, "purchased_ranks": 5,
+          "baseline_rank": 4, "baseline_relationship": "baseline_half",
+          "baseline_traits": [ "toughness" ], "affects_resolve": true }
+      ] }
+    ],
+    "spending": [
+      { "source": "…", "name": "…",
+        "totals": { "package": 40, "abilities": 12, "talents": 2,
+                    "powers": 4, "perks": 2, "gear": 0, "total": 60 },
+        "perks": [ { "id": "contacts", "units": 2, "cost": 2 } ] }
+    ],
+    "perks_by_id": [ { "id": "contacts", "characters": 2, "units": 5 } ]
+  }
+}
+```
+
+**A file that cannot be read is one exit-2 report inside `characters`, not the end of the
+run** — a typo in one file name does not cost you the other twenty-seven answers. Read
+`exit_code` to know that something needs attention and each character's own to know which.
+
+`perks_by_id` is the "which sheets are padded with Contacts" question: Contacts is the
+cheapest dial on the sheet, and a roster leaning on it is visible here and in no category
+total.
 
 ## Build it at full strength first
 
@@ -89,6 +150,17 @@ between the Trait Cap and the highest relevant rank, so taking a headline Trait 
 drives Resolve towards zero. Build the specialist, say what it cost in one sentence, and let
 them take the generalist instead if that is what they wanted.
 
+**And the cap may not be the tier's.** A campaign can impose a tighter one — Pinnacle City caps a
+non-superhuman NPC at 6d where the Standard tier allows 12d — and that is `TraitCapRank` on the
+character file, or `--trait-cap <n>` for a whole run. **It substitutes for the tier's rather than
+merely gating validation**, so it moves Resolve: at Standard a 4d character is paid `(12−4)×2 = 16`,
+and under a 6d house cap the same character is paid `(6−4)×2 = 4`. Read `trait_cap` from the report
+rather than the tier's `trait_cap_rank`, build to *that* number, and say the ceiling out loud when
+`tier_trait_cap` differs from it — the trade above is a different trade under a tighter cap, and it
+lowers the Resolve ceiling too (24 at 12d, 12 at 6d). A cap **above** the tier's is
+`TRAIT_CAP_ABOVE_TIER` and a cap below 1d is `TRAIT_CAP_BELOW_MINIMUM`; both are errors, and both
+figures are still what the report was computed from, because this tool reports and never repairs.
+
 This licenses none of the following: overruling a weakness they stated, dropping a Flaw or Con
 they asked for, going over budget, or making the character cheaper rather than stronger. The
 goal is the strongest sheet *at* the budget.
@@ -106,7 +178,9 @@ not quote it.** Three consequences:
   Resolve. Take one to three anyway; creation requires it and they cost nothing. Choose for the
   story, not the number.
 - **The Trait Cap trade above does not apply.** Resolve is what a *Hero* pays for a rank at the
-  cap. A Villain pays nothing, so cap every Trait the concept supports.
+  cap. A Villain pays nothing, so cap every Trait the concept supports. A **house** cap is the
+  exception worth naming: on a Villain it is doing validation work and nothing else — build to it
+  because the table said so, and ignore the Resolve half of it as you ignore the rest.
 
 `IsVillain` is a real field and is **presentation only** — it picks the sheet's palette, and no
 rules code reads it. Flip it and every figure in the report is identical. Ch.9 builds Villains
@@ -201,6 +275,7 @@ because no Trait can be lower than 1d. A tier and a flaw alone comes back with e
   "Name": "Chrono Jab",
   "IsVillain": false,                    // presentation only — the sheet's palette, never a cost
   "SelectedTierId": "standard",          // required in practice: it sets the budget and cap
+  "TraitCapRank": null,                  // a house cap tighter than the tier's; null = the tier's
   "SelectedPackageId": "hero_package",   // optional; omit for a character who took none
 
   // ALL SIX Abilities and ALL TWELVE Talents, always. See "What trips up a first draft".

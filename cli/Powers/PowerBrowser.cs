@@ -157,7 +157,11 @@ public sealed class PowerBrowser
         if (baseline > 0)
             AnsiConsole.MarkupLine($"[grey]Baseline rank (free): [bold]{baseline}d[/][/]");
 
-        var purchasedRanks = PromptPurchasedRanks(power, tier.TraitCapRank, baseline);
+        // The ceiling this character is built to, which is its house cap where it has one. The
+        // browser bounds by the same number the validator judges by — see `CharacterSheet`.
+        var cap = DerivedStatsCalculator.EffectiveTraitCap(sheet, tier) ?? tier.TraitCapRank;
+
+        var purchasedRanks = PromptPurchasedRanks(power, cap, baseline);
         var units          = PromptUnits(power);
 
         // Pros and cons

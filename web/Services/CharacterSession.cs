@@ -409,9 +409,31 @@ public sealed class CharacterSession
         ? 0
         : Rules.GetTier(Sheet.SelectedTierId)?.HeroPoints ?? 0;
 
-    public int TraitCap => Sheet.SelectedTierId is null
-        ? 0
-        : Rules.GetTier(Sheet.SelectedTierId)?.TraitCapRank ?? 0;
+    /// <summary>
+    /// <b>The cap this character is built to</b> — the house cap on the sheet where there is one
+    /// and the tier's otherwise, which is <c>DerivedStatsCalculator.EffectiveTraitCap</c> and is
+    /// not spelled out a second time here. Every rank field on every step is bounded by this, and
+    /// the number the browser bounds by has to be the number the validator judges by and the
+    /// number Resolve was measured from.
+    /// </summary>
+    public int TraitCap =>
+        DerivedStatsCalculator.EffectiveTraitCap(Sheet, Tier) ?? 0;
+
+    /// <summary>
+    /// The tier's own ceiling, for the screens that say so when a house cap has moved
+    /// <see cref="TraitCap"/> off it. 0 with no tier, like the two figures above.
+    /// </summary>
+    public int TierTraitCap => Tier?.TraitCapRank ?? 0;
+
+    /// <summary>
+    /// Whether a house cap is in force and differs from the tier's — the one question a screen
+    /// asks before printing the tier's figure beside the one it is showing. A house cap that
+    /// happens to equal the tier's is not worth a note about.
+    /// </summary>
+    public bool TraitCapIsNotTheTiers => Tier is not null && TraitCap != Tier.TraitCapRank;
+
+    private Engine.Models.TierModel? Tier =>
+        Sheet.SelectedTierId is null ? null : Rules.GetTier(Sheet.SelectedTierId);
 
     /// <summary>
     /// Whether the Hero Point budget is a limit for this character.

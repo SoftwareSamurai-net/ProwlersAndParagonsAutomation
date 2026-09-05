@@ -82,11 +82,11 @@ as in scope. **Nothing here is a defect.**
 
 - [ ] **[1](#1-close-the-last-four-heroes)** — the last four Heroes, 1 HP out each
 - [ ] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver. **Includes the `kill_tree` Linux leak, which must be proved directly and not by outcome**
-- [ ] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement. **The third avenue is already shipped** (`1613c95`); what is left is the rulebook corpus behind `Ctrl`/`⌘`+`K`
+- [x] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement, and the rulebook corpus behind `Ctrl`/`⌘`+`K`. Verified by the orchestrator 2026-09-05; what remains of the search bullet is the banner field, recorded in the entry
 - [ ] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`
-- [ ] **[15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one)** — a campaign-tighter Trait Cap. **The design question is answered** — see the entry
-- [ ] **[16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster)** — the tool costs one character and a campaign is a roster
-- [ ] **[19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds)** — a screen over behaviour that is already correct
+- [x] **[15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one)** — a campaign-tighter Trait Cap, and it moves Resolve. Verified by the orchestrator 2026-09-05
+- [x] **[16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster)** — `build` checks a roster in one process and answers cross-sheet questions. Verified by the orchestrator 2026-09-05; the monotonic-ladder question waits on item 21
+- [x] **[19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds)** — a GM sets a player's cap and sees what they hold, on `/admin`. Verified by the orchestrator 2026-09-05
 
 **Recorded, with nothing asking for them**
 
@@ -967,10 +967,20 @@ tool for running and playing has.**
 
   **The discoverability half is done — see [the archive](docs/progress/).** The
   banner carries a `Search` button with the chord printed beside it, on every route, with the
-  modifier chosen at render time from the platform. **What is left in this bullet is the corpus,
-  not the surface**: putting the *rulebook* behind that control means growing the palette onto a
-  second body of text that is behind an account gate, which is the part `palette.js` says in as
-  many words to resist and which still has to be argued rather than assumed.
+  modifier chosen at render time from the platform.
+
+  **The corpus is behind the control now — see the pull request that closed this item.** Signed
+  in, three or more characters typed offer up to five of the book's own passages as a third group,
+  "In the book", each with its `Ch.N p.NN` citation in the one spelling `/rules` uses; choosing one
+  sends the question to `/rules`, which now takes it whether or not it is already the page on
+  screen. Anonymous, the palette asks the server nothing and promises nothing. `palette.js` grew
+  by **zero bytes** — `PaletteScriptTests` pins its digest — because the corpus grew the service
+  and the component, which is where `docs/guide/browser.md` says the decisions live; the argument
+  against growing the doorbell was honoured rather than overruled. A late answer never overwrites
+  a newer query, rows are dropped the moment the box moves, and a `401` stops the offer instead of
+  reading as a silent book. **What remains of this bullet is the banner field** — the button is
+  what a field replaces, and `proof-align.html`'s baseline arithmetic is why that is a change of
+  its own rather than a line in this one.
 
   **What was decided while closing the first half, so it does not get re-litigated:**
 
@@ -1000,10 +1010,9 @@ tool for running and playing has.**
   0.00px; taking the two pills off the band is the half that made the row one kind of thing.
   Measured on every CI run by `proof-align.html`, against a twin that reproduces the defect.
 
-  **What is *not* done from this bullet's neighbourhood: the third avenue.** Item 11's answer says
-  three doors is what a tool for running and playing has, and `.avenue-nav` is built so the third
-  costs one `NavLink` — but there is nothing behind it yet, and a door onto an empty room is worse
-  than a wall.
+  **The third avenue shipped in `1613c95`** — `Run` is the link, `BannerTests` pins three avenues
+  — and this paragraph said it had not for three days afterwards, which is the drift item 23
+  records. The campaign screens are what stand behind the door.
 
 #### Two smaller things from the same reading
 
@@ -1279,9 +1288,8 @@ Not started. No estimate. Recorded so the architecture note above is not redisco
 non-superhuman NPC at **6d — peak human, with 3d an average adult** — which is a house rule the tool
 cannot see, so a sheet breaking it still validates `ok: true`.
 
-Today this is audited by hand. It was audited by hand three times across twenty-eight sheets in one
-session and held every time, including across five independently-built clusters — but that is a
-property of that session, not of the tool, and nothing stops the next sheet breaking it silently.
+Until this item closed it was audited by hand — three times across twenty-eight sheets in one
+session, and it held every time, which was a property of that session and not of the tool.
 
 **The obvious shape is a `--trait-cap` override on `build`, or a field on the character file,
 reported under its own issue code so the repair is mechanical.** One thing to settle before
@@ -1310,7 +1318,21 @@ Heroes have Resolve, so on the NPC sheets that surfaced this the house cap is do
 and the Resolve half is a figure nobody should quote. Both halves still land; only one is visible
 per kind of character.
 
-Not started.
+**Built — see the pull request that closed this item.** `CharacterSheet.TraitCapRank` is the cap a
+character is built to, null for the tier's, and `DerivedStatsCalculator.EffectiveTraitCap` is the
+one answer every reader takes — Resolve, the validator, the budget strip, the printed sheet's meta
+line, the Resolve breakdown, the replay verdict, the terminal wizard, `build`, the MCP report and
+the JSON export's top-level `trait_cap`; `TraitCapReadTests` scans for any surface still reading
+the tier's. A cap above the tier's is `TRAIT_CAP_ABOVE_TIER`, below 1d `TRAIT_CAP_BELOW_MINIMUM`,
+and both are used as written. `build --trait-cap N` overrides every character of a run and is never
+written back; reports carry `trait_cap` beside `tier_trait_cap`. Joining a campaign copies its cap
+into an empty field, says exactly what it took, and `CampaignJoin.Inspect` — which nothing in the
+application had ever called — is now drawn on `/campaign`, so a character that disagrees with its
+game is told. The GM's approval diff gains a `Trait Cap 12d → 6d` row, and a rank row under a cap
+tighter than its package floor no longer throws. `StoredCharacter.CurrentVersion` is untouched.
+Verified by the orchestrator: a 7d Intellect at Standard reports Resolve 10, and 0 under
+`--trait-cap 6` with `TRAIT_ABOVE_CAP`; `CalculateResolve` mutated back to the tier's cap went red
+on `AHouseTraitCapMovesResolve`.
 
 ### 16. The tool costs one character, and a campaign is a roster
 
@@ -1347,8 +1369,24 @@ None of this needs new rules knowledge — it is all the same engine, called dif
 The same twenty-eight NPCs are what broke the character manager, and a roster page that can be
 filtered, grouped by game and read at a glance is what came of it. **Nothing above is affected**:
 every bullet here is about `cli/` and `sheets/` — one file per `--from`, timestamped export names,
-no cross-sheet question — and the browser cannot answer any of them. The cross-sheet questions in
-particular stay open and are the most valuable of the four.
+no cross-sheet question — and the browser cannot answer any of them.
+
+**All four bullets are closed — see the pull request that closed this item.** `--from` repeats and
+`--from-dir` takes every `*.json` in a directory (case-insensitively on every platform); one input
+keeps today's report byte for byte, more than one is still exactly one JSON document — `characters[]`
+with an absolute `source` each, `exit_code` the worst of them, an unreadable file one exit-2 report
+inside the list rather than the end of the run. `--overwrite` names exports after the character
+alone; two characters sharing a safe name each get a numbered pair **and** an `EXPORT_NAME_COLLISION`
+warning, and the same run twice replaces the same files. `roster.spending` is `CostCalculator`'s own
+six addends and the Perks that make up one of them, `roster.perks_by_id` counts holders and units
+and prices nothing, and `--traits-above N` lists every Trait over the rank with the Trait a Power's
+baseline is read from (`DerivedStatsCalculator.BaselineTraitIds`, a new pure method) — a Power the
+engine cannot rank is a row with `rank: null`, not an absence. `--no-build` is in `--help`, the
+skill, `CLAUDE.md`, `README.md` and the guide, with tests pinning the flag table in both directions.
+**Not built: the monotonic-ladder question**, which is a question about variants of one character
+and waits on item 21. Verified by the orchestrator: three fixtures driven for real, exit 2 on the
+broken one; two colliding names under `--overwrite` gave two pairs on disk, twice; the roster exit
+code mutated to "last character's" went red on three theory cases.
 
 ### 21. Variants of one character are a naming convention doing a structure's job
 
@@ -1498,7 +1536,18 @@ that way already**, on 2026-09-01: `d1/migrations/0008_character_index_fields.sq
 `tier_id` and `spent`, every one written by the client, and `putCharacter` binds all three without
 the server parsing a word. That question is settled — do not re-open it as part of this item.
 
-Not started.
+**Built — see the pull request that closed this item.** `GET /api/admin/accounts` lists the players
+in the caller's own campaigns — never the caller, never every account — with what each holds and
+their cap; `PUT /api/admin/accounts/{email}/character-limit` sets it in one scoped `UPDATE …
+RETURNING` (0–500, and `AccountsContractTests` pins the razor's `max` to the server's constant);
+`GET …/{email}/characters` answers `label`, `updatedAt` and the three client-written index columns
+and never the payload. The key is the address, which the administrator already reads off the
+invitation list one panel up, so it is not a new disclosure; `routePattern` files the whole prefix
+as one row. A failed read says the players could not be read rather than that nobody has joined,
+Save is dead until the box holds a different whole number, a draft in one row survives saving
+another, and a slow answer for one player's sheets cannot land under another's name. Verified by
+the orchestrator: the admin gate, the self-cap exclusion on the `UPDATE`, the conditional
+`aria-controls` and the sheets in-flight guard each went red under mutation.
 
 ### 20. xunit.v3 4.0.0 is a test-platform migration, and it is measured but not done
 

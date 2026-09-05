@@ -93,11 +93,18 @@ two `.key` boxes.
   opens the palette, because that is a click Blazor handles. `RenderContext` answers `false` for
   every test and proof page, so what renders is an ordinary Windows reader rather than a broken
   deployment; `GuardedInteropTests` owns the `null`.
-- **A button and not a text box**, though [`PROGRESS.md`](../../PROGRESS.md) item 12 puts a rules
-  search here eventually. A box that looked like a search field while searching Powers and step
-  names would be the wrong promise twice over: the rulebook is a different corpus and it is behind
-  an account, and growing the palette onto it is the part of item 12 that still has to be argued —
-  `palette.js` says in as many words to resist growing it.
+- **Still a button and not a text box, and the field is what remains of this bullet.** The corpus
+  moved behind the chord — see the section below — so the objection the button was kept for is
+  half spent: the rulebook is no longer a thing the palette does not do. What keeps it a button is
+  `proof-align.html`. (What is left of [`PROGRESS.md`](../../PROGRESS.md)'s item 12 is a question
+  for that file and not for this one — a guide that counts somebody else's halves is a second
+  progress list, and it goes stale the moment the first one moves.) The banner's baseline is measured on every CI run and the
+  `.key` boxes inside this control are part of that arithmetic, so swapping it for a field is a
+  change to the one band in the app whose alignment is proved in a browser rather than reasoned
+  about. **If you do it: keep the field on the `.banner-tool` baseline idiom, give it a visible
+  label or an `aria-label`, and make typing into it open the palette with the text carried in.** A
+  second search implementation in the banner is the thing to refuse — there is one palette and one
+  `Commands`.
 - **The word is "Search" and the palette still calls itself "Go to".** The label has to survive
   being read at a glance beside the other tools; "Go to" between two underlined links read as a
   third link with no destination. What the palette offers is unchanged and its own box says so in
@@ -109,6 +116,109 @@ which needs a Body fragment and a router", and that was never true — `BannerTe
 the layout on its own since the day it was written, `Body` left null and every band drawn. Five
 uppercased banner selectors were standing behind a reason nobody re-read. **When a test exempts a
 selector, check the reason still holds before adding a sixth.**
+
+### The book behind the chord, and why the doorbell did not grow
+
+**The palette offers the rulebook's own passages now, to a reader who is signed in**, as a third
+group under "In the book" — the book's heading as the row's label and the printed citation as its
+detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
+
+- **`js/palette.js` is unchanged, byte for byte, and there is a test that says so.** That file says
+  in as many words to resist growing it, and a corpus is exactly the thing it means: it is still one
+  listener, two focus calls and one question about the keyboard. What a second body of text
+  actually needs is a request, a pause, a race guard and three more rows, and every one of those is
+  a decision about *what the palette offers* — which has always lived in `Commands` and been drawn
+  by `CommandPalette`. `TheDoorbellHasNotGrown` hashes the shipped file; changing it deliberately
+  means changing that test in the same commit, which is the point.
+- **A second corpus behind an account gate is safe here because the palette only ever offers what
+  `RulebookReader` answers.** The book is bundled into the worker and never staged into `wwwroot`;
+  the server refuses every address under `/api/rulebook/` on the prefix; and for an anonymous
+  reader the palette makes **no request at all** and shows no row, no cached prose and no claim
+  that the book exists. **And it re-asks who is here on every open**, so signing out leaves the
+  next opening of the palette with no rows, no request and the shorter label — the same fault
+  `RulebookReader`'s own cache was fixed for, in the place it would reappear. `Commands` also
+  clears the rows when the answer moves, and that line is honestly defence rather than the
+  mechanism: opening empties the box through the ordinary path, so a mutation removing it
+  survives. Its doc comment says so, rather than claiming coverage that is not there.
+- **Who is here is settled before the caret is, and an ask re-reads the answer after its pause.**
+  Both of those are one window seen from two ends: the box becomes typeable the moment focus lands
+  in it, and the pause is a fifth of a second during which somebody can sign out from the account
+  page in another tab. So `OnAfterRenderAsync` asks *then* focuses — the other order left an
+  interop hop in which a signed-out reader's first keystrokes were asked for an account that was
+  gone — and `AskTheBookAsync` checks the offer again on the far side of its pause. A sign-out also
+  takes the sequence number past every ask already in the air, so one that is mid-flight is dropped
+  rather than answered. Three guards on one window, and that is not redundancy for its own sake:
+  the thing being prevented is this app sending a signed-out reader's typing to the address that
+  serves the publisher's text.
+- **The rows are keyed to the query and dropped the moment it moves.** Left up they are the
+  previous question's answer sitting under the current question's text for the pause plus a round
+  trip — read as an answer, because that is what rows are — and worse than read wrongly: each row
+  carries the query it hands to `/rules`, so Enter on a stale one used to search the book for a
+  word the reader had already typed over. `Commands` drops them before its first `await`, and the
+  component asks before it counts, so the render that follows a keystroke is already the new
+  query's. A late answer for a query nobody is asking is dropped on the same test.
+- **The box's `aria-label` promises the book only to somebody who will be shown it.** "Go to a
+  step, find a Power, or search the book" for a signed-in reader and the old two-thirds for
+  everybody else — a label naming a rulebook to a reader the server will refuse is the wrong
+  promise, which is the same objection the banner's control was kept a button for. A placeholder
+  is still not a label: both are set and both say the same words.
+- **There is no "sign in to search the book" row, deliberately.** An inert row that does nothing is
+  the fault `/rules`' "What is here" panel was fixed for, and a row that *did* navigate to sign-in
+  would answer a question about Plasticity with an advertisement for an account. `/rules` is where
+  that offer belongs and it says it in a panel; the banner links there from every route.
+- **Three, 220ms, five — and each figure has a reason rather than a taste.** Three characters
+  because `terms()` in `worker/search.js` drops every word of two or fewer, so a shorter query is
+  one the server cannot run and would answer `found: 0` for a question it never asked. 220ms
+  because this is the **only thing in the app that goes over the network per keystroke** — the
+  steps and the 141 Powers are filtered in the browser. Five rows because the palette is a way to
+  reach something and `/rules` is the results page.
+- **The race guard is not optional and a pause is not one.** Two queries typed a second apart are
+  two requests that really were made, and the older one can answer last — the autosave's defect in
+  a new place, and silent when it happens, because the rows look like an answer and are just the
+  answer to the question before last. Every search takes a number and an answer is dropped if a
+  higher one has already landed. The test holds the first response at the wire and releases it
+  after the second, with both requests asserted so a dropped answer cannot be mistaken for a
+  request that never happened.
+- **And "nothing is outstanding" is a claim about the newest question, not about whichever one has
+  just answered.** The other ordering is a second fault out of the same two requests: the *older*
+  one answers first, and if landing it says the palette has stopped waiting, "nothing here matches
+  what you typed" prints in the middle of a search that is still running and is replaced by five
+  rows a moment later — the sentence's own failure mode, arrived at from the other side. Both
+  orderings are driven, and they are two tests because they fail in opposite directions.
+- **A book that could not be asked is not a book with nothing in it.** A search that answered
+  `found: 0` means the corpus does not use the word; a 401 from a session that expired
+  server-side, a 500, or a laptop off the network mean nothing was learnt at all — and all of them
+  came back as the same `null` until `RulebookReader` was made to say which of the three happened.
+  Printing the sentence over those tells a reader the rulebook has no entry for a word it may have
+  three of, one surface along from where the Powers search shipped exactly that mistake. The state
+  is deliberately quiet — no rows, and no sentence either — because "the book could not be reached"
+  over an open palette is an error report for something the reader did not ask for, and `/rules` is
+  where a search that failed belongs on screen. **A 401 also stops the offer**, since the box's
+  label promises the book and the account it was promised for is gone; it does not start offering
+  again for the same account key, because `Accounts` answers who is here out of its own memory and
+  would go on saying yes. There is no cheaper hook to pull — `IIdentitySource` is one method and
+  carries no way to say an answer has gone stale.
+- **The rows are appended, never interleaved**, so an answer arriving cannot move the row the
+  reader has Enter poised over. One flat list, one index: `aria-activedescendant` names a row by
+  its position and the arrow keys move through the same positions, so a second list beside it would
+  be a second numbering. The "In the book" heading is `role="presentation"` and carries no id — the
+  listbox's children stay options alone — and it is not load-bearing for a screen reader, because
+  every row under it carries its own chapter and page. **The arrow keys reach the book's rows and
+  Enter chooses one**, which is driven as its own test rather than assumed from the click: a
+  palette whose foot prints three key boxes and whose last group could only be clicked would be
+  half a feature. `AriaReferenceTests` sweeps `aria-activedescendant` with this list at its
+  longest, because it is the one ARIA reference here that names a position in a list that grows and
+  shrinks under the reader.
+- **"Nothing here matches what you typed" is held back while an answer is outstanding.** Printed
+  early it says nothing matches and is then replaced by five rows, which reads as the app changing
+  its mind. Nothing is drawn in its place; a spinner for a fifth of a second is worse than a box
+  that has not answered yet.
+- **Choosing a row is a request, not a URL.** It hands the reader's own query to `/rules` through
+  `Commands.RequestSearch` — the idiom that already hands a Power to the editor on another step,
+  taken once so it cannot re-run over what somebody has since typed. `/rules?q=…` was the
+  alternative and was refused for now: it needs a query string parsed back out of the address by
+  hand, and a second way into a page whose one entry point is its own form, for the one thing it
+  buys, which is a link somebody could share.
 
 ## The sheet as a document, at `/sheet`
 
@@ -366,6 +476,24 @@ anybody.
   rejected in `PROGRESS.md` and stays rejected: a row labelled with a chapter that answers with hits
   from three other chapters is the original "looks like a list of links and is not one" complaint in
   a new spelling.
+- **This page can be arrived at with the question already asked — or be sitting here when it is.**
+  Choosing a passage in the command palette hands the reader's own query over through
+  `Commands.RequestSearch`, and this page *takes* it: once, so it cannot re-run over whatever has
+  since been typed into the box, the same read-once rule a requested Power follows. It is taken
+  even when the book is refused, or it would sit waiting to fire on some later visit; nothing is
+  searched in that case, because a search this account cannot make answers null and would draw
+  nothing beside a panel already saying to sign in. See the palette's own section above for why the
+  query travels this way rather than as `?q=`.
+- **Taken on `Commands.Changed` and not only in `OnInitializedAsync`, and that is a fix rather than
+  a flourish.** Reading it on initialisation alone worked for every reader except the likeliest
+  one: somebody already on `/rules` who opens the palette and picks a passage got *nothing*, because
+  `NavigateTo("rules")` from `/rules` is a no-op, Blazor reuses this component rather than
+  initialising a second one, and the request then sat in the service until some later visit
+  answered a question asked minutes earlier. The handler dispatches through `InvokeAsync` — the
+  event can be raised by the key listener, which arrives from the browser rather than from Blazor —
+  and the page unsubscribes on dispose. **The test renders this page first and asserts on that same
+  instance**; the version that rendered a fresh one afterwards passed against the live defect, which
+  is a thing the app never does and the test always did.
 - **A scoped answer says which chapter it came out of, and the box is the way back.** The results
   panel is headed "What Ch.4 says" rather than "What the book says", a scoped miss names the chapter
   and points at the Search button, and submitting the form always clears the scope — a narrowing
@@ -416,6 +544,17 @@ the Trait Cap was silent on its own row until the end. `web/Services/SheetFindin
   token was needed — `--danger` and `--heading` on `--panel` are already held to 4.5:1 in all four
   palettes by `EveryScreenPairInUseHoldsItsContrastFloor`. Adding one would have needed a fresh
   measurement, since the screen palette has no luminance test.
+- **A cap tighter than a row's own floor is drawn, not enforced, and above all not thrown over.**
+  `RankRow.Ceiling` is `max(Max, Min, Rank)` and `Max` is the Trait Cap in force. Two states reach
+  it and both are ordinary once a house cap exists: a campaign capped at 2d over a package that
+  grants 3d made `Min > Max`, and `Math.Clamp` throws `ArgumentException` on exactly that — the
+  first pip click took out the whole step, on a character the validator already had
+  `TRAIT_CAP_BELOW_MINIMUM` and `TRAIT_ABOVE_CAP` to say something about. And an 8d Trait under a
+  6d cap drew six pips announcing `aria-valuenow=8` against `aria-valuemax=6`, a `slider` outside
+  its own range — the fault the budget strip records for `progressbar`, one component over. The
+  ceiling gives way to what is on the sheet, so the rank comes down and cannot climb; nothing is
+  repaired and the findings under the row do the talking. There is no "over the cap" ink, and a
+  second way of saying what the finding says is not worth a token.
 - **`HP_BUDGET_EXCEEDED` and the tier findings are deliberately unrouted.** They belong to no row,
   and the budget strip already exists for the first of them. A finding pinned to an arbitrary row
   would be worse than one shown where it belongs.
@@ -590,9 +729,66 @@ the storage half, which shipped a slice earlier.
   Resolve, which is `(TraitCap − highestRelevantRank) × 2`. `AnEmptyTierIsInherited` is the positive
   control that keeps the mismatch assertion from being an absence satisfied by a join that does
   nothing.
-- **The Trait Cap on a campaign is reported and never enforced**, deliberately and with the owner's
-  approval. `CampaignTests.ACampaignsTraitCapDoesNotMoveResolve` pins it at three caps including
-  none. Do not add a `TraitCapOverride` to `CharacterSheet` and do not touch `CheckTraitCap`.
+- **Joining copies a campaign's Trait Cap into a character that has none, and never over one that
+  has.** That is the tier rule one field at a time: an empty field is filled — alongside the tier
+  where the tier was empty, and on its own where it was not — and a character already built to a
+  cap keeps it, with `CAMPAIGN_TRAIT_CAP_MISMATCH` handed back by `Inspect`. Writing over one would
+  move Resolve on somebody's finished character in the course of typing a join code, which is the
+  same objection as lowering a tier. **A cap mismatch does not block the join and a tier mismatch
+  does**: a character at the wrong power level is at the wrong table, and one whose table caps
+  tighter than it does is a character with a finding on it. The finding carries the two ranks as
+  fields rather than in its sentence, the way the tier finding carries the two ids.
+  `AnEmptyTraitCapInheritsTheCampaigns` is the positive control and asserts the Resolve it moves,
+  because a join that wrote a field nothing read would satisfy an assertion about the field alone.
+- **A join says exactly what it took, because the outcome could not.** `Apply` returns
+  `CampaignJoinResult` — the outcome plus `TookTier` and `TookTraitCap` — and each sentence states
+  that and nothing more: "Its 6d Trait Cap is now yours, and Resolve is measured from it." One
+  outcome covers four different things having happened (both, tier only, cap only, neither), and
+  the page guessed from the outcome alone. It guessed wrong, claiming "Its tier and its Trait Cap
+  are now yours" over a join that took the tier and left a cap the character already had — the one
+  thing joining most carefully does not do, announced out loud. The write is `??=` and is silent by
+  construction, so the flags are read *before* it. **A message claiming a change nobody made is
+  worse than no message**, which is the same rule the three kept-but-no-room refusals follow.
+- **`CampaignJoin.Inspect` is drawn at the head of "Games you are in" on `/campaign`, and nowhere
+  else.** All three of its findings — `UNKNOWN_CAMPAIGN`, `CAMPAIGN_TIER_MISMATCH`,
+  `CAMPAIGN_TRAIT_CAP_MISMATCH` — reach a reader there and only there. **It shipped reaching
+  nobody**: the method was called by tests alone for a whole slice, so a character at 8d in a 6d
+  game was told on no screen, which is the fault this repository keeps hitting. The page resolves
+  the character's campaign **once per campaign id** and asks `Inspect` **every render** — the tier
+  and the cap move without the id moving, and re-resolving per keystroke is the read-per-letter
+  `ChooseTier` already refuses. The screen looks the two tier ids and the two ranks up and says
+  them, which is the other half of the finding carrying them as fields rather than in its sentence.
+- **`CharacterSession.TraitCap` is the cap in force, not the tier's**, and it is
+  `DerivedStatsCalculator.EffectiveTraitCap` rather than a second spelling of the coalesce. Every
+  rank field on every step is bounded by it, and the number the browser bounds by has to be the
+  number the validator judges by and the number Resolve was measured from. **Wherever the cap is
+  printed — the budget strip, the printed sheet's meta line, the Resolve breakdown, a replay's
+  verdict — the tier's is named beside it when the two differ**, because "Trait Cap 6d" at the
+  Standard tier looks like a mistake to anybody who knows the tier allows 12d. **All four are
+  tested, and for a while only the strip was** — `TraitCapOnScreenTests` covers the other three,
+  each with the control that a character on its tier's own cap is told one figure and not two.
+- **No screen claims which *way* the cap moved, because nothing on a screen can tell.**
+  `CharacterSession.TraitCapIsNotTheTiers` is a difference, not a direction, and a cap *above* the
+  tier's is reachable: the GM's form takes 1 to 30 whatever tier is chosen, and the validator
+  reports `TRAIT_CAP_ABOVE_TIER` and **still uses the number as written**. The Resolve breakdown
+  said "This game caps tighter than its tier's 12d" and would have said it over a 20d cap, between
+  the two figures that contradict it. It reads "Not the tier's 12d" now, which is true either way.
+- **The GM's form says when a cap is above the tier it chose, and does not refuse it.** A house cap
+  tightens a tier's ceiling and never loosens it, and the box accepted 20d at Standard in silence
+  under a hint reading "Tighter than the tier's" — so every character joining with no cap of its
+  own inherited an error on a screen the GM never opens. **Refusing was the alternative and this is
+  one of the few places it would have been defensible** — a form checking its own input against a
+  tier the same form chose is not the engine judging somebody's character. It reports because a GM
+  may type the cap before picking the tier, and a Save that silently does nothing is a control that
+  looks broken; reporting is also the answer the engine gives the same mistake one level down, so
+  the two cannot disagree about what a bad cap means.
+- **A campaign's Trait Cap is read from the character, never from the campaign.** That deferral is over: the owner settled on 2026-09-05 that a house cap *substitutes*
+  for the tier's, so it moves Resolve — see [`rules-engine.md`](rules-engine.md) for the
+  arithmetic and why gating was not an honest alternative. What survives unchanged is the route.
+  `CharacterSheet.TraitCapRank` is a field on the character; `Campaign.TraitCapRank` is still read
+  by nothing that computes anything, and `CampaignTests.ACampaignsTraitCapIsNotReadFromTheCampaign`
+  pins that at three caps including none. **If a reader for `CampaignId` is ever written, that is
+  the test that fails.**
 - **`CampaignId` is not in `CharacterSession.IsWorthKeeping`, and must not be.** Adding it would
   make picking a campaign create a real, listed, empty character the moment it happened — verbatim
   the defect that predicate was added to fix.
@@ -830,6 +1026,65 @@ Ch.9 builds Villains exactly like Heroes and prints no separate stat-block forma
 - **`.mode-switch` names the Hero/Villain control, not the pill shape.** The light/dark control briefly carried the same class, which made `.mode-switch button` match five buttons and the identity switch report three pressed states at once. The shape is shared by selector list; `BannerTests` caught it in under a minute. **Both controls are inside `SettingsMenu` now** — see the banner section above, including why they are drawn on `--panel` rather than on `--primary`.
 - Only the palette differs. If a layout change seems necessary for one mode, the layout is wrong for both.
 
+## The accounts panel on `/admin`, and why it introduces no idiom of its own
+
+**One more `Panel` beside the invitation list and the failure log**, listing the players in the
+reader's own campaigns with an editable cap and a disclosure onto their sheets. The server half —
+the scope, the key, the single-statement write — is in
+[`accounts-server.md`](accounts-server.md); what is here is what the screen does.
+
+- **No new class and no new component.** `Panel`, `ChosenList`/`ChosenRow` and `Field` already draw
+  a list of things with an action on each, which is what this is. A fourth panel that reached for
+  its own markup would be the twenty-two hand-written panels this app spent a slice removing.
+- **The cap is a `<input type="number">` with a real `<label>`, not a placeholder.** A placeholder
+  is not a label — it goes when somebody types and it is not what a screen reader announces.
+- **The Save button is dead until the number differs from the server's and while a write is in
+  flight**, and the comparison is against the server's value rather than against whether anybody
+  has touched the box. Typing the original number back is not a change.
+- **The range is the server's, and the box's copy of it is pinned rather than absent.** `min`/`max`
+  on the input are a browser affordance and the page decides nothing with them — there is no range
+  check in C#, because a second copy there would be a rule the page made up and the refusal it
+  produced would be a sentence about it. But `max="500"` *is* a copy, and this bullet used to claim
+  it was not, so `AccountsContractTests` reads `MAX_CHARACTER_LIMIT` out of `worker/adminAccounts.js`
+  and compares it with the attribute: raise the server's bound and the razor fails until it agrees.
+  What the page owns is turning each of the server's three answers into one thing to say — the
+  number, the account, or nothing said why.
+- **Save is dead while the box holds something that is not a number**, and this is a defect it
+  shipped with rather than a nicety. The draft was a parsed `int`, so clearing the box or typing
+  `1e5` left the last number that parsed sitting behind a live button, and pressing it wrote a
+  figure nothing on screen was showing. The draft is the *text* now and `Number` is where it
+  becomes an integer or does not.
+- **Each row's cap carries the player's address in its label, `sr-only`.** Twenty boxes all
+  accessibly named "Characters they may keep" are twenty controls that cannot be told apart by
+  the only thing announced on arriving at one; the address is on screen above the box and nothing
+  linked the two.
+- **The sheets are read when the disclosure is opened, not with the list.** Twenty players would
+  otherwise be twenty requests for something nobody has asked to look at. `aria-controls` names the
+  list **only while it is rendered** — the same conditional the banner's two disclosures carry, and
+  the same dangling IDREF the budget disclosure shipped once. `aria-expanded` is a `"true"`/
+  `"false"` string, for the reason every switch in this app spells it out.
+- **There is one open disclosure and one `_sheets`, so a late answer is dropped by sequence
+  number.** Opening a second row while the first is still in flight put the first row's characters
+  under the second row's name — a GM reading one player's sheets attributed to another, which is
+  worse than either row failing. `_asked` moves on every open and every shut and a reply that does
+  not carry the current value is stale by construction; comparing the address instead would not do,
+  because opening a row, shutting it and opening it again is the same address twice. The reply is
+  what gets dropped, never the second click: the row somebody just asked for has to open now.
+- **A player who holds nothing and a list that could not be read are two sentences.** Saying
+  "nothing saved yet" for the second tells a GM their player has built nothing on the strength of a
+  request that failed — the same rule the standing follows for `MineAsync` returning null.
+- **The empty panel reads as reassurance**: *"Nobody is in one of your campaigns yet."* Same rule
+  as the failure log's "nothing has failed here" — **and it is guarded, which it was not.** The
+  panel is only allowed that sentence when the list actually loaded. `ListAsync` folded every
+  non-2xx into `NotForYou` and the page turned everything that was not `Loaded` into an empty list,
+  so one 500 from storage told a GM their games were empty; a 404 is the gate's answer and is the
+  only one that still means that, and everything else — 500, 502, 405, a 200 carrying the app's own
+  `index.html` — is `Unavailable` and gets *"The players could not be read just now."* This is the
+  same distinction the bullet above draws one level down, which the panel itself did not keep.
+- **`AriaReferenceTests` renders this page now, in both states of the disclosure**, with the
+  positive control that the click really opened the list. A reference resolves for the wrong reason
+  when the element it names happens to be there.
+
 ## Campaigns: three screens, a diff, and a standing
 
 **A campaign holds a clone of a character; a player's edits arrive as an approval request.** Fork
@@ -867,6 +1122,14 @@ works and nobody can reach.
   obvious fixture ids (`code`, `flight`) are written exactly the way their printed names are, so a
   case-insensitive check on those cannot tell a leak from a correct lookup. That took three goes at
   one fixture; the test records all three.
+- **The Trait Cap row is the cap in force, not the field.** `Trait Cap 12d → 6d`, through
+  `EffectiveTraitCap`, so the ceiling a GM decides about is the one the validator judged the
+  submission by and the one its Resolve was measured from. A house cap written at exactly the
+  tier's own moves nothing and says nothing — the same rule the 0d rank follows. **Without this row
+  the screen said "nothing changed" over a real change**: the cap costs no Hero Points, so the
+  spend could not be the trigger, and a player who set one between submissions moved their Resolve
+  and could turn a legal Ability illegal while the GM's list stayed empty. A tier change moves this
+  row as well as the Tier row, which is two facts and not a duplicate.
 - **An id the rules data does not know is printed as itself, deliberately.** A payload can name a
   Power from a build these rules do not have, and a diff full of rows called "Unnamed" tells a GM
   nothing.

@@ -132,6 +132,10 @@ public sealed class CharacterValidator
         // be priced, so the gap has to be reported before anything asks for a total.
         var gearResolvable = CheckGear(sheet, issues, modifiersResolvable);
 
+        // Outside the tier block on purpose: a house cap below 1d is nonsense whether or not the
+        // character has found a tier yet, and half of what this reports needs no tier to say.
+        CheckHouseTraitCap(sheet, tier, issues);
+
         if (tier is not null)
         {
             if (selectionsResolvable && modifiersResolvable && perksResolvable && gearResolvable)
@@ -263,9 +267,61 @@ public sealed class CharacterValidator
             });
     }
 
+    /// <summary>
+    /// <b>The house Trait Cap itself, before anything is measured against it.</b>
+    /// <see cref="CharacterSheet.TraitCapRank"/> is a tighter ceiling a table has imposed —
+    /// Pinnacle City's 6d for a non-superhuman — and the two ways of writing one down that
+    /// cannot mean what they say are reported here.
+    ///
+    /// <para><b>Reported, and still used.</b> Both findings leave
+    /// <see cref="DerivedStatsCalculator.EffectiveTraitCap"/> answering the number as written, so
+    /// the Resolve and the cap findings beside these agree with the character's own file. Clamping
+    /// would be the engine making a design decision about somebody's game, and would hide the
+    /// mistake behind figures that look ordinary.</para>
+    /// </summary>
+    private static void CheckHouseTraitCap(
+        CharacterSheet sheet, TierModel? tier, List<ValidationIssue> issues)
+    {
+        if (sheet.TraitCapRank is not { } house) return;
+
+        // No Trait can be lower than 1d (Ch.2), so a cap under 1d is a ceiling below the floor:
+        // every one of the eighteen Traits breaks it and no legal character can be built to it.
+        if (house < 1)
+            issues.Add(new(ValidationSeverity.Error, "TRAIT_CAP_BELOW_MINIMUM",
+                $"This character is built to a house Trait Cap of {house}d, and no Ability or "
+                + "Talent can be lower than 1d — so no legal character fits under it.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                Value       = house,
+                Limit       = 1
+            });
+
+        // A house cap is a table tightening the tier's ceiling. Above it, it is not a house rule
+        // at all — it is a character quietly playing above the power level everybody agreed on,
+        // and it raises Resolve as well as the ranks, which is the half nobody would notice.
+        if (tier is not null && house > tier.TraitCapRank)
+            issues.Add(new(ValidationSeverity.Error, "TRAIT_CAP_ABOVE_TIER",
+                $"This character is built to a house Trait Cap of {house}d, above the "
+                + $"{tier.Name} tier's {tier.TraitCapRank}d. A house cap tightens the tier's "
+                + $"ceiling and never loosens it. The figures here still use {house}d, as "
+                + "written — lower it or raise the tier.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                Value       = house,
+                Limit       = tier.TraitCapRank
+            });
+    }
+
+    /// <summary>
+    /// Every Trait against the ceiling this character is built to — <b>the house cap where it
+    /// has one, and the tier's otherwise</b>, which is
+    /// <see cref="DerivedStatsCalculator.EffectiveTraitCap"/> and must not be spelled out a
+    /// second time here. The same figure decides Resolve, and the two disagreeing would report a
+    /// Trait as legal while paying it Resolve for room it does not have.
+    /// </summary>
     private void CheckTraitCap(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
     {
-        var cap = tier.TraitCapRank;
+        var cap = DerivedStatsCalculator.EffectiveTraitCap(sheet, tier) ?? tier.TraitCapRank;
 
         // Every one of these names the Trait the way the rulebook prints it. They used to
         // print the id — "Ability 'intellect'", "Power 'super_senses_thermal_vision'" — at a

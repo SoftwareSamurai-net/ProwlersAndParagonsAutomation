@@ -29,7 +29,10 @@
                 <span>Budget <b class="num">@(Tier?.HeroPoints.ToString() ?? "—")</b></span>
                 <span>@(Over ? "Over by" : "Left") <b class="num">@Difference</b></span>
             }
-            <span>Trait Cap <b class="num">@(Tier?.TraitCapRank.ToString() ?? "—")<span class="muted">d</span></b></span>
+            <span>Trait Cap <b class="num">@(Cap?.ToString() ?? "—")<span class="muted">d</span></b>@if (Tier is { } tier && Cap is { } cap && cap != tier.TraitCapRank)
+                {
+                    <span class="muted"> · not the tier's @(tier.TraitCapRank)d</span>
+                }</span>
         </div>
 
         <div class="replay-figures">
@@ -88,6 +91,13 @@
 
     private TierModel? Tier =>
         Character.SelectedTierId is null ? null : Session.Rules.GetTier(Character.SelectedTierId);
+
+    /// <summary>
+    /// The ceiling this character is built to, which is a recorded conversation's own house cap
+    /// where it set one and the tier's otherwise. Read through the engine rather than off the
+    /// tier, so a replay showing a 6d cap is showing the cap its figures were computed from.
+    /// </summary>
+    private int? Cap => DerivedStatsCalculator.EffectiveTraitCap(Character, Tier);
 
     private int? Spent => CharacterSession.TryCost(() => Session.Costs.TotalCost(Character));
 

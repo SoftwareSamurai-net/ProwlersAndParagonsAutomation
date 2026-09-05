@@ -103,6 +103,7 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<Accounts>();
         Services.AddScoped<Invitations>();
         Services.AddScoped<ErrorLog>();
+        Services.AddScoped<AdminAccounts>();
         Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
         Services.AddScoped<CharacterStore>();
         // The plural browser-side store. Registered here as well as in Program.cs because

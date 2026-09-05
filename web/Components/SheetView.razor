@@ -460,7 +460,15 @@
         {
             var parts = new List<string> { Tier?.Name ?? "No tier" };
             if (Package is { } pkg) parts.Add(pkg.Name);
-            if (Tier is { } tier) parts.Add($"Trait Cap {tier.TraitCapRank}d");
+            // The cap this character is built to, which is the tier's until a game tightens it —
+            // and then the tier's is said too, because a sheet reading "Trait Cap 6d" at Standard
+            // looks like a mistake to anybody who knows the tier allows 12d.
+            if (DerivedStatsCalculator.EffectiveTraitCap(Sheet, Tier) is { } cap)
+            {
+                parts.Add(Tier is { } tier && cap != tier.TraitCapRank
+                    ? $"Trait Cap {cap}d (tier {tier.TraitCapRank}d)"
+                    : $"Trait Cap {cap}d");
+            }
             return string.Join(" · ", parts);
         }
     }
