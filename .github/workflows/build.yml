@@ -613,7 +613,13 @@ jobs:
         # a line of `js/*.js` for real, or is subject to the Content-Security-Policy the step
         # above generates. `scripts/e2e.sh` publishes the site, serves it with the same
         # `wrangler pages dev` version `deploy.yml` pins, and drives real Chrome over the DevTools
-        # Protocol. Stage one of PROGRESS.md item 10; anonymous only, no credential, no bypass.
+        # Protocol.
+        #
+        # **The server it starts now bundles `functions/` and binds a migrated local D1**, and the
+        # script seeds the `login_tokens` row an email would have caused so a reader can be signed
+        # in — stage two of PROGRESS.md item 10, and still no credential and no seam in the
+        # application. This step's driver runs the six anonymous checks; the Playwright one below
+        # runs those plus the three signed-in ones, which need a second browser context apiece.
         #
         # **And it asks a question none of the others can.** A feature shipped here while nothing
         # in the application ever wrote to the store it read from — every unit and component test
@@ -646,7 +652,12 @@ jobs:
         # either going red fails the job — which is also what makes "twenty green runs" mean the
         # two drivers never disagreed.
         #
-        # **`A11Y` is what is not a port.** axe-core inside the page, four palettes by four
+        # **`A11Y` and the three signed-in checks are what is not a port.** ADMIN, RULES and
+        # ACCOUNT_SAVE each need a browser context of their own — a signed-in one beside an
+        # anonymous one — which the hand-rolled client cannot make, so the step above skips their
+        # twins and says so on each line.
+        #
+        # axe-core inside the page, four palettes by four
         # addresses. `theme.css` writes its contrast ratios into its own comments as claims and
         # says "re-measure if you change it; do not eyeball"; two of its tokens are `color-mix()`,
         # which only a browser resolves. Nothing before this measured either in the assembled app.

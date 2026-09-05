@@ -19,14 +19,43 @@
 // - **A twin must be broken in the *site*, never in the harness.** The driver is one file and
 //   both runs execute it unchanged. A twin with a doctored script proves nothing at all.
 //
-// **Each defect is real rather than convenient.** Every one of the five below is a fault this
-// project could plausibly ship: a root element renamed, a storage wrapper that swallows a write,
-// a preference that is read but never applied, a palette block whose selector stops matching, and
-// a `<base href>` that is not `/`. The last is named in `docs/guide/hosting.md` as a way to break
-// every asset fetch at once.
+// **Each defect is real rather than convenient.** Every one of the six site defects below is a
+// fault this project could plausibly ship: a root element renamed, a storage wrapper that swallows
+// a write, a preference that is read but never applied, a palette block whose selector stops
+// matching, an `<html>` element with no `lang`, and a `<base href>` that is not `/`. The last is
+// named in `docs/guide/hosting.md` as a way to break every asset fetch at once.
+//
+// ------------------------------------------------------------------------------------------------
+// THERE ARE TWO KINDS OF DEFECT NOW, AND THE SECOND EXISTS BECAUSE A SITE DEFECT CANNOT BREAK A
+// SERVER-SIDE RULE.
+//
+// **A signed-in check asks a question the published bundle does not answer.** `ADMIN` asks whether
+// the accounts server refuses an account the invitation list does not make an administrator;
+// `RULES` asks whether the rulebook is served to an account and refused to a stranger. Neither
+// answer is in `index.html`, `js/*.js` or `css/*.css` — and the parts of the browser side that
+// *do* decide anything about them are Blazor components compiled into a WebAssembly payload, where
+// there is no line to substitute. A twin built the only way this file could build one before would
+// be a second copy of the real site that passes for the wrong reason, which is the precise failure
+// `buildTwin`'s "exactly one line" property exists to prevent.
+//
+// **So the other end of the harness moves instead: the row the sign-in was seeded from.** Stage
+// two signs a reader in by writing a `login_tokens` row into the *local* D1 and driving
+// `/signin?t=<raw token>` — which is what an email would have caused, and nothing else about the
+// application is faked. A seed defect changes that row and only that row: the account the reader
+// signs in as is one the list makes an administrator, or the token handed to them expired an hour
+// ago, or the second browser context is signed in as somebody else entirely. Each is a state this
+// deployment can really be in.
+//
+// **`scripts/e2e/seed.mjs` mints the rows; this file stays the one place a negative control is
+// declared.** A seed defect names the slots it overrides and the accounts it points them at, and
+// `seed.mjs` **throws if a name it does not mint appears here, and throws again if a twin's plan
+// comes out identical to the real one** — the same two properties as `buildTwin`'s line
+// substitution, against a database row rather than a published file. A twin that has quietly
+// stopped reproducing its defect is a red run, not a green one.
 
 import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /**
  * One defect: which check it must turn red, which published file it lives in, and the exact one
@@ -112,6 +141,44 @@ export const DEFECTS = [
         find: '    <base href="/" />',
         replace: '    <!-- pp:e2e twin defect — the base element is gone -->',
     },
+
+    // --------------------------------------------------------------------------------------------
+    // The seed defects. Same site, different row — see this file's header for why a signed-in
+    // check cannot be twinned by substituting a line in the published bundle.
+
+    {
+        name: 'reader-is-an-administrator',
+        check: 'ADMIN',
+        why: 'The account the reader signs in as is one the invitation list marks '
+            + '`grants_admin = 1`, so /admin serves them the list instead of refusing them. This '
+            + 'is the twin that stops ADMIN being vacuous: a check that asserts "not allowed" '
+            + 'passes against a page that failed to load at all, and against one that refused '
+            + 'because nobody was signed in. Only an account that *is* an administrator '
+            + 'distinguishes the refusal being tested from every other way the page can end up '
+            + 'saying nothing.',
+        seed: { slots: { ADMIN: { account: 'adminTwin' } } },
+    },
+    {
+        name: 'rules-token-expired',
+        check: 'RULES',
+        why: 'The token seeded for the rulebook reader expired an hour before the run, so '
+            + '`db.spendLoginToken` refuses it — its `expires_at > ?` test is in the UPDATE '
+            + 'itself — and the reader arrives at /rules anonymous. The check must then go red '
+            + 'on its positive control rather than reporting the book as readable, which is what '
+            + 'it would do if it were finding prose that is served to everybody.',
+        seed: { slots: { RULES: { expired: true } } },
+    },
+    {
+        name: 'second-context-is-another-account',
+        check: 'ACCOUNT_SAVE',
+        why: 'The second browser context is signed in with a token minted for a different '
+            + 'invited account, so the character built in the first context is not that '
+            + "account's. The check has to notice: a character that followed the *browser* would "
+            + 'still be absent from a fresh context, and one the server handed to whoever asked '
+            + 'would still be present — so this is the twin that proves the check reads the '
+            + 'account rather than either.',
+        seed: { slots: { SAVE_2: { account: 'saveOther' } } },
+    },
 ];
 
 /**
@@ -151,21 +218,63 @@ export function buildTwin(siteDir, intoDir, defect) {
     writeFileSync(path, lines.join(newline));
 }
 
+/**
+ * Which of the two kinds of twin this is: `site` for a substituted line in the published output,
+ * `seed` for a substituted row in the local D1.
+ *
+ * **A defect must be exactly one of them and this is where that is enforced**, because the two are
+ * driven completely differently — a site twin gets its own copied directory and its own server, a
+ * seed twin gets neither and only a different set of tokens. A defect declaring both, or neither,
+ * would be silently skipped by whichever arm of `scripts/e2e.sh` looked at it first, which is a
+ * negative control that quietly stopped existing.
+ */
+export function kindOf(defect) {
+    const site = defect.file !== undefined;
+    const seed = defect.seed !== undefined;
+
+    if (site === seed) {
+        throw new Error(
+            `twin '${defect.name}' declares ${site ? 'both a file and a seed' : 'neither a file '
+            + 'nor a seed'}. A defect is a substituted line in the published site OR a substituted `
+            + `row in the local D1, never both and never neither — see this file's header.`);
+    }
+
+    return site ? 'site' : 'seed';
+}
+
 // ---------------------------------------------------------------------------------------------
 // Called by scripts/e2e.sh.
+//
+// **Guarded, because `scripts/e2e/seed.mjs` imports `DEFECTS` from here.** Without the guard this
+// block runs on import with *seed.mjs's* arguments, matches nothing, and exits 2 — a module that
+// kills whoever imports it.
 
-const [command, ...rest] = process.argv.slice(2);
+const invokedDirectly = process.argv[1] !== undefined
+    && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-if (command === '--list') {
-    // `name:check` per line, which is all the shell needs: it drives each twin and requires that
-    // check to be red in it.
-    for (const defect of DEFECTS) console.log(`${defect.name}:${defect.check}`);
+const [command, ...rest] = invokedDirectly ? process.argv.slice(2) : ['--imported'];
+
+if (command === '--imported') {
+    // Nothing. Imported for DEFECTS and kindOf.
+} else if (command === '--list') {
+    // `name:check:kind` per line, which is all the shell needs: it drives each twin, requires that
+    // check to be red in it, and needs the kind to know whether to build a site or re-seed.
+    for (const defect of DEFECTS) {
+        console.log(`${defect.name}:${defect.check}:${kindOf(defect)}`);
+    }
 } else if (command === '--build') {
     const [siteDir, intoDir, name] = rest;
     const defect = DEFECTS.find(d => d.name === name);
 
     if (!defect) {
         console.error(`no such twin: ${name}. Known: ${DEFECTS.map(d => d.name).join(', ')}`);
+        process.exit(2);
+    }
+
+    if (kindOf(defect) !== 'site') {
+        console.error(
+            `twin '${name}' is a seed defect: there is no site to build for it. It is driven `
+            + `against the real site with a different set of seeded tokens — see scripts/e2e.sh.`);
         process.exit(2);
     }
 
