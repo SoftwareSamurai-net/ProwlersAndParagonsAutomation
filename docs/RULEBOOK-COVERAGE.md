@@ -22,7 +22,7 @@ wrong on both figures and contradicted the resume marker four lines below it.)
 |---|---|
 | **Text extraction** | **DONE for the whole book, and regenerable.** All ten chapters are in `data/rulebook/`, printed pp.5–188, 1525 sections, each carrying its printed page. Rebuild with `dotnet run --project tools/RulebookExtractor -- <pdf> data/rulebook` |
 | **Do not trust the first extraction's reputation** | The corpus shipped once with every chapter opening scrambled, 135 empty sections and 83 doubled page numbers in mid-sentence, and the tests passed. See the completed entry in `PROGRESS.md`. **The damaged prose still read as English**, so judge a change here by re-running the extractor and the corpus tests, not by reading a paragraph and finding it plausible |
-| **Rules extraction** | Ch.1–2 complete, plus Ch.6 custom gear and Ch.7 toxins. **Ch.3 and Ch.5 are now extracted too**, into `data/rules/play/` rather than `data/rules/` — see their rows below and [`docs/guide/play-rules.md`](guide/play-rules.md). Ch.4 remains swept and unextracted |
+| **Rules extraction** | Ch.1–2 complete, plus Ch.6 custom gear and Ch.7 toxins. **Ch.3, Ch.4 and Ch.5 are now extracted too**, into `data/rules/play/` rather than `data/rules/` — see their rows below and [`docs/guide/play-rules.md`](guide/play-rules.md). That is the whole of the play block, pp.67–86 |
 | **Next to read for *rules*** | **Chapter 6, printed p.94** — Gadgets, then Vehicles (94) and Headquarters (100), which is `PROGRESS.md`'s one acknowledged data gap. Ch.6 pp.87–93 are settled: Gear Limits, armour and weapons are free and untracked, Custom Gear (p.92) is the twelve extracted features |
 | **Then** | Ch.7 pp.105–107 and 109–110 (Toxins on 108 is extracted); Ch.8 pp.111–125 (NPC, animal and Extra stat blocks — GM material, so decide whether it is in scope at all); Ch.9 pp.167–188 (printed 189 is the blank Hero Sheet form, not chapter text) |
 | **Reading it is now cheap** | The prose is in `data/rulebook/`, so a sweep no longer needs the PDF — grep the corpus, and open the page only to check a table |
@@ -58,7 +58,7 @@ wrong on both figures and contradicted the resume marker four lines below it.)
 | 1 | Basics | 9–12 | **SWEPT** — NOT APPLICABLE throughout |
 | 2 | Characters | 13–65 | EXTRACTED, **with a caveat** — see the unread-keys finding |
 | 3 | Action | 67–72 | **EXTRACTED as play rules** — every mechanic on pp.67–71 is in `data/rules/play/`, locked by `PlayRulesDataTests` against `CanonicalChallengeRules`. Still NOT APPLICABLE to *character creation*, which is the question the rest of this column answers |
-| 4 | Combat | 73–82 | **SWEPT** — NOT APPLICABLE throughout |
+| 4 | Combat | 73–82 | **EXTRACTED as play rules** — every mechanic on pp.73–79 is in `data/rules/play/combat.json` and the ten optional Gritty Combat Rules on pp.79–81 are in `gritty.json`, both locked by `PlayRulesDataTests` against `CanonicalCombatRules` and `CanonicalGrittyRules`. The Example of Combat on pp.81–82 is not an entry; it is the fixture the entries are made to resolve. Still NOT APPLICABLE to *character creation*, except that the Edge and Health formulas it prints are the ones `DerivedStatsCalculator` already implements — tests now hold each pair to the same answer |
 | 5 | Resolve and Adversity | 83–86 | **EXTRACTED as play rules** — every mechanic on pp.83–85 is in `data/rules/play/resolve.json`, locked by `PlayRulesDataTests` against `CanonicalResolveRules`; p.86 carries no chapter text. Still NOT APPLICABLE to *character creation*, except that the starting-Resolve table it prints is what `DerivedStatsCalculator.CalculateResolve` already implements — a test now holds the two to the same answer |
 | 6 | Equipment | 87–104 | PARTIAL — UNREAD from p.94 |
 | 7 | Environment | 105–110 | PARTIAL — UNREAD apart from Toxins (p.108) |
@@ -93,21 +93,22 @@ at Ch.2's Advancement rather than pricing anything — a Defining Moment permane
 an Ability, "this doesn't prevent you from spending Hero Points to raise that Ability in the
 future".
 
-**Chapters 3 and 5 have since been extracted on their own merits, and the sweep above is not what
+**All three chapters have since been extracted on their own merits, and the sweep above is not what
 changed.** The sweep asked whether a *character generator* needs them, and the answer is still no.
-The simulator of `PROGRESS.md` item 14 does need them, so pp.67–71 and pp.83–85 are now verified
-data in `data/rules/play/`, held to the page by `PlayRulesDataTests`. Chapter 4 is unchanged: swept,
-not extracted.
+The simulator of `PROGRESS.md` item 14 does need them, so pp.67–71, pp.73–81 and pp.83–85 are now
+verified data in `data/rules/play/`, held to the page by `PlayRulesDataTests`.
 
-**One thing the Ch.5 slice found that the sweep did not**: the starting-Resolve table on p.83 was
-already implemented in `engine/`, so the chapter is not wholly inapplicable to character creation
-after all — the *table* is Ch.5's, and only the Determination and Flaw additions to it are Ch.2's.
-Nothing had ever compared the engine's arithmetic to the page it came from; a test does now.
+**Two things the slices found that the sweep did not, and both are the same shape**: a formula the
+chapter prints turns out to be one `engine/` already implements, so the chapter is not wholly
+inapplicable to character creation after all. The starting-Resolve table is Ch.5's own (p.83); Edge
+and Health are Ch.4's (p.75, and reprinted from Ch.2 p.60). Nothing had ever compared the engine's
+arithmetic to the pages it came from; three tests do now, each building its expected figure out of
+the shipped JSON rather than out of a number typed into the test.
 
 | Ch. | Pages | What is there | Status |
 |---|---|---|---|
 | 3 | 67–72 | Challenge rolls, assisting, contests, Defining Moments, judging thresholds | **EXTRACTED** — as *play* rules, into `data/rules/play/`, which is a subdirectory so that no csproj's non-recursive `data\rules\*.json` glob can reach it. Still NOT APPLICABLE to character creation |
-| 4 | 73–82 | Edge in combat, actions, range, movement, attacks and defenses, damage, special effects, grappling, combat stunts, minions, gritty rules, worked example | NOT APPLICABLE — play. **Edge here is how the number is used**; how it is *derived* is Ch.2 p.60, which is implemented |
+| 4 | 73–82 | Edge in combat, actions, range, movement, attacks and defenses, damage, Health, healing, special effects, grappling, combat stunts, minions, eleven special cases, ten gritty rules, worked example | **EXTRACTED** — as *play* rules, into `data/rules/play/combat.json` (pp.73–79) and `gritty.json` (pp.79–81), beside Ch.3 and Ch.5 and under the same non-recursive glob. Still NOT APPLICABLE to character creation. **Edge here is how the number is used, and p.73 also prints how it is derived** — as does p.75 for Health, both reprinted from Ch.2 p.60 and both implemented in `DerivedStatsCalculator`; the two statements of each are now compared |
 | 5 | 83–86 | Earning and spending Resolve; earning and spending Adversity | **EXTRACTED** — as *play* rules, into `data/rules/play/resolve.json`, beside Ch.3 and under the same non-recursive glob. Still NOT APPLICABLE to character creation. The starting-Resolve **table** is Ch.5's own (p.83) and is implemented; Determination and the Condition/Plot Hook Flaws that add to it are Ch.2 p.60 |
 
 ---
