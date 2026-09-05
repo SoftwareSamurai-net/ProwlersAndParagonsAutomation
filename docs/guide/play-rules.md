@@ -20,9 +20,13 @@ Read before touching `data/rules/play/`. This is the rules for *resolving an act
 | `gritty.json` | Ch.4's ten optional Gritty Combat Rules, pp.79–81, plus the paragraph introducing them. The ten are each a `table_setting`; the paragraph is `narrative` |
 | `resolve.json` | Every mechanic printed in Ch.5 Resolve and Adversity, pp.83–86 |
 
-**Nothing reads any of them, and `PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile` is why that is a fact rather than a sentence.** No engine, no host, no test project beyond the ones that hold them to the book — proved by scanning `engine/`, `sheets/`, `cli/`, `web/` and `mcp/` for any spelling of a play file's path, with comments blanked and a positive control that this project names every one of them. That is the point of the slice: **the data is verified before anything trusts it**, which is the order the 141 Powers were done in and the order that made them trustworthy. The models and the resolution logic arrive with the simulator itself — that is `PROGRESS.md` item 14's later slice, and when it lands it is a *second* engine beside `engine/`, never a change to it.
+**Exactly one project reads them, and `PlayPayloadTests` is why that is a fact rather than a sentence.** That project is `play/`, the second engine — see [`play-engine.md`](play-engine.md) — and it arrived in `PROGRESS.md` item 14's slice (d), after these files were verified rather than before. **The data was verified before anything trusted it**, which is the order the 141 Powers were done in and the order that made them trustworthy.
 
-**`engine/` must not learn any of this.** `CLAUDE.md`'s settled list says why in one line: `engine/` is the authority on cost and validity and knows nothing about resolving an action. A `PlayRulesRepository` belongs in a new project, not in an existing one.
+**This paragraph used to say "nothing reads any of them", and the claim narrowed rather than died.** `NothingInTheApplicationNamesAPlayRulesFile` scans exactly the trees it always did — `engine/`, `sheets/`, `cli/`, `web/` and `mcp/` — for any spelling of a play file's path, with comments blanked and a positive control that this project names every one of them. `play/` is excused because reading these files is its purpose, and the excuse has a control behind it: `TheSecondEngineIsTheOneProjectThatNamesAPlayRulesFile` requires the second engine to name **every** one of the five, so an excuse for a tree that had stopped reading them would not sit there permitting the tree for nothing.
+
+**What has not changed is the thing worth guarding.** A `PlayRulesRepository` wired into `engine/` compiles, passes, and quietly makes the character engine an authority on resolving an action; a host that named a file rather than holding a repository would be a host with a rule of its own. Both are still refused.
+
+**`engine/` must not learn any of this.** `CLAUDE.md`'s settled list says why in one line: `engine/` is the authority on cost and validity and knows nothing about resolving an action. `PlayRulesRepository` therefore lives in `play/`, and `PlayContractTests` holds the arrow from the other end too: `engine/` and `sheets/` never name `play/`, and `play/` names neither `CostCalculator` nor `CharacterValidator`.
 
 ## Why a subdirectory, and not just more files in `data/rules/`
 
@@ -40,7 +44,7 @@ So a file one level down reaches none of them, and the third row is the one that
 
 **`web/wwwroot/data/rules` is not always on disk, and the check does not skip when it is absent.** That directory is written by `web/`'s build, and the engine test project does not reference `web/` — a solution-wide `dotnet test` stages it only because the bUnit project pulls `web/` in. So when it is missing the expectation is built from `web/`'s own `RulesDataFile` glob instead, which is what MSBuild *would* stage, and the failure message says which of the two it read. A check whose answer is "run a build first" is a check nobody runs.
 
-Adding a play rules file therefore needs **no** change to `RulesRepository.DataFileNames` — that list is the contract for a host that loads the *character* rules over HTTP, and a play file must never appear on it.
+Adding a play rules file therefore needs **no** change to `RulesRepository.DataFileNames` — that list is the contract for a host that loads the *character* rules over HTTP, and a play file must never appear on it. It goes on `PlayRulesRepository.DataFileNames` instead, which is the same contract for a host that wants the play rules; `PlayRulesFileCoverageTests` requires the two lists to share no file at all.
 
 ## The closed `verified_fields` list
 
@@ -127,7 +131,7 @@ Chapter 3's is the arm‑wrestling exhibition under the Challenge Rolls table (p
 
 Chapter 5's is the Adversity example under Challenge Level (p.85): four Heroes, a Challenge Level 2 scene, eight points to the GM. The award is **computed from the data file's own `award_factors` and `award_operation`**, so dropping the party size from the factor list gives 2 and turning the product into a sum gives 6 — only the transcription the book prints gives 8.
 
-The counting function is a test helper and is not the start of an engine. Keep it that way until the simulator exists.
+The counting function is a test helper and is deliberately still one now that the simulator exists: `play/Rules/SuccessCounter.cs` is the engine's, and the two reaching the same answer from the same JSON on the same twelve printed dice is a second witness rather than a duplication to tidy away. `PlayWorkedExamples` replays this example through the engine's own path for exactly that reason.
 
 ## Chapter 4: the fight, and the ten switches beside it
 

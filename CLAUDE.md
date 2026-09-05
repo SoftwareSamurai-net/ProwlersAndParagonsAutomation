@@ -77,7 +77,8 @@ went wrong once.
 | About to touch | Read first |
 |---|---|
 | `engine/`, `sheets/`, `data/rules/*.json` | [`docs/guide/rules-engine.md`](docs/guide/rules-engine.md) |
-| `data/rules/play/` — the play rules, which no engine reads | [`docs/guide/play-rules.md`](docs/guide/play-rules.md) |
+| `data/rules/play/` — the play rules, read only by the second engine | [`docs/guide/play-rules.md`](docs/guide/play-rules.md) |
+| `play/` — the second engine, which resolves a fight | [`docs/guide/play-engine.md`](docs/guide/play-engine.md) |
 | `web/` — any component or page, `app.css`, `theme.css` | [`docs/guide/browser.md`](docs/guide/browser.md) |
 | the print stylesheet, `SheetView`, `SampleCharacters` | [`docs/guide/printed-sheet.md`](docs/guide/printed-sheet.md) |
 | `data/transcripts/`, `TranscriptLibrary`, `ReplayLoader` | [`docs/guide/replay.md`](docs/guide/replay.md) |
@@ -283,6 +284,7 @@ data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcript
 - **`cli/`** — Terminal presentation. Uses Spectre.Console for all rendering. Each wizard step implements `IWizardStep` and receives `CharacterSheet`, `RulesRepository`, `CostCalculator`, and `DerivedStatsCalculator` via `Execute()`.
 - **`web/`** — Browser presentation. Blazor WebAssembly; see [`docs/guide/browser.md`](docs/guide/browser.md).
 - **`mcp/`** — Protocol presentation. An MCP server over stdio; see [`docs/guide/mcp-and-headless.md`](docs/guide/mcp-and-headless.md).
+- **`play/`** — **The second engine**, and the one arrow that is not on the diagram: `data/rules/play/` → `play/` → (hosts, in a later slice). It resolves an action where `engine/` costs and validates a character, references `engine/` and is referenced by nothing; see [`docs/guide/play-engine.md`](docs/guide/play-engine.md).
 
 **These are separate projects on purpose, and splitting them was the point of the Blazor slice.** `engine/` and `sheets/` used to be compiled into the root executable, which a WebAssembly project cannot reference without dragging Spectre.Console in with it. Now the arrows above hold at compile time: `web/` has no calculator of its own and no reference that could reach one. Do not merge them back.
 
