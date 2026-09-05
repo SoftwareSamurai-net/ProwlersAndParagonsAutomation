@@ -1,0 +1,108 @@
+{
+  "header": {
+    "what_this_is": "The dice model every Chapter 3 mechanic is expressed in: how a pool is formed, how faces convert to successes, the floor below one die, successes taken without rolling, and the subtraction that yields net successes. The one rule here that is not Chapter 3's is the rounding convention, which the Introduction's Glossary states once for the whole book.",
+    "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
+    "not_logic": "Data only. No engine reads this yet; the models arrive with the simulator.",
+    "verified_fields_closed_list": [
+      "trigger",
+      "roll",
+      "threshold",
+      "effect",
+      "duration",
+      "cost",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.3 Action, pp.67-72 (with one Introduction Glossary entry, p.7)"
+  },
+  "entries": [
+    {
+      "id": "dice_pool",
+      "name": "Dice pool",
+      "kind": "formula",
+      "die_sides": 6,
+      "pool_formula": "dice = rank of the Trait that applies",
+      "description": "A rank written Nd buys a pool of N six-sided dice, and a challenge roll throws the pool belonging to whichever Trait fits the attempt. The GM picks the Trait when it is not obvious.",
+      "verified_fields": ["roll", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "ambiguity": null
+    },
+    {
+      "id": "success_map",
+      "name": "Reading the dice",
+      "kind": "table",
+      "success_map": {
+        "1": 0,
+        "2": 1,
+        "3": 0,
+        "4": 1,
+        "5": 0,
+        "6": 2
+      },
+      "description": "Each die is scored on its own face. A two or a four is worth a single success, a six is worth a pair of them, and the odd faces other than six score nothing at all.",
+      "verified_fields": ["roll", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "ambiguity": null
+    },
+    {
+      "id": "sub_one_die_floor",
+      "name": "Fewer than one die",
+      "kind": "scalar",
+      "sub_one_die": {
+        "dice_rolled": 1,
+        "counting_faces": [6],
+        "successes_when_hit": 1,
+        "otherwise": "complete_failure"
+      },
+      "description": "A pool taken below a single die is not a pool of nothing: one die is still thrown, but it scores only on a six and scores only one success even then. Every other face is a total miss.",
+      "verified_fields": ["roll", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "ambiguity": "The book conditions this on penalties leaving you with less than one die, and does not say how the pool got there. At least three separate reductions can drive it below 1d - the GM's condition modifier of up to -4d (p.67), the wound penalties of -2d and -4d (Ch.4, p.81), and the one-shot Defining Moment's -2d for the rest of the story (p.70) - and nothing states whether they are summed before the floor is applied once, or whether the floor is checked as each one lands. Nor is it said whether a Trait already at the 1d minimum with no penalty at all is 'less than one die' for this purpose; read plainly it is not, and a 1d pool is an ordinary pool of one die scoring 2, 4 and 6 normally."
+    },
+    {
+      "id": "automatic_successes",
+      "name": "Automatic successes",
+      "kind": "formula",
+      "automatic_successes": {
+        "dice_per_success": 2,
+        "gm_may_veto": true
+      },
+      "description": "Rather than roll, a character may bank a flat success for each pair of dice they set aside, which trades the spread of a roll for a predictable middling result. The GM is allowed to refuse the offer.",
+      "verified_fields": ["roll", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "ambiguity": "The rule is priced in pairs and says nothing about an odd pool. A character declining to roll 11d has five pairs and one die left over, and the book neither says the leftover die is rolled alongside the ten banked ones nor that the Glossary's round-up rule (p.7) turns it into a sixth automatic success. The printed example is 12d taking 6, which is even and therefore settles nothing. It is also unstated whether the choice is all-or-nothing: the wording is 'every 2 dice you choose to not roll', which reads as a partial trade being allowed, but no example shows one."
+    },
+    {
+      "id": "net_successes",
+      "name": "Net successes",
+      "kind": "formula",
+      "net_success_formula": "net = successes - threshold",
+      "description": "Every outcome in this chapter is read off one number: the successes a roll produced less the threshold it was measured against. That figure can be negative, and a negative figure is what hands narrative control to the other side.",
+      "verified_fields": ["roll", "threshold", "effect", "description"],
+      "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "ambiguity": null
+    },
+    {
+      "id": "half_rounds_up",
+      "name": "Half rounds up",
+      "kind": "scalar",
+      "rounding": {
+        "direction": "up",
+        "scope": "every reference to half a number, or to half a number of dice, anywhere in the book",
+        "examples": ["half of 3d is 2d", "half of 1d is 1d"],
+        "exceptions": [
+          {
+            "name": "Tough Minions",
+            "direction": "down",
+            "what_it_governs": "how many Minions one attack defeats, at 1 per 2 full net successes",
+            "reference": "Ultimate Edition, Ch.4 Combat, p.81",
+            "note": "The rule itself is Chapter 4's and is out of scope here; only the fact that it is the single printed exception to the rounding convention is recorded, so nobody implementing Chapter 3 has to go looking for one."
+          }
+        ]
+      },
+      "description": "Wherever the book halves something, the result is pushed upward to the next whole number, and it says so once for the whole text rather than at each site. Only one later rule prints an exception to it.",
+      "verified_fields": ["effect", "description"],
+      "source_ref": "Ultimate Edition, Introduction Glossary, p.7",
+      "ambiguity": null
+    }
+  ]
+}
