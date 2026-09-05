@@ -84,8 +84,29 @@ public sealed class FakeApi : HttpMessageHandler
     /// <para>Still a counter underneath, because ordering is the only property anything here reads
     /// — the list comes back most-recently-touched first — and a counter cannot hand out two equal
     /// stamps the way a fast clock can.</para>
+    ///
+    /// <para><b>It starts a minute <i>behind</i> now, and the minute is headroom this had none
+    /// of.</b> <see cref="Ages.Since"/> answers null for a stamp it has not reached — correctly,
+    /// because a character edited in the future is not a thing to narrate — so a row whose stamp is
+    /// ahead of the render draws no time at all, and the two tests that count those phrases go red.
+    /// <b>That is not reasoning, it is watched</b>: seed this a minute forward instead and
+    /// <c>RosterTests.TheTimeBelongsToTheRecentOrder</c> and
+    /// <c>ATimeIsShownOnlyOnceThereAreTwoCharactersToTellApart</c> both fail on the spot, with the
+    /// same <c>Assert.Equal</c> shape those tests failed with in the wild. Starting exactly at now
+    /// left single-digit milliseconds of that headroom, because the counter is pre-incremented: the
+    /// first save of a fixture is stamped a millisecond ahead, the eighth eight, and the render is
+    /// what has to catch up.</para>
+    ///
+    /// <para><b>What is <i>not</i> established is that this was the cause of the flake it was found
+    /// through.</b> <c>TheTimeBelongsToTheRecentOrder</c> failed three times here — twice under
+    /// <c>scripts/count-tests.sh</c>, once replicating its <c>dotnet test</c> line — and would not
+    /// reproduce on demand either before or after this line changed, including twenty runs of the
+    /// same suites and three under deliberate load. So this removes a real and provable way for
+    /// those tests to fail; whether it removes the one that fired is not something the runs
+    /// support, and a later recurrence should be read as this hypothesis being wrong rather than as
+    /// a new fault.</para>
     /// </summary>
-    private long _clock = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    private long _clock = DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds();
 
     /// <summary>This account's cap, as the list endpoint reports it. Five, like the server's default.</summary>
     public int Limit { get; set; } = 5;
@@ -221,7 +242,39 @@ public sealed class FakeApi : HttpMessageHandler
     /// </summary>
     public string? LinkRequestReference { get; set; }
 
-    protected override Task<HttpResponseMessage> SendAsync(
+    /// <summary>
+    /// Held between a request being recorded and its answer being handed back, so a test can
+    /// decide the order two answers arrive in.
+    ///
+    /// <para><b>This is a seam at the wire and nowhere else, which is the only place one belongs
+    /// here.</b> The campaign approval work records the lesson: a seam placed where the race is
+    /// not races nothing and reads as a guarantee. The race the palette guards against is between
+    /// two HTTP answers to two different queries, so the gate is on the answer — the request has
+    /// already been counted into <see cref="Asked"/> by the time it is reached, which is what lets
+    /// a test know a call is in flight before releasing it.</para>
+    ///
+    /// <para>Null for every test that does not care, and then this costs an <c>await</c> on an
+    /// already-completed task.</para>
+    /// </summary>
+    public Func<HttpRequestMessage, Task>? Holding { get; set; }
+
+    /// <summary>
+    /// Set to refuse every address under <c>/api/rulebook/</c> with a 401 while
+    /// <see cref="SignedIn"/> still says somebody is here.
+    ///
+    /// <para><b>This is the session that expired, and it is not the same state as being signed
+    /// out.</b> The browser remembers who it is — <see cref="Accounts"/> asks the server once and
+    /// keeps the answer — so a session dropped on the server, or signed out in another tab, is a
+    /// client that goes on believing it may read the book and a server that refuses every request
+    /// for it. There is no way to reach that through this app's own UI, and it is exactly the state
+    /// in which "the book has nothing for you" is a lie.</para>
+    ///
+    /// <para>On the prefix, because that is where the real server refuses: one rule for all four
+    /// addresses, checked before any of them is dispatched.</para>
+    /// </summary>
+    public bool BookRefusesTheSession { get; set; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -230,9 +283,19 @@ public sealed class FakeApi : HttpMessageHandler
         Asked.Add(request.Method + " " + path + request.RequestUri.Query);
 
         if (Unreachable) throw new HttpRequestException("no network");
-        if (ServerNotDeployed) return Text(HttpStatusCode.OK, "<!DOCTYPE html><html><body></body></html>");
+        if (ServerNotDeployed) return await Text(HttpStatusCode.OK, "<!DOCTYPE html><html><body></body></html>");
 
-        return path switch
+        if (Holding is { } gate) await gate(request);
+
+        if (BookRefusesTheSession && path.StartsWith("/api/rulebook/", StringComparison.Ordinal))
+            return await Status(HttpStatusCode.Unauthorized);
+
+        return await Answer(path, request);
+    }
+
+    /// <summary>What this server answers one address with. Split out so the gate above can wrap it.</summary>
+    private Task<HttpResponseMessage> Answer(string path, HttpRequestMessage request) =>
+        path switch
         {
             "/api/me" => Identity(),
             "/api/me/display-name" => SetDisplayName(request),
@@ -285,7 +348,6 @@ public sealed class FakeApi : HttpMessageHandler
 
             _ => Status(HttpStatusCode.NotFound),
         };
-    }
 
     /// <summary>Whoever <see cref="SignedIn"/> says, or 401. One answer, so two routes agree.</summary>
     private Task<HttpResponseMessage> Identity() =>
@@ -1220,7 +1282,16 @@ public sealed class FakeApi : HttpMessageHandler
                 || h.Passage.Prose.Contains(w, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
-        var rows = hits.Select(h => $$"""
+        // **`limit` cuts the list and never the count**, which is the ordering the real server's
+        // own comment insists on: `found` is computed over the whole ranking and only then is the
+        // list cut, so a caller asking for five rows is still told how many passages matched. A
+        // stub that cut `found` too would let a palette showing five rows report "5 passages" for
+        // a word the book uses forty times, which is the one thing this API is built not to say.
+        var listed = int.TryParse(asked["limit"], out var most) && most > 0
+            ? hits.Take(most)
+            : hits;
+
+        var rows = listed.Select(h => $$"""
             {"chapter":{{h.Chapter.Number}},"chapterTitle":{{Quote(h.Chapter.Title)}},
              "index":{{h.Index}},"heading":{{Quote(h.Passage.Heading)}},"printedPage":21,
              "sourceRef":{{Quote($"Ultimate Edition, Ch.{h.Chapter.Number} {h.Chapter.Title}, pp.1-2")}},
