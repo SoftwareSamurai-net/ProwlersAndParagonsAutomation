@@ -162,6 +162,7 @@
     protected override void OnInitialized()
     {
         Commands.Changed += Refresh;
+        Commands.Retyped += Replace;
         Commands.BookAnswered += Redraw;
         Recount();
     }
@@ -206,6 +207,34 @@
             Recount();
         }
 
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Somebody is still typing into the banner while the palette is already open, because focus
+    /// has not crossed yet. Take the whole of what they have typed.
+    ///
+    /// <para><b>The same body as <see cref="Typed"/>, on purpose.</b> A letter that arrives here
+    /// arrived in the banner instead of in this box only because an interop hop had not finished,
+    /// and it must reach the same rows, the same pause and the same book it would have reached had
+    /// it landed a few milliseconds later. Anything less is the palette answering a question
+    /// nobody asked: it searched the first letter and stopped.</para>
+    ///
+    /// <para><b>A replacement, never an append.</b> The banner hands over the whole of its field on
+    /// every input, so two of these arriving out of order — or one arriving twice — settle on the
+    /// same text rather than on a doubled one.</para>
+    /// </summary>
+    private void Replace(string query) => _ = InvokeAsync(() =>
+    {
+        _query = query;
+        _active = 0;
+
+        // Asked before the rows are counted, for the reason `Typed` gives at length: the service
+        // drops the book's rows before its first await, so counting afterwards is what puts this
+        // render on the new query rather than on the last one's passages.
+        _ = Commands.AskTheBookAsync(_query);
+
+        Recount();
         StateHasChanged();
     });
 
@@ -387,6 +416,7 @@
     public ValueTask DisposeAsync()
     {
         Commands.Changed -= Refresh;
+        Commands.Retyped -= Replace;
         Commands.BookAnswered -= Redraw;
         _self?.Dispose();
         return ValueTask.CompletedTask;

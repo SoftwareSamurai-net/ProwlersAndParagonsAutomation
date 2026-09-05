@@ -123,9 +123,10 @@ public sealed class PaletteBookTests
     /// arrives while the palette is redrawing.
     ///
     /// <para><b>Long enough that the press cannot possibly be handled inline, and no longer.</b>
-    /// It is spent once, in one test; the figure only has to be well clear of the microseconds an
-    /// inline dispatch takes, because the drive that reads it asserts on a fraction of it rather
-    /// than on the figure itself.</para>
+    /// It is spent in two tests — the arrows reaching the book's rows, and the banner's letters
+    /// arriving while focus is still crossing; the figure only has to be well clear of the
+    /// microseconds an inline dispatch takes, because each drive that reads it asserts on a
+    /// fraction of it rather than on the figure itself.</para>
     /// </summary>
     private static readonly TimeSpan Occupation = TimeSpan.FromMilliseconds(250);
 
@@ -264,6 +265,87 @@ public sealed class PaletteBookTests
 
         Assert.Empty(layout.FindAll(".palette"));
         Assert.Equal("", layout.Find(".palette-field").GetAttribute("value"));
+    }
+
+    /// <summary>
+    /// <b>The letters typed into the banner before focus reaches the palette are not dropped.</b>
+    ///
+    /// <para><b>The palette opens on the first keystroke and takes the caret one interop hop
+    /// later</b>, so every key pressed inside that hop is delivered to the banner's field, which
+    /// still has focus. <c>Commands.Open</c> early-returned while the palette was open, so all of
+    /// them went on the floor: a reader typing at any ordinary speed opened the palette on their
+    /// first letter and watched it search that letter alone.</para>
+    ///
+    /// <para><b>The renderer is held busy across the two presses, and that is what makes them
+    /// arrive the way they do on a real machine.</b> With the renderer idle, bUnit handles an input
+    /// inline and the first one is fully applied before the second is dispatched — which is not the
+    /// case under test and not what a browser does. Held from another thread, because work posted
+    /// from this one runs inline while the renderer is idle and occupies nothing. The elapsed time
+    /// is the positive control on the occupation itself: an awaited input posted behind a busy
+    /// renderer cannot come back until the renderer is free.</para>
+    ///
+    /// <para><b>And the second word is asked about once.</b> Two inputs in a burst are one request,
+    /// because the ask takes a sequence number on entry and the earlier one abandons itself during
+    /// the pause — so a fix that forwarded the letters and doubled the traffic is not a fix.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheLettersTypedWhileFocusIsStillCrossingReachThePalettesBox()
+    {
+        using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct_reader", "A reader");
+        ctx.With(SheetMode.Hero);
+
+        var layout = ctx.Render<MainLayout>();
+
+        await Until(() => CommandsOf(ctx).BookIsOffered, "the palette settled who is asking");
+
+        ctx.Api.Asked.Clear();
+
+        using var occupied = new ManualResetEventSlim();
+        var busy = Task.Run(() => layout.InvokeAsync(() =>
+        {
+            occupied.Set();
+            Thread.Sleep(Occupation);
+        }), Xunit.TestContext.Current.CancellationToken);
+
+        occupied.Wait(Xunit.TestContext.Current.CancellationToken);
+
+        var clock = Stopwatch.StartNew();
+
+        // What the field holds after each press — the whole of it, which is what an `input` event
+        // on a text box actually carries.
+        await layout.Find(".palette-field").InputAsync(new ChangeEventArgs { Value = "kn" });
+        await layout.Find(".palette-field").InputAsync(new ChangeEventArgs { Value = "kno" });
+
+        Assert.True(clock.Elapsed > Occupation / 2,
+            $"the two presses came back in {clock.ElapsedMilliseconds}ms, so they were handled "
+            + "inline: either they are not being awaited any more, or the renderer was not "
+            + "actually busy. That is the ordinary ordering, not the one this test is about.");
+
+        await busy;
+
+        Assert.Single(layout.FindAll(".palette"));
+
+        // The box holds the whole word, not the letters that opened the palette.
+        await layout.WaitForAssertionAsync(
+            () => Assert.Equal("kno", layout.Find(".palette-box").GetAttribute("value")), Patient);
+
+        // **And the second press was searched rather than merely stored.** "kn" is below the
+        // book's threshold and "kno" is not, so a book row at all is a row that only the forwarded
+        // press could have produced — which is why those two lengths were chosen.
+        await layout.WaitForAssertionAsync(
+            () => Assert.NotEmpty(layout.FindAll(".palette-group")), Patient);
+
+        Assert.Contains("KNOCKBACK",
+            layout.FindAll(".palette-group ~ .palette-row")
+                  .Select(r => r.QuerySelector(".palette-label")!.TextContent.Trim()));
+
+        // One request, for the last word. The burst collapses in `AskTheBookAsync`'s pause, so a
+        // fix that forwarded the letters and doubled the traffic is not a fix.
+        await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Single(Searches(ctx));
+        Assert.Contains("q=kno", Searches(ctx)[0], StringComparison.Ordinal);
     }
 
     /// <summary>

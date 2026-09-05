@@ -142,11 +142,45 @@ public sealed class Commands
     /// </summary>
     public void Open(string query = "")
     {
-        if (IsOpen) return;
-        _opensWith = query ?? "";
+        var wanted = query ?? "";
+
+        // **Already open, and the letters are still arriving here.** The palette is opened by the
+        // *first* keystroke into the banner and takes the caret one interop hop later, so every
+        // key pressed inside that hop is delivered to the field that still has focus. This used to
+        // early-return, and every one of those keystrokes was dropped on the floor: a reader typing
+        // at any ordinary speed opened the palette on their first letter and watched it search that
+        // letter alone.
+        //
+        // <see cref="Retyped"/> rather than <see cref="_opensWith"/>, and that is not a style
+        // choice. The opening query is read once and cleared, so two opens racing one render leave
+        // the second handler taking an empty string — the first would take "kn" and the second the
+        // blank it left behind, which is the box emptying itself under somebody's hands. The event
+        // carries its own text, so the last one to arrive wins and nothing is read twice.
+        if (IsOpen)
+        {
+            Retyped?.Invoke(wanted);
+            return;
+        }
+
+        _opensWith = wanted;
         IsOpen = true;
         Changed?.Invoke();
     }
+
+    /// <summary>
+    /// The palette's box is to hold this instead of whatever it holds now.
+    ///
+    /// <para><b>A replacement and never an append.</b> The banner hands over the whole of what its
+    /// field holds on every input, so applying one of these twice, or applying a stale one after a
+    /// newer one, is the difference between "kn" and "kn" rather than between "kn" and "knkn". That
+    /// is what makes it safe for the two controls to be typed into in the same breath, which is
+    /// exactly what happens while focus is in flight.</para>
+    ///
+    /// <para><b>Not <see cref="Changed"/>, for the reason <see cref="BookAnswered"/> is not
+    /// either.</b> The palette treats a <c>Changed</c> raised while it is open as "it just opened"
+    /// and re-reads the opening query, which is read-once — see <see cref="Open(string)"/>.</para>
+    /// </summary>
+    public event Action<string>? Retyped;
 
     public void Close()
     {

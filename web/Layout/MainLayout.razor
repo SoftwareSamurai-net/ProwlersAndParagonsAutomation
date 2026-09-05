@@ -376,6 +376,14 @@
     /// <para><b>Nothing is matched here.</b> The word goes to the one box with a matcher behind it
     /// and is searched there exactly as if it had been typed there — see
     /// <see cref="Commands.Open(string)"/>.</para>
+    ///
+    /// <para><b>Every input, not only the one that opens it, and that is the whole of the second
+    /// keystroke's story.</b> The palette opens on the first letter and takes the caret an interop
+    /// hop later, so the letters pressed inside that hop are delivered here, to the field that
+    /// still has focus. <c>Open</c> used to early-return on them and they were dropped: a reader
+    /// typing at any ordinary speed searched their first letter and nothing else. What is handed
+    /// over is <c>_search</c> — the whole of what the field now holds — so applying it is a
+    /// replacement rather than an append, and applying it twice changes nothing.</para>
     /// </summary>
     private void SearchTyped(ChangeEventArgs e)
     {

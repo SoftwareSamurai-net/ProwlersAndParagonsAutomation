@@ -131,6 +131,17 @@ placeholder.
     palette takes the screen and leaving it means dismissing something nobody asked for. Typing is
     an intention and arriving is not. Held by a test that also asserts no focus handler is bound,
     because bUnit has no caret and nothing else in the suite could tell.
+  - **The letters typed inside that hop are forwarded, not dropped.** The palette opens on the
+    first keystroke and takes the caret one interop hop later, so everything pressed in between is
+    delivered to the banner's field, which still has focus. `Commands.Open` early-returned while
+    the palette was open and every one of those went on the floor: a reader typing at any ordinary
+    speed searched their first letter and nothing else. `Open` now raises `Commands.Retyped` with
+    the whole of what the field holds, and the palette applies it exactly as it applies its own
+    `oninput`. **A replacement, never an append** — the field hands over its whole value each time,
+    so applying one twice, or applying a stale one after a newer one, settles on the same text.
+    Deliberately not `Changed` and not `_opensWith`: the opening query is read once and cleared, so
+    two opens racing one render would leave the second handler taking the blank the first left
+    behind, which is the box emptying itself under somebody's hands.
   - **A click on the empty field opens it, which is what the button did.** The field is empty
     whenever it can be clicked: anything typed into it has already opened the palette, and the
     scrim is over this band while it is open.
