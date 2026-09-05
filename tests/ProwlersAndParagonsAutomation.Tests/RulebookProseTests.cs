@@ -17,7 +17,7 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// <para><b>The counts are the guard, and they are measured rather than chosen.</b> A parse over
 /// prose can fail in two directions and only one of them is loud: matching too little shows as a
 /// passage that reads exactly as it did before, which nobody notices. So the numbers below were
-/// measured across all 1,523 passages first, and a change that starts matching more or less than
+/// measured across all 1,525 passages first, and a change that starts matching more or less than
 /// the book marks moves one of them.</para>
 ///
 /// <para><b>Every count carries the negative beside it.</b> Six sections share a heading with a
@@ -166,7 +166,7 @@ public sealed class RulebookProseTests
                 });
 
             // Assert.True with a message rather than Assert.Equal, which has no message overload:
-            // "1,523 passages, one of them wrong" needs to say which one.
+            // "1,525 passages, one of them wrong" needs to say which one.
             Assert.True(Words(text) == Words(rebuilt),
                 $"Ch.{chapter} {heading} does not survive the split intact."
                 + $"{Environment.NewLine}  in:  {Words(text)}"

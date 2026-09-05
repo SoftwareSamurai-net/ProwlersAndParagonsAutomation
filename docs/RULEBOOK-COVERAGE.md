@@ -20,7 +20,7 @@ wrong on both figures and contradicted the resume marker four lines below it.)
 
 | | |
 |---|---|
-| **Text extraction** | **DONE for the whole book, and regenerable.** All ten chapters are in `data/rulebook/`, printed pp.5–188, 1523 sections, each carrying its printed page. Rebuild with `dotnet run --project tools/RulebookExtractor -- <pdf> data/rulebook` |
+| **Text extraction** | **DONE for the whole book, and regenerable.** All ten chapters are in `data/rulebook/`, printed pp.5–188, 1525 sections, each carrying its printed page. Rebuild with `dotnet run --project tools/RulebookExtractor -- <pdf> data/rulebook` |
 | **Do not trust the first extraction's reputation** | The corpus shipped once with every chapter opening scrambled, 135 empty sections and 83 doubled page numbers in mid-sentence, and the tests passed. See the completed entry in `PROGRESS.md`. **The damaged prose still read as English**, so judge a change here by re-running the extractor and the corpus tests, not by reading a paragraph and finding it plausible |
 | **Rules extraction** | Ch.1–2 complete, plus Ch.6 custom gear and Ch.7 toxins. **Ch.3 and Ch.5 are now extracted too**, into `data/rules/play/` rather than `data/rules/` — see their rows below and [`docs/guide/play-rules.md`](guide/play-rules.md). Ch.4 remains swept and unextracted |
 | **Next to read for *rules*** | **Chapter 6, printed p.94** — Gadgets, then Vehicles (94) and Headquarters (100), which is `PROGRESS.md`'s one acknowledged data gap. Ch.6 pp.87–93 are settled: Gear Limits, armour and weapons are free and untracked, Custom Gear (p.92) is the twelve extracted features |

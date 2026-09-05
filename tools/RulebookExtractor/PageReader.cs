@@ -204,10 +204,47 @@ public sealed class PageReader
         // either side would ever use it for.
         (double Baseline, bool IsHeading)? leftPrev = null, rightPrev = null, singlePrev = null;
 
-        void Flush()
+        // <summary>
+        // Empties the band's two column-runs into the output, left column then right.
+        //
+        // <para><paramref name="aFullWidthRunFollows"/> is true when the band is being closed
+        // <b>because a full-width line was reached</b>, rather than because the page ran out. In
+        // that case one line of the band may not belong to its column at all: <b>the title of the
+        // full-width block underneath it.</b> Printed p.81 is the case — "EXAMPLE OF COMBAT" is
+        // set at the left margin, so it sits inside the left column's x-range and reads as the
+        // left column's last line, but everything it titles runs the full width below the band.
+        // Emitting it with its column put it <em>before</em> the right-hand sidebar's own heading,
+        // "WOUND PENALTIES", and since a heading with no body of its own qualifies the headings
+        // beneath it, the two sections merged into one called "EXAMPLE OF COMBAT — WOUND
+        // PENALTIES" — carrying a Gritty Combat rule and a two-page worked example under a heading
+        // that inverts which is which.</para>
+        //
+        // <para>The signal is positional and does not depend on recognising either title: the line
+        // is a <b>heading</b>, it is <b>lower than every other line in the band</b> — so nothing in
+        // either column follows it — and a full-width run starts immediately below it. A heading at
+        // the foot of one column whose body continues at the top of the other does not match,
+        // because that column runs on past it.</para>
+        // </summary>
+        void Flush(bool aFullWidthRunFollows = false)
         {
-            ordered.AddRange(left);
-            ordered.AddRange(right);
+            var banded = new List<Line>(left.Count + right.Count);
+            banded.AddRange(left);
+            banded.AddRange(right);
+
+            Line? title = null;
+            if (aFullWidthRunFollows && banded.Count > 1)
+            {
+                var lowest = banded.MinBy(l => l.Baseline)!;
+                if (lowest.IsHeading && banded.All(l => ReferenceEquals(l, lowest) || l.Baseline > lowest.Baseline))
+                    title = lowest;
+            }
+
+            foreach (var line in banded)
+                if (!ReferenceEquals(line, title))
+                    ordered.Add(line);
+
+            if (title is not null) ordered.Add(title);
+
             left.Clear();
             right.Clear();
             leftPrev = null;
@@ -234,7 +271,7 @@ public sealed class PageReader
 
             if (CrossesGutter(words, gutterLeft, gutterRight, measure))
             {
-                Flush();
+                Flush(aFullWidthRunFollows: true);
                 ordered.Add(Build(baseline, words, null));
                 continue;
             }
