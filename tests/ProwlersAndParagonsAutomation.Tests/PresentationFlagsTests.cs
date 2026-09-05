@@ -33,8 +33,20 @@ public sealed class PresentationFlagsTests
     /// <summary>The names no rules code may mention.</summary>
     private static readonly string[] Flags = ["IsVillain", "UnlimitedBudget", "CampaignId"];
 
-    /// <summary>The projects that decide a cost, a rank, a figure or a verdict.</summary>
-    private static readonly string[] RulesProjects = ["engine", "sheets"];
+    /// <summary>
+    /// The projects that decide a cost, a rank, a figure or a verdict.
+    ///
+    /// <para><b><c>play/</c> is here because the simulator is the one place the temptation is
+    /// real.</b> An encounter genuinely needs to know which side a combatant is on, and reading
+    /// the sheet's palette flag to find out would be exactly the shape this test forbids — a rule
+    /// branching on presentation. So the second engine is told instead: the caller supplies
+    /// <c>Combatant.Kind</c>, which is Hero, Villain, Foe, Minion or Extra, and
+    /// <c>CombatantFactory</c> takes it as an argument rather than deriving it from anything on
+    /// the character. <b>Comments are not blanked before this scan</b>, deliberately: a doc
+    /// comment naming the flag would mean the field had been thought about here, which is the
+    /// state this guard exists to keep out.</para>
+    /// </summary>
+    private static readonly string[] RulesProjects = ["engine", "sheets", "play"];
 
     /// <summary>
     /// The file the three fields are declared on, and the one the scan below skips.
