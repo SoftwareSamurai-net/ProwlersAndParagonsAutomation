@@ -74,14 +74,19 @@ public sealed class PageReader
     }
 
     /// <param name="LeadingGap">
-    /// The vertical distance from this line's baseline to the baseline of the line immediately
-    /// before it <b>in the same column-run</b> — the same physical column, unbroken by a
-    /// full-width line, a page boundary or the start of the page. <c>null</c> when there is no
-    /// such predecessor: the first line of a column, the line right after a full-width break, or
-    /// the first line read from a fresh page. Those are exactly the places where two baselines
-    /// are not comparable — a column restarts near the top of the page, so a raw subtraction
-    /// there would be large and negative, meaning "no signal" rather than "no gap" — so a
-    /// predecessor is deliberately not invented for them. See <see cref="Order"/>.
+    /// The vertical distance from this line's baseline to the baseline of the line <b>physically
+    /// above it on the same run of the page</b>. For a column line that is its own column's
+    /// previous line, unbroken by a full-width line, a page boundary or the start of the page.
+    /// For a <b>full-width</b> line it is the lowest line of the band that line closes, or the
+    /// full-width line before it in a run of them — a line spanning both columns has whatever sits
+    /// above it directly above it, whichever column that line was in.
+    ///
+    /// <para><c>null</c> when there is no such predecessor: the first line of a column, the first
+    /// line of a column <em>resuming below</em> a full-width break, the first line read from a
+    /// fresh page, or any line whose predecessor was a heading. Those are exactly the places where
+    /// two baselines are not comparable — a column restarts near the top of the page, so a raw
+    /// subtraction there would be large and negative, meaning "no signal" rather than "no gap" —
+    /// so a predecessor is deliberately not invented for them. See <see cref="Order"/>.</para>
     /// </param>
     public sealed record Line(
         string Text, double Baseline, double Left, double Right, bool IsHeading, double Size,
@@ -204,10 +209,77 @@ public sealed class PageReader
         // either side would ever use it for.
         (double Baseline, bool IsHeading)? leftPrev = null, rightPrev = null, singlePrev = null;
 
-        void Flush()
+        // The line physically above the next full-width line, which is a different question from
+        // either column's own predecessor.
+        //
+        // <b>A full-width line spans both columns, so whatever is directly above it is simply the
+        // lowest line of the band it closes</b> — the two baselines are on the same run of the
+        // page and subtracting them means something, unlike a column that resumes below a
+        // full-width break near the top of the page. Nulling this was why a full-width block could
+        // never have paragraphs: the whole of printed p.81's Example of Combat, a ten-paragraph
+        // worked fight set full width beneath two sidebars, arrived as one 3,300-character run
+        // because every line in it was handed a null gap and <see cref="ParagraphJoiner"/> has
+        // nothing to measure against a null. The information was on the page the entire time.
+        //
+        // <b>The column that resumes below a full-width run still gets nothing</b>, deliberately:
+        // the left column's first line under one is physically adjacent to it, but the right
+        // column's first line is not — it continues the bottom of the left column, half a page
+        // away — and inventing a predecessor for it would put a paragraph break in the middle of
+        // a sentence, which is the one direction this whole feature must not fail in.
+        (double Baseline, bool IsHeading)? aboveTheBand = null;
+
+        // <summary>
+        // Empties the band's two column-runs into the output, left column then right.
+        //
+        // <para><paramref name="aFullWidthRunFollows"/> is true when the band is being closed
+        // <b>because a full-width line was reached</b>, rather than because the page ran out. In
+        // that case one line of the band may not belong to its column at all: <b>the title of the
+        // full-width block underneath it.</b> Printed p.81 is the case — "EXAMPLE OF COMBAT" is
+        // set at the left margin, so it sits inside the left column's x-range and reads as the
+        // left column's last line, but everything it titles runs the full width below the band.
+        // Emitting it with its column put it <em>before</em> the right-hand sidebar's own heading,
+        // "WOUND PENALTIES", and since a heading with no body of its own qualifies the headings
+        // beneath it, the two sections merged into one called "EXAMPLE OF COMBAT — WOUND
+        // PENALTIES" — carrying a Gritty Combat rule and the worked example under a heading
+        // that inverts which is which.</para>
+        //
+        // <para>The signal is positional and does not depend on recognising either title: the line
+        // is a <b>heading</b>, it is <b>lower than every other line in the band</b> — so nothing in
+        // either column follows it — and a full-width run starts immediately below it. A heading at
+        // the foot of one column whose body continues at the top of the other does not match,
+        // because that column runs on past it.</para>
+        // </summary>
+        void Flush(bool aFullWidthRunFollows = false)
         {
-            ordered.AddRange(left);
-            ordered.AddRange(right);
+            var banded = new List<Line>(left.Count + right.Count);
+            banded.AddRange(left);
+            banded.AddRange(right);
+
+            Line? title = null;
+            if (aFullWidthRunFollows && banded.Count > 1)
+            {
+                var lowest = banded.MinBy(l => l.Baseline)!;
+                if (lowest.IsHeading && banded.All(l => ReferenceEquals(l, lowest) || l.Baseline > lowest.Baseline))
+                    title = lowest;
+            }
+
+            foreach (var line in banded)
+                if (!ReferenceEquals(line, title))
+                    ordered.Add(line);
+
+            if (title is not null) ordered.Add(title);
+
+            // The lowest line of the band is what the next full-width line sits under. A deferred
+            // title is by definition that line, and it is a heading, so the gap below it is
+            // correctly discarded by Build — the space a layout gives a heading is not a
+            // paragraph gap. An empty band leaves the previous full-width line standing, which is
+            // what a run of them needs.
+            if (banded.Count > 0)
+            {
+                var lowest = banded.MinBy(l => l.Baseline)!;
+                aboveTheBand = (lowest.Baseline, lowest.IsHeading);
+            }
+
             left.Clear();
             right.Clear();
             leftPrev = null;
@@ -234,8 +306,10 @@ public sealed class PageReader
 
             if (CrossesGutter(words, gutterLeft, gutterRight, measure))
             {
-                Flush();
-                ordered.Add(Build(baseline, words, null));
+                Flush(aFullWidthRunFollows: true);
+                var full = Build(baseline, words, aboveTheBand);
+                ordered.Add(full);
+                aboveTheBand = (baseline, full.IsHeading);
                 continue;
             }
 

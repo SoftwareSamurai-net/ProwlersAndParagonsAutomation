@@ -36,7 +36,7 @@ public sealed partial record RulebookProse(
 /// where a sentence feels like ending.</b> A Power's entry opens with a bullet-separated stat
 /// line; a Pro or Con printed inside an entry is marked <c>PRO Name (price):</c>; a generic
 /// option's own section opens <c>PRO +1 Hero Point</c>. Those three shapes were measured across
-/// all 1,523 passages before a line of this was written — 116 stat lines, 52 price leads and 102
+/// all 1,525 passages before a line of this was written — 116 stat lines, 52 price leads and 102
 /// option blocks, with nothing left over — and <c>RulebookProseTests</c> holds those counts, so a
 /// change that starts guessing shows up as a count that moved rather than as prose nobody reads
 /// twice.</para>

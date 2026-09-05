@@ -396,6 +396,167 @@ public sealed class PageReaderTests
     }
 
     // ------------------------------------------------------------------------------------------
+    // The title of a full-width block, set at the left margin under a two-column band.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// <b>Printed p.81, and the defect it shipped.</b> "EXAMPLE OF COMBAT" titles a worked
+    /// example set full width, but it is set at the left margin, so its x-extent sits
+    /// wholly inside the left column and it reads as that column's last line. Emitted with the
+    /// column it landed <em>before</em> the right-hand sidebar's own heading, "WOUND PENALTIES" —
+    /// and because <c>Program.cs</c> lets a heading with no body of its own qualify the headings
+    /// beneath it, the two merged into one section called "EXAMPLE OF COMBAT — WOUND PENALTIES",
+    /// carrying a Gritty Combat rule and the example under a heading that inverts which is which.
+    ///
+    /// <para>The signal is positional, not textual: the line is a heading, it is lower than every
+    /// other line in the band, and a full-width run starts immediately below it.</para>
+    /// </summary>
+    [Fact]
+    public void AHeadingBelowBothColumnsTitlesTheFullWidthBlockUnderIt()
+    {
+        const string title = "EXAMPLE OF COMBAT";
+        const string block = "THE FULL WIDTH BLOCK THAT RUNS ACROSS THE WHOLE PAGE FROM MARGIN TO MARGIN";
+
+        var glyphs = TwoColumnBody("L", "R", startBaseline: 700);       // both columns end at 602
+        glyphs.AddRange(Glyphs(title, left: 45, baseline: 580,
+            font: "AAAAAA+LeagueGothic-Regular", size: 24));
+        glyphs.AddRange(Glyphs(block, left: 45, baseline: 560));
+
+        var lines = new PageReader().Read(glyphs, PageWidth).ToList();
+
+        // Positive control: both columns and the block itself all reached the output.
+        Assert.Equal(18, lines.Count);
+        Assert.Contains(lines, l => l.Text.StartsWith("L0 ", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.Text.StartsWith("R7 ", StringComparison.Ordinal));
+
+        var titleIndex = lines.FindIndex(l => l.Text == title);
+        var blockIndex = lines.FindIndex(l => l.Text == block);
+        var lastRight = lines.FindLastIndex(l => l.Text.StartsWith('R'));
+
+        Assert.True(lines[titleIndex].IsHeading);
+        Assert.True(titleIndex > lastRight,
+            $"the title of a full-width block must follow the whole band, not sit inside the left "
+          + $"column: it landed at {titleIndex}, ahead of the right column's last line at {lastRight}.");
+        Assert.Equal(titleIndex + 1, blockIndex);
+    }
+
+    /// <summary>
+    /// The negative control for the rule above, and the layout it must not disturb: a heading at
+    /// the foot of the left column whose own body continues at the top of the right column. Its
+    /// column runs on past it — <c>L7</c> is lower — so it is not the lowest line in the band and
+    /// stays where it is. Deferring this one would file an entry's heading after its own text.
+    ///
+    /// <para><b>This case is rejected on the "lowest line" clause alone, and so it does not
+    /// exercise the "a full-width run follows" clause at all.</b> That is real coverage of a real
+    /// layout, but it is not a discriminating negative — it would still pass with the second
+    /// clause deleted. <see cref="AHeadingLowestInItsBandIsDeferredEvenWhenItsOwnColumnResumesBelow"/>
+    /// is the case that actually probes the rule's edge, and what it shows is that there is no
+    /// second clause to lean on.</para>
+    /// </summary>
+    [Fact]
+    public void AHeadingTheRestOfItsColumnRunsPastStaysWithThatColumn()
+    {
+        const string heading = "AN ENTRY CONTINUED OVERLEAF";
+
+        var glyphs = TwoColumnBody("L", "R", startBaseline: 700);       // both columns end at 602
+        glyphs.AddRange(Glyphs(heading, left: 45, baseline: 610,
+            font: "AAAAAA+LeagueGothic-Regular", size: 18));
+        glyphs.AddRange(Glyphs(
+            "THE FULL WIDTH BLOCK THAT RUNS ACROSS THE WHOLE PAGE FROM MARGIN TO MARGIN",
+            left: 45, baseline: 560));
+
+        var lines = new PageReader().Read(glyphs, PageWidth).ToList();
+
+        Assert.Equal(18, lines.Count); // positive control: nothing was dropped
+
+        var headingIndex = lines.FindIndex(l => l.Text == heading);
+        var firstRight = lines.FindIndex(l => l.Text.StartsWith("R0 ", StringComparison.Ordinal));
+
+        Assert.True(lines[headingIndex].IsHeading);
+        Assert.True(headingIndex < firstRight,
+            "a heading its own column runs past belongs to that column, not to the block below the band.");
+    }
+
+    /// <summary>
+    /// <b>The discriminating case, and the limit it exposes.</b> Everything the deferral rule
+    /// keys on is present — the left column ends in a heading, that heading is the lowest line in
+    /// the band, the right column stopped higher, and a full-width run starts below it — but the
+    /// heading's <em>own column carries on underneath the full-width block</em>. So there are two
+    /// readings of what it titles: the full-width block (printed p.81's <c>EXAMPLE OF COMBAT</c>),
+    /// or the continuation of its own column below that block, with the block itself finishing the
+    /// section above.
+    ///
+    /// <para><b>Nothing positional separates them</b> — the geometry asserted here is identical in
+    /// both — and no amount of tuning the rule would, because the difference is about what the
+    /// prose means, not about where it sits. The rule defers, and this test pins that.</para>
+    ///
+    /// <para><b>Deferring is nonetheless right on the half the rule is actually deciding.</b> What
+    /// the deferral moves is the heading past the rest of its band, and the precondition makes
+    /// that safe under either reading: the right column stopped <em>above</em> the heading, so
+    /// there is nothing in the band the heading could title. Leaving it in place would file the
+    /// right column's tail under it — which is the p.81 defect — and that is wrong whichever of
+    /// the two readings is the true one.</para>
+    ///
+    /// <para><b>What is genuinely lost is the block's ownership, and no reading order can express
+    /// it.</b> The full-width block sits physically between the heading and the column
+    /// continuation, so in a linear stream it lands under the heading whether it belongs there or
+    /// not. This is recorded as a limit in <c>docs/guide/rulebook-corpus.md</c> rather than
+    /// papered over: no case of it is known in the book, and the fix if one is found is not a
+    /// better geometric rule.</para>
+    /// </summary>
+    [Fact]
+    public void AHeadingLowestInItsBandIsDeferredEvenWhenItsOwnColumnResumesBelow()
+    {
+        const string heading = "A HEADING AT THE FOOT OF ITS COLUMN";
+        const string block = "THE FULL WIDTH BLOCK THAT RUNS ACROSS THE WHOLE PAGE FROM MARGIN TO MARGIN";
+
+        var glyphs = new List<RawLetter>();
+
+        // Left column runs to 616 and is then closed by the heading at 602, the lowest line in the
+        // band. The right column stops at 630 — above the heading, which is the precondition.
+        for (var i = 0; i < 7; i++) glyphs.AddRange(FilledLine($"L{i}", 45, 270, 700 - i * 14));
+        for (var i = 0; i < 6; i++) glyphs.AddRange(FilledLine($"R{i}", 340, 567, 700 - i * 14));
+        glyphs.AddRange(Glyphs(heading, left: 45, baseline: 602,
+            font: "AAAAAA+LeagueGothic-Regular", size: 18));
+
+        glyphs.AddRange(Glyphs(block, left: 45, baseline: 580));
+
+        // ...and the heading's own column carries on below the full-width block, which is the whole
+        // point of this fixture: on p.81 nothing followed the block at all.
+        for (var i = 0; i < 6; i++) glyphs.AddRange(FilledLine($"M{i}", 45, 270, 560 - i * 14));
+        for (var i = 0; i < 6; i++) glyphs.AddRange(FilledLine($"N{i}", 340, 567, 560 - i * 14));
+
+        var lines = new PageReader().Read(glyphs, PageWidth).ToList();
+
+        // Positive control: every line of all four column-runs, the heading and the block itself
+        // came through — 7 + 6 above the band's break, the heading, the block, then 6 + 6 below.
+        Assert.Equal(27, lines.Count);
+        Assert.Contains(lines, l => l.Text.StartsWith("L0 ", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.Text.StartsWith("R5 ", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.Text.StartsWith("N5 ", StringComparison.Ordinal));
+
+        var headingIndex = lines.FindIndex(l => l.Text == heading);
+        var blockIndex = lines.FindIndex(l => l.Text == block);
+        var lastBandRight = lines.FindLastIndex(l => l.Text.StartsWith('R'));
+        var resumedLeft = lines.FindIndex(l => l.Text.StartsWith("M0 ", StringComparison.Ordinal));
+
+        Assert.True(lines[headingIndex].IsHeading);
+
+        Assert.True(headingIndex > lastBandRight,
+            $"the heading is the lowest line in its band and the right column stopped above it, so "
+          + $"nothing in the band can be under it: it must follow the whole band rather than sit "
+          + $"inside the left column. It landed at {headingIndex}, ahead of the right column's last "
+          + $"line at {lastBandRight}.");
+
+        // The block lands under the heading. That is the reading this rule cannot check: it is
+        // right if the heading titles the block, and wrong if the block finishes the section above
+        // and the heading titles only the column continuation. Both look like this.
+        Assert.Equal(headingIndex + 1, blockIndex);
+        Assert.True(blockIndex < resumedLeft,
+            "the column continuation must still follow the block it is printed under.");
+    }
+
+    // ------------------------------------------------------------------------------------------
     // LeadingGap: the vertical distance to the previous line in the same column-run, which is
     // what ParagraphJoiner reads to tell a paragraph start from an ordinary wrap.
     // ------------------------------------------------------------------------------------------
@@ -446,9 +607,17 @@ public sealed class PageReaderTests
     /// A full-width line breaks the page into bands, and a column resuming below one has no
     /// comparable predecessor — its own top is nowhere near where the column left off, so a raw
     /// baseline subtraction there would be meaningless rather than merely large.
+    ///
+    /// <para><b>The full-width line itself is the opposite case, and used to be treated as the
+    /// same one.</b> It spans both columns, so the line directly above it is simply the lowest
+    /// line of the band it closes — 602 here against its own 580 — and those two baselines are on
+    /// the same run of the page. Nulling it was why a full-width block could never have
+    /// paragraphs at all: printed p.81's Example of Combat reached the corpus as one
+    /// 3,300-character run because every line in it was handed a null gap and
+    /// <see cref="ParagraphJoiner"/> has nothing to measure against a null.</para>
     /// </summary>
     [Fact]
-    public void AFullWidthBreakResetsTheGapOnBothColumns()
+    public void AFullWidthLineIsMeasuredAgainstTheBandAboveItAndResetsBothColumns()
     {
         // Eight rows a side, same as the fixture that already proves a full-width line stays
         // whole — ColumnLayout.FindGutter needs at least six lines to trust a page has columns
@@ -466,12 +635,54 @@ public sealed class PageReaderTests
         var fullWidthIndex = lines.FindIndex(l =>
             l.Text == "A FULL WIDTH LINE ACROSS THE WHOLE PAGE WIDTH FROM MARGIN TO MARGIN");
         Assert.NotEqual(-1, fullWidthIndex); // positive control: the full-width line survived whole
-        Assert.Null(lines[fullWidthIndex].LeadingGap);
+
+        // The band's lowest line is L7/R7 at 602; the full-width line is at 580.
+        Assert.Equal(22, lines[fullWidthIndex].LeadingGap);
 
         var resumedLeftIndex = lines.FindIndex(fullWidthIndex + 1,
             l => l.Text.StartsWith("L0 ", StringComparison.Ordinal));
         Assert.NotEqual(-1, resumedLeftIndex); // positive control: the column resumed afterwards
         Assert.Null(lines[resumedLeftIndex].LeadingGap);
+
+        var resumedRightIndex = lines.FindIndex(fullWidthIndex + 1,
+            l => l.Text.StartsWith("R0 ", StringComparison.Ordinal));
+        Assert.NotEqual(-1, resumedRightIndex); // positive control: the right column resumed too
+        Assert.Null(lines[resumedRightIndex].LeadingGap);
+    }
+
+    /// <summary>
+    /// <b>A run of full-width lines measures each against the one before it</b>, which is what
+    /// gives a full-width block its own paragraphs: the first line of the run is measured against
+    /// the band it closes and every line after it against its own predecessor, so a line set
+    /// twice the ordinary leading below reads as a paragraph start exactly as it does inside a
+    /// column.
+    /// </summary>
+    [Fact]
+    public void AFullWidthRunMeasuresEachLineAgainstThePreviousFullWidthLine()
+    {
+        const string wide = "A FULL WIDTH LINE ACROSS THE WHOLE PAGE WIDTH FROM MARGIN TO MARGIN";
+
+        var glyphs = TwoColumnBody("L", "R", startBaseline: 700);       // both columns end at 602
+        glyphs.AddRange(Glyphs($"{wide} ONE", left: 45, baseline: 580));
+        glyphs.AddRange(Glyphs($"{wide} TWO", left: 45, baseline: 566));   // 14pt: ordinary wrap
+        glyphs.AddRange(Glyphs($"{wide} THREE", left: 45, baseline: 552)); // 14pt: ordinary wrap
+        glyphs.AddRange(Glyphs($"{wide} FOUR", left: 45, baseline: 524));  // 28pt: a paragraph gap
+
+        var lines = new PageReader().Read(glyphs, PageWidth).ToList();
+
+        Assert.Equal(20, lines.Count); // positive control: 16 column lines plus four full-width
+
+        var run = lines.Where(l => l.Text.StartsWith("A FULL WIDTH", StringComparison.Ordinal)).ToList();
+        Assert.Equal(4, run.Count); // positive control: every full-width line survived whole
+
+        Assert.Equal(22, run[0].LeadingGap);   // against the band's lowest line, at 602
+        Assert.Equal(14, run[1].LeadingGap);
+        Assert.Equal(14, run[2].LeadingGap);
+        Assert.Equal(28, run[3].LeadingGap);
+
+        Assert.Equal(
+            $"{wide} ONE {wide} TWO {wide} THREE\n{wide} FOUR",
+            ParagraphJoiner.Join(run));
     }
 
     /// <summary>

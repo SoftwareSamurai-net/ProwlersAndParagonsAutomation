@@ -117,7 +117,7 @@ install Docker, and what stays unavailable without it. Linux CI already has Node
 runner image; a Windows machine follows the `winget` command each script prints when it cannot find
 what it needs.
 
-The source rulebook PDF is **not included** in this repository (copyright), and never will be. Place your own copy in `docs/` if you need to re-run data extraction: `*.pdf` is gitignored repository-wide, and CI fails the build if a PDF is ever tracked.
+The source rulebook PDF is **not included** in this repository (copyright), and never will be. Keep your own copy wherever you like and pass its path to the extractor — `dotnet run --project tools/RulebookExtractor -- <path-to-pdf> data/rulebook`. `*.pdf` is gitignored repository-wide and CI fails the build if a PDF is ever tracked, so there is no in-repo location to put it in; `docs/` is not one either, and saying so sent more than one reader looking for a file that has never been there.
 
 ---
 

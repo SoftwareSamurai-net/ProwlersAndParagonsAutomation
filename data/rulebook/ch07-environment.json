@@ -89,42 +89,47 @@
       "text": "Campfire Wall Socket Building Fire Car Battery Chemical Fire Power Line Incinerator Power Main Lava Generator Blast Furnace Lightning"
     },
     {
-      "heading": "SMASHING — RANK",
+      "heading": "SCORCHING — RANK",
       "printed_page": 107,
-      "text": "4d 6d 8d 10d 11d 12d What would this game be without rules for smashing things? Depressing, that’s what. Luckily, we’re here for you. While vehicles and complex machines have a Body characteristic, simple objects like doors and walls have a Structure rank that determines their durability. The Structure of common materials is on the Smashing table. GMs can raise or lower an object’s Structure by 1d to 4d depending on its condition, thickness, and whatever other factors they deem relevant."
+      "text": "4d 6d 8d 10d 11d 12d"
     },
     {
-      "heading": "SMASHING — SMASHING — MATERIAL",
+      "heading": "SMASHING",
+      "printed_page": 107,
+      "text": "What would this game be without rules for smashing things? Depressing, that’s what. Luckily, we’re here for you. While vehicles and complex machines have a Body characteristic, simple objects like doors and walls have a Structure rank that determines their durability. The Structure of common materials is on the Smashing table. GMs can raise or lower an object’s Structure by 1d to 4d depending on its condition, thickness, and whatever other factors they deem relevant."
+    },
+    {
+      "heading": "SMASHING — MATERIAL",
       "printed_page": 107,
       "text": "Cloth, Drywall, Glass, Ice, Rope Plastic, Rubber, Wood Brick, Bulletproof Glass, Hardwood Asphalt, Concrete, Machinery Iron, Stone Steel Diamond, Titanium Advanced Alloy, Magical Metal Ozymandium Alloy*"
     },
     {
-      "heading": "SMASHING — SMASHING — STRUCTURE",
+      "heading": "SMASHING — STRUCTURE",
       "printed_page": 107,
-      "text": "2d 4d 6d 8d 10d 12d 14d 18d 24d * Most comic book worlds have at least one substance that’s all but invulnerable to physical harm. In the Pinnacle City Universe, that metal is Ozymandium—Metal of Metals!—and it’s impervious only in its pure form. While not unbreakable, Ozymandium alloys are incredibly strong and resilient. Whenever you want to bend, break, or smash through an object, make a challenge roll using Might or one of your Powers against the object’s Structure. You can bend or make a small hole in an object with 1 to 2 net successes, but big holes require 3 or more net successes. You must do this all at once; you can’t combine net successes over multiple attempts. In fact, if an object is especially thick—like castle wall thick—the GM might make you do this a few times in order to smash through it completely."
+      "text": "2d 4d 6d 8d 10d 12d 14d 18d 24d\n* Most comic book worlds have at least one substance that’s all but invulnerable to physical harm. In the Pinnacle City Universe, that metal is Ozymandium—Metal of Metals!—and it’s impervious only in its pure form. While not unbreakable, Ozymandium alloys are incredibly strong and resilient.\nWhenever you want to bend, break, or smash through an object, make a challenge roll using Might or one of your Powers against the object’s Structure. You can bend or make a small hole in an object with 1 to 2 net successes, but big holes require 3 or more net successes. You must do this all at once; you can’t combine net successes over multiple attempts. In fact, if an object is especially thick—like castle wall thick—the GM might make you do this a few times in order to smash through it completely."
     },
     {
-      "heading": "SMASHING — DAMAGING COVER",
+      "heading": "DAMAGING COVER",
       "printed_page": 108,
       "text": "Attacks can penetrate objects used as cover if their attack rank exceeds the object’s Structure. Any time you attack a target by smashing or shooting through an object, the target can use the object’s Structure as a passive defense. When combined with the above rules for smashing objects, what this means is that you have two options when attacking a target hiding behind cover. If your attack rank exceeds the cover’s Structure, you can shoot right through it. If not, you can try to smash a hole in the object your target is hiding behind, after which they’ll presumably be more exposed."
     },
     {
-      "heading": "SMASHING — SCENERY AS WEAPONS",
+      "heading": "SCENERY AS WEAPONS",
       "printed_page": 108,
       "text": "Super strong characters tend to use anything they can find as weapons. Can you blame them? If you use a heavy object or a vehicle as a club, you get a \u002B1d bonus to your close combat attack rolls. If you use a heavy object or a vehicle as a thrown projectile, this allows you to use Might \u002B1d to perform a ranged attack, which is nice when you have superhuman strength.\nUnfortunately, mundane objects can take only so much punishment before becoming confetti. Whenever you use a mundane object as an improvised weapon, your attack rank caps out at the object’s Body or Structure plus 6d. For example, motorcycles have 5d Body, so you can’t roll more than 11d when using one as an improvised weapon. Similarly, most wooden telephone poles have 7d Structure (6d plus 1d for thickness), so you can’t roll more than 13d when using one as an improvised weapon.\nBecause everyday objects like streetlights, telephone poles, and cars aren’t designed to be used as weapons, they don’t last long under this kind of punishment. For every page that an everyday object is used as a weapon by a super strong character, its effective Body or Structure is reduced by 2d for these purposes. Again, this only applies when super strong characters use scenery and vehicles as weapons. A character with normal human strength can wield an iron crowbar until the cows come home without affecting the thing in any way. Edge cases are up to the GM’s discretion."
     },
     {
-      "heading": "SMASHING — SCENERY — SCENERY STRUCTURE RANK",
+      "heading": "SCENERY — SCENERY STRUCTURE RANK",
       "printed_page": 108,
       "text": "Post Office Mailbox 4d 10d Heavy Door, Motorcycle 5d 11d Brick Wall, Telephone Pole 6d 12d Metal Dumpster, Sedan, Statue 7d 13d Big Statue, Fighter Jet, Humvee 8d 14d 747 Airliner, Bus, Huge Tree, Yacht 9d 15d 18-Wheeler, Giant Statue 10d 16d Ferris Wheel, Tank 11d 17d Vault Door 12d 18d"
     },
     {
-      "heading": "SMASHING — MASSIVE OBJECTS",
+      "heading": "MASSIVE OBJECTS",
       "printed_page": 108,
       "text": "If you can manage to heft a truly massive object and somehow keep it from falling apart under its own weight, it works as described above, only using the object’s weight rank instead of its Body or Structure. Unlike ordinary scenery, massive objects always break apart after the first shot."
     },
     {
-      "heading": "SMASHING — MASSIVE OBJECTS — OBJECT RANK RANK",
+      "heading": "MASSIVE OBJECTS — OBJECT RANK RANK",
       "printed_page": 108,
       "text": "Statue of Liberty 14d 20d Freight Train 16d 22d Destroyer, Eiffel Tower, Freighter 18d 24d The London Eye 19d 25d Aircraft Carrier, Ocean Liner 21d 27d Skyscraper 22d 28d Empire State Building 23d 29d Burj Khalifa, Golden Gate Bridge 24d 30d The Great Pyramid 26d 32d Mount Everest 40d 46d Moon 63d 69d Earth 69d 75d"
     },

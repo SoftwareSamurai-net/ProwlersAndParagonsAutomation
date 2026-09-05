@@ -465,6 +465,42 @@ public sealed class RulebookCorpusTests
     }
 
     /// <summary>
+    /// <b>The other half of the paragraph fix, and the passage that showed the measurement was
+    /// missing rather than the rule.</b> LUCK above proves a column entry keeps its breaks; the
+    /// Example of Combat proves a <em>full-width block</em> does. It is set full width beneath
+    /// p.81's two sidebars, and every line of it used to be handed a null
+    /// <c>LeadingGap</c> — a full-width line was treated as though it had no comparable
+    /// predecessor, the way a column resuming below one genuinely does — so
+    /// <see cref="ParagraphJoiner"/> had nothing to measure and the whole worked fight arrived as
+    /// a single 3,361-character run.
+    ///
+    /// <para>Ten paragraphs are printed, and the count is asserted with the shape rather than
+    /// alone: the fight opens on the turn order, has a one-sentence paragraph of its own at the
+    /// page turn, and closes on the GM's embellishment. A block that had lost its breaks again
+    /// would fail on the count; one that had gained invented ones would fail on the last
+    /// paragraph's text.</para>
+    /// </summary>
+    [Fact]
+    public void TheExampleOfCombatKeepsItsTenPrintedParagraphs()
+    {
+        var example = All().Single(c => c.Number == 4).Sections
+            .Single(s => s is { Heading: "EXAMPLE OF COMBAT", PrintedPage: 81 });
+
+        var paragraphs = example.Text.Split('\n');
+
+        Assert.True(paragraphs.Length > 1, // positive control: splitting actually happened
+            $"the Example of Combat is still one flat run of {example.Text.Length} characters — a "
+          + "full-width block is getting no leading gap to measure again.");
+
+        Assert.Equal(10, paragraphs.Length);
+        Assert.StartsWith("Citizen Soldier and Gatecrasher are about to sign", paragraphs[0],
+            StringComparison.Ordinal);
+        Assert.Equal("Now that everyone has acted, a new page begins.", paragraphs[4]);
+        Assert.StartsWith("But with only one net success, the GM gets an embellishment",
+            paragraphs[9], StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>Over-splitting guard, scoped to what this fix is actually for.</b> A paragraph invented
     /// mid-sentence is the failure mode the whole feature answers to, and the cheapest strong
     /// signal of one is a paragraph that begins with a lowercase letter — an ordinary sentence

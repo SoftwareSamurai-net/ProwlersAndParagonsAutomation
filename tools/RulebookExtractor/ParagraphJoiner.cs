@@ -55,9 +55,17 @@ internal static class ParagraphJoiner
     /// </para>
     ///
     /// <para>A passage with fewer than two measured gaps (a one- or two-line entry, or one whose
-    /// only line follows a heading or a full-width break) has nothing to compare and never splits
-    /// — the conservative direction, since the risk this whole feature has to answer to is a
-    /// break invented mid-sentence, not a break missed.</para>
+    /// only line follows a heading or a column resuming below a full-width break) has nothing to
+    /// compare and never splits — the conservative direction, since the risk this whole feature
+    /// has to answer to is a break invented mid-sentence, not a break missed.</para>
+    ///
+    /// <para><b>A full-width block is not one of those, and used to be.</b> Every line of one was
+    /// handed a null gap, so the whole of printed p.81's Example of Combat — ten paragraphs of
+    /// worked fight set full width under two sidebars — reached the corpus as a single
+    /// 3,300-character run with nothing here to measure. The gaps were on the page the whole
+    /// time; <see cref="PageReader"/> now hands them over, and this reads them like any other
+    /// passage's. Nothing changed in here for it, which is the point of the split: the fault was
+    /// a missing measurement, not a missing rule.</para>
     /// </summary>
     public static string Join(IReadOnlyList<PageReader.Line> lines)
     {

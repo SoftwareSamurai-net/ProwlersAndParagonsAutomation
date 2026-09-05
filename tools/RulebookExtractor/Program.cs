@@ -7,8 +7,11 @@ using UglyToad.PdfPig;
 //
 //   dotnet run --project tools/RulebookExtractor -- <path-to-pdf> <output-dir>
 //
-// The PDF is gitignored and lives in the main working directory's docs/, never in a worktree's.
-// Nothing in the app runs this; the corpus it writes is committed and the tests read that.
+// `*.pdf` is gitignored, so the book is in no checkout at all -- not the main working directory's
+// docs/, not a worktree's. It lives wherever the owner keeps it, the path is an argument, and an
+// absolute one works from any checkout: this slice regenerated all ten chapters from a worktree,
+// against ~/Downloads/P&P/. Nothing in the app runs this; the corpus it writes is committed and
+// the tests read that. See docs/guide/rulebook-corpus.md.
 
 if (args.Length < 2)
 {
