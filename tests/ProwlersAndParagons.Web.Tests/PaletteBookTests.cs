@@ -141,6 +141,55 @@ public sealed class PaletteBookTests
     }
 
     /// <summary>
+    /// Drive something with the renderer deliberately busy, and say so if it was not.
+    ///
+    /// <para><b>This is the instrument the two dispatch traps in this file are proved with, and
+    /// both halves of it are load-bearing.</b> A bUnit event is <i>dispatched</i>: the synchronous
+    /// <c>Click</c>, <c>KeyDown</c> and <c>Input</c> post the event and return without waiting
+    /// whenever the renderer is not idle, so a read after one of them can be a read from before
+    /// it. While the renderer is idle the post runs inline and the difference never shows — which
+    /// is why such a drive passes on a quiet laptop and goes red on a loaded runner. Holding the
+    /// renderer busy makes that ordering the one every run takes.</para>
+    ///
+    /// <para><b>Held from another thread, because work posted from this one runs inline</b> while
+    /// the renderer is idle and would occupy nothing at all.</para>
+    ///
+    /// <para><b>And the elapsed time is the positive control.</b> A drive handled inline comes back
+    /// in microseconds; one posted behind a busy renderer cannot come back until the renderer is
+    /// free. It fires for either way of losing this: the drive no longer being awaited, or the
+    /// occupation no longer occupying anything. Without it an instrument that has quietly stopped
+    /// working leaves the drive passing for the wrong reason, which is the failure shape
+    /// <c>CLAUDE.md</c> lists three of.</para>
+    /// </summary>
+    /// <param name="page">The palette, whose dispatcher is the one held.</param>
+    /// <param name="drive">The awaited event to post behind it.</param>
+    /// <param name="what">What was driven, for the message when the control fires.</param>
+    private static async Task Occupying(
+        IRenderedComponent<CommandPalette> page, Func<Task> drive, string what)
+    {
+        using var occupied = new ManualResetEventSlim();
+
+        var busy = Task.Run(() => page.InvokeAsync(() =>
+        {
+            occupied.Set();
+            Thread.Sleep(Occupation);
+        }), Xunit.TestContext.Current.CancellationToken);
+
+        occupied.Wait(Xunit.TestContext.Current.CancellationToken);
+
+        var clock = Stopwatch.StartNew();
+
+        await drive();
+
+        Assert.True(clock.Elapsed > Occupation / 2,
+            $"{what} came back in {clock.ElapsedMilliseconds}ms, so it was handled inline: either "
+            + "it is not being awaited any more, or the renderer was not actually busy. Read "
+            + "bUnit's event dispatch before deleting either half.");
+
+        await busy;
+    }
+
+    /// <summary>
     /// Signed in, typing reaches the book: a group of its own, the book's heading as the label and
     /// the printed citation as the detail.
     /// </summary>
@@ -584,18 +633,36 @@ public sealed class PaletteBookTests
             await held.Task;
         };
 
-        page.Find(".palette-box").Input("trait cap");
+        // **Awaited, and driven with the renderer busy on purpose — both of the reads below were
+        // one render early otherwise.** The wait above returns the moment the answer for
+        // "surprise" is on screen, and that answer landed on a thread-pool continuation whose
+        // redraw is queued through `InvokeAsync`, so this is exactly the moment when the palette's
+        // renderer is *not* idle and a posted event cannot be handled inline. See `Occupying`.
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "trait cap" }),
+            "the keystroke that replaced the query");
 
         // Read on the render that keystroke caused, with the new answer deliberately still on the
-        // wire — which is the whole window the defect lived in.
+        // wire — which is the whole window the defect lived in. Unawaited, this read the render
+        // before it and saw ["SURPRISE"]: the rows the drop is about, still up, and indeed still up
+        // in a passing test.
         Assert.Empty(BookRows(page));
         Assert.Empty(page.FindAll(".palette-group"));
 
         held.SetResult();
         await page.WaitForAssertionAsync(() => Assert.Equal(["TRAIT CAP"], BookRows(page)), Patient);
 
-        // And the row that is there now hands over the query it is under, not the one before it.
-        page.FindAll(".palette-group ~ .palette-row")[0].Click();
+        // **And the row that is there now hands over the query it is under, not the one before it —
+        // awaited and behind a busy renderer for the same reason, which is the one that actually
+        // went red.** A click is dispatched like a keypress: unawaited, `Run` had not run yet, so
+        // the request was not made and `TakeRequestedSearch()` came back null under load while
+        // passing on every quiet machine. Nothing was wrong in the palette; the drive was reading
+        // ahead of it.
+        await Occupying(
+            page,
+            () => page.FindAll(".palette-group ~ .palette-row")[0].ClickAsync(new MouseEventArgs()),
+            "the click on the book's row");
 
         Assert.Equal("trait cap", CommandsOf(ctx).TakeRequestedSearch());
     }
@@ -905,35 +972,13 @@ public sealed class PaletteBookTests
         // machine.** The palette leaves the renderer occupied exactly here: the book's answer lands
         // on a thread-pool continuation, and the redraw it raises is queued through `InvokeAsync`
         // — so for the moment after `WaitForAssertionAsync` returns, a keypress cannot be handled
-        // inline. Held from another thread because work posted from this one runs inline while the
-        // renderer is idle, which occupies nothing.
-        using var occupied = new ManualResetEventSlim();
-        var busy = Task.Run(() => page.InvokeAsync(() =>
+        // inline. `Occupying` holds it and carries the positive control that says it really did.
+        await Occupying(page, async () =>
         {
-            occupied.Set();
-            Thread.Sleep(Occupation);
-        }), Xunit.TestContext.Current.CancellationToken);
-
-        occupied.Wait(Xunit.TestContext.Current.CancellationToken);
-
-        var clock = Stopwatch.StartNew();
-
-        foreach (var _ in Enumerable.Range(0, at))
-            await page.Find(".palette-box").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
-
-        // **The positive control, and it is what keeps the two halves above honest.** A press that
-        // was handled inline comes back in microseconds; an awaited press posted behind a busy
-        // renderer cannot come back until the renderer is free. So the elapsed time is the one
-        // thing that says this drive is still the ordering that failed, and it fires for either
-        // way of losing it: the presses no longer being awaited, or the occupation no longer
-        // occupying anything. Both leave a green drive on any quiet machine and one red CI run in
-        // some number of them, which is exactly the check that was missing.
-        Assert.True(clock.Elapsed > Occupation / 2,
-            $"the {at} press(es) came back in {clock.ElapsedMilliseconds}ms, so they were handled "
-            + "inline: either they are not being awaited any more, or the renderer was not "
-            + "actually busy. Read bUnit's event dispatch before deleting either half.");
-
-        await busy;
+            foreach (var _ in Enumerable.Range(0, at))
+                await page.Find(".palette-box")
+                    .KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+        }, $"the {at} arrow press(es)");
 
         // On the row, and announced as being on it: aria-activedescendant is what a screen reader
         // is told, and a ring that moved without it would look right and announce the first row.
