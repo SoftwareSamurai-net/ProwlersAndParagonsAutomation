@@ -1003,6 +1003,219 @@ public sealed class PlayEngineStepTests
         Assert.Equal("might", Assert.IsType<Attack>(typed.Choose(state, state["exotic"])).TraitId);
     }
 
+    // ── The unimplemented list ───────────────────────────────────────────────
+
+    /// <summary>The guide the two lists below are a claim about.</summary>
+    private static string Guide() =>
+        File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "docs", "guide", "play-engine.md"));
+
+    /// <summary>
+    /// The first column of the markdown table under <paramref name="heading"/>, as the backticked
+    /// names in it.
+    /// </summary>
+    private static HashSet<string> ListedUnder(string heading)
+    {
+        var guide = Guide();
+        var at = guide.IndexOf(heading, StringComparison.Ordinal);
+
+        Assert.True(at >= 0, $"docs/guide/play-engine.md no longer contains \"{heading}\".");
+
+        var rest = guide[at..];
+        var table = rest.IndexOf("|---|", StringComparison.Ordinal);
+
+        Assert.True(table >= 0, $"no table follows \"{heading}\" in the guide.");
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var line in rest[table..].Split('\n').Skip(1))
+        {
+            if (!line.StartsWith('|')) break;
+
+            var first = line.Split('|')[1].Trim();
+            if (first.StartsWith('`') && first.EndsWith('`')) names.Add(first.Trim('`'));
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// <b>The guide's not-applied lists and the engine's are the same lists.</b>
+    ///
+    /// <para>The guide's account of what is unimplemented is a claim about the code, and a claim
+    /// nothing checks is a claim that goes stale — this branch had already shipped a guide saying
+    /// Fatal Damage was applied when half of it was not. Both directions are checked: an entry the
+    /// engine lists and the guide does not, and one the guide lists that the engine has quietly
+    /// implemented since.</para>
+    /// </summary>
+    [Fact]
+    public void TheGuidesNotAppliedListsAreTheEnginesNotAppliedLists()
+    {
+        // The controls: the parse found a table, and the sets are not empty — an empty-equals-empty
+        // comparison is the shape of a guard that proves nothing.
+        var entries = ListedUnder("**`Encounter.EntriesNotYetApplied`**");
+        var switches = ListedUnder("**`Encounter.SwitchesNotYetApplied`**");
+
+        Assert.NotEmpty(entries);
+        Assert.NotEmpty(switches);
+
+        Assert.Equal(
+            Encounter.EntriesNotYetApplied.Order(StringComparer.Ordinal),
+            entries.Order(StringComparer.Ordinal));
+
+        Assert.Equal(
+            Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
+            switches.Order(StringComparer.Ordinal));
+
+        // And every entry the engine says it does not apply is an entry that exists.
+        var known = _play.EntryIds().Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var id in Encounter.EntriesNotYetApplied)
+            Assert.True(known.Contains(id), $"the engine lists '{id}', which is in none of the five files");
+    }
+
+    /// <summary>
+    /// <b>Every purchase either refuses by name against a listed entry, or resolves.</b>
+    ///
+    /// <para>The list above is a static field, and a static field is a claim like any other: it stays
+    /// true until somebody implements one of the things on it and forgets. So every member of both
+    /// spend enums is driven through <see cref="Encounter.Step"/> and sorted by what actually
+    /// happened — a purchase that refuses must be on the list, and one that does something must not
+    /// be.</para>
+    ///
+    /// <para>Both halves have to be non-empty, which is the positive control: a run in which nothing
+    /// refused, or nothing resolved, would satisfy the comparison and prove nothing.</para>
+    /// </summary>
+    [Fact]
+    public void EveryPurchaseEitherRefusesByNameOrResolves()
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 9,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 5 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 5 },
+            ["toughness"]);
+
+        var refused = new HashSet<string>(StringComparer.Ordinal);
+        var resolved = new HashSet<ResolveSpend>();
+
+        foreach (var kind in Enum.GetValues<ResolveSpend>())
+        {
+            var encounter = new Encounter(_play, new SeededDice(21), TableRules.Book with { FatalDamage = true });
+            var state = encounter.Begin([hero, villain]);
+
+            // Give the purchases that need one a roll to work on.
+            state = encounter.Step(state, new Attack("hero", "villain", "might")).State;
+
+            var step = encounter.Step(state, new SpendResolve("hero", kind));
+
+            if (step.Added.Any(l => l.Text.Contains("not yet implemented", StringComparison.Ordinal)))
+            {
+                foreach (var line in step.Added.Where(l =>
+                             l.Text.Contains("not yet implemented", StringComparison.Ordinal)))
+                {
+                    refused.Add(line.Rule);
+                }
+            }
+            else
+            {
+                resolved.Add(kind);
+            }
+        }
+
+        foreach (var kind in Enum.GetValues<AdversitySpend>())
+        {
+            var encounter = new Encounter(_play, new SeededDice(21));
+            var state = encounter.Begin([hero, villain]);
+
+            var step = encounter.Step(state, new SpendAdversity("villain", kind));
+
+            foreach (var line in step.Added.Where(l =>
+                         l.Text.Contains("not yet implemented", StringComparison.Ordinal)))
+            {
+                refused.Add(line.Rule);
+            }
+        }
+
+        // The controls: both halves happened.
+        Assert.NotEmpty(refused);
+        Assert.NotEmpty(resolved);
+
+        foreach (var rule in refused)
+        {
+            Assert.True(Encounter.EntriesNotYetApplied.Contains(rule),
+                $"'{rule}' refuses as not yet implemented and is not on Encounter.EntriesNotYetApplied");
+        }
+
+        // And the purchases that are implemented say so by being missing from the refusals.
+        Assert.Contains(ResolveSpend.Reroll, resolved);
+        Assert.Contains(ResolveSpend.InstantRecovery, resolved);
+        Assert.DoesNotContain("instant_recovery", refused, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A mob cannot all reach one target, and the size bonus follows how many can.</b>
+    ///
+    /// <para><c>minions_attacking</c>'s two per-target caps were modelled and never read, so twenty
+    /// Minions piled onto one character in close combat and collected the bonus for twenty. The caps
+    /// are read now, and the bonus is taken from the table row the capped number falls in.</para>
+    ///
+    /// <para>The ledger line beside it used to say the bonus applies "on the attack roll and nothing
+    /// else", which claimed a clause the engine does not apply — the entry's own `ambiguity` says the
+    /// page offers no mechanism for it. The line names it as not yet implemented instead.</para>
+    /// </summary>
+    [Fact]
+    public void AMobIsCappedAtWhatCanReachOneTargetAndTheLineDoesNotOverclaim()
+    {
+        var rule = _play.GetCombat("minions_attacking").MinionsAttacking!;
+        var table = _play.GetCombat("minion_group_attack_table").MinionGroupAttack!;
+
+        // The controls on the data: the two caps differ, so the fixture can tell them apart.
+        Assert.Equal(6, rule.MaximumAttackingOneTargetInCloseCombat);
+        Assert.Equal(12, rule.MaximumAttackingOneTargetAtRange);
+
+        var expectedClose = table.Single(r => 6 >= r.MinMinions && 6 <= r.MaxMinions).BonusDice;
+        var expectedRanged = table.Single(r => 12 >= r.MinMinions && 12 <= r.MaxMinions).BonusDice;
+        Assert.NotEqual(expectedClose, expectedRanged);
+
+        var minions = Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 20, "threat");
+
+        var target = Combatant.Hero("target", "the target", edge: 5, health: 40, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4, ["might"] = 3 },
+            ["toughness"]);
+
+        Assert.Equal(4 + expectedClose, PoolAt(RangeBand.Close));
+        Assert.Equal(4 + expectedRanged, PoolAt(RangeBand.Distant));
+
+        int PoolAt(RangeBand band)
+        {
+            var encounter = new Encounter(_play, new SeededDice(22));
+            var opening = encounter.Begin([minions, target], opening: band);
+
+            var turn = opening with { TurnIndex = opening.TurnOrder.ToList().IndexOf("minions") };
+            var added = encounter.Step(turn, new Attack("minions", "target", "threat")).Added;
+
+            // The cap is announced, and the bonus line no longer claims the exclusion is applied.
+            Assert.Contains(added, l =>
+                string.Equals(l.Rule, "minions_attacking", StringComparison.Ordinal)
+                && l.Text.Contains("cannot all reach one target", StringComparison.Ordinal));
+
+            var bonus = added.Single(l =>
+                string.Equals(l.Rule, "minion_group_attack_table", StringComparison.Ordinal));
+
+            Assert.Contains("is not yet implemented", bonus.Text, StringComparison.Ordinal);
+            Assert.DoesNotContain("and nothing else", bonus.Text, StringComparison.Ordinal);
+
+            var sentence = added.Single(l =>
+                string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+                && l.Text.Contains("attacks", StringComparison.Ordinal));
+
+            return int.Parse(
+                sentence.Text.Split("with threat ")[1].Split('d')[0],
+                System.Globalization.CultureInfo.InvariantCulture);
+        }
+    }
+
     // ── The order of action ──────────────────────────────────────────────────
 
     /// <summary>

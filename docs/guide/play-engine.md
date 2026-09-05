@@ -94,17 +94,41 @@ Three properties of it are load-bearing:
 
 **Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `Stabilise`, `EndTurn`, `EndPage`, and six spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`, `Stabilise` and `InstantRecovery`.
 
-**Intents that leave a `not yet implemented` ledger line and change nothing**:
+### Not applied, and named in the code so the two lists cannot drift
 
-| Intent | Entry it will read |
+**`Encounter.EntriesNotYetApplied`** — every entry this slice knows about and does not apply. `PlayEngineStepTests` requires this table and that set to match in both directions, and drives every purchase through `Step` to be sure the ones listed refuse and the ones not listed do not.
+
+| Entry | What it is, and why not |
 |---|---|
-| `SpendResolve(KeepingHold)` | `keeping_hold`, Ch.4 p.76 |
-| `SpendResolve(Knockback)` | `knockback`, Ch.4 p.78 |
-| `SpendResolve(Luring)` | `luring`, Ch.4 p.79 |
-| `SpendResolve(TeamAttack)` | `team_attacks`, Ch.4 p.79 |
-| every `SpendAdversity` | the four `adversity_spend_*` entries, Ch.5 p.85 |
+| `keeping_hold` | Ch.4 p.76. `SpendResolve(KeepingHold)` refuses by name. |
+| `knockback` | Ch.4 p.78. `SpendResolve(Knockback)` refuses by name. |
+| `luring` | Ch.4 p.79. `SpendResolve(Luring)` refuses by name. |
+| `team_attacks` | Ch.4 p.79. `SpendResolve(TeamAttack)` refuses by name. |
+| `adversity_spend_anything_resolve_can` | Ch.5 p.85. Every `SpendAdversity` refuses by name. |
+| `adversity_spend_suppress_flaw` | Ch.5 p.85. |
+| `adversity_spend_misfortune` | Ch.5 p.85. |
+| `adversity_spend_villainy` | Ch.5 p.85. |
+| `modifier_cover` | p.75. Nothing on an `Attack` can say a target is behind something. |
+| `modifier_size` | p.75. Nothing says how big anybody is. |
+| `modifier_visibility` | p.75. Nothing says what the light is like. |
 
-**Table settings recorded but not yet applied** — `Encounter.SwitchesNotYetApplied`, announced on page one of every run that turns one on: `CloseRangePenalty`, `TheDrop`, `FriendlyFire`, `HardTargets`, `SlowHealing`, and the two Gear Limit switches. The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, and the initiative variant beside them.
+The last three are listed rather than left silent because a reader of a balance run needs to know the figure was measured in clear air, in the open, against somebody the same size.
+
+**`Encounter.SwitchesNotYetApplied`** — table settings a run may turn on, announced on page one of every run that does, saying that the numbers do not carry them:
+
+| Setting | Entry |
+|---|---|
+| `CloseRangePenalty` | `gritty_close_range` |
+| `TheDrop` | `gritty_the_drop` |
+| `FriendlyFire` | `gritty_friendly_fire` |
+| `HardTargets` | `gritty_hard_targets` |
+| `SlowHealing` | `gritty_slow_healing` |
+| `RaisedGearLimit` | `gritty_raised_gear_limit` |
+| `GearLimitRank` | `gritty_raised_gear_limit` |
+
+The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, and the initiative variant beside them.
+
+**One clause inside a rule that is otherwise applied**: `minions_attacking.the_group_bonus_does_not_apply_to` — the size bonus is not supposed to count towards penetrating cover or hurting somebody behind Armor or a Force Field. The entry's own `ambiguity` is why it is not applied: both of those are decided by the same attack roll the bonus is granted to, so read strictly it asks for two attack totals against one defence roll and the page offers no mechanism. The ledger line says so rather than claiming the bonus is "on the attack roll and nothing else", which is what it used to say. The per-target caps in the same entry **are** applied.
 
 **Fatal Damage is a clock, not a floor.** With that setting on, lethal damage past `dying_begins_when_lethal_damage_reduces_you_to` starts a character bleeding at `dying_damage_per_page`, ticked at `EndPage`, until `dying_ends_at` — stabilisation or the negative of their full Health. Three things stop it: p.79's `Stabilise` roll (the Trait `stabilise_roll` names, at its own difficulty and threshold), `cost_resolve_to_stabilise_immediately`, and the Fatal Damage rescue itself, which `resolve_also_stabilises_if_necessary` makes do both. `instant_recovery_requires_being_stable` is why p.76's instant recovery is implemented here rather than listed as unimplemented: a rule *about* a purchase cannot be read while the purchase is a stub. `stabilise_also_by` — "a Power like Healing" — is prose and a GM's call, so the ledger names it rather than applying it.
 

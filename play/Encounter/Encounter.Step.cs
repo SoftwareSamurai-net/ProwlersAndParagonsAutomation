@@ -276,18 +276,46 @@ public sealed partial class Encounter
         if (actor.Kind == CombatantKind.MinionGroup)
         {
             var table = _play.GetCombat("minion_group_attack_table");
+            var group = _play.GetCombat("minions_attacking");
+            var rule = group.MinionsAttacking!;
+
+            // p.77 caps how many of a mob can reach one target, and the cap depends on whether they
+            // have to reach them or merely shoot at them. A group of twenty in close combat is six
+            // for the purpose of the size bonus, because the other fourteen are not on them.
+            var close = state.RangeBetween(actor.Id, attack.Target) == RangeBand.Close;
+            var cap = close
+                ? rule.MaximumAttackingOneTargetInCloseCombat
+                : rule.MaximumAttackingOneTargetAtRange;
+
+            var attacking = Math.Min(actor.GroupSize, cap);
+
+            if (attacking < actor.GroupSize)
+            {
+                lines.Add(new LedgerLine(
+                    state.Page, actor.Id, group.Id, group.SourceRef,
+                    $"{actor.GroupSize} Minions cannot all reach one target: p.77 allows {cap} "
+                    + $"{(close ? "in close combat" : "at range")}, so {attacking} of them attack"));
+            }
 
             var row = table.MinionGroupAttack!
-                .FirstOrDefault(r => actor.GroupSize >= r.MinMinions && actor.GroupSize <= r.MaxMinions);
+                .FirstOrDefault(r => attacking >= r.MinMinions && attacking <= r.MaxMinions);
 
             if (row is not null)
             {
                 modifier += row.BonusDice;
 
+                // <b>The line used to say "on the attack roll and nothing else", which claimed a rule
+                // this engine does not apply.</b> The entry's second clause — the bonus does not
+                // count towards penetrating cover or harming somebody behind Armor or a Force Field —
+                // is carried by the entry's own `ambiguity`: both of those are decided by the same
+                // attack roll the bonus is granted to, so read strictly it asks for two totals
+                // against one defence roll and the page offers no mechanism for that. It is on the
+                // guide's not-applied list, and the line says so rather than implying otherwise.
                 lines.Add(new LedgerLine(
                     state.Page, actor.Id, table.Id, table.SourceRef,
-                    $"{actor.GroupSize} Minions attacking as a group is +{row.BonusDice}d, on the "
-                    + "attack roll and nothing else"));
+                    $"{attacking} Minions attacking as a group is +{row.BonusDice}d, which p.77 "
+                    + $"applies to {rule.TheGroupBonusAppliesTo} — that it does not apply to "
+                    + $"{rule.TheGroupBonusDoesNotApplyTo} is not yet implemented"));
             }
         }
 

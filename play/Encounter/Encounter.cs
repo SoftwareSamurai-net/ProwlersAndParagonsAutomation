@@ -81,6 +81,40 @@ public sealed partial class Encounter
         nameof(TableRules.GearLimitRank)
     };
 
+    /// <summary>
+    /// Every entry of <c>data/rules/play</c> this slice knows about and does not apply, by id.
+    ///
+    /// <para><b>It is a list in the code because the guide's list is a claim about the code, and a
+    /// claim nothing checks is a claim that goes stale.</b> <c>PlayEngineStepTests</c> holds the two
+    /// together in both directions — an entry named here and missing from the guide, or named there
+    /// and quietly implemented since, fails — and drives every purchase through <see cref="Step"/> to
+    /// be sure the ones listed really do refuse and the ones not listed really do not.</para>
+    ///
+    /// <para>Three of them are the situational modifiers on p.75. Nothing on an <see cref="Attack"/>
+    /// can express cover, relative size or bad light, so there is nothing to apply them to; they are
+    /// listed rather than silently absent because a reader of a balance run needs to know the figure
+    /// was measured in clear air, in the open, against somebody the same size.</para>
+    /// </summary>
+    public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        // Chapter 4's Resolve purchases this slice records and does not resolve.
+        "keeping_hold",
+        "knockback",
+        "luring",
+        "team_attacks",
+
+        // The GM's four, Ch.5 p.85.
+        "adversity_spend_anything_resolve_can",
+        "adversity_spend_suppress_flaw",
+        "adversity_spend_misfortune",
+        "adversity_spend_villainy",
+
+        // p.75's three situational modifiers: no intent can express any of them.
+        "modifier_cover",
+        "modifier_size",
+        "modifier_visibility"
+    };
+
     // ── Beginning ────────────────────────────────────────────────────────────
 
     /// <summary>
