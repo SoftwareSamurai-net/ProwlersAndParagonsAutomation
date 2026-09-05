@@ -92,6 +92,8 @@ The Thresholds table is the case that made the rule. The book prints two columns
 
 It is now one `interpretation` object beside the table, saying in its own first field that it is ours. **And its value is derived rather than typed**: `TheRowsLeftToGmDiscretionAreExactlyTheOnesPrintedAsARange` computes the list from the rows whose printed threshold is a range — Superhuman 6 to 8, Legendary 9 to 11, Godlike 12 or more — and compares. The version it replaced asserted `Assert.Equal(3, …GmDiscretion)`, which is a count agreeing with the table by coincidence and would go on agreeing after somebody widened a row.
 
+**Chapter 5 shipped the same mistake once, and it is the reason to state the rule as a rule.** `cost_per_point_shared: 1` sat in `spend_assisting_allies` as a transcribed cost, with `SharePointCost = 1` in `CanonicalResolveRules` under the quote it supposedly came from. p.84 prices exactly one share — two points of Resolve for every point shared, and only for a giver who could not actually be assisting — and "as many points as you wish" says how many may move, never what one costs. So the par rate is an inference from the penalty, and the canonical comment was claiming a quote contained a value it does not. It is now an `interpretation` on the entry with the inference stated in its own first field, `ambiguity` says the rate is not printed, and `TheParShareRateIsInferredFromThePrintedPenaltyRate` derives it: the stated rate is a doubling, so par is half of it, and a change to the printed penalty has to move the reading with it.
+
 So: **a derived field is named as derived, kept out of the transcription, and asserted from the transcribed values it is derived from.**
 
 ## Descriptions are ours; the book's words are the corpus's

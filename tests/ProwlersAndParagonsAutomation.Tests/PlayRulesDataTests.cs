@@ -279,14 +279,25 @@ public sealed class PlayRulesDataTests
         bool GmMayAwardWheneverTheySeeFit, bool ListedWaysAreExamplesNotAClosedList);
 
     /// <summary>
-    /// <b>This repository's reading of the six ways to earn, kept apart from the transcription of
-    /// them.</b> The book draws no line between an award a program could hand out and one that
-    /// needs a person to decide something happened; we do, because a simulator has to. Derived by
-    /// <see cref="TheEarningsASimulatorCouldApplyAreExactlyTheOnesWithAStatedTrigger"/> from the
-    /// entries' own <c>kind</c>, never typed out.
+    /// <b>A reading of the page, kept apart from the transcription of it.</b> Two entries carry
+    /// one, both for the same reason: the book does not say the thing, and a fact field is a claim
+    /// that it does.
+    /// <list type="bullet">
+    ///   <item><c>resolve_earning_overview</c> — which of the six ways to earn a simulator could
+    ///   apply on its own, derived from the entries' own <c>kind</c> by
+    ///   <see cref="TheEarningsASimulatorCouldApplyAreExactlyTheOnesWithAStatedTrigger"/></item>
+    ///   <item><c>spend_assisting_allies</c> — what an ordinary share costs, which p.84 never
+    ///   prices, derived from the penalty rate it does price by
+    ///   <see cref="TheParShareRateIsInferredFromThePrintedPenaltyRate"/></item>
+    /// </list>
+    /// Every field but <c>what_this_is</c> is optional, so an entry answers only for its own
+    /// reading, and every one of them is a <see cref="DerivedPaths"/> entry with a test that
+    /// <em>computes</em> it rather than a constant somebody typed.
     /// </summary>
-    private sealed record EarningInterpretationModel(
-        string WhatThisIs, IReadOnlyList<string> MechanisableEntryIds);
+    private sealed record InterpretationModel(
+        string WhatThisIs,
+        IReadOnlyList<string>? MechanisableEntryIds,
+        int? InferredCostPerPointShared);
 
     /// <summary>
     /// One model for all six earning entries, because they are one mechanic printed six times with
@@ -324,7 +335,6 @@ public sealed class PlayRulesDataTests
         string? Currency,
         int? CostResolve,
         int? CostAdversity,
-        int? CostPerPointShared,
         int? CostPerPointSharedWhenUnableToAssist,
         string? PointsSharedLimit,
         bool? MustNarrateTheAssistance,
@@ -423,7 +433,7 @@ public sealed class PlayRulesDataTests
         MaximumRankModel? MaximumPossibleRank,
         CarryoverModel? Carryover,
         EarningOverviewModel? EarningOverview,
-        EarningInterpretationModel? Interpretation,
+        InterpretationModel? Interpretation,
         EarningModel? Earning,
         SpendingOverviewModel? SpendingOverview,
         SpendModel? Spend,
@@ -1264,6 +1274,52 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
+    /// <b>What an ordinary share of Resolve costs is not printed, so it is not transcribed.</b>
+    /// p.84 prices exactly one share — "you have to spend 2 points of Resolve for every point you
+    /// want to share" — and charges it only to a giver who could not actually be assisting. "As
+    /// many points as you wish" says how many may move and never what one costs.
+    ///
+    /// <para>One-for-one was nonetheless a <c>cost_per_point_shared</c> fact field, with the same
+    /// quote beside <c>SharePointCost = 1</c> in <see cref="CanonicalResolveRules"/> — the exact
+    /// shape the Thresholds table's <c>gm_discretion</c> column had, a reading dressed as a printed
+    /// value and filed under "do not edit this to match the code". It is now an
+    /// <c>interpretation</c> beside the entry, and <b>derived rather than typed</b>: the stated
+    /// rate is a penalty of double, so the rate it doubles is half of it. Change the printed
+    /// penalty and this has to move with it.</para>
+    /// </summary>
+    [Fact]
+    public void TheParShareRateIsInferredFromThePrintedPenaltyRate()
+    {
+        var entry = ResolveEntryById("spend_assisting_allies");
+
+        Assert.NotNull(entry.Spend);
+        Assert.NotNull(entry.Interpretation);
+        Assert.NotNull(entry.Interpretation.InferredCostPerPointShared);
+
+        // The one rate the page states, and the entry has to carry it or there is nothing to infer
+        // from — a reading derived from a missing figure would be a reading derived from nothing.
+        Assert.Equal(
+            CanonicalResolveRules.SharePointCostWhenUnableToAssist,
+            entry.Spend.CostPerPointSharedWhenUnableToAssist);
+
+        // And the page states no other one. Recorded on the canonical side so the claim sits beside
+        // the quote it is a claim about.
+        Assert.False(CanonicalResolveRules.OrdinaryShareRateIsPrinted);
+
+        // The derivation: the printed rate is charged as a doubling, so par is half of it.
+        const int theDoubling = 2;
+
+        Assert.Equal(
+            CanonicalResolveRules.SharePointCostWhenUnableToAssist / theDoubling,
+            entry.Interpretation.InferredCostPerPointShared);
+
+        // And the entry says out loud that this is ours rather than the book's, in both places a
+        // reader would look: the labelled block and the ambiguity.
+        Assert.Contains("not a figure the page prints", entry.Interpretation.WhatThisIs, StringComparison.Ordinal);
+        Assert.Contains("not printed", entry.Ambiguity ?? "", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>Adversity does everything Resolve does and exactly three things more, and the file has to
     /// hold three.</b> "There are also three things you can do with Adversity that Heroes can't do
     /// with Resolve" — a transcribed count with nothing behind it is a number; this makes it a
@@ -1444,6 +1500,7 @@ public sealed class PlayRulesDataTests
         var interpretation = ResolveEntryById("resolve_earning_overview").Interpretation;
 
         Assert.NotNull(interpretation);
+        Assert.NotNull(interpretation.MechanisableEntryIds);
         Assert.Equal(mechanisable, interpretation.MechanisableEntryIds);
 
         // Each of the two groups has to earn its label from the page. A mechanisable one states a
@@ -1780,7 +1837,7 @@ public sealed class PlayRulesDataTests
                 "aftermath_permanent_ability_loss_dice", "ability_may_be_bought_back_later",
                 "health_after", "unconscious", "challenge_roll_penalty_dice",
                 // Chapter 5
-                "cost_resolve", "cost_adversity", "currency", "cost_per_point_shared",
+                "cost_resolve", "cost_adversity", "currency",
                 "cost_per_point_shared_when_unable_to_assist", "then_unconscious",
                 "some_powers_require_resolve")
         };
@@ -2170,7 +2227,8 @@ public sealed class PlayRulesDataTests
         new HashSet<string>(StringComparer.Ordinal)
         {
             "thresholds.interpretation.gm_discretion_difficulties",
-            "resolve_earning_overview.interpretation.mechanisable_entry_ids"
+            "resolve_earning_overview.interpretation.mechanisable_entry_ids",
+            "spend_assisting_allies.interpretation.inferred_cost_per_point_shared"
         };
 
     /// <summary>
@@ -2422,7 +2480,6 @@ public sealed class PlayRulesDataTests
             ["adversity_spend_misfortune.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
             ["adversity_spend_villainy.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
 
-            ["spend_assisting_allies.spend.cost_per_point_shared"] = Is(CanonicalResolveRules.SharePointCost),
             ["spend_assisting_allies.spend.cost_per_point_shared_when_unable_to_assist"] =
                 Is(CanonicalResolveRules.SharePointCostWhenUnableToAssist),
             ["spend_assisting_allies.spend.points_shared_limit"] = Is(CanonicalResolveRules.SharePointsLimit),
@@ -2601,7 +2658,7 @@ public sealed class PlayRulesDataTests
         Assert.True(
             leaves >= 225,
             $"The walk found only {leaves} fact fields across the three files, which is fewer than "
-            + "the entries carry — there are 245 today, 98 of them Chapter 3's. It has stopped "
+            + "the entries carry — there are 246 today, 98 of them Chapter 3's. It has stopped "
             + "reading the models; fix the walk, not this number.");
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));

@@ -281,8 +281,17 @@ public static class CanonicalResolveRules
     /// Resolve. If you can't actually assist your ally (because you're unconscious, not in the
     /// scene, otherwise occupied, etc.), you have to spend 2 points of Resolve for every point you
     /// want to share, and you have to narrate a brief flashback or memory…"
+    ///
+    /// <para><b>Read that quote for a par rate and it is not there, which is why there is no
+    /// constant for one.</b> The only rate the page prices is the penalty — two points for every
+    /// point shared, charged to a giver who could not actually be assisting — and "as many points
+    /// as you wish" says how many may move, never what each costs. <c>SharePointCost = 1</c> stood
+    /// here with this quote beside it, which made a reading look like a transcription and put it
+    /// under the "do not edit this to match the code" notice. One-for-one is now an
+    /// <c>interpretation</c> on the entry, derived from the printed penalty by
+    /// <see cref="PlayRulesDataTests.TheParShareRateIsInferredFromThePrintedPenaltyRate"/>.</para>
     /// </summary>
-    public const int SharePointCost = 1;
+    public const bool OrdinaryShareRateIsPrinted = false;
     public const int SharePointCostWhenUnableToAssist = 2;
     public const string SharePointsLimit = "as many as you wish";
     public const bool ShareMustNarrateTheAssistance = true;

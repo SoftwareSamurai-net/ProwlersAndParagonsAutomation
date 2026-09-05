@@ -246,7 +246,6 @@
       "printed_under": "ASSISTING ALLIES",
       "spend": {
         "currency": "resolve",
-        "cost_per_point_shared": 1,
         "cost_per_point_shared_when_unable_to_assist": 2,
         "points_shared_limit": "as many as you wish",
         "must_narrate_the_assistance": true,
@@ -254,10 +253,14 @@
         "unable_to_assist_examples": ["unconscious", "not in the scene", "otherwise occupied"],
         "flashback_required_when_unable": true
       },
+      "interpretation": {
+        "what_this_is": "This repository's reading, and not a figure the page prints. Page 84 states exactly one rate - two points of Resolve for every point shared - and charges it only to a giver who could not actually be assisting. What an ordinary share costs is nowhere on the page: 'as many points as you wish' says how many may move, never what each one costs. One point for one point is the inference from the stated rate being a penalty on something, and it is kept out of the transcription and labelled so nobody cites it back as the rulebook. A test derives it from the printed penalty rather than reading it from here.",
+        "inferred_cost_per_point_shared": 1
+      },
       "description": "Points move between characters at par, with no stated ceiling on how many, provided the giver says how they are helping - and that saying so is expressly cosmetic, buying nothing beyond the transfer itself. A character who could not plausibly be helping at all still may, at twice the price, and owes the table a flashback instead of a present-tense assist.",
       "verified_fields": ["effect", "cost", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.84",
-      "ambiguity": "Nothing says whether a receiver can be pushed past the pool they opened the issue with, or past any figure at all - the chapter states a starting amount and never states a maximum, so on a plain reading a party can pile its whole supply onto one character. It is also unstated whether the doubled rate is charged per point or per transfer, whether an unconscious giver can act at all in order to spend, and whether a point handed over may be handed on again."
+      "ambiguity": "The ordinary rate is not printed at all. The page prices only the doubled share a giver who cannot assist pays, so one point for one point is this repository's inference and is recorded beside the entry as an interpretation rather than inside it as a transcribed cost - a fact field is a claim that the page states the thing, and the page states the exception. Nothing says whether a receiver can be pushed past the pool they opened the issue with, or past any figure at all - the chapter states a starting amount and never states a maximum, so on a plain reading a party can pile its whole supply onto one character. It is also unstated whether the doubled rate is charged per point or per transfer, whether an unconscious giver can act at all in order to spend, and whether a point handed over may be handed on again."
     },
     {
       "id": "spend_challenge_roll_dice",
