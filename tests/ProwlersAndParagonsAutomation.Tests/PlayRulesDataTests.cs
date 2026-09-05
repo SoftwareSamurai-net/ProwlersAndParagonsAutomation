@@ -321,6 +321,7 @@ public sealed class PlayRulesDataTests
     /// holds them and in three exclusives, not in shape.
     /// </summary>
     private sealed record SpendModel(
+        string? Currency,
         int? CostResolve,
         int? CostAdversity,
         int? CostPerPointShared,
@@ -1175,55 +1176,87 @@ public sealed class PlayRulesDataTests
     /// Resolve; the GM gets Adversity, spendable on any NPC" — so every spend in this file is keyed
     /// to one side of the screen, and the two keys are the ones the chapter states on pp.84 and 85.
     ///
-    /// <para><b>The id prefix is not what makes it true.</b> A spend renamed out of its prefix would
-    /// escape a check built on the prefix alone, so the currency the entry actually charges is the
-    /// cross-check: an entry that costs Adversity must be the GM's, an entry that costs Resolve must
-    /// be a Hero's, whatever it is called.</para>
+    /// <para><b>Neither the id prefix nor a cost field is what makes it true.</b> The prefix was
+    /// never load-bearing — a spend renamed out of <c>spend_</c>/<c>adversity_spend_</c> would
+    /// escape a check built on it — and the cross-check that replaced it, "what does the entry
+    /// charge", reached only nine of the twelve: <c>spend_combat</c> defers its costs to Ch.4,
+    /// <c>spend_using_powers</c> charges whatever the Power asks, and
+    /// <c>adversity_spend_anything_resolve_can</c> charges whatever it is imitating, so all three
+    /// were keyed by their id alone after all.</para>
+    ///
+    /// <para><b>So every spend names its <c>currency</c> outright</b>, transcribed like any other
+    /// fact and compared against <see cref="CanonicalResolveRules"/> by the coverage walk. This
+    /// test reads that field, never the id: <c>resolve</c> must be the Hero's and
+    /// <c>adversity</c> must be the GM's, whatever the entry is called.</para>
     /// </summary>
     [Fact]
     public void EveryResolveSpendIsTheHerosAndEveryAdversitySpendIsTheGms()
     {
         var entries = Resolve().Entries;
+        var spends = entries.Where(e => e.Spend is not null).ToList();
 
-        var resolveSpends = entries.Where(e => e.Id.StartsWith("spend_", StringComparison.Ordinal)).ToList();
-        var adversitySpends = entries.Where(e => e.Id.StartsWith("adversity_spend_", StringComparison.Ordinal)).ToList();
+        // Positive control: a rule about every spend is worth what the set of spends is worth, and
+        // p.84 prints six headings (one carrying three) beside p.85's general rule and three
+        // exclusives.
+        Assert.True(spends.Count >= 12, $"Only {spends.Count} spends were found across the file.");
 
-        // Positive controls: both sides have to be populated, or "every spend is keyed correctly"
-        // is satisfied by there being no spends.
-        Assert.True(resolveSpends.Count >= 8, $"Only {resolveSpends.Count} Resolve spends were found; p.84 prints six headings, one of which carries three.");
-        Assert.True(adversitySpends.Count >= 4, $"Only {adversitySpends.Count} Adversity spends were found; p.85 prints the general rule and three exclusives.");
-
-        // And the two keys must differ, or one value would satisfy both halves of the rule.
+        // And the two pools have to be told apart at both ends, or one value would satisfy both
+        // halves of the rule.
         Assert.NotEqual(CanonicalResolveRules.ResolveIsSpentBy, CanonicalResolveRules.AdversityIsSpentBy);
+        Assert.NotEqual(CanonicalResolveRules.ResolveCurrency, CanonicalResolveRules.AdversityCurrency);
 
         var faults = new List<string>();
 
-        foreach (var entry in resolveSpends.Where(e => e.Who != CanonicalResolveRules.ResolveIsSpentBy))
-            faults.Add($"{entry.Id}: who is {entry.Who ?? "unset"}, and Resolve is spent by the {CanonicalResolveRules.ResolveIsSpentBy}");
-
-        foreach (var entry in adversitySpends.Where(e => e.Who != CanonicalResolveRules.AdversityIsSpentBy))
-            faults.Add($"{entry.Id}: who is {entry.Who ?? "unset"}, and Adversity is spent by the {CanonicalResolveRules.AdversityIsSpentBy}");
-
-        // The cross-check that does not depend on the id: what the entry charges.
-        foreach (var entry in entries.Where(e => e.Spend is not null))
+        foreach (var entry in spends)
         {
             var spend = entry.Spend!;
 
-            if (spend.CostAdversity is not null && entry.Who != CanonicalResolveRules.AdversityIsSpentBy)
-                faults.Add($"{entry.Id} charges Adversity and is keyed to {entry.Who ?? "nobody"}");
-
-            if ((spend.CostResolve is not null || spend.CostPerPointShared is not null)
-                && entry.Who != CanonicalResolveRules.ResolveIsSpentBy)
+            if (spend.Currency is null)
             {
-                faults.Add($"{entry.Id} charges Resolve and is keyed to {entry.Who ?? "nobody"}");
+                faults.Add(
+                    $"{entry.Id} is a spend and names no currency, so nothing says which pool it "
+                    + "draws on");
+                continue;
             }
+
+            if (!CanonicalResolveRules.PoolHolders.TryGetValue(spend.Currency, out var holder))
+            {
+                faults.Add(
+                    $"{entry.Id} charges '{spend.Currency}', and Chapter 5 has two pools: "
+                    + string.Join(" and ", CanonicalResolveRules.PoolHolders.Keys));
+                continue;
+            }
+
+            if (entry.Who != holder)
+            {
+                faults.Add(
+                    $"{entry.Id} charges {spend.Currency} and is keyed to {entry.Who ?? "nobody"}; "
+                    + $"{spend.Currency} is spent by the {holder}");
+            }
+
+            // Where an entry does print a cost, the cost and the declared currency have to be the
+            // same currency — otherwise `currency` could quietly disagree with the number beside it.
+            if (spend.CostAdversity is not null && spend.Currency != CanonicalResolveRules.AdversityCurrency)
+                faults.Add($"{entry.Id} states a cost in Adversity and declares currency {spend.Currency}");
+
+            if (spend.CostResolve is not null && spend.Currency != CanonicalResolveRules.ResolveCurrency)
+                faults.Add($"{entry.Id} states a cost in Resolve and declares currency {spend.Currency}");
         }
 
-        // Nothing outside the two groups carries a who, so an entry cannot be keyed without being
-        // one of the spends this test enumerates.
+        // Both pools have to be represented, or "every spend is keyed correctly" is satisfied by a
+        // file in which every spend is a Hero's.
+        foreach (var currency in CanonicalResolveRules.PoolHolders.Keys)
+        {
+            Assert.Contains(
+                spends,
+                e => string.Equals(e.Spend!.Currency, currency, StringComparison.Ordinal));
+        }
+
+        // A `who` and a `spend` are the same claim from two directions, so an entry cannot carry
+        // one without the other.
         Assert.Equal(
-            resolveSpends.Concat(adversitySpends).Select(e => e.Id).Order().ToList(),
-            entries.Where(e => e.Who is not null).Select(e => e.Id).Order().ToList());
+            spends.Select(e => e.Id).Order(StringComparer.Ordinal).ToList(),
+            entries.Where(e => e.Who is not null).Select(e => e.Id).Order(StringComparer.Ordinal).ToList());
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
@@ -1260,7 +1293,7 @@ public sealed class PlayRulesDataTests
     private static readonly HashSet<string> ReferenceOnlyFields =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            "transcribed_here", "detail_chapter", "combat_spend_refs"
+            "transcribed_here", "detail_chapter", "combat_spend_refs", "currency"
         };
 
     /// <summary>
@@ -1745,7 +1778,7 @@ public sealed class PlayRulesDataTests
                 "aftermath_permanent_ability_loss_dice", "ability_may_be_bought_back_later",
                 "health_after", "unconscious", "challenge_roll_penalty_dice",
                 // Chapter 5
-                "cost_resolve", "cost_adversity", "cost_per_point_shared",
+                "cost_resolve", "cost_adversity", "currency", "cost_per_point_shared",
                 "cost_per_point_shared_when_unable_to_assist", "then_unconscious",
                 "some_powers_require_resolve")
         };
@@ -2371,6 +2404,22 @@ public sealed class PlayRulesDataTests
             ["resolve_spending_overview.spending_overview.listed_uses_are_the_basic_ones"] =
                 Is(CanonicalResolveRules.ListedResolveUsesAreTheBasicOnes),
 
+            // Which pool each spend draws on. Registered per entry rather than derived, because a
+            // rule that read the currency off the id would agree with a wrong id by construction —
+            // which is the hole EveryResolveSpendIsTheHerosAndEveryAdversitySpendIsTheGms had.
+            ["spend_assisting_allies.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_challenge_roll_dice.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_reroll_challenge_roll.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_reroll_other_roll.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_combat.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_lucky_break.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_power_stunt.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_using_powers.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["adversity_spend_anything_resolve_can.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
+            ["adversity_spend_suppress_flaw.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
+            ["adversity_spend_misfortune.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
+            ["adversity_spend_villainy.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
+
             ["spend_assisting_allies.spend.cost_per_point_shared"] = Is(CanonicalResolveRules.SharePointCost),
             ["spend_assisting_allies.spend.cost_per_point_shared_when_unable_to_assist"] =
                 Is(CanonicalResolveRules.SharePointCostWhenUnableToAssist),
@@ -2550,7 +2599,7 @@ public sealed class PlayRulesDataTests
         Assert.True(
             leaves >= 225,
             $"The walk found only {leaves} fact fields across the three files, which is fewer than "
-            + "the entries carry — there are 233 today, 98 of them Chapter 3's. It has stopped "
+            + "the entries carry — there are 245 today, 98 of them Chapter 3's. It has stopped "
             + "reading the models; fix the walk, not this number.");
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));

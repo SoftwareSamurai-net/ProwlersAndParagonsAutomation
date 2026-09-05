@@ -45,6 +45,30 @@ public static class CanonicalResolveRules
     public const string ResolveIsSpentBy = "hero";
     public const string AdversityIsSpentBy = "gm";
 
+    /// <summary>
+    /// The two pools the chapter names, as the <c>currency</c> each spend declares. <b>Every spend
+    /// says which pool it draws on, and that is what keys it to a side of the screen</b> — the id
+    /// prefix does not, and three spends had no printed cost for a cost-shaped field to key them by
+    /// either: the combat spends defer to Ch.4, the Powers one charges whatever the Power asks, and
+    /// the GM's mirror charges whatever it is imitating.
+    /// </summary>
+    public const string ResolveCurrency = "resolve";
+    public const string AdversityCurrency = "adversity";
+
+    /// <summary>
+    /// Which pool is whose, from the chapter's own two sentences — p.84 "Because only Heroes have
+    /// Resolve…" and p.85 "As the GM, you have something even better, you have Adversity". A spend
+    /// whose <c>who</c> and <c>currency</c> disagree contradicts one of them, and
+    /// <see cref="PlayRulesDataTests.EveryResolveSpendIsTheHerosAndEveryAdversitySpendIsTheGms"/>
+    /// says which.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> PoolHolders =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [ResolveCurrency] = ResolveIsSpentBy,
+            [AdversityCurrency] = AdversityIsSpentBy
+        };
+
     // ── The Resolve table, p.83 ──────────────────────────────────────────────
 
     public const int StartingResolvePage = 83;

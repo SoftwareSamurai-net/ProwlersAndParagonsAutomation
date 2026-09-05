@@ -245,6 +245,7 @@
       "who": "hero",
       "printed_under": "ASSISTING ALLIES",
       "spend": {
+        "currency": "resolve",
         "cost_per_point_shared": 1,
         "cost_per_point_shared_when_unable_to_assist": 2,
         "points_shared_limit": "as many as you wish",
@@ -265,6 +266,7 @@
       "who": "hero",
       "printed_under": "CHALLENGE ROLLS",
       "spend": {
+        "currency": "resolve",
         "cost_resolve": 1,
         "dice_gained": 1,
         "unlimited": true,
@@ -282,6 +284,7 @@
       "who": "hero",
       "printed_under": "CHALLENGE ROLLS",
       "spend": {
+        "currency": "resolve",
         "cost_resolve": 1,
         "rerolls": "the whole challenge roll",
         "includes_dice_bought_with_resolve": true
@@ -298,6 +301,7 @@
       "who": "hero",
       "printed_under": "CHALLENGE ROLLS",
       "spend": {
+        "currency": "resolve",
         "cost_resolve": 1,
         "applies_to": "any roll that is not a challenge roll",
         "example_given": "the roll that decides whether an Unreliable Power works"
@@ -314,6 +318,7 @@
       "who": "hero",
       "printed_under": "COMBAT SPENDS",
       "spend": {
+        "currency": "resolve",
         "transcribed_here": false,
         "detail_chapter": "Ultimate Edition, Ch.4 Combat",
         "combat_spend_refs": [
@@ -337,6 +342,7 @@
       "who": "hero",
       "printed_under": "LUCKY BREAKS",
       "spend": {
+        "currency": "resolve",
         "cost_resolve": 1,
         "invents": "a minor detail of the game world, usually a coincidence in the spender's favour",
         "subject_to_gm_approval": true,
@@ -354,6 +360,7 @@
       "who": "hero",
       "printed_under": "POWER STUNTS",
       "spend": {
+        "currency": "resolve",
         "cost_resolve": 1,
         "uses": "an Ability or Power the character already has, in a way that imitates a different Power",
         "imitated_power_rank_source": "the Ability or Power doing the imitating",
@@ -372,6 +379,7 @@
       "who": "hero",
       "printed_under": "USING POWERS",
       "spend": {
+        "currency": "resolve",
         "some_powers_require_resolve": true,
         "only_heroes_have_resolve": true,
         "player_must_spend_for_a_friendly_extra": true,
@@ -467,6 +475,7 @@
       "who": "gm",
       "printed_under": "SPENDING ADVERSITY",
       "spend": {
+        "currency": "adversity",
         "can_do_anything_resolve_can": true,
         "may_be_spent_on_any_npc": true,
         "npc_kinds": ["Villains", "Foes", "Minions", "Extras"],
@@ -485,6 +494,7 @@
       "who": "gm",
       "printed_under": "FLAWS",
       "spend": {
+        "currency": "adversity",
         "cost_adversity": 1,
         "prevents": "a Flaw getting the better of the character",
         "duration": "the rest of the scene",
@@ -505,6 +515,7 @@
       "who": "gm",
       "printed_under": "MISFORTUNES",
       "spend": {
+        "currency": "adversity",
         "cost_adversity": 1,
         "what_it_is": "a random problem, obstacle or piece of bad luck aimed at the Heroes",
         "examples_given": [
@@ -527,6 +538,7 @@
       "who": "gm",
       "printed_under": "VILLAINY",
       "spend": {
+        "currency": "adversity",
         "cost_adversity": 1,
         "limit_per_story": 1,
         "automatic": true,
