@@ -3,12 +3,13 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
-/// Holds <c>data/rules/play/*.json</c> to <see cref="CanonicalChallengeRules"/>, which is
-/// Chapter 3 transcribed from the page.
+/// Holds <c>data/rules/play/*.json</c> to <see cref="CanonicalChallengeRules"/> and
+/// <see cref="CanonicalResolveRules"/>, which are Chapters 3 and 5 transcribed from the page.
 ///
 /// <para><b>Nothing in the application reads these files yet</b>, and that is exactly why the
 /// tests have to. Unverified data that no code loads is the worst of both worlds: it reads as a
@@ -19,11 +20,47 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// <para><b>The models below are test-local on purpose.</b> Play rules do not go into
 /// <c>engine/</c>, and this slice deliberately adds no project of its own — the JSON is
 /// deserialized straight into records that live here. Real models arrive with the simulator.</para>
+///
+/// <para><b>The one thing here that reaches into <c>engine/</c> is a read.</b> Chapter 5's Resolve
+/// table is the single mechanic in these files the character engine already implements, and
+/// <see cref="TheEngineComputesTheTableThisFileRecords"/> holds the two to the same answer. That is
+/// a test comparing two independent statements of one rule; it is not the engine learning to read
+/// play rules, which <see cref="PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile"/>
+/// continues to forbid.</para>
 /// </summary>
+[Collection(SharedRules.Name)]
 public sealed class PlayRulesDataTests
 {
+    private readonly RulesFixture _f;
+
+    public PlayRulesDataTests(RulesFixture fixture) => _f = fixture;
+
     private static string PlayDataPath => Path.Combine(RulesFixture.RepoRoot, "data", "rules", "play");
     private static string RulebookPath => Path.Combine(RulesFixture.RepoRoot, "data", "rulebook");
+
+    /// <summary>
+    /// The three play rules files, each with the chapter it transcribes and the printed pages that
+    /// chapter occupies. <b>The page range is per file and not per store</b>: a Chapter 4 page
+    /// number pasted into a Chapter 5 entry has to fail as loudly as a Chapter 9 one would, and a
+    /// single 67-86 range across the directory would accept both.
+    /// </summary>
+    private sealed record PlayFileFacts(
+        string FileName, string ChapterLabel, int FirstPage, int LastPage, string[] CorpusFiles);
+
+    private static readonly IReadOnlyList<PlayFileFacts> Files =
+    [
+        new("play_meta.json", "Ch.3 Action", 67, 72, ["ch03-action.json", "ch00-introduction.json"]),
+        new("challenge.json", "Ch.3 Action", 67, 72, ["ch03-action.json", "ch00-introduction.json"]),
+        new(
+            "resolve.json",
+            "Ch.5 Resolve and Adversity",
+            CanonicalResolveRules.FirstPage,
+            CanonicalResolveRules.LastPage,
+            ["ch05-resolve-and-adversity.json", "ch00-introduction.json"])
+    ];
+
+    private static PlayFileFacts FactsFor(string fileName) =>
+        Files.Single(f => string.Equals(f.FileName, fileName, StringComparison.Ordinal));
 
     /// <summary>
     /// The same strictness <see cref="RulesFileCoverageTests"/> applies: a key no model reads is
@@ -206,12 +243,212 @@ public sealed class PlayRulesDataTests
         string? CalibratedFor,
         bool? WingItIsEndorsed);
 
+    // ── Chapter 5's models ───────────────────────────────────────────────────
+
+    private sealed record StartingResolveRowModel(int RanksBelowTraitCap, int Resolve);
+
+    private sealed record StartingResolveModel(
+        string GrantedAt,
+        bool IssueIsAGameSession,
+        string DependsOn,
+        string MeasuredFrom,
+        int AtTraitCap,
+        int ResolvePerRankBelowCap,
+        string Formula,
+        IReadOnlyList<StartingResolveRowModel> TableRows,
+        bool TableContinuesBeyondThePrintedRows);
+
+    private sealed record ExceptionsModel(
+        bool TalentsCount,
+        string Criterion,
+        IReadOnlyList<string> NamedPowers,
+        string ExpertiseQualifier,
+        bool NamedListIsQualifiedAsUsual,
+        bool GmHasFinalSay);
+
+    private sealed record MaximumRankModel(
+        string AppliesWhen, IReadOnlyList<string> PowersNamed, string RankUsed);
+
+    private sealed record CarryoverModel(
+        bool CarriesOverBetweenIssues,
+        bool UnspentIsLostAtIssueEnd,
+        bool GmMayAllowCarryover,
+        bool GmCarryoverShouldBeRare);
+
+    private sealed record EarningOverviewModel(
+        bool GmMayAwardWheneverTheySeeFit, bool ListedWaysAreExamplesNotAClosedList);
+
+    /// <summary>
+    /// <b>A reading of the page, kept apart from the transcription of it.</b> Two entries carry
+    /// one, both for the same reason: the book does not say the thing, and a fact field is a claim
+    /// that it does.
+    /// <list type="bullet">
+    ///   <item><c>resolve_earning_overview</c> — which of the six ways to earn a simulator could
+    ///   apply on its own, derived from the entries' own <c>kind</c> by
+    ///   <see cref="TheEarningsASimulatorCouldApplyAreExactlyTheOnesWithAStatedTrigger"/></item>
+    ///   <item><c>spend_assisting_allies</c> — what an ordinary share costs, which p.84 never
+    ///   prices, derived from the penalty rate it does price by
+    ///   <see cref="TheParShareRateIsInferredFromThePrintedPenaltyRate"/></item>
+    /// </list>
+    /// Every field but <c>what_this_is</c> is optional, so an entry answers only for its own
+    /// reading, and every one of them is a <see cref="DerivedPaths"/> entry with a test that
+    /// <em>computes</em> it rather than a constant somebody typed.
+    /// </summary>
+    private sealed record InterpretationModel(
+        string WhatThisIs,
+        IReadOnlyList<string>? MechanisableEntryIds,
+        int? InferredCostPerPointShared);
+
+    /// <summary>
+    /// One model for all six earning entries, because they are one mechanic printed six times with
+    /// different triggers. Every field is optional and the walk skips nulls, so an entry answers
+    /// only for what its own paragraph states — which is how <c>award_stated</c> can record that
+    /// Interludes name no figure without inventing one.
+    /// </summary>
+    private sealed record EarningModel(
+        int? AwardResolve,
+        bool? AwardStated,
+        string? Trigger,
+        string? AvailableWhen,
+        bool? MayBeOutsideCombat,
+        int? LimitPerBattle,
+        bool? MustFitTheSituation,
+        int? SomeFlawsAwardPerIssueInstead,
+        string? InterludeIs,
+        string? DetailChapter,
+        bool? NotAnInvitationToDerailTheGame,
+        bool? GmJudged,
+        IReadOnlyList<string>? ExamplesGiven,
+        bool? MustBeSpentOnTheSamePage,
+        bool? ThenUnconscious,
+        string? UnconsciousUntil);
+
+    private sealed record SpendingOverviewModel(
+        bool GmMayExpandTheUses, bool ListedUsesAreTheBasicOnes);
+
+    /// <summary>
+    /// One model for every spend, players' and GM's alike, for the reason the page gives: "you can
+    /// use Adversity to do anything players can do with Resolve". The two currencies differ in who
+    /// holds them and in three exclusives, not in shape.
+    /// </summary>
+    private sealed record SpendModel(
+        string? Currency,
+        int? CostResolve,
+        int? CostAdversity,
+        int? CostPerPointSharedWhenUnableToAssist,
+        string? PointsSharedLimit,
+        bool? MustNarrateTheAssistance,
+        bool? NarrationHasNoMechanicalEffect,
+        IReadOnlyList<string>? UnableToAssistExamples,
+        bool? FlashbackRequiredWhenUnable,
+        int? DiceGained,
+        bool? Unlimited,
+        bool? DecidedAfterTheRoll,
+        string? Rerolls,
+        bool? IncludesDiceBoughtWithResolve,
+        string? AppliesTo,
+        string? ExampleGiven,
+        bool? TranscribedHere,
+        string? DetailChapter,
+        IReadOnlyList<string>? CombatSpendRefs,
+        string? Invents,
+        bool? SubjectToGmApproval,
+        string? Uses,
+        string? ImitatedPowerRankSource,
+        bool? RequiresRemotelyReasonable,
+        bool? GrantsANewPower,
+        bool? SomePowersRequireResolve,
+        bool? OnlyHeroesHaveResolve,
+        bool? PlayerMustSpendForAFriendlyExtra,
+        bool? ExtraCannotUseThePowerIfNobodySpends,
+        bool? AppliesOnlyWhileTheExtraIsWithTheHeroes,
+        bool? CanDoAnythingResolveCan,
+        bool? MayBeSpentOnAnyNpc,
+        IReadOnlyList<string>? NpcKinds,
+        bool? AllNpcsShareOnePool,
+        int? ExclusiveSpendsCount,
+        string? Prevents,
+        string? Duration,
+        IReadOnlyList<string>? EligibleCharacters,
+        IReadOnlyList<string>? ExcludedCharacters,
+        int? LimitPerCharacterPerIssue,
+        bool? NpcFlawsBiteWhenTheOpportunityArises,
+        bool? NpcsCannotChooseWhenTheirFlawsBite,
+        string? WhatItIs,
+        IReadOnlyList<string>? ExamplesGiven,
+        bool? MustBeAChallengeNotAPunishment,
+        bool? MustNotBeAPlotDevice,
+        int? LimitPerStory,
+        bool? Automatic,
+        string? Effect,
+        bool? UseSparingly);
+
+    private sealed record RerollFloorModel(
+        bool SpendingShouldNeverMakeThingsWorse,
+        bool KeepTheFirstRollIfTheRerollIsWorse,
+        string AppliesTo);
+
+    private sealed record AdversityPoolModel(
+        int PointsPerHeroPerIssue,
+        string HeldBy,
+        bool CarriesOverBetweenIssues,
+        bool IsMoreOfAFixedResourceThanResolve,
+        bool GmMayAddWaysToEarn,
+        bool ShouldNotBeAsEasyToEarnAsResolve);
+
+    private sealed record ChallengeLevelGuidanceModel(int Level, string UsedFor);
+
+    private sealed record ChallengeLevelModel(
+        IReadOnlyList<string> AwardFactors,
+        string AwardOperation,
+        string AwardedAt,
+        int TypicalLevelMin,
+        int TypicalLevelMax,
+        bool LevelThreeMayBeExceeded,
+        bool OnlyAHandfulOfScenesPerStory,
+        bool MayBeSavedForLaterInTheIssue,
+        IReadOnlyList<ChallengeLevelGuidanceModel> LevelGuidance);
+
+    private sealed record UnheroicActionModel(
+        int AwardAdversity,
+        bool AwardedImmediately,
+        IReadOnlyList<string> Triggers,
+        bool AlsoWhenContraryToMotivation,
+        bool AppliesEvenIfCoerced,
+        IReadOnlyList<string> CoercionForms);
+
+    private sealed record ResolveEntry(
+        string Id,
+        string Name,
+        string Kind,
+        string Description,
+        IReadOnlyList<string> VerifiedFields,
+        string SourceRef,
+        IReadOnlyList<string>? CorroboratedBy,
+        string? Ambiguity,
+        string PrintedUnder,
+        string? Who,
+        StartingResolveModel? StartingResolve,
+        ExceptionsModel? Exceptions,
+        MaximumRankModel? MaximumPossibleRank,
+        CarryoverModel? Carryover,
+        EarningOverviewModel? EarningOverview,
+        InterpretationModel? Interpretation,
+        EarningModel? Earning,
+        SpendingOverviewModel? SpendingOverview,
+        SpendModel? Spend,
+        RerollFloorModel? RerollFloor,
+        AdversityPoolModel? Adversity,
+        ChallengeLevelModel? ChallengeLevel,
+        UnheroicActionModel? UnheroicAction);
+
     private sealed record PlayFile<TEntry>(Header Header, IReadOnlyList<TEntry> Entries);
 
     // ── Loading ──────────────────────────────────────────────────────────────
 
     private static PlayFile<MetaEntry> Meta() => Load<MetaEntry>("play_meta.json");
     private static PlayFile<ChallengeEntry> Challenge() => Load<ChallengeEntry>("challenge.json");
+    private static PlayFile<ResolveEntry> Resolve() => Load<ResolveEntry>("resolve.json");
 
     private static PlayFile<TEntry> Load<TEntry>(string fileName)
     {
@@ -222,6 +459,7 @@ public sealed class PlayRulesDataTests
 
     private static MetaEntry MetaEntryById(string id) => Meta().Entries.Single(e => e.Id == id);
     private static ChallengeEntry ChallengeEntryById(string id) => Challenge().Entries.Single(e => e.Id == id);
+    private static ResolveEntry ResolveEntryById(string id) => Resolve().Entries.Single(e => e.Id == id);
 
     // ── The dice model, play_meta.json ───────────────────────────────────────
 
@@ -745,6 +983,786 @@ public sealed class PlayRulesDataTests
     private static int CountSuccesses(IReadOnlyDictionary<string, int> map, IEnumerable<int> dice) =>
         dice.Sum(die => map[die.ToString(CultureInfo.InvariantCulture)]);
 
+    // ── Chapter 5: the pools ─────────────────────────────────────────────────
+
+    [Fact]
+    public void TheStartingResolveTableIsTheOnePrintedOnPage83()
+    {
+        var entry = ResolveEntryById("starting_resolve");
+        var table = entry.StartingResolve;
+
+        Assert.NotNull(table);
+        Assert.Equal(CanonicalResolveRules.StartingResolveAtTraitCap, table.AtTraitCap);
+        Assert.Equal(CanonicalResolveRules.StartingResolvePerRankBelowCap, table.ResolvePerRankBelowCap);
+        Assert.Contains($"p.{CanonicalResolveRules.StartingResolvePage}", entry.SourceRef, StringComparison.Ordinal);
+
+        // The four printed rows have to BE the formula rather than merely sit beside it: each row
+        // is recomputed from the rate, so a row and the rate cannot drift apart.
+        Assert.Equal(CanonicalResolveRules.StartingResolveTable.Count, table.TableRows.Count);
+
+        foreach (var row in table.TableRows)
+        {
+            Assert.Equal(
+                table.AtTraitCap + row.RanksBelowTraitCap * table.ResolvePerRankBelowCap,
+                row.Resolve);
+        }
+
+        // "Etc. Etc." is the last printed row, so the ladder is open-ended — the same shape the
+        // Thresholds table gives Godlike, and asserted rather than assumed because a simulator that
+        // read four rows as a closed table would cap Resolve at six.
+        Assert.True(table.TableContinuesBeyondThePrintedRows);
+    }
+
+    /// <summary>
+    /// <b>The one read this file makes into <c>engine/</c>, and it is the point of recording the
+    /// table as arithmetic.</b> Chapter 5's ladder is already implemented — <c>CalculateResolve</c>
+    /// has computed it since long before <c>data/rules/play/</c> existed — so there are two
+    /// statements of one rule in this repository and nothing held them together. This does, on three
+    /// worked ranks: at the cap, one die under it, and three dice under it.
+    ///
+    /// <para>The expected figure is built from the <em>shipped JSON's</em> rate and pivot, not from
+    /// a number written here, so the test fails if the file and the engine disagree whichever of
+    /// them is wrong. The character has no Determination and no Condition or Plot Hook Flaw, which
+    /// are Chapter 2's additions to the same figure and are recorded in the entry's
+    /// <c>ambiguity</c> — this compares the base the table states, and nothing else.</para>
+    ///
+    /// <para><b>This is a read, and it stays a read.</b> Nothing here wires the engine to the play
+    /// rules; <see cref="PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile"/> would fail
+    /// if anybody tried.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void TheEngineComputesTheTableThisFileRecords(int ranksBelowTheCap)
+    {
+        var table = ResolveEntryById("starting_resolve").StartingResolve;
+
+        Assert.NotNull(table);
+
+        // The file says the ladder is measured from the Trait Cap, so the test measures from the
+        // Trait Cap. If that claim changed, this stops being the right comparison and says so.
+        Assert.Equal("trait_cap", table.MeasuredFrom);
+
+        var tier = _f.Rules.GetTier("standard");
+        Assert.NotNull(tier);
+
+        var cap = tier.TraitCapRank;
+        var rank = cap - ranksBelowTheCap;
+
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilityRanks["might"] = rank;
+
+        // Positive control on the fixture, and it has to be a claim about the sheet rather than
+        // about the line above it: the rank under test must be the highest relevant Trait the
+        // character has, or the row is measuring something else and agreeing by accident. The
+        // version this replaces asserted the value it had just assigned, which is true by
+        // construction and would have gone on passing over an empty sheet.
+        var top = sheet.AbilityRanks.Values.Max();
+        var atTheTop = sheet.AbilityRanks.Where(r => r.Value == top).Select(r => r.Key).Order(StringComparer.Ordinal).ToList();
+
+        Assert.Equal(["might"], atTheTop);
+        Assert.Equal(rank, top);
+
+        // No Power can out-rank it either, and the two Chapter 2 additions to this same figure are
+        // absent — Determination buys Resolve outright and a Condition or Plot Hook Flaw grants a
+        // point — so what is compared is the base the chapter's table states and nothing else.
+        Assert.Empty(sheet.SelectedPowers);
+        Assert.Null(sheet.GetPower("determination"));
+        Assert.DoesNotContain(
+            sheet.Flaws,
+            f => _f.Rules.GetFlaw(f.FlawId)?.FlawType is "condition" or "plot_hook" or "plot_hook_and_condition");
+
+        var fromTheFile = table.AtTraitCap + ranksBelowTheCap * table.ResolvePerRankBelowCap;
+        var fromTheEngine = _f.Derived.CalculateResolve(sheet);
+
+        Assert.Equal(fromTheFile, fromTheEngine);
+    }
+
+    /// <summary>
+    /// <b>The eleven Powers Chapter 5 names as Resolve-exempt, checked against the flags
+    /// <c>powers.json</c> actually carries.</b> The character rules answer this question through
+    /// <see cref="DerivedStatsCalculator.ResolveAffectedByPower"/> — an explicit
+    /// <c>affects_resolve</c> if there is one, and the Movement/Sensory category default otherwise —
+    /// and until now nothing compared that answer to the page it came from.
+    ///
+    /// <para><b>One of the eleven needs a mapping and it is ours, not the book's.</b> "Swinging" is
+    /// <c>swing_line</c> in the rules data. "Super Senses" needs none — its sixteen entries are all
+    /// prefixed with the printed name, because the book prints sixteen options under one Power —
+    /// and the mapping lives here rather than in the JSON precisely because it is a reading:
+    /// <c>resolve.json</c> transcribes the printed names and nothing else.</para>
+    ///
+    /// <para><b>And one of the eleven is not asked at all.</b> p.83 exempts "Expertise (except for
+    /// combat skills)", which is a carve-out and not an exemption, so requiring <c>false</c> for it
+    /// would have made a green test ratify an answer the page contradicts. It is excluded by name,
+    /// with the reason, and the divergence is asserted on purpose by
+    /// <see cref="ADivergenceTheEngineCannotYetExpress"/>.</para>
+    /// </summary>
+    [Fact]
+    public void EveryPowerChapterFiveNamesAsExemptIsExemptInTheRulesData()
+    {
+        var named = ResolveEntryById("resolve_exceptions").Exceptions;
+
+        Assert.NotNull(named);
+        Assert.Equal(CanonicalResolveRules.NamedResolveExemptPowers, named.NamedPowers);
+
+        // The names this check does not ask about have to be names the page actually prints, or an
+        // exclusion could quietly cover nothing (a typo) or everything (a widened rule).
+        Assert.Subset(named.NamedPowers.ToHashSet(StringComparer.Ordinal), NamesThisCheckCannotAsk.Keys.ToHashSet(StringComparer.Ordinal));
+
+        var faults = new List<string>();
+        var matched = 0;
+
+        foreach (var printedName in named.NamedPowers.Where(n => !NamesThisCheckCannotAsk.ContainsKey(n)))
+        {
+            var dataName = ChapterFivePowerNames.GetValueOrDefault(printedName, printedName);
+
+            var entries = _f.Rules.Powers
+                .Where(p => string.Equals(p.Name, dataName, StringComparison.Ordinal)
+                            || p.Name.StartsWith($"{dataName} —", StringComparison.Ordinal))
+                .ToList();
+
+            if (entries.Count == 0)
+            {
+                faults.Add($"'{printedName}' matches no entry in powers.json (looked for '{dataName}')");
+                continue;
+            }
+
+            foreach (var power in entries)
+            {
+                matched++;
+
+                if (DerivedStatsCalculator.ResolveAffectedByPower(power))
+                {
+                    faults.Add(
+                        $"'{printedName}' is named on p.{CanonicalResolveRules.ExceptionsPage} as a Power "
+                        + $"that does not affect Resolve, and powers.json entry '{power.Id}' "
+                        + $"(category {power.Category}, affects_resolve {power.AffectsResolve?.ToString() ?? "unset"}) "
+                        + "counts towards it");
+                }
+            }
+        }
+
+        // Positive control: ten of the eleven printed names are asked about, and Super Senses alone
+        // is sixteen entries, so a lookup that had stopped matching would fault nothing and prove
+        // nothing.
+        Assert.True(matched >= 25, $"Only {matched} powers.json entries were reached for {named.NamedPowers.Count} printed names.");
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>
+    /// The one printed name spelled differently in <c>powers.json</c>. <b>Ours, and kept out of the
+    /// data</b> — see <see cref="EveryPowerChapterFiveNamesAsExemptIsExemptInTheRulesData"/>. Super
+    /// Senses needs no entry here because its sixteen options are all prefixed with the printed
+    /// name.
+    /// </summary>
+    private static readonly Dictionary<string, string> ChapterFivePowerNames =
+        new(StringComparer.Ordinal) { ["Swinging"] = "Swing Line" };
+
+    /// <summary>
+    /// The printed names the exemption cross-check must <b>not</b> ask <c>powers.json</c> about,
+    /// each with the reason it cannot answer. <b>Excluded by name and never by a rule</b>, so a
+    /// second one cannot be added without writing down why.
+    ///
+    /// <para>Expertise is the only member, and it is a carve-out rather than an exemption: p.83
+    /// reads "Expertise (except for combat skills)", so whether an Expertise counts depends on the
+    /// Trait it was nominated to. <c>affects_resolve</c> is one flag on one entry and cannot say
+    /// that, so the entry is an unconditional <c>false</c> and the engine's answer is wrong for
+    /// exactly the combat-skill case. Requiring <c>false</c> here made a green test <em>ratify</em>
+    /// that; <see cref="ADivergenceTheEngineCannotYetExpress"/> asserts it instead, so it is
+    /// recorded rather than blessed.</para>
+    /// </summary>
+    private static readonly Dictionary<string, string> NamesThisCheckCannotAsk =
+        new(StringComparer.Ordinal)
+        {
+            ["Expertise"] =
+                "p.83 exempts Expertise 'except for combat skills', and powers.json carries one "
+                + "unconditional affects_resolve flag for all of them"
+        };
+
+    /// <summary>
+    /// <b>A place where the page and the engine give different answers, asserted on purpose.</b>
+    /// p.83 exempts "Expertise (except for combat skills)" — so an Expertise nominated to a combat
+    /// skill <em>does</em> count towards the opening pool. <c>powers.json</c> has one Expertise
+    /// entry with one <c>affects_resolve: false</c>, and the flag has no room for the nomination,
+    /// so the engine exempts every Expertise there is.
+    ///
+    /// <para><b>The engine is not changed here, and neither is the data.</b> Chapter 5 is
+    /// transcribed in this slice; teaching <c>DerivedStatsCalculator</c> the carve-out is
+    /// <c>PROGRESS.md</c> item 14's engine work, and <c>CLAUDE.md</c>'s rule is that this
+    /// repository <em>reports</em> rather than repairs. What was not acceptable was the previous
+    /// state: <see cref="EveryPowerChapterFiveNamesAsExemptIsExemptInTheRulesData"/> required
+    /// <c>false</c> for all eleven names including Expertise, so a green suite was ratifying an
+    /// answer the page contradicts.</para>
+    ///
+    /// <para><b>This test is written to go red when the gap closes, and that is the point.</b> It
+    /// asserts the engine's present answer exactly. The day the carve-out lands, the figure becomes
+    /// the one the page wants and this fails — at which point flip the two numbers and delete the
+    /// exclusion in <see cref="NamesThisCheckCannotAsk"/>. A divergence recorded as a passing test
+    /// that would still pass after the fix is a divergence nobody will ever notice was closed.</para>
+    /// </summary>
+    [Fact]
+    public void ADivergenceTheEngineCannotYetExpress()
+    {
+        var tier = _f.Rules.GetTier("standard");
+        Assert.NotNull(tier);
+
+        const int abilityRank = 6;
+        var cap = tier.TraitCapRank;
+
+        // A 6d martial artist whose Martial Arts specialisation is bought up to the cap: Martial
+        // Arts sits at its Might baseline, and Expertise nominated to it is bought the rest of the
+        // way. No Determination and no Condition or Plot Hook Flaw, so the figure below is the
+        // chapter's base table and nothing else.
+        var sheet = RulesFixture.StandardSheet();
+        foreach (var ability in _f.Rules.Abilities) sheet.AbilityRanks[ability.Id] = abilityRank;
+
+        sheet.SelectedPowers.Add(new SelectedPower("martial_arts", 0));
+        sheet.SelectedPowers.Add(
+            new SelectedPower("expertise", cap - abilityRank) { BaselineTraitId = "martial_arts" });
+
+        // Positive controls on the fixture, because every assertion below is about a rank the
+        // character has to actually reach. An Expertise that came out at 6 would produce the same
+        // Resolve for a reason that has nothing to do with the carve-out.
+        var expertise = sheet.GetPower("expertise");
+        Assert.NotNull(expertise);
+        Assert.Equal(cap, _f.Derived.GetEffectiveRank(expertise, sheet));
+        Assert.Equal(abilityRank, sheet.AbilityRanks.Values.Max());
+        Assert.Null(sheet.GetPower("determination"));
+        Assert.Empty(sheet.Flaws);
+
+        // And the flag really is the unconditional one the page cannot be expressed through.
+        var entry = _f.Rules.GetPower("expertise");
+        Assert.NotNull(entry);
+        Assert.False(
+            DerivedStatsCalculator.ResolveAffectedByPower(entry),
+            "powers.json now says Expertise affects Resolve unconditionally, which is the opposite "
+            + $"error: p.{CanonicalResolveRules.ExceptionsPage} exempts it '"
+            + $"{CanonicalResolveRules.ExpertiseQualifier}', so an Expertise nominated to anything "
+            + "else must still be exempt. The carve-out needs the nomination, not a flipped flag.");
+
+        var fromTheTable = ResolveEntryById("starting_resolve").StartingResolve;
+        Assert.NotNull(fromTheTable);
+
+        // What the page wants: the nomination is a combat skill, so the Expertise counts, the
+        // highest relevant rank is the cap, and the opening pool is nothing.
+        var thePageWants = fromTheTable.AtTraitCap;
+
+        // What the engine answers: the Expertise is exempt whatever it was nominated to, so the
+        // highest relevant rank is the 6d Ability and the pool is six dice of room, twice over.
+        var theEngineAnswers =
+            fromTheTable.AtTraitCap + (cap - abilityRank) * fromTheTable.ResolvePerRankBelowCap;
+
+        Assert.NotEqual(thePageWants, theEngineAnswers);
+
+        var answer = _f.Derived.CalculateResolve(sheet);
+
+        // The informative assertion first: this is the one that fires the day the gap closes, and
+        // "Expected 12, Actual 0" on its own would send the reader to fix the wrong side.
+        Assert.True(
+            answer != thePageWants,
+            $"CalculateResolve now answers {thePageWants} for an Expertise nominated to a combat "
+            + $"skill, which is what p.{CanonicalResolveRules.ExceptionsPage} wants — 'Expertise "
+            + $"({CanonicalResolveRules.ExpertiseQualifier})' means the nomination counts towards "
+            + "the opening pool. The engine has learned the carve-out: swap the two figures in this "
+            + "test so it asserts agreement, and delete the Expertise entry from "
+            + "NamesThisCheckCannotAsk so the exemption cross-check asks about it again.");
+
+        Assert.Equal(theEngineAnswers, answer);
+    }
+
+    /// <summary>
+    /// <b>The worked example printed under Challenge Level (p.85), resolved against the shipped
+    /// JSON.</b> Four Heroes, a Challenge Level 2 scene, eight points to the GM.
+    ///
+    /// <para>Chapter 3's fixture is the arm-wrestling exhibition and this is the same instrument for
+    /// Chapter 5: the award is computed from the data file's own factors and its own operation, so
+    /// a lost factor gives 2, a sum gives 6, and only the transcription the book prints gives 8. The
+    /// opening pool beside it is the same trick one step smaller — four Heroes at the rate the file
+    /// carries.</para>
+    /// </summary>
+    [Fact]
+    public void TheAdversityExampleOnPage85ComesOutAsPrinted()
+    {
+        var level = ResolveEntryById("adversity_earn_challenge_level").ChallengeLevel;
+        var pool = ResolveEntryById("adversity_pool").Adversity;
+
+        Assert.NotNull(level);
+        Assert.NotNull(pool);
+
+        var operands = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["challenge_level"] = CanonicalResolveRules.AdversityExample.ChallengeLevel,
+            ["hero_count"] = CanonicalResolveRules.AdversityExample.Heroes
+        };
+
+        // Positive control on the fixture: both operands have to be consumed. A factor list that
+        // quietly lost the party size would still produce a number, and it would be 2.
+        Assert.Equal(operands.Count, level.AwardFactors.Count);
+        Assert.All(level.AwardFactors, factor => Assert.Contains(factor, operands.Keys));
+
+        var award = level.AwardOperation switch
+        {
+            "product" => level.AwardFactors.Aggregate(1, (running, factor) => running * operands[factor]),
+            "sum" => level.AwardFactors.Sum(factor => operands[factor]),
+            _ => throw new InvalidOperationException(
+                $"resolve.json states an award operation this test cannot apply: '{level.AwardOperation}'.")
+        };
+
+        Assert.Equal(CanonicalResolveRules.AdversityExample.Adversity, award);
+
+        // And the scene's award is on top of an opening pool the same party size decides.
+        Assert.Equal(
+            CanonicalResolveRules.AdversityExample.Heroes,
+            CanonicalResolveRules.AdversityExample.Heroes * pool.PointsPerHeroPerIssue);
+
+        // The example's level is one the guidance describes, so the fixture is not being resolved
+        // against a level the book never discusses.
+        Assert.Contains(level.LevelGuidance, row => row.Level == CanonicalResolveRules.AdversityExample.ChallengeLevel);
+    }
+
+    /// <summary>
+    /// <b><c>CLAUDE.md</c>'s settled rule, as data rather than as prose.</b> "Only Heroes have
+    /// Resolve; the GM gets Adversity, spendable on any NPC" — so every spend in this file is keyed
+    /// to one side of the screen, and the two keys are the ones the chapter states on pp.84 and 85.
+    ///
+    /// <para><b>Neither the id prefix nor a cost field is what makes it true.</b> The prefix was
+    /// never load-bearing — a spend renamed out of <c>spend_</c>/<c>adversity_spend_</c> would
+    /// escape a check built on it — and the cross-check that replaced it, "what does the entry
+    /// charge", reached only nine of the twelve: <c>spend_combat</c> defers its costs to Ch.4,
+    /// <c>spend_using_powers</c> charges whatever the Power asks, and
+    /// <c>adversity_spend_anything_resolve_can</c> charges whatever it is imitating, so all three
+    /// were keyed by their id alone after all.</para>
+    ///
+    /// <para><b>So every spend names its <c>currency</c> outright</b>, transcribed like any other
+    /// fact and compared against <see cref="CanonicalResolveRules"/> by the coverage walk. This
+    /// test reads that field, never the id: <c>resolve</c> must be the Hero's and
+    /// <c>adversity</c> must be the GM's, whatever the entry is called.</para>
+    /// </summary>
+    [Fact]
+    public void EveryResolveSpendIsTheHerosAndEveryAdversitySpendIsTheGms()
+    {
+        var entries = Resolve().Entries;
+        var spends = entries.Where(e => e.Spend is not null).ToList();
+
+        // Positive control: a rule about every spend is worth what the set of spends is worth, and
+        // p.84 prints six headings (one carrying three) beside p.85's general rule and three
+        // exclusives.
+        Assert.True(spends.Count >= 12, $"Only {spends.Count} spends were found across the file.");
+
+        // And the two pools have to be told apart at both ends, or one value would satisfy both
+        // halves of the rule.
+        Assert.NotEqual(CanonicalResolveRules.ResolveIsSpentBy, CanonicalResolveRules.AdversityIsSpentBy);
+        Assert.NotEqual(CanonicalResolveRules.ResolveCurrency, CanonicalResolveRules.AdversityCurrency);
+
+        var faults = new List<string>();
+
+        foreach (var entry in spends)
+        {
+            var spend = entry.Spend!;
+
+            if (spend.Currency is null)
+            {
+                faults.Add(
+                    $"{entry.Id} is a spend and names no currency, so nothing says which pool it "
+                    + "draws on");
+                continue;
+            }
+
+            if (!CanonicalResolveRules.PoolHolders.TryGetValue(spend.Currency, out var holder))
+            {
+                faults.Add(
+                    $"{entry.Id} charges '{spend.Currency}', and Chapter 5 has two pools: "
+                    + string.Join(" and ", CanonicalResolveRules.PoolHolders.Keys));
+                continue;
+            }
+
+            if (entry.Who != holder)
+            {
+                faults.Add(
+                    $"{entry.Id} charges {spend.Currency} and is keyed to {entry.Who ?? "nobody"}; "
+                    + $"{spend.Currency} is spent by the {holder}");
+            }
+
+            // Where an entry does print a cost, the cost and the declared currency have to be the
+            // same currency — otherwise `currency` could quietly disagree with the number beside it.
+            if (spend.CostAdversity is not null && spend.Currency != CanonicalResolveRules.AdversityCurrency)
+                faults.Add($"{entry.Id} states a cost in Adversity and declares currency {spend.Currency}");
+
+            if (spend.CostResolve is not null && spend.Currency != CanonicalResolveRules.ResolveCurrency)
+                faults.Add($"{entry.Id} states a cost in Resolve and declares currency {spend.Currency}");
+        }
+
+        // The faults come first deliberately: each names the entry and what is wrong with it, and
+        // the two set-shaped assertions below fail with a diff that sends the reader hunting.
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+
+        // Both pools have to be represented, or "every spend is keyed correctly" is satisfied by a
+        // file in which every spend is a Hero's.
+        foreach (var currency in CanonicalResolveRules.PoolHolders.Keys)
+        {
+            Assert.Contains(
+                spends,
+                e => string.Equals(e.Spend!.Currency, currency, StringComparison.Ordinal));
+        }
+
+        // A `who` and a `spend` are the same claim from two directions, so an entry cannot carry
+        // one without the other.
+        Assert.Equal(
+            spends.Select(e => e.Id).Order(StringComparer.Ordinal).ToList(),
+            entries.Where(e => e.Who is not null).Select(e => e.Id).Order(StringComparer.Ordinal).ToList());
+    }
+
+    /// <summary>
+    /// <b>What an ordinary share of Resolve costs is not printed, so it is not transcribed.</b>
+    /// p.84 prices exactly one share — "you have to spend 2 points of Resolve for every point you
+    /// want to share" — and charges it only to a giver who could not actually be assisting. "As
+    /// many points as you wish" says how many may move and never what one costs.
+    ///
+    /// <para>One-for-one was nonetheless a <c>cost_per_point_shared</c> fact field, with the same
+    /// quote beside <c>SharePointCost = 1</c> in <see cref="CanonicalResolveRules"/> — the exact
+    /// shape the Thresholds table's <c>gm_discretion</c> column had, a reading dressed as a printed
+    /// value and filed under "do not edit this to match the code". It is now an
+    /// <c>interpretation</c> beside the entry, and <b>derived rather than typed</b>: the stated
+    /// rate is a penalty of double, so the rate it doubles is half of it. Change the printed
+    /// penalty and this has to move with it.</para>
+    /// </summary>
+    [Fact]
+    public void TheParShareRateIsInferredFromThePrintedPenaltyRate()
+    {
+        var entry = ResolveEntryById("spend_assisting_allies");
+
+        Assert.NotNull(entry.Spend);
+        Assert.NotNull(entry.Interpretation);
+        Assert.NotNull(entry.Interpretation.InferredCostPerPointShared);
+
+        // The one rate the page states, and the entry has to carry it or there is nothing to infer
+        // from — a reading derived from a missing figure would be a reading derived from nothing.
+        Assert.Equal(
+            CanonicalResolveRules.SharePointCostWhenUnableToAssist,
+            entry.Spend.CostPerPointSharedWhenUnableToAssist);
+
+        // And the page states no other one. Recorded on the canonical side so the claim sits beside
+        // the quote it is a claim about.
+        Assert.False(CanonicalResolveRules.OrdinaryShareRateIsPrinted);
+
+        // The derivation: the printed rate is charged as a doubling, so par is half of it.
+        const int theDoubling = 2;
+
+        Assert.Equal(
+            CanonicalResolveRules.SharePointCostWhenUnableToAssist / theDoubling,
+            entry.Interpretation.InferredCostPerPointShared);
+
+        // And the entry says out loud that this is ours rather than the book's, in both places a
+        // reader would look: the labelled block and the ambiguity.
+        Assert.Contains("not a figure the page prints", entry.Interpretation.WhatThisIs, StringComparison.Ordinal);
+        Assert.Contains("not printed", entry.Ambiguity ?? "", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Adversity does everything Resolve does and exactly three things more, and the file has to
+    /// hold three.</b> "There are also three things you can do with Adversity that Heroes can't do
+    /// with Resolve" — a transcribed count with nothing behind it is a number; this makes it a
+    /// claim about the data beside it.
+    /// </summary>
+    [Fact]
+    public void AdversityAddsExactlyTheThreeExclusiveSpendsItClaims()
+    {
+        var mirror = ResolveEntryById("adversity_spend_anything_resolve_can").Spend;
+
+        Assert.NotNull(mirror);
+        Assert.True(mirror.CanDoAnythingResolveCan);
+
+        var exclusives = Resolve().Entries
+            .Where(e => e.Id.StartsWith("adversity_spend_", StringComparison.Ordinal)
+                        && e.Id != "adversity_spend_anything_resolve_can")
+            .Select(e => e.Id)
+            .ToList();
+
+        Assert.Equal(mirror.ExclusiveSpendsCount, exclusives.Count);
+    }
+
+    /// <summary>
+    /// The fields an entry may carry when it says it does not transcribe the chapter it points at:
+    /// the flag itself, the chapter it defers to, and the ids of what was deferred. <b>Nothing
+    /// else</b> — a value is either transcribed from a page this file cites or it is somewhere
+    /// else's to record.
+    /// </summary>
+    private static readonly HashSet<string> ReferenceOnlyFields =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "transcribed_here", "detail_chapter", "combat_spend_refs", "currency"
+        };
+
+    /// <summary>
+    /// <b>An entry that says it defers to another chapter must actually defer to it.</b>
+    /// <c>spend_combat</c> declares <c>transcribed_here: false</c> and pointed at Ch.4 — and then
+    /// carried two of Ch.4's values anyway, with a description claiming the GM's initiative
+    /// alternative was "printed here rather than there". <b>Ch.4 p.73 prints it in full</b>, with
+    /// the 1 Resolve cost, the duration and the alternative, so the two fields were the second
+    /// transcription the entry's own policy exists to prevent — and the one that would have gone
+    /// stale first, because Chapter 4's slice will transcribe the page properly.
+    ///
+    /// <para>Written as a rule over the file rather than as an assertion about the one entry that
+    /// breaks it: the next chapter this store points at gets the same guard for free.</para>
+    /// </summary>
+    [Fact]
+    public void AnEntryThatDefersToAnotherChapterCarriesReferencesAndNothingElse()
+    {
+        var deferring = Resolve().Entries.Where(e => e.Spend?.TranscribedHere == false).ToList();
+
+        // Positive control: a rule over an empty set is satisfied by there being nothing to check,
+        // and this one is worth exactly as much as the entries it reaches.
+        Assert.NotEmpty(deferring);
+
+        var faults = new List<string>();
+
+        foreach (var entry in deferring)
+        {
+            var strangers = EntryLeaves(entry.Id, entry, stopAt: null)
+                .Select(leaf => leaf.Path[(leaf.Path.LastIndexOf('.') + 1)..])
+                .Where(name => !ReferenceOnlyFields.Contains(name))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            if (strangers.Count > 0)
+            {
+                faults.Add(
+                    $"{entry.Id} sets transcribed_here false and still carries "
+                    + string.Join(", ", strangers));
+            }
+        }
+
+        Assert.True(
+            faults.Count == 0,
+            "An entry that hands a mechanic to another chapter may carry the reference and nothing "
+            + "more — transcribe the value in that chapter's own file, where the page it comes from "
+            + "is the one being cited: " + string.Join("; ", faults));
+    }
+
+    /// <summary>
+    /// <b>Every entry names the heading it was transcribed from, and the heading has to exist on the
+    /// page the entry cites.</b> This is the structural link between the data and the corpus: a
+    /// <c>source_ref</c> alone says a page, and a page in a six-page chapter is a wide target.
+    ///
+    /// <para>It is also why <c>printed_under</c> is exempt from the canonical walk — it is checked
+    /// against the book directly rather than against a constant somebody typed, which is the
+    /// stronger of the two.</para>
+    /// </summary>
+    [Fact]
+    public void EveryEntryNamesAHeadingPrintedOnThePageItCites()
+    {
+        var headings = ChapterFiveHeadings();
+
+        // Positive control: the corpus lookup has to have found the chapter's headings. An empty
+        // set would fault every entry, which is loud — but a set missing one page would fault only
+        // the entries on it and read as a data error, so the count is asserted.
+        Assert.True(headings.Count >= 25, $"Only {headings.Count} headings were read out of Chapter 5.");
+
+        // Negative control, and it has to be a heading that really exists somewhere else: a made-up
+        // one is rejected by a lookup that had lost every page number too. VILLAINY is printed on
+        // p.85 and on no other page of the chapter, so the pair is right and the page is wrong.
+        Assert.Contains((85, "VILLAINY"), headings);
+        Assert.DoesNotContain((83, "VILLAINY"), headings);
+        Assert.DoesNotContain((84, "VILLAINY"), headings);
+
+        var faults = new List<string>();
+
+        foreach (var entry in Resolve().Entries)
+        {
+            var page = int.Parse(
+                Regex.Match(entry.SourceRef, @"\bp\.(\d+)\b").Groups[1].Value,
+                CultureInfo.InvariantCulture);
+
+            if (!headings.Contains((page, entry.PrintedUnder)))
+            {
+                faults.Add(
+                    $"{entry.Id}: printed_under '{entry.PrintedUnder}' is not a heading on p.{page} "
+                    + "of Chapter 5 — either the heading or the source_ref page is wrong");
+            }
+        }
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>Every (printed page, heading) pair in the Chapter 5 corpus.</summary>
+    private static HashSet<(int Page, string Heading)> ChapterFiveHeadings()
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RulebookPath, "ch05-resolve-and-adversity.json")));
+
+        var headings = new HashSet<(int, string)>();
+
+        foreach (var section in document.RootElement.GetProperty("sections").EnumerateArray())
+        {
+            if (!section.TryGetProperty("printed_page", out var page)
+                || page.ValueKind != JsonValueKind.Number
+                || !section.TryGetProperty("heading", out var heading)
+                || heading.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            headings.Add((page.GetInt32(), heading.GetString()!));
+        }
+
+        return headings;
+    }
+
+    /// <summary>
+    /// <b>Which of the six ways to earn a simulator could apply on its own is ours, and it is
+    /// derived rather than typed.</b> The book draws no such line — it lists six ways and then says
+    /// a GM may award a point for anything at all. But a simulator has to know which awards it can
+    /// hand out and which need somebody at the table to say that a moment happened, and an
+    /// unrecorded answer to that becomes an implementation decision nobody made.
+    ///
+    /// <para>The list is computed from the entries' own <c>kind</c>, so a seventh way added as a
+    /// formula appears here automatically and one demoted to narrative disappears. Both halves are
+    /// required to be non-empty: a derivation that produced everything or nothing would agree with
+    /// a matching claim and check nothing.</para>
+    /// </summary>
+    [Fact]
+    public void TheEarningsASimulatorCouldApplyAreExactlyTheOnesWithAStatedTrigger()
+    {
+        var earning = Resolve().Entries.Where(e => e.Earning is not null).ToList();
+
+        Assert.Equal(6, earning.Count);
+
+        var mechanisable = earning
+            .Where(e => string.Equals(e.Kind, "formula", StringComparison.Ordinal))
+            .Select(e => e.Id)
+            .ToList();
+
+        var fiat = earning
+            .Where(e => !string.Equals(e.Kind, "formula", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.NotEmpty(mechanisable);
+        Assert.NotEmpty(fiat);
+
+        var interpretation = ResolveEntryById("resolve_earning_overview").Interpretation;
+
+        Assert.NotNull(interpretation);
+        Assert.NotNull(interpretation.MechanisableEntryIds);
+        Assert.Equal(mechanisable, interpretation.MechanisableEntryIds);
+
+        // Each of the two groups has to earn its label from the page. A mechanisable one states a
+        // figure and a bound the rules settle themselves; a fiat one carries the printed marker of
+        // somebody's judgement — a GM's feeling, a fit with the situation, a caution against
+        // gaming it, or no figure at all.
+        foreach (var entry in earning.Where(e => mechanisable.Contains(e.Id, StringComparer.Ordinal)))
+        {
+            Assert.NotNull(entry.Earning!.AwardResolve);
+            Assert.True(
+                entry.Earning.LimitPerBattle is not null || entry.Earning.MustBeSpentOnTheSamePage == true,
+                $"{entry.Id} is listed as mechanisable and states no bound a program could apply.");
+        }
+
+        foreach (var entry in fiat)
+        {
+            Assert.True(
+                entry.Earning!.GmJudged == true
+                || entry.Earning.MustFitTheSituation == true
+                || entry.Earning.NotAnInvitationToDerailTheGame == true
+                || entry.Earning.AwardStated == false,
+                $"{entry.Id} is left to the GM here and carries nothing on the page that says so.");
+        }
+    }
+
+    /// <summary>
+    /// <b>The one claim <c>resolve.json</c> makes about another play file, checked across both.</b>
+    /// <c>spend_challenge_roll_dice</c>'s description says Chapter 3's Defining Moment is the same
+    /// purchase at three times the rate, and until now that was a sentence in prose with the two
+    /// numbers a file apart — <c>challenge.json</c> carrying both, and nothing tying either to the
+    /// ordinary spend Chapter 5 actually prints.
+    ///
+    /// <para>The multiple is read out of <c>challenge.json</c>'s own pair, so this is not a third
+    /// place to type 3: the Defining Moment rate has to be exactly that multiple of the ordinary
+    /// one, and the ordinary one has to be the rate Chapter 5's entry states in dice per point of
+    /// Resolve. Change either file alone and the two stop agreeing.</para>
+    /// </summary>
+    [Fact]
+    public void TheDefiningMomentBuysTripleWhatChapterFivesOrdinaryDiceSpendBuys()
+    {
+        var moment = ChallengeEntryById("defining_moment").DefiningMoment;
+        var ordinary = ResolveEntryById("spend_challenge_roll_dice").Spend;
+
+        Assert.NotNull(moment);
+        Assert.NotNull(ordinary);
+
+        // Chapter 5's ordinary purchase, as dice per point: one point buys one die.
+        Assert.NotNull(ordinary.CostResolve);
+        Assert.NotNull(ordinary.DiceGained);
+        Assert.Equal(0, ordinary.DiceGained % ordinary.CostResolve);
+
+        var chapterFivesRate = ordinary.DiceGained / ordinary.CostResolve;
+
+        // Positive control: a rate of zero would divide into anything and prove nothing.
+        Assert.True(chapterFivesRate > 0, $"Chapter 5's ordinary dice spend comes out at {chapterFivesRate} dice per point.");
+
+        // Chapter 3 restates the ordinary rate beside its own, which is what makes the comparison
+        // possible at all — and the two files have to agree about it before the multiple means
+        // anything.
+        Assert.Equal(chapterFivesRate, moment.OrdinaryDicePerResolveSpent);
+
+        var multiple = moment.DicePerResolveSpent / moment.OrdinaryDicePerResolveSpent;
+
+        // And the literal below is tied to the sentence that makes the claim, so the two cannot be
+        // changed apart: resolve.json's description calls the Defining Moment "the same purchase at
+        // three times the rate", and that sentence is what this test exists to hold to the data.
+        const int theMultipleTheDescriptionClaims = 3;
+
+        Assert.Contains(
+            "three times the rate",
+            ResolveEntryById("spend_challenge_roll_dice").Description,
+            StringComparison.Ordinal);
+
+        Assert.Equal(theMultipleTheDescriptionClaims, multiple);
+        Assert.Equal(theMultipleTheDescriptionClaims * chapterFivesRate, moment.DicePerResolveSpent);
+    }
+
+    /// <summary>
+    /// <b>Chapter 1's summary prints two of this chapter's rules a second time, on p.11.</b> Same
+    /// instrument as <see cref="TheThreeRulesChapterOneReprintsAgreeWithTheTranscription"/> does for
+    /// Chapter 3: everything else here compares one transcription to another, and a second printing
+    /// is the only independent check the book itself offers.
+    ///
+    /// <para><b>Both expectations are built from the canonical values rather than typed out.</b> The
+    /// Adversity rate is formatted from the number; the direction of the Resolve table is computed
+    /// from its rows, so a table that had been inverted would look for "the more Resolve you have",
+    /// which p.11 does not print.</para>
+    /// </summary>
+    [Fact]
+    public void ChapterOneReprintsTheAdversityRateAndTheShapeOfTheResolveTable()
+    {
+        var page = ChapterOnePage(CanonicalResolveRules.ChapterOneSummaryPage);
+
+        // Positive control: an empty haystack would satisfy nothing below and look like agreement.
+        Assert.True(page.Length > 500, $"Ch.1 p.{CanonicalResolveRules.ChapterOneSummaryPage} came back as {page.Length} characters.");
+
+        var rate = $"{CanonicalResolveRules.AdversityPerHeroPerIssue} point of Adversity per Hero";
+        Assert.Contains(rate, page, StringComparison.Ordinal);
+
+        var rows = CanonicalResolveRules.StartingResolveTable;
+        var moreRoomMeansMoreResolve = rows[^1].Resolve > rows[0].Resolve;
+
+        var clause = moreRoomMeansMoreResolve
+            ? "the more powerful you are, the less Resolve you have"
+            : "the more powerful you are, the more Resolve you have";
+
+        Assert.Contains(clause, page, StringComparison.Ordinal);
+
+        // And the citation is on the entries, so it is a reference rather than a coincidence.
+        foreach (var id in new[] { "starting_resolve", "adversity_pool" })
+        {
+            Assert.Contains(
+                ResolveEntryById(id).CorroboratedBy ?? [],
+                reference => reference.Contains(
+                    $"p.{CanonicalResolveRules.ChapterOneSummaryPage}", StringComparison.Ordinal));
+        }
+    }
+
     // ── Structural guards over both files ────────────────────────────────────
 
     /// <summary>
@@ -760,31 +1778,39 @@ public sealed class PlayRulesDataTests
     /// of the same chapter is not a second printing, and
     /// <see cref="TheThreeRulesChapterOneReprintsAgreeWithTheTranscription"/> holds it to the
     /// corpus rather than letting it be a decorative citation.</para>
+    ///
+    /// <para><b>The range is the entry's own chapter's, not the directory's.</b> With Chapter 5
+    /// here beside Chapter 3, a single 67-86 window would accept a Chapter 4 page in either file
+    /// and accept a Chapter 3 page in the Resolve file — so the bound comes from
+    /// <see cref="Files"/>, per file.</para>
     /// </summary>
     [Fact]
-    public void EverySourceRefNamesAPageInChapterThreeOrTheGlossary()
+    public void EverySourceRefNamesAPageInItsOwnChapterOrTheGlossary()
     {
         var faults = new List<string>();
         var checkedCount = 0;
         var corroborations = 0;
 
-        foreach (var (id, sourceRef, corroboratedBy) in AllEntries())
+        foreach (var (file, id, sourceRef, corroboratedBy) in AllEntries())
         {
             checkedCount++;
 
+            var facts = FactsFor(file);
             var match = Regex.Match(sourceRef, @"\bp\.(\d+)\b");
 
             if (!match.Success)
             {
-                faults.Add($"{id}: source_ref names no page ('{sourceRef}')");
+                faults.Add($"{file}/{id}: source_ref names no page ('{sourceRef}')");
                 continue;
             }
 
             var page = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
 
-            if (page is not (>= 67 and <= 72) && page != CanonicalChallengeRules.HalfRulePage)
+            if ((page < facts.FirstPage || page > facts.LastPage) && page != CanonicalChallengeRules.HalfRulePage)
             {
-                faults.Add($"{id}: source_ref names p.{page}, which is outside Ch.3 (67-72) and is not the Glossary (p.7)");
+                faults.Add(
+                    $"{file}/{id}: source_ref names p.{page}, which is outside {facts.ChapterLabel} "
+                    + $"({facts.FirstPage}-{facts.LastPage}) and is not the Glossary (p.7)");
             }
 
             foreach (var reference in corroboratedBy ?? [])
@@ -795,25 +1821,26 @@ public sealed class PlayRulesDataTests
 
                 if (!second.Success)
                 {
-                    faults.Add($"{id}: corroborated_by names no page ('{reference}')");
+                    faults.Add($"{file}/{id}: corroborated_by names no page ('{reference}')");
                     continue;
                 }
 
                 var elsewhere = int.Parse(second.Groups[1].Value, CultureInfo.InvariantCulture);
 
-                if (elsewhere is >= 67 and <= 72)
+                if (elsewhere >= facts.FirstPage && elsewhere <= facts.LastPage)
                 {
                     faults.Add(
-                        $"{id}: corroborated_by names p.{elsewhere}, which is inside Ch.3 — a second "
-                        + "citation of the same chapter is not a second printing");
+                        $"{file}/{id}: corroborated_by names p.{elsewhere}, which is inside "
+                        + $"{facts.ChapterLabel} — a second citation of the same chapter is not a "
+                        + "second printing");
                 }
             }
         }
 
         // Positive control: an extraction that stopped matching would fault nothing and prove
         // nothing, which is the shape of guard failure this repository has shipped four times.
-        Assert.True(checkedCount >= 15, $"Only {checkedCount} entries were read across the two play rules files.");
-        Assert.True(corroborations >= 3, $"Only {corroborations} corroborating references were read; Ch.1 reprints three of these rules.");
+        Assert.True(checkedCount >= 45, $"Only {checkedCount} entries were read across the three play rules files.");
+        Assert.True(corroborations >= 5, $"Only {corroborations} corroborating references were read; Ch.1 reprints three of Ch.3's rules and two of Ch.5's.");
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
 
@@ -928,7 +1955,11 @@ public sealed class PlayRulesDataTests
         {
             ["trigger"] = Keys(
                 "trigger", "context", "declared_by", "offered_by", "actor_is", "opponent_is",
-                "when_two_or_more_pursue_the_same_goal", "structure", "offered_at_gm_option"),
+                "when_two_or_more_pursue_the_same_goal", "structure", "offered_at_gm_option",
+                // Chapter 5
+                "granted_at", "depends_on", "applies_when", "available_when", "awarded_at",
+                "triggers", "applies_even_if_coerced", "requires_remotely_reasonable",
+                "some_powers_require_resolve", "npc_flaws_bite_when_the_opportunity_arises"),
             ["roll"] = Keys(
                 "die_sides", "pool_formula", "success_map", "dice_rolled", "counting_faces",
                 "dice_per_success", "gm_may_veto", "net_success_formula", "min_dice", "max_dice",
@@ -936,7 +1967,10 @@ public sealed class PlayRulesDataTests
                 "six_still_worth_successes", "dice_per_resolve_spent", "ordinary_dice_per_resolve_spent",
                 "challenge_roll_penalty_dice", "exchange_win_bonus_dice_next_exchange",
                 "helper_rolls_against_threshold", "net_successes_per_bonus_die", "bonus_formula",
-                "everyone_rolls_individually", "threshold_source"),
+                "everyone_rolls_individually", "threshold_source",
+                // Chapter 5
+                "dice_gained", "unlimited", "rerolls", "includes_dice_bought_with_resolve",
+                "applies_to", "keep_the_first_roll_if_the_reroll_is_worse"),
             ["threshold"] = Keys(
                 "threshold_min", "threshold_max", "difficulty", "threshold", "threshold_source",
                 "static_threshold_used_when", "helper_rolls_against_threshold",
@@ -956,16 +1990,52 @@ public sealed class PlayRulesDataTests
                 "gm_accepts_player_input_when_actor_is_npc", "dice_per_success",
                 "other_explode_offers_provide_no_extra_benefit", "rounding", "best_helper_only",
                 "success_map", "challenge_roll_penalty_dice", "replaces_the_permanent_ability_loss",
-                "wing_it_is_endorsed", "naming_convention"),
+                "wing_it_is_endorsed", "naming_convention",
+                // Chapter 5
+                "effect", "at_trait_cap", "resolve_per_rank_below_cap", "formula", "talents_count",
+                "criterion", "named_powers", "expertise_qualifier", "gm_has_final_say", "rank_used",
+                "powers_named", "gm_may_allow_carryover", "gm_carryover_should_be_rare",
+                "gm_may_award_whenever_they_see_fit", "listed_ways_are_examples_not_a_closed_list",
+                "award_resolve", "award_adversity", "award_stated", "may_be_outside_combat",
+                "interlude_is", "detail_chapter", "not_an_invitation_to_derail_the_game",
+                "gm_judged", "gm_may_expand_the_uses", "listed_uses_are_the_basic_ones",
+                "points_shared_limit", "must_narrate_the_assistance",
+                "narration_has_no_mechanical_effect", "flashback_required_when_unable",
+                "unable_to_assist_examples", "invents", "subject_to_gm_approval", "uses",
+                "imitated_power_rank_source", "grants_a_new_power", "only_heroes_have_resolve",
+                "player_must_spend_for_a_friendly_extra",
+                "extra_cannot_use_the_power_if_nobody_spends",
+                "applies_only_while_the_extra_is_with_the_heroes",
+                "spending_should_never_make_things_worse", "points_per_hero_per_issue", "held_by",
+                "is_more_of_a_fixed_resource_than_resolve", "gm_may_add_ways_to_earn",
+                "should_not_be_as_easy_to_earn_as_resolve", "award_factors", "award_operation",
+                "typical_level_min", "typical_level_max", "level_three_may_be_exceeded",
+                "only_a_handful_of_scenes_per_story", "level", "used_for", "awarded_immediately",
+                "coercion_forms", "also_when_contrary_to_motivation",
+                "can_do_anything_resolve_can", "may_be_spent_on_any_npc", "npc_kinds",
+                "all_npcs_share_one_pool", "exclusive_spends_count", "prevents",
+                "eligible_characters", "excluded_characters",
+                "npcs_cannot_choose_when_their_flaws_bite", "what_it_is",
+                "must_be_a_challenge_not_a_punishment", "must_not_be_a_plot_device", "automatic",
+                "use_sparingly", "transcribed_here", "combat_spend_refs", "example_given"),
             ["duration"] = Keys(
                 "penalty_duration", "regain_consciousness", "limit_per_story",
                 "limit_per_scene_per_group", "concurrent_scenes_each_allow_one",
                 "may_last_longer_than_an_instant", "typical_exchanges", "arduous_exchanges_min",
-                "arduous_exchanges_max", "arduous_condition"),
+                "arduous_exchanges_max", "arduous_condition",
+                // Chapter 5
+                "carries_over_between_issues", "unspent_is_lost_at_issue_end",
+                "some_flaws_award_per_issue_instead", "unconscious_until",
+                "must_be_spent_on_the_same_page", "may_be_saved_for_later_in_the_issue",
+                "limit_per_battle", "limit_per_character_per_issue", "duration"),
             ["cost"] = Keys(
                 "explode_cost_resolve", "dice_per_resolve_spent", "ordinary_dice_per_resolve_spent",
                 "aftermath_permanent_ability_loss_dice", "ability_may_be_bought_back_later",
-                "health_after", "unconscious", "challenge_roll_penalty_dice")
+                "health_after", "unconscious", "challenge_roll_penalty_dice",
+                // Chapter 5
+                "cost_resolve", "cost_adversity", "currency",
+                "cost_per_point_shared_when_unable_to_assist", "then_unconscious",
+                "some_powers_require_resolve")
         };
 
     private static HashSet<string> Keys(params string[] names) =>
@@ -987,8 +2057,10 @@ public sealed class PlayRulesDataTests
     {
         var meta = Meta();
         var challenge = Challenge();
+        var resolve = Resolve();
 
         Assert.Equal(meta.Header.VerifiedFieldsClosedList, challenge.Header.VerifiedFieldsClosedList);
+        Assert.Equal(meta.Header.VerifiedFieldsClosedList, resolve.Header.VerifiedFieldsClosedList);
 
         var closed = meta.Header.VerifiedFieldsClosedList;
         Assert.NotEmpty(closed);
@@ -1050,9 +2122,10 @@ public sealed class PlayRulesDataTests
     {
         var kinds = Meta().Entries.Select(e => (e.Id, e.Kind))
             .Concat(Challenge().Entries.Select(e => (e.Id, e.Kind)))
+            .Concat(Resolve().Entries.Select(e => (e.Id, e.Kind)))
             .ToList();
 
-        Assert.True(kinds.Count >= 15, $"Only {kinds.Count} entries were read across the two files.");
+        Assert.True(kinds.Count >= 45, $"Only {kinds.Count} entries were read across the three files.");
 
         var faults = kinds
             .Where(k => !CanonicalChallengeRules.EntryKinds.Contains(k.Kind, StringComparer.Ordinal))
@@ -1070,21 +2143,30 @@ public sealed class PlayRulesDataTests
     [Theory]
     [InlineData("play_meta.json")]
     [InlineData("challenge.json")]
+    [InlineData("resolve.json")]
     public void EachFileSaysWhatItIsWhereItSitsAndThatNothingReadsIt(string fileName)
     {
-        var header = fileName == "play_meta.json" ? Meta().Header : Challenge().Header;
+        var header = HeaderOf(fileName);
 
         Assert.False(string.IsNullOrWhiteSpace(header.WhatThisIs));
         Assert.False(string.IsNullOrWhiteSpace(header.NotLogic));
         Assert.Contains(@"data\rules\*.json", header.PlacementNote, StringComparison.Ordinal);
-        Assert.Contains("Ch.3 Action", header.SourceRef, StringComparison.Ordinal);
+        Assert.Contains(FactsFor(fileName).ChapterLabel, header.SourceRef, StringComparison.Ordinal);
     }
 
-    /// <summary>Both files, as (id, entry, verified_fields) triples.</summary>
+    private static Header HeaderOf(string fileName) => fileName switch
+    {
+        "play_meta.json" => Meta().Header,
+        "challenge.json" => Challenge().Header,
+        _ => Resolve().Header
+    };
+
+    /// <summary>All three files, as (id, entry, verified_fields) triples.</summary>
     private static IEnumerable<(string Id, object Entry, IReadOnlyList<string> Fields)>
         AllEntriesWithVerifiedFields() =>
         Meta().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields))
-            .Concat(Challenge().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)));
+            .Concat(Challenge().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
+            .Concat(Resolve().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)));
 
     /// <summary>
     /// <b>Descriptions in <c>data/rules/</c> are this project's own words, never the book's.</b>
@@ -1096,29 +2178,38 @@ public sealed class PlayRulesDataTests
     /// the failure mode is a description assembled around a lifted clause, which a sentence-level
     /// comparison walks straight past.</para>
     /// </summary>
-    [Fact]
-    public void NoDescriptionRepeatsARunOfTheBooksOwnWords()
+    [Theory]
+    [InlineData(
+        "play_meta.json",
+        "You earn one success for every 2 and 4 rolled, and two successes for every 6 rolled.")]
+    [InlineData(
+        "challenge.json",
+        "You earn one success for every 2 and 4 rolled, and two successes for every 6 rolled.")]
+    [InlineData(
+        "resolve.json",
+        "Resolve doesn't carry over between issues. When an issue ends, unspent Resolve is lost.")]
+    public void NoDescriptionRepeatsARunOfTheBooksOwnWords(string fileName, string knownCorpusSentence)
     {
         const int run = 10;
-        var corpus = CorpusWords();
+        var corpus = CorpusWords(FactsFor(fileName).CorpusFiles);
 
         // Positive control, and it is the whole instrument: a run taken out of the corpus must be
         // found in the corpus. Without it, a normaliser that quietly produced an empty haystack
-        // would pass every assertion below while checking nothing at all.
-        const string knownCorpusSentence =
-            "You earn one success for every 2 and 4 rolled, and two successes for every 6 rolled.";
-
+        // would pass every assertion below while checking nothing at all. It is per file because
+        // the corpus is: Chapter 5's descriptions are measured against Chapter 5, and a control
+        // sentence from Chapter 3 would pass while proving the wrong chapter had been loaded.
         var control = Runs(Normalise(knownCorpusSentence), run).ToList();
         Assert.NotEmpty(control);
         Assert.All(control, phrase =>
             Assert.True(
                 corpus.Contains(phrase, StringComparison.Ordinal),
-                $"The control phrase '{phrase}' was not found in the corpus, so this test is not "
-                + "measuring anything. Fix the normaliser, not the assertion."));
+                $"The control phrase '{phrase}' was not found in the corpus for {fileName}, so this "
+                + "test is not measuring anything. Fix the normaliser or the corpus list, not the "
+                + "assertion."));
 
         var faults = new List<string>();
 
-        foreach (var (id, description) in AllDescriptions())
+        foreach (var (id, description) in DescriptionsIn(fileName))
         {
             foreach (var phrase in Runs(Normalise(description), run))
             {
@@ -1131,14 +2222,14 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
-    /// Chapter 3's prose plus the Introduction's, reduced to a space-delimited word stream with a
-    /// leading and trailing space, so a run can be matched on whole-word boundaries.
+    /// The named chapters' prose, reduced to a space-delimited word stream with a leading and
+    /// trailing space, so a run can be matched on whole-word boundaries.
     /// </summary>
-    private static string CorpusWords()
+    private static string CorpusWords(IEnumerable<string> corpusFiles)
     {
         var builder = new StringBuilder(" ");
 
-        foreach (var file in new[] { "ch03-action.json", "ch00-introduction.json" })
+        foreach (var file in corpusFiles)
         {
             using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(RulebookPath, file)));
 
@@ -1205,11 +2296,26 @@ public sealed class PlayRulesDataTests
     [InlineData("play_meta.json", "automatic_successes")]
     [InlineData("challenge.json", "group_action")]
     [InlineData("challenge.json", "defining_moment_one_shot")]
+    // Chapter 5. The first four are the ones a simulator would have to decide silently; the last
+    // two are places the page names three of four kinds of character, or a unit it never defines.
+    [InlineData("resolve.json", "spend_assisting_allies")]
+    [InlineData("resolve.json", "adversity_spend_misfortune")]
+    [InlineData("resolve.json", "earn_sacrifice")]
+    [InlineData("resolve.json", "boost_and_shapeshifting_count_at_maximum")]
+    [InlineData("resolve.json", "earn_interlude")]
+    [InlineData("resolve.json", "adversity_spend_suppress_flaw")]
+    [InlineData("resolve.json", "adversity_spend_villainy")]
+    [InlineData("resolve.json", "reroll_floor")]
+    [InlineData("resolve.json", "starting_resolve")]
+    [InlineData("resolve.json", "resolve_exceptions")]
     public void TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect(string file, string id)
     {
-        var ambiguity = file == "play_meta.json"
-            ? MetaEntryById(id).Ambiguity
-            : ChallengeEntryById(id).Ambiguity;
+        var ambiguity = file switch
+        {
+            "play_meta.json" => MetaEntryById(id).Ambiguity,
+            "challenge.json" => ChallengeEntryById(id).Ambiguity,
+            _ => ResolveEntryById(id).Ambiguity
+        };
 
         Assert.False(
             string.IsNullOrWhiteSpace(ambiguity),
@@ -1217,17 +2323,20 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
-    /// The header says what was left out and why. The Sample Thresholds table is the deliberate
-    /// omission — worked examples of thresholds already stated numerically, and the one part of
-    /// this chapter the extractor is known to scramble.
+    /// The header says what was left out and why. For Chapter 3 that is the Sample Thresholds
+    /// table — worked examples of thresholds already stated numerically, and the one part of that
+    /// chapter the extractor is known to scramble. For Chapter 5 it is the chapter-opening essay
+    /// and the advice to track both pools with poker chips, neither of which carries a mechanic.
     /// </summary>
-    [Fact]
-    public void TheHeaderSaysWhatWasDeliberatelyLeftOut()
+    [Theory]
+    [InlineData("challenge.json", "Sample Thresholds")]
+    [InlineData("resolve.json", "poker chips")]
+    public void TheHeaderSaysWhatWasDeliberatelyLeftOut(string fileName, string mustName)
     {
-        var omitted = Challenge().Header.DeliberatelyOmitted;
+        var omitted = HeaderOf(fileName).DeliberatelyOmitted;
 
         Assert.False(string.IsNullOrWhiteSpace(omitted));
-        Assert.Contains("Sample Thresholds", omitted, StringComparison.Ordinal);
+        Assert.Contains(mustName, omitted, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1244,13 +2353,17 @@ public sealed class PlayRulesDataTests
     [Theory]
     [InlineData("play_meta.json")]
     [InlineData("challenge.json")]
+    [InlineData("resolve.json")]
     public void EveryFieldInAPlayRulesFileDeserializesIntoATestModel(string fileName)
     {
         var json = File.ReadAllText(Path.Combine(PlayDataPath, fileName));
 
-        var ex = Record.Exception(() => fileName == "play_meta.json"
-            ? JsonSerializer.Deserialize<PlayFile<MetaEntry>>(json, Strict())
-            : (object?)JsonSerializer.Deserialize<PlayFile<ChallengeEntry>>(json, Strict()));
+        var ex = Record.Exception(() => fileName switch
+        {
+            "play_meta.json" => JsonSerializer.Deserialize<PlayFile<MetaEntry>>(json, Strict()),
+            "challenge.json" => (object?)JsonSerializer.Deserialize<PlayFile<ChallengeEntry>>(json, Strict()),
+            _ => JsonSerializer.Deserialize<PlayFile<ResolveEntry>>(json, Strict())
+        });
 
         Assert.True(ex is null,
             $"{fileName} carries a field no model reads, so nothing can hold it to the "
@@ -1260,17 +2373,33 @@ public sealed class PlayRulesDataTests
     // ── Every fact field, compared ───────────────────────────────────────────
 
     /// <summary>
-    /// The seven keys every entry carries whatever it is about. Each has its own guard above —
-    /// <see cref="EverySourceRefNamesAPageInChapterThreeOrTheGlossary"/>,
-    /// <see cref="EveryEntryDeclaresVerifiedFieldsDrawnFromTheClosedList"/>,
-    /// <see cref="NoDescriptionRepeatsARunOfTheBooksOwnWords"/>,
-    /// <see cref="EveryEntryDeclaresAKindFromTheClosedList"/> — so the walk starts below them.
+    /// The keys an entry carries whatever it is about. <b>Each is exempt from the walk only because
+    /// it has a named guard of its own</b>, and that is the whole of the licence — nothing goes on
+    /// this list to make a fault go away:
+    /// <list type="bullet">
+    ///   <item><c>source_ref</c>, <c>corroborated_by</c> —
+    ///   <see cref="EverySourceRefNamesAPageInItsOwnChapterOrTheGlossary"/></item>
+    ///   <item><c>verified_fields</c> —
+    ///   <see cref="EveryEntryDeclaresVerifiedFieldsDrawnFromTheClosedList"/></item>
+    ///   <item><c>description</c> — <see cref="NoDescriptionRepeatsARunOfTheBooksOwnWords"/></item>
+    ///   <item><c>kind</c> — <see cref="EveryEntryDeclaresAKindFromTheClosedList"/></item>
+    ///   <item><c>ambiguity</c> —
+    ///   <see cref="TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect"/></item>
+    ///   <item><c>printed_under</c> —
+    ///   <see cref="EveryEntryNamesAHeadingPrintedOnThePageItCites"/>, which is a comparison
+    ///   against the corpus rather than against a canonical constant, and is why registering
+    ///   twenty-eight near-identical checks here would have been the weaker option</item>
+    ///   <item><c>who</c> —
+    ///   <see cref="EveryResolveSpendIsTheHerosAndEveryAdversitySpendIsTheGms"/>, which compares
+    ///   both values against <see cref="CanonicalResolveRules"/> and requires every spend to carry
+    ///   one</item>
+    /// </list>
     /// </summary>
     private static readonly HashSet<string> EnvelopeFields =
         new HashSet<string>(StringComparer.Ordinal)
         {
             "id", "name", "kind", "description", "verified_fields", "source_ref", "corroborated_by",
-            "ambiguity"
+            "ambiguity", "printed_under", "who"
         };
 
     /// <summary>
@@ -1291,7 +2420,12 @@ public sealed class PlayRulesDataTests
     /// the whole reason they are labelled.
     /// </summary>
     private static readonly HashSet<string> DerivedPaths =
-        new HashSet<string>(StringComparer.Ordinal) { "thresholds.interpretation.gm_discretion_difficulties" };
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "thresholds.interpretation.gm_discretion_difficulties",
+            "resolve_earning_overview.interpretation.mechanisable_entry_ids",
+            "spend_assisting_allies.interpretation.inferred_cost_per_point_shared"
+        };
 
     /// <summary>
     /// <b>Every fact field of every entry, and the rulebook value it must equal.</b> A path is
@@ -1444,7 +2578,246 @@ public sealed class PlayRulesDataTests
                 Is(CanonicalChallengeRules.OneShotOptionInOrdinaryGamesIsMandatory),
             ["judging_thresholds.judging_guideline"] = JudgingIs(CanonicalChallengeRules.JudgingThresholds),
             ["judging_thresholds.calibrated_for"] = Is(CanonicalChallengeRules.JudgingThresholdsCalibratedFor),
-            ["judging_thresholds.wing_it_is_endorsed"] = Is(CanonicalChallengeRules.JudgingThresholdsWingItIsEndorsed)
+            ["judging_thresholds.wing_it_is_endorsed"] = Is(CanonicalChallengeRules.JudgingThresholdsWingItIsEndorsed),
+
+            // resolve.json — Chapter 5, held to CanonicalResolveRules
+            ["starting_resolve.starting_resolve.granted_at"] = Is(CanonicalResolveRules.StartingResolveGrantedAt),
+            ["starting_resolve.starting_resolve.issue_is_a_game_session"] =
+                Is(CanonicalResolveRules.IssueIsAGameSession),
+            ["starting_resolve.starting_resolve.depends_on"] = Is(CanonicalResolveRules.StartingResolveDependsOn),
+            ["starting_resolve.starting_resolve.measured_from"] = Is(CanonicalResolveRules.StartingResolveMeasuredFrom),
+            ["starting_resolve.starting_resolve.at_trait_cap"] = Is(CanonicalResolveRules.StartingResolveAtTraitCap),
+            ["starting_resolve.starting_resolve.resolve_per_rank_below_cap"] =
+                Is(CanonicalResolveRules.StartingResolvePerRankBelowCap),
+            ["starting_resolve.starting_resolve.formula"] = Is(CanonicalResolveRules.StartingResolveFormula),
+            ["starting_resolve.starting_resolve.table_rows"] = ResolveTableIs(CanonicalResolveRules.StartingResolveTable),
+            ["starting_resolve.starting_resolve.table_continues_beyond_the_printed_rows"] =
+                Is(CanonicalResolveRules.StartingResolveTableContinues),
+
+            ["resolve_exceptions.exceptions.talents_count"] = Is(CanonicalResolveRules.TalentsCountTowardsResolve),
+            ["resolve_exceptions.exceptions.criterion"] = Is(CanonicalResolveRules.ResolveExemptCriterion),
+            ["resolve_exceptions.exceptions.named_powers"] = Is(CanonicalResolveRules.NamedResolveExemptPowers),
+            ["resolve_exceptions.exceptions.expertise_qualifier"] = Is(CanonicalResolveRules.ExpertiseQualifier),
+            ["resolve_exceptions.exceptions.named_list_is_qualified_as_usual"] =
+                Is(CanonicalResolveRules.NamedResolveExemptionsAreQualifiedAsUsual),
+            ["resolve_exceptions.exceptions.gm_has_final_say"] =
+                Is(CanonicalResolveRules.GmHasFinalSayOnResolveExemptions),
+
+            ["boost_and_shapeshifting_count_at_maximum.maximum_possible_rank.applies_when"] =
+                Is(CanonicalResolveRules.MaximumRankAppliesWhen),
+            ["boost_and_shapeshifting_count_at_maximum.maximum_possible_rank.powers_named"] =
+                Is(CanonicalResolveRules.RankRaisingPowersNamed),
+            ["boost_and_shapeshifting_count_at_maximum.maximum_possible_rank.rank_used"] =
+                Is(CanonicalResolveRules.RankUsedWhenAPowerCanRaiseIt),
+
+            ["carryover.carryover.carries_over_between_issues"] =
+                Is(CanonicalResolveRules.ResolveCarriesOverBetweenIssues),
+            ["carryover.carryover.unspent_is_lost_at_issue_end"] =
+                Is(CanonicalResolveRules.UnspentResolveIsLostAtIssueEnd),
+            ["carryover.carryover.gm_may_allow_carryover"] = Is(CanonicalResolveRules.GmMayAllowResolveCarryover),
+            ["carryover.carryover.gm_carryover_should_be_rare"] = Is(CanonicalResolveRules.ResolveCarryoverShouldBeRare),
+
+            ["resolve_earning_overview.earning_overview.gm_may_award_whenever_they_see_fit"] =
+                Is(CanonicalResolveRules.GmMayAwardResolveWheneverTheySeeFit),
+            ["resolve_earning_overview.earning_overview.listed_ways_are_examples_not_a_closed_list"] =
+                Is(CanonicalResolveRules.ListedWaysToEarnAreExamples),
+
+            ["earn_defeat.earning.award_resolve"] = Is(CanonicalResolveRules.DefeatAward),
+            ["earn_defeat.earning.trigger"] = Is(CanonicalResolveRules.DefeatTrigger),
+            ["earn_defeat.earning.may_be_outside_combat"] = Is(CanonicalResolveRules.DefeatMayBeOutsideCombat),
+            ["earn_defeat.earning.limit_per_battle"] = Is(CanonicalResolveRules.DefeatLimitPerBattle),
+
+            ["earn_flaw.earning.award_resolve"] = Is(CanonicalResolveRules.FlawAward),
+            ["earn_flaw.earning.trigger"] = Is(CanonicalResolveRules.FlawTrigger),
+            ["earn_flaw.earning.must_fit_the_situation"] = Is(CanonicalResolveRules.FlawMustFitTheSituation),
+            ["earn_flaw.earning.some_flaws_award_per_issue_instead"] =
+                Is(CanonicalResolveRules.SomeFlawsAwardPerIssueInstead),
+
+            ["earn_interlude.earning.award_stated"] = Is(CanonicalResolveRules.InterludeAwardIsStated),
+            ["earn_interlude.earning.trigger"] = Is(CanonicalResolveRules.InterludeTrigger),
+            ["earn_interlude.earning.interlude_is"] = Is(CanonicalResolveRules.InterludeIs),
+            ["earn_interlude.earning.detail_chapter"] = Is(CanonicalResolveRules.InterludeDetailChapter),
+
+            ["earn_motivation.earning.award_resolve"] = Is(CanonicalResolveRules.MotivationAward),
+            ["earn_motivation.earning.trigger"] = Is(CanonicalResolveRules.MotivationTrigger),
+            ["earn_motivation.earning.not_an_invitation_to_derail_the_game"] =
+                Is(CanonicalResolveRules.MotivationIsNotAnInvitationToDerailTheGame),
+
+            ["earn_roleplaying.earning.award_resolve"] = Is(CanonicalResolveRules.RoleplayingAward),
+            ["earn_roleplaying.earning.trigger"] = Is(CanonicalResolveRules.RoleplayingTrigger),
+            ["earn_roleplaying.earning.gm_judged"] = Is(CanonicalResolveRules.RoleplayingIsGmJudged),
+            ["earn_roleplaying.earning.examples_given"] = Is(CanonicalResolveRules.RoleplayingExamples),
+
+            ["earn_sacrifice.earning.award_resolve"] = Is(CanonicalResolveRules.SacrificeAward),
+            ["earn_sacrifice.earning.available_when"] = Is(CanonicalResolveRules.SacrificeAvailableWhen),
+            ["earn_sacrifice.earning.must_be_spent_on_the_same_page"] =
+                Is(CanonicalResolveRules.SacrificeMustBeSpentOnTheSamePage),
+            ["earn_sacrifice.earning.then_unconscious"] = Is(CanonicalResolveRules.SacrificeThenUnconscious),
+            ["earn_sacrifice.earning.unconscious_until"] = Is(CanonicalResolveRules.SacrificeUnconsciousUntil),
+
+            ["resolve_spending_overview.spending_overview.gm_may_expand_the_uses"] =
+                Is(CanonicalResolveRules.GmMayExpandResolveUses),
+            ["resolve_spending_overview.spending_overview.listed_uses_are_the_basic_ones"] =
+                Is(CanonicalResolveRules.ListedResolveUsesAreTheBasicOnes),
+
+            // Which pool each spend draws on. Registered per entry rather than derived, because a
+            // rule that read the currency off the id would agree with a wrong id by construction —
+            // which is the hole EveryResolveSpendIsTheHerosAndEveryAdversitySpendIsTheGms had.
+            ["spend_assisting_allies.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_challenge_roll_dice.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_reroll_challenge_roll.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_reroll_other_roll.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_combat.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_lucky_break.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_power_stunt.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["spend_using_powers.spend.currency"] = Is(CanonicalResolveRules.ResolveCurrency),
+            ["adversity_spend_anything_resolve_can.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
+            ["adversity_spend_suppress_flaw.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
+            ["adversity_spend_misfortune.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
+            ["adversity_spend_villainy.spend.currency"] = Is(CanonicalResolveRules.AdversityCurrency),
+
+            ["spend_assisting_allies.spend.cost_per_point_shared_when_unable_to_assist"] =
+                Is(CanonicalResolveRules.SharePointCostWhenUnableToAssist),
+            ["spend_assisting_allies.spend.points_shared_limit"] = Is(CanonicalResolveRules.SharePointsLimit),
+            ["spend_assisting_allies.spend.must_narrate_the_assistance"] =
+                Is(CanonicalResolveRules.ShareMustNarrateTheAssistance),
+            ["spend_assisting_allies.spend.narration_has_no_mechanical_effect"] =
+                Is(CanonicalResolveRules.ShareNarrationHasNoMechanicalEffect),
+            ["spend_assisting_allies.spend.unable_to_assist_examples"] =
+                Is(CanonicalResolveRules.UnableToAssistExamples),
+            ["spend_assisting_allies.spend.flashback_required_when_unable"] =
+                Is(CanonicalResolveRules.ShareFlashbackRequiredWhenUnable),
+
+            ["spend_challenge_roll_dice.spend.cost_resolve"] = Is(CanonicalResolveRules.ChallengeRollDiceCost),
+            ["spend_challenge_roll_dice.spend.dice_gained"] = Is(CanonicalResolveRules.ChallengeRollDiceGained),
+            ["spend_challenge_roll_dice.spend.unlimited"] = Is(CanonicalResolveRules.ChallengeRollDiceSpendIsUnlimited),
+            ["spend_challenge_roll_dice.spend.decided_after_the_roll"] =
+                Is(CanonicalResolveRules.ChallengeRollDiceDecidedAfterTheRoll),
+
+            ["spend_reroll_challenge_roll.spend.cost_resolve"] = Is(CanonicalResolveRules.RerollChallengeRollCost),
+            ["spend_reroll_challenge_roll.spend.rerolls"] = Is(CanonicalResolveRules.RerollChallengeRollCovers),
+            ["spend_reroll_challenge_roll.spend.includes_dice_bought_with_resolve"] =
+                Is(CanonicalResolveRules.RerollIncludesDiceBoughtWithResolve),
+
+            ["spend_reroll_other_roll.spend.cost_resolve"] = Is(CanonicalResolveRules.RerollAnyOtherRollCost),
+            ["spend_reroll_other_roll.spend.applies_to"] = Is(CanonicalResolveRules.RerollAnyOtherRollAppliesTo),
+            ["spend_reroll_other_roll.spend.example_given"] = Is(CanonicalResolveRules.RerollAnyOtherRollExample),
+
+            ["spend_combat.spend.transcribed_here"] = Is(CanonicalResolveRules.CombatSpendsAreTranscribedHere),
+            ["spend_combat.spend.detail_chapter"] = Is(CanonicalResolveRules.CombatSpendsDetailChapter),
+            ["spend_combat.spend.combat_spend_refs"] = Is(CanonicalResolveRules.CombatSpendRefs),
+
+            ["spend_lucky_break.spend.cost_resolve"] = Is(CanonicalResolveRules.LuckyBreakCost),
+            ["spend_lucky_break.spend.invents"] = Is(CanonicalResolveRules.LuckyBreakInvents),
+            ["spend_lucky_break.spend.subject_to_gm_approval"] =
+                Is(CanonicalResolveRules.LuckyBreakSubjectToGmApproval),
+            ["spend_lucky_break.spend.example_given"] = Is(CanonicalResolveRules.LuckyBreakExample),
+
+            ["spend_power_stunt.spend.cost_resolve"] = Is(CanonicalResolveRules.PowerStuntCost),
+            ["spend_power_stunt.spend.uses"] = Is(CanonicalResolveRules.PowerStuntUses),
+            ["spend_power_stunt.spend.imitated_power_rank_source"] = Is(CanonicalResolveRules.PowerStuntRankSource),
+            ["spend_power_stunt.spend.requires_remotely_reasonable"] =
+                Is(CanonicalResolveRules.PowerStuntRequiresRemotelyReasonable),
+            ["spend_power_stunt.spend.grants_a_new_power"] = Is(CanonicalResolveRules.PowerStuntGrantsANewPower),
+
+            ["spend_using_powers.spend.some_powers_require_resolve"] =
+                Is(CanonicalResolveRules.SomePowersRequireResolve),
+            ["spend_using_powers.spend.only_heroes_have_resolve"] = Is(CanonicalResolveRules.OnlyHeroesHaveResolve),
+            ["spend_using_powers.spend.player_must_spend_for_a_friendly_extra"] =
+                Is(CanonicalResolveRules.PlayerMustSpendForAFriendlyExtra),
+            ["spend_using_powers.spend.extra_cannot_use_the_power_if_nobody_spends"] =
+                Is(CanonicalResolveRules.ExtraCannotUseThePowerIfNobodySpends),
+            ["spend_using_powers.spend.applies_only_while_the_extra_is_with_the_heroes"] =
+                Is(CanonicalResolveRules.PowerResolveRuleAppliesOnlyWhileTheExtraIsWithTheHeroes),
+
+            ["reroll_floor.reroll_floor.spending_should_never_make_things_worse"] =
+                Is(CanonicalResolveRules.SpendingShouldNeverMakeThingsWorse),
+            ["reroll_floor.reroll_floor.keep_the_first_roll_if_the_reroll_is_worse"] =
+                Is(CanonicalResolveRules.KeepTheFirstRollIfTheRerollIsWorse),
+            ["reroll_floor.reroll_floor.applies_to"] = Is(CanonicalResolveRules.RerollFloorAppliesTo),
+
+            ["adversity_pool.adversity.points_per_hero_per_issue"] =
+                Is(CanonicalResolveRules.AdversityPerHeroPerIssue),
+            ["adversity_pool.adversity.held_by"] = Is(CanonicalResolveRules.AdversityHeldBy),
+            ["adversity_pool.adversity.carries_over_between_issues"] =
+                Is(CanonicalResolveRules.AdversityCarriesOverBetweenIssues),
+            ["adversity_pool.adversity.is_more_of_a_fixed_resource_than_resolve"] =
+                Is(CanonicalResolveRules.AdversityIsMoreOfAFixedResource),
+            ["adversity_pool.adversity.gm_may_add_ways_to_earn"] =
+                Is(CanonicalResolveRules.GmMayAddWaysToEarnAdversity),
+            ["adversity_pool.adversity.should_not_be_as_easy_to_earn_as_resolve"] =
+                Is(CanonicalResolveRules.AdversityShouldNotBeAsEasyToEarnAsResolve),
+
+            ["adversity_earn_challenge_level.challenge_level.award_factors"] =
+                Is(CanonicalResolveRules.ChallengeLevelAwardFactors),
+            ["adversity_earn_challenge_level.challenge_level.award_operation"] =
+                Is(CanonicalResolveRules.ChallengeLevelOperation),
+            ["adversity_earn_challenge_level.challenge_level.awarded_at"] =
+                Is(CanonicalResolveRules.ChallengeLevelAwardedAt),
+            ["adversity_earn_challenge_level.challenge_level.typical_level_min"] =
+                Is(CanonicalResolveRules.ChallengeLevelTypicalMin),
+            ["adversity_earn_challenge_level.challenge_level.typical_level_max"] =
+                Is(CanonicalResolveRules.ChallengeLevelTypicalMax),
+            ["adversity_earn_challenge_level.challenge_level.level_three_may_be_exceeded"] =
+                Is(CanonicalResolveRules.ChallengeLevelThreeMayBeExceeded),
+            ["adversity_earn_challenge_level.challenge_level.only_a_handful_of_scenes_per_story"] =
+                Is(CanonicalResolveRules.OnlyAHandfulOfScenesHaveAChallengeLevel),
+            ["adversity_earn_challenge_level.challenge_level.may_be_saved_for_later_in_the_issue"] =
+                Is(CanonicalResolveRules.ChallengeLevelAdversityMayBeSavedForLater),
+            ["adversity_earn_challenge_level.challenge_level.level_guidance"] =
+                GuidanceIs(CanonicalResolveRules.ChallengeLevelGuidanceRows),
+
+            ["adversity_earn_unheroic_action.unheroic_action.award_adversity"] =
+                Is(CanonicalResolveRules.UnheroicActionAward),
+            ["adversity_earn_unheroic_action.unheroic_action.awarded_immediately"] =
+                Is(CanonicalResolveRules.UnheroicActionAwardIsImmediate),
+            ["adversity_earn_unheroic_action.unheroic_action.triggers"] =
+                Is(CanonicalResolveRules.UnheroicActionTriggers),
+            ["adversity_earn_unheroic_action.unheroic_action.also_when_contrary_to_motivation"] =
+                Is(CanonicalResolveRules.UnheroicActionAlsoWhenContraryToMotivation),
+            ["adversity_earn_unheroic_action.unheroic_action.applies_even_if_coerced"] =
+                Is(CanonicalResolveRules.UnheroicActionAppliesEvenIfCoerced),
+            ["adversity_earn_unheroic_action.unheroic_action.coercion_forms"] =
+                Is(CanonicalResolveRules.UnheroicActionCoercionForms),
+
+            ["adversity_spend_anything_resolve_can.spend.can_do_anything_resolve_can"] =
+                Is(CanonicalResolveRules.AdversityCanDoAnythingResolveCan),
+            ["adversity_spend_anything_resolve_can.spend.may_be_spent_on_any_npc"] =
+                Is(CanonicalResolveRules.AdversityMayBeSpentOnAnyNpc),
+            ["adversity_spend_anything_resolve_can.spend.npc_kinds"] = Is(CanonicalResolveRules.NpcKinds),
+            ["adversity_spend_anything_resolve_can.spend.all_npcs_share_one_pool"] =
+                Is(CanonicalResolveRules.AllNpcsShareOneAdversityPool),
+            ["adversity_spend_anything_resolve_can.spend.exclusive_spends_count"] =
+                Is(CanonicalResolveRules.AdversityExclusiveSpendCount),
+
+            ["adversity_spend_suppress_flaw.spend.cost_adversity"] = Is(CanonicalResolveRules.SuppressFlawCost),
+            ["adversity_spend_suppress_flaw.spend.prevents"] = Is(CanonicalResolveRules.SuppressFlawPrevents),
+            ["adversity_spend_suppress_flaw.spend.duration"] = Is(CanonicalResolveRules.SuppressFlawDuration),
+            ["adversity_spend_suppress_flaw.spend.eligible_characters"] =
+                Is(CanonicalResolveRules.SuppressFlawEligible),
+            ["adversity_spend_suppress_flaw.spend.limit_per_character_per_issue"] =
+                Is(CanonicalResolveRules.SuppressFlawLimitPerCharacterPerIssue),
+            ["adversity_spend_suppress_flaw.spend.npc_flaws_bite_when_the_opportunity_arises"] =
+                Is(CanonicalResolveRules.NpcFlawsBiteWhenTheOpportunityArises),
+            ["adversity_spend_suppress_flaw.spend.npcs_cannot_choose_when_their_flaws_bite"] =
+                Is(CanonicalResolveRules.NpcsCannotChooseWhenTheirFlawsBite),
+
+            ["adversity_spend_misfortune.spend.cost_adversity"] = Is(CanonicalResolveRules.MisfortuneCost),
+            ["adversity_spend_misfortune.spend.what_it_is"] = Is(CanonicalResolveRules.MisfortuneIs),
+            ["adversity_spend_misfortune.spend.examples_given"] = Is(CanonicalResolveRules.MisfortuneExamples),
+            ["adversity_spend_misfortune.spend.must_be_a_challenge_not_a_punishment"] =
+                Is(CanonicalResolveRules.MisfortuneMustBeAChallengeNotAPunishment),
+            ["adversity_spend_misfortune.spend.must_not_be_a_plot_device"] =
+                Is(CanonicalResolveRules.MisfortuneMustNotBeAPlotDevice),
+
+            ["adversity_spend_villainy.spend.cost_adversity"] = Is(CanonicalResolveRules.VillainyCost),
+            ["adversity_spend_villainy.spend.limit_per_story"] = Is(CanonicalResolveRules.VillainyLimitPerStory),
+            ["adversity_spend_villainy.spend.automatic"] = Is(CanonicalResolveRules.VillainyIsAutomatic),
+            ["adversity_spend_villainy.spend.effect"] = Is(CanonicalResolveRules.VillainyEffect),
+            ["adversity_spend_villainy.spend.examples_given"] = Is(CanonicalResolveRules.VillainyExamples),
+            ["adversity_spend_villainy.spend.eligible_characters"] = Is(CanonicalResolveRules.VillainyEligible),
+            ["adversity_spend_villainy.spend.excluded_characters"] = Is(CanonicalResolveRules.VillainyExcluded),
+            ["adversity_spend_villainy.spend.use_sparingly"] = Is(CanonicalResolveRules.VillainyUseSparingly)
         };
 
     private static HashSet<string> RegisteredPaths =>
@@ -1479,10 +2852,10 @@ public sealed class PlayRulesDataTests
         // a records-to-classes refactor, a filter that matched everything — would report no faults
         // and prove nothing, which is the exact shape of the four guard failures CLAUDE.md lists.
         Assert.True(
-            leaves >= 90,
-            $"The walk found only {leaves} fact fields across both files, which is fewer than the "
-            + "entries carry — there are 98 today. It has stopped reading the models; fix the "
-            + "walk, not this number.");
+            leaves >= 225,
+            $"The walk found only {leaves} fact fields across the three files, which is fewer than "
+            + "the entries carry — there are 246 today, 98 of them Chapter 3's. It has stopped "
+            + "reading the models; fix the walk, not this number.");
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
@@ -1512,6 +2885,16 @@ public sealed class PlayRulesDataTests
         Assert.Contains(empty, f => f.Contains("probe.what_this_is", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Which canonical file an entry answers to, for the fault message. The probe record in
+    /// <see cref="TheCoverageWalkReportsAFieldNothingComparesToTheRulebook"/> belongs to neither,
+    /// so it is named as Chapter 3's — the classifier is what that test measures, not the wording.
+    /// </summary>
+    private static string CanonicalFileFor(string entryId) =>
+        Resolve().Entries.Any(e => string.Equals(e.Id, entryId, StringComparison.Ordinal))
+            ? nameof(CanonicalResolveRules)
+            : nameof(CanonicalChallengeRules);
+
     private static List<string> CoverageFaults(string entryId, object entry)
     {
         var faults = new List<string>();
@@ -1532,8 +2915,11 @@ public sealed class PlayRulesDataTests
 
             if (!CanonicalChecks.TryGetValue(path, out var check))
             {
+                // Named rather than hard-coded, because there are two canonical files now and a
+                // message sending the reader to the wrong chapter's is worse than no message.
+                // Found by mutation: a Chapter 5 field faulted with Chapter 3's file in the text.
                 faults.Add(
-                    $"{path} is a fact field and nothing compares it to CanonicalChallengeRules. "
+                    $"{path} is a fact field and nothing compares it to {CanonicalFileFor(entryId)}. "
                     + "Transcribe it there with the sentence it came from, register it, or move it "
                     + "into description/ambiguity prose — an unchecked fact field reads as verified "
                     + "data and is not");
@@ -1675,6 +3061,44 @@ public sealed class PlayRulesDataTests
         return null;
     };
 
+    private static Func<object?, string?> ResolveTableIs(
+        IReadOnlyList<CanonicalResolveRules.StartingResolveRow> expected) => actual =>
+    {
+        if (actual is not IReadOnlyList<StartingResolveRowModel> rows) return $"is {Show(actual)}, not a Resolve table";
+        if (rows.Count != expected.Count) return $"has {rows.Count} rows, not {expected.Count}";
+
+        for (var i = 0; i < expected.Count; i++)
+        {
+            if (rows[i].RanksBelowTraitCap != expected[i].RanksBelowTraitCap
+                || rows[i].Resolve != expected[i].Resolve)
+            {
+                return $"row {i} is {rows[i]}; the rulebook says {expected[i]}";
+            }
+        }
+
+        return null;
+    };
+
+    private static Func<object?, string?> GuidanceIs(
+        IReadOnlyList<CanonicalResolveRules.ChallengeLevelGuidance> expected) => actual =>
+    {
+        if (actual is not IReadOnlyList<ChallengeLevelGuidanceModel> rows)
+            return $"is {Show(actual)}, not a Challenge Level guidance table";
+
+        if (rows.Count != expected.Count) return $"has {rows.Count} rows, not {expected.Count}";
+
+        for (var i = 0; i < expected.Count; i++)
+        {
+            if (rows[i].Level != expected[i].Level
+                || !string.Equals(rows[i].UsedFor, expected[i].UsedFor, StringComparison.Ordinal))
+            {
+                return $"row {i} is {rows[i]}; the rulebook says {expected[i]}";
+            }
+        }
+
+        return null;
+    };
+
     private static Func<object?, string?> JudgingIs(
         IReadOnlyList<CanonicalChallengeRules.Judging> expected) => actual =>
     {
@@ -1715,18 +3139,24 @@ public sealed class PlayRulesDataTests
         _ => value.ToString() ?? "null"
     };
 
-    /// <summary>Both files, as (entry id, entry) pairs, for the reflection walk.</summary>
+    /// <summary>All three files, as (entry id, entry) pairs, for the reflection walk.</summary>
     private static IEnumerable<(string Id, object Entry)> AllEntryObjects() =>
         Meta().Entries.Select(e => (e.Id, (object)e))
-            .Concat(Challenge().Entries.Select(e => (e.Id, (object)e)));
+            .Concat(Challenge().Entries.Select(e => (e.Id, (object)e)))
+            .Concat(Resolve().Entries.Select(e => (e.Id, (object)e)));
 
-    /// <summary>Both files, as (id, source_ref, corroborated_by) triples.</summary>
-    private static IEnumerable<(string Id, string SourceRef, IReadOnlyList<string>? CorroboratedBy)> AllEntries() =>
-        Meta().Entries.Select(e => ($"play_meta.json/{e.Id}", e.SourceRef, e.CorroboratedBy))
-            .Concat(Challenge().Entries.Select(e => ($"challenge.json/{e.Id}", e.SourceRef, e.CorroboratedBy)));
+    /// <summary>All three files, as (file, id, source_ref, corroborated_by) rows.</summary>
+    private static IEnumerable<(string File, string Id, string SourceRef, IReadOnlyList<string>? CorroboratedBy)>
+        AllEntries() =>
+        Meta().Entries.Select(e => ("play_meta.json", e.Id, e.SourceRef, e.CorroboratedBy))
+            .Concat(Challenge().Entries.Select(e => ("challenge.json", e.Id, e.SourceRef, e.CorroboratedBy)))
+            .Concat(Resolve().Entries.Select(e => ("resolve.json", e.Id, e.SourceRef, e.CorroboratedBy)));
 
-    /// <summary>Both files, as (id, description) pairs.</summary>
-    private static IEnumerable<(string Id, string Description)> AllDescriptions() =>
-        Meta().Entries.Select(e => ($"play_meta.json/{e.Id}", e.Description))
-            .Concat(Challenge().Entries.Select(e => ($"challenge.json/{e.Id}", e.Description)));
+    /// <summary>The descriptions of one file, as (id, description) pairs.</summary>
+    private static IEnumerable<(string Id, string Description)> DescriptionsIn(string fileName) => fileName switch
+    {
+        "play_meta.json" => Meta().Entries.Select(e => ($"play_meta.json/{e.Id}", e.Description)),
+        "challenge.json" => Challenge().Entries.Select(e => ($"challenge.json/{e.Id}", e.Description)),
+        _ => Resolve().Entries.Select(e => ($"resolve.json/{e.Id}", e.Description))
+    };
 }

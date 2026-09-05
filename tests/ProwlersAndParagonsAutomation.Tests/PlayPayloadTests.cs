@@ -127,7 +127,7 @@ public sealed class PlayPayloadTests
 
         // The other direction: the play files exist, and exist where this test thinks they do.
         var play = everything.Where(IsUnderPlay).Select(Path.GetFileName).Order().ToList();
-        Assert.Equal(["challenge.json", "play_meta.json"], play);
+        Assert.Equal(["challenge.json", "play_meta.json", "resolve.json"], play);
 
         // <b>And by name as well as by path, which the path check alone misses.</b> Found by
         // mutation: copying data/rules/play/challenge.json up one level leaves it outside the
@@ -177,7 +177,9 @@ public sealed class PlayPayloadTests
             $"web/'s rules glob expands to {staged.Count} files, which is fewer than the character "
             + "rules alone, so this substitute for the staged directory is measuring nothing.");
 
-        var play = staged.Where(f => IsUnderPlay(f) || Path.GetFileName(f) is "challenge.json" or "play_meta.json").ToList();
+        var play = staged
+            .Where(f => IsUnderPlay(f) || PlayFileNames.Contains(Path.GetFileName(f), StringComparer.Ordinal))
+            .ToList();
 
         Assert.True(
             play.Count == 0,
@@ -185,6 +187,13 @@ public sealed class PlayPayloadTests
             + "instead of against the staged copy — and the glob would stage these play files into "
             + "wwwroot, where they become public URLs: " + string.Join(", ", play));
     }
+
+    /// <summary>
+    /// Every file in <c>data/rules/play/</c>, by name. <b>Named as well as pathed</b>, because a
+    /// play file copied up one level is outside the directory and inside every host's glob — which
+    /// is the whole failure, and which a path check alone misses.
+    /// </summary>
+    private static readonly string[] PlayFileNames = ["challenge.json", "play_meta.json", "resolve.json"];
 
     private static bool IsUnderPlay(string path) =>
         Path.GetFullPath(path).StartsWith(
@@ -241,7 +250,7 @@ public sealed class PlayPayloadTests
             + "rules alone. A stale or partial copy makes the assertion below meaningless.");
 
         var play = copied
-            .Where(f => Path.GetFileName(f) is "challenge.json" or "play_meta.json"
+            .Where(f => PlayFileNames.Contains(Path.GetFileName(f), StringComparer.Ordinal)
                         || f.Contains($"{Path.DirectorySeparatorChar}play{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .ToList();
 
@@ -260,8 +269,11 @@ public sealed class PlayPayloadTests
     [Fact]
     public void NoPlayRulesFileIsListedForASelfLoadingHost()
     {
-        Assert.DoesNotContain("challenge.json", RulesRepository.DataFileNames);
-        Assert.DoesNotContain("play_meta.json", RulesRepository.DataFileNames);
+        // Positive control: the list has to hold the character rules, or "no play file is on it"
+        // would be satisfied by an empty list.
+        Assert.True(RulesRepository.DataFileNames.Count >= 11, $"DataFileNames holds {RulesRepository.DataFileNames.Count} files.");
+
+        foreach (var name in PlayFileNames) Assert.DoesNotContain(name, RulesRepository.DataFileNames);
     }
 
     /// <summary>The five source trees that make up the application, none of which may read a play file.</summary>
@@ -271,7 +283,7 @@ public sealed class PlayPayloadTests
 
     /// <summary>Every spelling of a play rules path a source file could reach one by.</summary>
     private static readonly string[] PlayFileTokens =
-        ["play_meta.json", "challenge.json", "rules/play", @"rules\play"];
+        ["play_meta.json", "challenge.json", "resolve.json", "rules/play", @"rules\play"];
 
     /// <summary>
     /// <b><c>docs/guide/play-rules.md</c> says "Nothing reads either of them", and until now nothing
@@ -310,9 +322,11 @@ public sealed class PlayPayloadTests
             }
         }
 
-        // Positive control, and it is the instrument rather than a formality: this project names all
-        // four tokens, so a scan that found nothing here has stopped reading files and would report
-        // the application clean whatever it contained.
+        // Positive control, and it is the instrument rather than a formality: this project names
+        // every token in the list, so a scan that found nothing here has stopped reading files and
+        // would report the application clean whatever it contained. The count in the message is
+        // read off the array — the comment said "all four" while there were five, which is the
+        // kind of number that goes stale silently and reads as authority while it does.
         var self = SourceFilesUnder(Path.Combine(RepoRoot, "tests", "ProwlersAndParagonsAutomation.Tests"))
             .Select(File.ReadAllText)
             .ToList();
@@ -321,8 +335,9 @@ public sealed class PlayPayloadTests
         {
             Assert.True(
                 self.Exists(text => text.Contains(token, StringComparison.OrdinalIgnoreCase)),
-                $"The scan found no file naming '{token}' in the test project, which names all of "
-                + "them. It has stopped reading source; fix the scan, not this assertion.");
+                $"The scan found no file naming '{token}' in the test project, which names all "
+                + $"{PlayFileTokens.Length} of them. It has stopped reading source; fix the scan, "
+                + "not this assertion.");
         }
 
         Assert.True(scanned >= 50, $"Only {scanned} source files were read across {string.Join(", ", ApplicationTrees)}.");
