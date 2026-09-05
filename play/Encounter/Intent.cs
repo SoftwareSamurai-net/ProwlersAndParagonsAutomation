@@ -15,6 +15,36 @@ public enum DamageKind
     Psychic
 }
 
+/// <summary>
+/// Which row of p.75's Attack and Defense table an attack comes from.
+///
+/// <para><b>The table is what decides which Traits may answer an attack</b>, and the five rows are
+/// not interchangeable: only the unarmed row lets a target soak with the whole of their Toughness,
+/// and the mental row takes it away altogether and offers Willpower or a Power instead. An engine
+/// that offered every defence to every attack was letting a target answer a Mind Control with their
+/// Toughness.</para>
+///
+/// <para>It is separate from <see cref="DamageKind"/> because the two answer different questions —
+/// this one says what may be rolled, and that one says how much of a Toughness counts.</para>
+/// </summary>
+public enum AttackType
+{
+    /// <summary>Fists. The one row that lets the target answer with the whole of their Toughness.</summary>
+    Unarmed,
+
+    /// <summary>A weapon swung in close combat: Might attacking, half a Toughness answering.</summary>
+    MeleeWeapon,
+
+    /// <summary>Something aimed: Agility attacking, half a Toughness answering.</summary>
+    RangedWeapon,
+
+    /// <summary>A Power that does something physical — the Power's own rank rolls itself.</summary>
+    PhysicalPower,
+
+    /// <summary>A Power aimed at the mind. Willpower or a Power answers it; Toughness does not.</summary>
+    MentalPower
+}
+
 /// <summary>Which of the three grappling moves p.76 gives rules to.</summary>
 public enum GrappleMove
 {
@@ -99,7 +129,10 @@ public abstract record Intent(string Actor);
 /// <param name="Actor">Who is attacking.</param>
 /// <param name="Target">Who they are attacking.</param>
 /// <param name="TraitId">The Trait or Power rolled — accuracy and damage are one figure (p.75).</param>
-/// <param name="Damage">Lethal, subdual, or psychic.</param>
+/// <param name="Damage">Lethal, subdual, or psychic — how much of a Toughness answers it (p.75).</param>
+/// <param name="Type">
+/// Which row of p.75's Attack and Defense table this is, which decides what may answer it.
+/// </param>
 /// <param name="Effect">
 /// The name of the special effect this attack inflicts instead of damage — Ensnare, Mind Control,
 /// Stun and the like (p.76) — or null for an ordinary damaging attack.
@@ -112,6 +145,7 @@ public sealed record Attack(
     string Target,
     string TraitId,
     DamageKind Damage = DamageKind.Lethal,
+    AttackType Type = AttackType.Unarmed,
     string? Effect = null,
     bool AllOut = false,
     bool Charge = false,

@@ -143,6 +143,169 @@ public sealed class PlayEngineStepTests
         Assert.Single(sidesStanding);
     }
 
+    // ── The Attack and Defense table ─────────────────────────────────────────
+
+    /// <summary>
+    /// <b>The row of p.75's table decides what may answer an attack.</b>
+    ///
+    /// <para>One target with the same four defences meets all five rows, and each row's answer is
+    /// read off the table rather than restated here: the fixture asks the entry for the row's
+    /// printed defence traits and requires the engine to have picked from exactly those. So a
+    /// corrected table moves this with it, and a test written from a second reading of the page
+    /// cannot agree with a code path written from the same second reading.</para>
+    ///
+    /// <para>The case that matters most is the mental row: it does not list Toughness at all, so a
+    /// target with 12d Toughness and 6d Willpower answers a Mind Control with the 6d — and the
+    /// engine used to hand them the 12d, because it offered every defence to every attack.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(AttackType.Unarmed, "Unarmed")]
+    [InlineData(AttackType.MeleeWeapon, "Melee Weapon")]
+    [InlineData(AttackType.RangedWeapon, "Ranged Weapon")]
+    [InlineData(AttackType.PhysicalPower, "Physical Power")]
+    [InlineData(AttackType.MentalPower, "Mental Power")]
+    public void TheRowOfThePrintedTableDecidesWhatAnswersAnAttack(AttackType type, string printedRow)
+    {
+        var row = _play.GetCombat("attack_and_defense_table").AttackDefenseTable!
+            .Single(r => string.Equals(r.Type, printedRow, StringComparison.Ordinal));
+
+        // What the row offers, as trait ids: "1/2 Toughness" is a toughness and "Power" is whatever
+        // the table never names, which for this target is force_field.
+        var offered = row.DefenseTraits
+            .Select(t => string.Equals(t, "Power", StringComparison.Ordinal)
+                ? "force_field"
+                : t.Replace("1/2 ", "", StringComparison.Ordinal).ToLowerInvariant())
+            .ToHashSet(StringComparer.Ordinal);
+
+        var target = Combatant.Hero("target", "the target", edge: 5, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["toughness"] = 12, ["willpower"] = 6, ["agility"] = 4, ["force_field"] = 2, ["might"] = 4
+            },
+            ["toughness", "willpower", "agility", "force_field"]);
+
+        var attacker = Combatant.Villain("attacker", "the attacker", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(8));
+        var state = encounter.Begin([attacker, target]);
+
+        var added = encounter
+            .Step(state, new Attack("attacker", "target", "might", DamageKind.Subdual, type))
+            .Added;
+
+        // The control: the engine says which row it read, and it is the row asked for.
+        Assert.Contains(added, l =>
+            string.Equals(l.Rule, "attack_and_defense_table", StringComparison.Ordinal)
+            && l.Text.Contains($"a {printedRow} attack is answered with", StringComparison.Ordinal));
+
+        var defence = added.Single(l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal)).Text;
+
+        var used = defence.Split("defends with ", StringSplitOptions.None)[1].Split(' ')[0];
+
+        Assert.True(offered.Contains(used),
+            $"a {printedRow} attack was answered with {used}, and the table offers "
+            + $"{string.Join(", ", row.DefenseTraits)}");
+
+        // Toughness is on four of the five rows and off the fifth, so the mental row is the one that
+        // proves the list is being narrowed rather than merely being wide enough.
+        if (type == AttackType.MentalPower) Assert.Equal("willpower", used);
+    }
+
+    /// <summary>
+    /// <b>The table halves a Toughness where its row prints <c>1/2 Toughness</c>, and once.</b>
+    ///
+    /// <para>Two printed rules on p.75 could halve the same figure — the table's row and
+    /// <c>lethal_and_subdual</c>'s lethal clause — and they agree wherever the book's own defaults
+    /// hold. Where a caller puts them at odds this halves if either says so and never twice, which
+    /// is the reading the guide's table records: a subdual blow from a melee weapon (p.75 names
+    /// light clubbing weapons as a subdual source) meets half a Toughness because the row says so,
+    /// not a quarter.</para>
+    /// </summary>
+    [Fact]
+    public void AToughnessIsHalvedOnceHoweverManyRulesSaySo()
+    {
+        var target = Combatant.Hero("target", "the target", edge: 5, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 12, ["might"] = 4 },
+            ["toughness"]);
+
+        var attacker = Combatant.Villain("attacker", "the attacker", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]);
+
+        // The control: the unarmed row does not halve, and a subdual blow does not either, so 12d
+        // stands — which is what makes the halvings below visible.
+        Assert.Contains("defends with toughness 12d",
+            Defence(AttackType.Unarmed, DamageKind.Subdual), StringComparison.Ordinal);
+
+        // The row halves it: a light clubbing weapon is p.75's own subdual example.
+        Assert.Contains("defends with toughness 6d",
+            Defence(AttackType.MeleeWeapon, DamageKind.Subdual), StringComparison.Ordinal);
+
+        // The damage type halves it, on the row that does not.
+        Assert.Contains("defends with toughness 6d",
+            Defence(AttackType.Unarmed, DamageKind.Lethal), StringComparison.Ordinal);
+
+        // Both say so, and it is still one halving.
+        Assert.Contains("defends with toughness 6d",
+            Defence(AttackType.MeleeWeapon, DamageKind.Lethal), StringComparison.Ordinal);
+
+        string Defence(AttackType type, DamageKind damage)
+        {
+            var encounter = new Encounter(_play, new SeededDice(8));
+            var state = encounter.Begin([attacker, target]);
+
+            return encounter
+                .Step(state, new Attack("attacker", "target", "might", damage, type))
+                .Added
+                .Single(l => string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+                             && l.Text.Contains("defends with", StringComparison.Ordinal))
+                .Text;
+        }
+    }
+
+    /// <summary>
+    /// <b><c>defenses_used_per_attack</c> and <c>defense_chosen</c> are read, not assumed.</b>
+    ///
+    /// <para>Both were modelled and neither was ever consulted, which makes them decoration: the
+    /// engine rolled one greatest defence because somebody wrote it that way, and would have gone on
+    /// doing so against an entry that had been corrected to say something else. It throws now, and
+    /// the throw names the entry — checked with a twin, because reading the code cannot tell you
+    /// whether a field is consulted.</para>
+    /// </summary>
+    [Fact]
+    public void TheDefenceCountAndTheChoiceRuleAreReadFromTheEntry()
+    {
+        var attacker = Combatant.Villain("attacker", "the attacker", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]);
+        var target = Combatant.Hero("target", "the target", edge: 5, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 8, ["might"] = 4 },
+            ["toughness"]);
+
+        // The control: the shipped entry says what the engine assumes, so an attack resolves.
+        var defenses = _play.GetCombat("active_and_passive_defenses").Defenses!;
+        Assert.Equal(1, defenses.DefensesUsedPerAttack);
+        Assert.Contains("greatest rank", defenses.DefenseChosen, StringComparison.Ordinal);
+
+        foreach (var (find, replace) in new[]
+                 {
+                     ("\"defenses_used_per_attack\": 1", "\"defenses_used_per_attack\": 2"),
+                     ("\"defense_chosen\": \"normally the one with the greatest rank\"",
+                      "\"defense_chosen\": \"whichever the defender likes\"")
+                 })
+        {
+            var reworded = SubstitutedPlayRules.With(PlayRulesRepository.CombatFile, find, replace);
+            var encounter = new Encounter(reworded, new SeededDice(8));
+            var state = encounter.Begin([attacker, target]);
+
+            var thrown = Assert.Throws<InvalidOperationException>(() =>
+                encounter.Step(state, new Attack("attacker", "target", "might")));
+
+            Assert.Contains("active_and_passive_defenses", thrown.Message, StringComparison.Ordinal);
+        }
+    }
+
     // ── Defeat ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -177,7 +340,8 @@ public sealed class PlayEngineStepTests
 
         var state = encounter.Begin([controller, subject]);
         var step = encounter.Step(state, new Attack(
-            "controller", "subject", "mind_control", DamageKind.Psychic, Effect: "Mind Control"));
+            "controller", "subject", "mind_control", DamageKind.Psychic, AttackType.MentalPower,
+            Effect: "Mind Control"));
 
         state = step.State;
 

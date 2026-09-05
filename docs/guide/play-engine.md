@@ -92,7 +92,7 @@ Three properties of it are load-bearing:
 
 ## What is real, and what says `NotYetImplemented`
 
-**Real intents**: `Attack` (with lethal/subdual/psychic, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `EndTurn`, `EndPage`, and four spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`.
+**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `EndTurn`, `EndPage`, and four spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`.
 
 **Intents that leave a `not yet implemented` ledger line and change nothing**:
 
@@ -118,6 +118,8 @@ Three properties of it are load-bearing:
 | Reading | Why the data cannot answer it |
 |---|---|
 | **An odd pool banks the even half.** 11d taking automatic successes banks 5. | `automatic_successes`'s own `ambiguity`: the rule is priced in pairs and the printed example is 12d, which settles nothing. Integer division is the reading that never gives a character more than the page promises. |
+| **A Toughness is halved once, however many printed rules say to halve it.** The table's `1/2 Toughness` rows (p.75) and `lethal_and_subdual`'s lethal clause (p.75) can both fire on one figure. | The two agree wherever the book's own defaults hold — the unarmed row is one of `lethal_and_subdual`'s two named subdual sources, and everything else physical defaults to lethal — so the page never has to say. Where a caller puts them at odds, halving twice would take a Toughness of 12 to 3, which no row prints. p.81's Example of Combat is what settles the shape: the mecha's Might attack is answered by 12d Armor at its full rank, the table's "Power" column doing the work with no halving in sight. |
+| **"Power", in the defence column, is any defence Trait the table never names by name.** | p.75's table prints a bare `Power` beside Agility, Toughness and Willpower and says no more. Deriving the set from the table's own other columns is the reading that cannot drift from it. |
 | **The Minion cap applies to both rates.** An attack cannot defeat more Minions than are present. | `attacking_minions`'s `ambiguity`: the parenthesis is printed on the area-attack clause alone, but its second half — "or within reach" — is the phrase for an ordinary attack. |
 | **Wound Penalties' deeper band replaces the shallower one.** | The entry's own `ambiguity`: the two are printed as thresholds rather than steps, and at zero Health a character is already below half of any positive Health. |
 | **All-out and charge penalties expire at the end of the following page.** | The page says "until after your next turn to act", which is a turn rather than a page. This is that sentence to within a turn. |

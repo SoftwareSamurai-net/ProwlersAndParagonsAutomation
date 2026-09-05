@@ -184,10 +184,30 @@ public sealed partial class Encounter
     /// <summary>
     /// Which Trait answers an attack, and what pool it throws.
     ///
-    /// <para><b>The choices come from <c>active_and_passive_defenses</c> and the halving from
-    /// <c>lethal_and_subdual</c>.</b> One defence answers each attack and it is "normally the one
-    /// with the greatest rank" — greatest <em>after</em> the halvings, because a Toughness of 8
-    /// against a lethal attack is a 4 and an Armor of 6 beside it is the better answer.</para>
+    /// <para><b>The candidates come from p.75's Attack and Defense table, by the row the attack is
+    /// on.</b> The table was modelled and never read, and the cost of that was not academic: every
+    /// defence a character had was offered against every attack, so a Mind Control could be soaked
+    /// with Toughness — which the mental row does not list at all — and a melee weapon met a
+    /// Toughness the row halves. The row also says what "Power" means as a defence, and that is
+    /// derived from the table rather than listed here: a Power is any defence Trait the table never
+    /// names by name.</para>
+    ///
+    /// <para><b>Two printed rules could disagree about halving a Toughness, and this halves once.</b>
+    /// The table's three weapon-and-Power rows print <c>1/2 Toughness</c>; <c>lethal_and_subdual</c>
+    /// says a Toughness answers a lethal attack at half and a subdual one in full. They agree
+    /// wherever the book's own defaults hold — the unarmed row is one of that entry's two named
+    /// subdual sources, and everything else physical defaults to lethal — and where a caller puts
+    /// them at odds this halves if <em>either</em> says to, never twice. p.81's Example of Combat is
+    /// what settles the shape: the mecha's Might attack is answered by 12d Armor at its full rank,
+    /// which is the table's "Power" column doing the work and no halving in sight. Recorded as a
+    /// reading in <c>docs/guide/play-engine.md</c>, with both pages.</para>
+    ///
+    /// <para><b><c>defenses_used_per_attack</c> and <c>defense_chosen</c> are read rather than
+    /// assumed.</b> One defence answers each attack and it is the greatest — after the halvings,
+    /// because a Toughness of 8 against a lethal attack is a 4 and an Armor of 6 beside it is the
+    /// better answer. Both are a throw if the entry stops saying them, because an engine that went on
+    /// rolling one greatest defence against an entry that had been corrected would be applying a rule
+    /// the book no longer prints.</para>
     ///
     /// <para>A character in a full hold has no active defence: p.75 lists being immobilized among
     /// the states that take them away.</para>
@@ -196,7 +216,25 @@ public sealed partial class Encounter
         EncounterState state, Combatant target, Attack attack, List<LedgerLine> lines)
     {
         var types = _play.GetCombat("lethal_and_subdual").DamageTypes!;
-        var defenses = _play.GetCombat("active_and_passive_defenses").Defenses!;
+        var entry = _play.GetCombat("active_and_passive_defenses");
+        var defenses = entry.Defenses!;
+
+        if (defenses.DefensesUsedPerAttack != 1)
+        {
+            throw new InvalidOperationException(
+                $"active_and_passive_defenses says {defenses.DefensesUsedPerAttack} defences answer "
+                + "each attack. This engine rolls exactly one, because the entry said one; a "
+                + "different number is a rule it cannot apply.");
+        }
+
+        if (!defenses.DefenseChosen.Contains("greatest rank", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"active_and_passive_defenses now chooses the defence by '{defenses.DefenseChosen}'. "
+                + "This engine takes the greatest rank, because the entry said greatest; picking the "
+                + "largest against an entry that says something else would be applying a rule the "
+                + "book no longer prints.");
+        }
 
         var actives = defenses.CommonActiveTraits
             .Select(Normalise)
@@ -209,15 +247,11 @@ public sealed partial class Encounter
             ? penalty
             : null;
 
-        var candidates = target.Kind == CombatantKind.MinionGroup
-            ? target.Defences
-            : attack.Damage == DamageKind.Psychic
-                ? [Normalise(types.PsychicDamageResistedWith)]
-                : target.Defences;
+        var candidates = DefenceCandidates(target, attack, lines, state);
 
         var best = ("", 0, false);
 
-        foreach (var trait in candidates)
+        foreach (var (trait, tableHalves) in candidates)
         {
             var active = actives.Contains(trait);
             if (active && immobilised) continue;
@@ -225,13 +259,13 @@ public sealed partial class Encounter
             var rank = target.Rank(trait);
             if (rank <= 0) continue;
 
-            // p.75: Toughness answers a lethal attack at half and a subdual one in full.
-            if (string.Equals(trait, "toughness", StringComparison.Ordinal)
+            // p.75, twice over: the row may print "1/2 Toughness", and a lethal attack halves a
+            // Toughness whatever row it came from. Halve once if either says so.
+            var lethalHalves = string.Equals(trait, "toughness", StringComparison.Ordinal)
                 && attack.Damage == DamageKind.Lethal
-                && string.Equals(types.ToughnessAgainstLethal, "half", StringComparison.Ordinal))
-            {
-                rank = Halve(rank);
-            }
+                && string.Equals(types.ToughnessAgainstLethal, "half", StringComparison.Ordinal);
+
+            if (tableHalves || lethalHalves) rank = Halve(rank);
 
             if (halved is not null && (!halved.ActiveOnly || active)) rank = Halve(rank);
 
@@ -266,6 +300,83 @@ public sealed partial class Encounter
 
         return (best.Item1, pool, best.Item3);
     }
+
+    /// <summary>
+    /// The Traits p.75's table lets this target answer this attack with, and whether the row halves
+    /// each one.
+    ///
+    /// <para>A Minion group is outside the table: p.77 gives them one characteristic and it answers
+    /// everything, so their own defence list stands.</para>
+    /// </summary>
+    private List<(string Trait, bool TableHalves)> DefenceCandidates(
+        Combatant target, Attack attack, List<LedgerLine> lines, EncounterState state)
+    {
+        var table = _play.GetCombat("attack_and_defense_table");
+        var rows = table.AttackDefenseTable!;
+
+        if (target.Kind == CombatantKind.MinionGroup)
+        {
+            return [.. target.Defences.Select(trait => (trait, false))];
+        }
+
+        var printed = PrintedType(attack.Type);
+
+        var row = rows.SingleOrDefault(r => string.Equals(r.Type, printed, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"attack_and_defense_table has no row '{printed}'. Its rows are "
+                + $"{string.Join(", ", rows.Select(r => r.Type))}, and this engine resolves an attack "
+                + "by finding the row it is on.");
+
+        // "Power" is whatever the table does not name by name — derived from the table rather than
+        // listed here, so a corrected table moves this with it.
+        var named = rows
+            .SelectMany(r => r.DefenseTraits)
+            .Where(t => !string.Equals(t, PowerColumn, StringComparison.Ordinal))
+            .Select(t => Normalise(WithoutHalf(t)))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var candidates = new List<(string Trait, bool TableHalves)>();
+
+        foreach (var offered in row.DefenseTraits)
+        {
+            if (string.Equals(offered, PowerColumn, StringComparison.Ordinal))
+            {
+                candidates.AddRange(target.Defences
+                    .Where(d => !named.Contains(d))
+                    .Select(d => (d, false)));
+
+                continue;
+            }
+
+            candidates.Add((Normalise(WithoutHalf(offered)), !string.Equals(
+                offered, WithoutHalf(offered), StringComparison.Ordinal)));
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, table.Id, table.SourceRef,
+            $"a {row.Type} attack is answered with {string.Join(" or ", row.DefenseTraits)}, which for "
+            + $"{target.Name} is {string.Join(", ", candidates.Select(c => c.Trait).DefaultIfEmpty("nothing"))}"));
+
+        return candidates;
+    }
+
+    /// <summary>The table's own name for the column that means "one of the target's Powers".</summary>
+    private const string PowerColumn = "Power";
+
+    /// <summary>The table's half marker, stripped: <c>1/2 Toughness</c> is a Toughness, halved.</summary>
+    private static string WithoutHalf(string printed) =>
+        printed.StartsWith("1/2 ", StringComparison.Ordinal) ? printed["1/2 ".Length..] : printed;
+
+    /// <summary>The row heading p.75 prints for one kind of attack.</summary>
+    private static string PrintedType(AttackType type) => type switch
+    {
+        AttackType.Unarmed => "Unarmed",
+        AttackType.MeleeWeapon => "Melee Weapon",
+        AttackType.RangedWeapon => "Ranged Weapon",
+        AttackType.PhysicalPower => "Physical Power",
+        AttackType.MentalPower => "Mental Power",
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, "No such row of p.75's table.")
+    };
 
     /// <summary>
     /// What the net successes did: Minions removed, a special effect started, or Health taken off.

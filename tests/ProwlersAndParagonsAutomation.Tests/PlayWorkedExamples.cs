@@ -227,7 +227,9 @@ internal static class PlayWorkedExamples
         var state = encounter.Begin([ninja, clint]);
         Require(string.Equals(state.Current?.Id, "ninja", StringComparison.Ordinal), "the ninja should act first");
 
-        state = encounter.Step(state, new Attack("ninja", "clint", "might")).State;
+        // A stab is p.75's Melee Weapon row, which is why Clint answers with half his Toughness.
+        state = encounter.Step(state, new Attack(
+            "ninja", "clint", "might", Type: AttackType.MeleeWeapon)).State;
 
         Require(state.LastAttack!.AttackSuccesses == 8, $"the ninja rolled {state.LastAttack.AttackSuccesses}, not 8");
         Require(state.LastAttack.DefenceSuccesses == 2, $"Clint rolled {state.LastAttack.DefenceSuccesses}, not 2");
@@ -368,7 +370,8 @@ internal static class PlayWorkedExamples
 
         // "fires his eyebeams (a 15d Blast) … 8 successes. The mecha uses its 15d Armor … and gets 7.
         // One net success … is enough for narrative control … the GM gets an embellishment."
-        state = encounter.Step(state, new Attack("gatecrasher", "mecha", "blast")).State;
+        state = encounter.Step(state, new Attack(
+            "gatecrasher", "mecha", "blast", Type: AttackType.PhysicalPower)).State;
         RequireRoll(state, 8, 7, "the eyebeams");
         Require(state["mecha"].CurrentHealth == 29, $"the mecha is on {state["mecha"].CurrentHealth}, so the damage was not 1");
 
@@ -454,7 +457,8 @@ internal static class PlayWorkedExamples
 
         state = encounter
             .Step(state, new Attack(
-                "heartbreaker", "parthian", "mind_control", DamageKind.Psychic, Effect: "Mind Control"))
+                "heartbreaker", "parthian", "mind_control", DamageKind.Psychic,
+                AttackType.MentalPower, Effect: "Mind Control"))
             .State;
 
         return (encounter, state, dice);
