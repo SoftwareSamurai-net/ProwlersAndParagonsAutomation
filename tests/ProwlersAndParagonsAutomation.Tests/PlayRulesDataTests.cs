@@ -565,7 +565,10 @@ public sealed class PlayRulesDataTests
         int TravelPowerRankRequired,
         bool MovingPreventsActions,
         string AssumedTerrain,
-        int OpenTerrainGmMayAllowRangeClassesPerPage);
+        int OpenTerrainGmMayAllowRangeClassesPerPageMin,
+        int OpenTerrainGmMayAllowRangeClassesPerPageMax,
+        string OpenTerrainAllowanceAppliesTo,
+        bool OpenTerrainAllowanceIsGmDiscretion);
 
     private sealed record MovementContestModel(
         string Trigger,
@@ -794,7 +797,7 @@ public sealed class PlayRulesDataTests
         bool MinionsHaveHealth,
         int MinionsDefeatedPerNetSuccess,
         int MinionsDefeatedPerNetSuccessWithAnAreaAttack,
-        string CappedBy,
+        string AreaAttackCappedBy,
         int MaximumMinionsPerNetSuccess,
         bool EffectsThatDoubleTheRateDoNotStack,
         string OnADamagingAttack,
@@ -826,6 +829,7 @@ public sealed class PlayRulesDataTests
         string SurpriseLasts,
         bool EmbellishmentRightsAllowPartialSurprise,
         string PartialSurpriseKeeps,
+        string PartialSurpriseLimitPrintedAs,
         string OnFailure,
         bool MultipleAmbushersMayRollAsAGroup,
         bool EveryTargetRollsTheirOwnPerception,
@@ -4103,6 +4107,12 @@ public sealed class PlayRulesDataTests
     [InlineData("combat.json", "seize_initiative_gm_alternative")]
     [InlineData("gritty.json", "gritty_wound_penalties")]
     [InlineData("gritty.json", "gritty_slow_healing")]
+    // Three more the chapter leaves loose in its own sentences: an allowance offered to "high
+    // ranks" with no rank named, a cap printed as a parenthesis that reads wider than where it
+    // sits, and "but that's about it" standing in for a list the page never gives.
+    [InlineData("combat.json", "movement")]
+    [InlineData("combat.json", "attacking_minions")]
+    [InlineData("combat.json", "ambushes")]
     public void TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect(string file, string id)
     {
         var ambiguity = file switch
@@ -4718,7 +4728,10 @@ public sealed class PlayRulesDataTests
             ["movement.movement.travel_power_rank_required"] = Is(CanonicalCombatRules.Movement.TravelPowerRankRequired),
             ["movement.movement.moving_prevents_actions"] = Is(CanonicalCombatRules.Movement.MovingPreventsActions),
             ["movement.movement.assumed_terrain"] = Is(CanonicalCombatRules.Movement.AssumedTerrain),
-            ["movement.movement.open_terrain_gm_may_allow_range_classes_per_page"] = Is(CanonicalCombatRules.Movement.OpenTerrainGmMayAllowRangeClassesPerPage),
+            ["movement.movement.open_terrain_gm_may_allow_range_classes_per_page_min"] = Is(CanonicalCombatRules.Movement.OpenTerrainGmMayAllowRangeClassesPerPageMin),
+            ["movement.movement.open_terrain_gm_may_allow_range_classes_per_page_max"] = Is(CanonicalCombatRules.Movement.OpenTerrainGmMayAllowRangeClassesPerPageMax),
+            ["movement.movement.open_terrain_allowance_applies_to"] = Is(CanonicalCombatRules.Movement.OpenTerrainAllowanceAppliesTo),
+            ["movement.movement.open_terrain_allowance_is_gm_discretion"] = Is(CanonicalCombatRules.Movement.OpenTerrainAllowanceIsGmDiscretion),
 
             ["movement_contest.movement_contest.trigger"] = Is(CanonicalCombatRules.MovementContest.Trigger),
             ["movement_contest.movement_contest.roll"] = Is(CanonicalCombatRules.MovementContest.Roll),
@@ -4894,7 +4907,7 @@ public sealed class PlayRulesDataTests
             ["attacking_minions.attacking_minions.minions_have_health"] = Is(CanonicalCombatRules.AttackingMinions.MinionsHaveHealth),
             ["attacking_minions.attacking_minions.minions_defeated_per_net_success"] = Is(CanonicalCombatRules.AttackingMinions.MinionsDefeatedPerNetSuccess),
             ["attacking_minions.attacking_minions.minions_defeated_per_net_success_with_an_area_attack"] = Is(CanonicalCombatRules.AttackingMinions.MinionsDefeatedPerNetSuccessWithAnAreaAttack),
-            ["attacking_minions.attacking_minions.capped_by"] = Is(CanonicalCombatRules.AttackingMinions.CappedBy),
+            ["attacking_minions.attacking_minions.area_attack_capped_by"] = Is(CanonicalCombatRules.AttackingMinions.AreaAttackCappedBy),
             ["attacking_minions.attacking_minions.maximum_minions_per_net_success"] = Is(CanonicalCombatRules.AttackingMinions.MaximumMinionsPerNetSuccess),
             ["attacking_minions.attacking_minions.effects_that_double_the_rate_do_not_stack"] = Is(CanonicalCombatRules.AttackingMinions.EffectsThatDoubleTheRateDoNotStack),
             ["attacking_minions.attacking_minions.on_a_damaging_attack"] = Is(CanonicalCombatRules.AttackingMinions.OnADamagingAttack),
@@ -4921,6 +4934,7 @@ public sealed class PlayRulesDataTests
             ["ambushes.ambush.surprise_lasts"] = Is(CanonicalCombatRules.Ambush.SurpriseLasts),
             ["ambushes.ambush.embellishment_rights_allow_partial_surprise"] = Is(CanonicalCombatRules.Ambush.EmbellishmentRightsAllowPartialSurprise),
             ["ambushes.ambush.partial_surprise_keeps"] = Is(CanonicalCombatRules.Ambush.PartialSurpriseKeeps),
+            ["ambushes.ambush.partial_surprise_limit_printed_as"] = Is(CanonicalCombatRules.Ambush.PartialSurpriseLimitPrintedAs),
             ["ambushes.ambush.on_failure"] = Is(CanonicalCombatRules.Ambush.OnFailure),
             ["ambushes.ambush.multiple_ambushers_may_roll_as_a_group"] = Is(CanonicalCombatRules.Ambush.MultipleAmbushersMayRollAsAGroup),
             ["ambushes.ambush.every_target_rolls_their_own_perception"] = Is(CanonicalCombatRules.Ambush.EveryTargetRollsTheirOwnPerception),

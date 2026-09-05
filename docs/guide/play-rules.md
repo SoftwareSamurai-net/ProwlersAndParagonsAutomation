@@ -171,13 +171,16 @@ Chapter 4 prints the Edge formula (p.73) and the Health formula (p.75), and `Der
 
 ### The ambiguities, and the one that is about the corpus
 
-Five are pinned by name.
+Eight are pinned by name, and the last three are all the same fault: **a sentence that hedges, and a transcription that did not.** A field is a claim that the page states the thing, so an unquantified "high ranks", a parenthesis whose reach is unclear, and "but that's about it" each have to be recorded as printed, with the gap in `ambiguity` beside them.
 
 - **The Throwing table opens at 3d and the formula beside it floors at 0d**, so a throwing rank of 0d, 1d or 2d is reachable in play and printed nowhere. Either the sentence above the table applies and the throw reaches Close Range, or a figure below the table is not a throw the table describes.
 - **The Minion group bonus "does not apply when determining whether an attack can penetrate cover or harm characters using Powers like Armor or Force Field"** — but both are decided by the very attack roll the bonus is granted to. Read strictly it asks for two attack totals against one defence roll, and the page offers no such mechanism.
 - **The GM's alternative to seizing the initiative** has no stated duration, and no page says whether the GM's choice between the two effects is fixed for a table, for a campaign, or taken per purchase. Chapter 5 raised the same question from the other side and left it open.
 - **Slow Healing's Medicine rate halves without saying which way.** "1 point of damage per 2 net successes rolled" is Tough Minions' construction minus Tough Minions' sentence about rounding, so an odd roll goes up by the book-wide default or down by analogy, and p.80 says neither. See the Tough Minions section above.
 - **Wound Penalties' `ambiguity` records an extraction fault as well as a rules one**, because a reader comparing the entry against an older corpus would find the heading and not the rule. See below.
+- **Movement's open-terrain allowance is offered to "characters with Travel Powers at high ranks" and no page says what a high rank is.** The rule it relaxes prints 6d, but that figure buys the *ordinary* allowance, so reading it in here would make one rank buy both. It was recorded as `open_terrain_gm_may_allow_range_classes_per_page: 3` — a bare number that dropped the floor, the terrain condition and the rank condition all at once; it is now a min of 2, a max of 3, the qualifier, and a GM-discretion flag.
+- **The Minion cap is printed as a parenthesis on the area-attack clause and reads wider than where it sits.** "2 Minions per net success rolled when using an area attack (up to the number of Minions in the area of effect or within reach)" — "or within reach" is the phrase for an ordinary attack, not an area one. The field is `area_attack_capped_by`, filed where the parenthesis is printed rather than promoted to the whole entry, and the ambiguity says the ordinary rate is left uncapped in as many words.
+- **"But that's about it" is not "and nothing else".** p.78 grants a partially surprised target their active defenses and then declines to say what else, if anything, they keep. `partial_surprise_keeps` carries the grant, `partial_surprise_limit_printed_as` carries the hedge in the book's own words, and the closed reading the field used to assert is gone.
 
 ### The two extraction faults this slice fixed
 
