@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Proves `stop_server` kills the whole tree and frees the port. Directly, by reading the pids.
 #
-#   ./scripts/test-kill-tree.sh                  # both trees: the synthetic one and a real wrangler
-#   ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic one only. NOT a full run
+#   ./scripts/test-kill-tree.sh                  # every case, including a real wrangler
+#   ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic ones only. NOT a full run
 #
 # It also covers the other thing `scripts/e2e/process.sh` owns — `redacted_tail`, which keeps a
 # raw sign-in token out of the log tail a failing `start_server` prints — for the reason that file
@@ -28,6 +28,32 @@
 # an instrument that is not the one under test**, calls `stop_server`, and then probes each pid
 # with `kill -0`. A surviving process is named. Nothing here reads "the run finished cleanly" as
 # evidence of anything.
+#
+# ------------------------------------------------------------------------------------------------
+# WHAT IT THEN FOUND, WHICH IS WHY THERE ARE SEVEN CASES AND NOT FOUR.
+#
+# The first CI run with this step in it — `33949251306`, `ubuntu-latest` — went red exactly where
+# it was pointed:
+#
+#     KILL-TREE CHECK WRANGLER_TREE: FAIL — [OUTCOME] every pid in the tree is gone and port 8880
+#     is still listening, so something outside the tree of 10448 is holding it.
+#
+# Every enumerated pid died, so the holder was **a process that did not exist when the tree was
+# enumerated**. Measured afterwards on a real `wrangler pages dev`: kill the `workerd` holding the
+# port and miniflare logs "The Workers runtime crashed unexpectedly and is being restarted" and
+# spawns another that rebinds the port. The old depth-first kill was racing that supervisor, and
+# on Linux — where `children_of` forked `cat` per `/proc` entry between one kill and the next — it
+# lost. See `kill_tree`'s comment in `scripts/e2e/process.sh` for the whole of it.
+#
+# Three cases exist because of that finding, and each is breakable here rather than only on the
+# runner:
+#
+#   - `RESPAWNING_TREE` reproduces the supervisor hermetically. Remove `freeze_tree`'s `kill -STOP`
+#     and it goes red.
+#   - `ORPHANED_LISTENER` reproduces the *verdict* — a port held by a pid in nobody's tree —
+#     deterministically, and is the end-to-end test of the `port_holders` backstop.
+#   - `PROC_NET_PARSE` drives that backstop's two `/proc` parses against a synthetic `/proc`, the
+#     way `PROC_PARSE` already drives `children_of`'s.
 #
 # ------------------------------------------------------------------------------------------------
 # THE POSITIVE CONTROL, WHICH IS MOST OF THE VALUE.
@@ -56,7 +82,7 @@
 # `docs/guide/testing.md` states it for `./scripts/e2e.sh`: a script that reports *verdicts*
 # rather than a test count cannot be totalled with four suites' thousands without making the
 # total meaningless, and a missing count there has to be an error rather than a zero. This one
-# reports four verdicts, so it is its own step in `build.yml` and prints its own summary line.
+# reports seven verdicts, so it is its own step in `build.yml` and prints its own summary line.
 
 set -euo pipefail
 
@@ -75,8 +101,9 @@ while [ $# -gt 0 ]; do
     -h|--help)
       echo "usage: $0 [--skip-wrangler]"
       echo ""
-      echo "  --skip-wrangler   run only the synthetic tree. NOT a full run: the tree that"
-      echo "                    actually leaked is wrangler's, and it is four processes deep."
+      echo "  --skip-wrangler   run only the synthetic trees. NOT a full run: the tree that"
+      echo "                    actually leaked is wrangler's, and no fixture reproduces its"
+      echo "                    depth and its restart-on-crash supervisor together."
       exit 0
       ;;
     *) echo "error: unrecognised argument '$1'" >&2; exit 2 ;;
@@ -129,7 +156,7 @@ live() { kill -0 "$1" 2>/dev/null; }
 # **The Linux arm cannot be reached on a Mac and the Mac is where this is written**, so
 # `children_of` takes its process table from `$proc_root` and this builds a synthetic one out of
 # the real `ps` output. It proves the *parse* — the `(comm) ` trim, the field offset, the ppid
-# comparison — and nothing about killing anything; cases 2 and 3 do that against real processes,
+# comparison — and nothing about killing anything; cases 3 to 6 do that against real processes,
 # and only CI runs them on Linux.
 #
 # **One entry deliberately has a `) ` inside its command name.** `/proc/<pid>/stat`'s second field
@@ -209,7 +236,102 @@ proc_parse_case() {
 }
 
 # ------------------------------------------------------------------------------------------------
-# The shared body of cases 2 and 3: start a tree, prove it is alive and holding the port, stop it
+# Case 2 — the OTHER `/proc` parse, and the one CI run 33949251306 made necessary.
+#
+# `port_holders` answers "which process has this port's listening socket open" out of the kernel's
+# own tables, because `kill_tree` cannot reach a process that is not in the tree and that run
+# proved one can exist. Two parses have to be right and neither can be driven on a Mac, so this
+# builds both: a synthetic `net/tcp`/`net/tcp6` and a synthetic `<pid>/fd/` of real symlinks whose
+# targets are `socket:[<inode>]`, exactly as the kernel writes them.
+#
+# **Every row that is not the answer is a decoy for a specific wrong reading**, because "it found
+# the right pid" is satisfied by a parser that found every pid:
+#
+#   - the same port in **state 01** rather than `0A` — an established connection, not a listener;
+#   - a listener on the **next port up**, whose hex differs by one digit;
+#   - a listener whose **remote** address carries the wanted port, which is what a client of our
+#     own server looks like: reading field 3 instead of field 2 names the client;
+#   - a process holding a **pipe** and a plain file rather than a socket.
+#
+# The IPv6 row is a second *answer* rather than a decoy, held by a second pid, so that a reader of
+# `net/tcp` alone comes back one pid short instead of coming back right.
+proc_net_parse_case() {
+  local fake want other holders
+  fake="$(mktemp -d)"
+  # shellcheck disable=SC2064 # $fake is wanted expanded now, not at trap time.
+  trap "rm -rf '$fake'" RETURN
+
+  want=8880           # 22B0
+  other=8881          # 22B1
+
+  mkdir -p "$fake/net"
+  {
+    echo "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode"
+    printf '   0: 0100007F:%04X 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1001 0 4242001 1 0 100 0 0 10 0\n' "$want"
+    printf '   1: 0100007F:%04X 0100007F:C001 01 00000000:00000000 00:00000000 00000000  1001 0 4242002 1 0 100 0 0 10 0\n' "$want"
+    printf '   2: 0100007F:%04X 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1001 0 4242003 1 0 100 0 0 10 0\n' "$other"
+    printf '   3: 0100007F:1F90 0100007F:%04X 0A 00000000:00000000 00:00000000 00000000  1001 0 4242004 1 0 100 0 0 10 0\n' "$want"
+  } > "$fake/net/tcp"
+  {
+    echo "  sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode"
+    printf '   0: 00000000000000000000000001000000:%04X 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1001 0 4242005 1 0 100 0 0 10 0\n' "$want"
+  } > "$fake/net/tcp6"
+
+  mkdir -p "$fake/900101/fd" "$fake/900102/fd" "$fake/900103/fd" "$fake/900104/fd" "$fake/900105/fd"
+  ln -s 'socket:[4242001]' "$fake/900101/fd/3"      # the IPv4 listener  — an answer
+  ln -s 'socket:[4242005]' "$fake/900102/fd/7"      # the IPv6 listener  — an answer
+  ln -s 'socket:[4242003]' "$fake/900103/fd/3"      # listening on $other
+  ln -s 'socket:[4242002]' "$fake/900104/fd/3"      # connected, not listening
+  ln -s '/dev/null'        "$fake/900105/fd/0"
+  ln -s 'pipe:[4242001]'   "$fake/900105/fd/1"      # same number, not a socket
+
+  local saved="$proc_root"
+  proc_root="$fake"
+
+  # ---- positive control: the synthetic table is being read at all ------------------------------
+  # Without this, every assertion below is satisfied by a parser that read nothing: "the answer is
+  # 900101 900102" would fail loudly, but "the decoys are absent" would pass perfectly.
+  if ! port_in_use "$want"; then
+    proc_root="$saved"
+    fail PROC_NET_PARSE "[CONTROL] port_in_use could not see the synthetic listener on $want, so"\
+" the fixture's net/tcp was never read and nothing below tested a parse."
+    return
+  fi
+
+  holders="$(port_holders "$want" | tr '\n' ' ')"
+  local other_holders; other_holders="$(port_holders "$other" | tr '\n' ' ')"
+  local quiet; quiet="$(port_holders 8882 | tr '\n' ' ')"
+
+  proc_root="$saved"
+
+  if [ "$holders" != "900101 900102 " ]; then
+    fail PROC_NET_PARSE "[OUTCOME] the /proc socket lookup answered '$holders' for port $want and"\
+" '900101 900102 ' is the whole of the answer. 900101 holds the IPv4 listener and 900102 the IPv6"\
+" one; 900103 listens on $other, 900104 is connected rather than listening, and 900105 holds a"\
+" pipe with the same number. A missing pid means one table is not read; an extra one means the"\
+" state column, the hex port, the local/remote column or 'socket:' is not being tested."
+    return
+  fi
+
+  if [ "$other_holders" != "900103 " ]; then
+    fail PROC_NET_PARSE "[OUTCOME] the lookup answered '$other_holders' for port $other, and"\
+" 900103 is the only listener on it — so the port is not really discriminating and the answer"\
+" above was right by luck."
+    return
+  fi
+
+  if [ -n "$quiet" ]; then
+    fail PROC_NET_PARSE "[OUTCOME] the lookup answered '$quiet' for port 8882, which has no row in"\
+" either table at all."
+    return
+  fi
+
+  pass PROC_NET_PARSE "the /proc socket lookup named both listeners on $want across net/tcp and"\
+" net/tcp6, and none of the four decoys."
+}
+
+# ------------------------------------------------------------------------------------------------
+# The shared body of cases 3, 4 and 5: start a tree, prove it is alive and holding the port, stop it
 # with the real `stop_server`, and probe every pid.
 #
 # `$1` is the check name, `$2` the port, and `$3` a command run as `bash -c` inside the same
@@ -294,9 +416,23 @@ $(descendants_of "$root_pid")"
   fi
 
   if port_in_use "$port"; then
-    echo "::error::$name: port $port is still listening after stop_server."
+    # **Name the holder, because the last time this fired it did not.** CI run 33949251306 said
+    # "something outside the tree is holding it" and stopped there, and a whole session went into
+    # working out what that something was. `port_holders` can answer it on all three platforms
+    # now, so the next run's log carries the pid, its command line, and the tree that was killed —
+    # which is the difference between a finding and another investigation.
+    local holder held=''
+    for holder in $(port_holders "$port"); do
+      held="$held $(describe_pid "$holder");"
+      kill -9 "$holder" 2>/dev/null || true
+    done
+    [ -n "$held" ] || held=' nothing on this machine has the socket open.'
+
+    echo "::error::$name: port $port is still listening after stop_server. Held by:$held"
+    echo "::error::$name: the tree that was killed was: $(echo "$before" | tr '\n' ' ')"
     fail "$name" "[OUTCOME] every pid in the tree is gone and port $port is still listening, so"\
-" something outside the tree of $root_pid is holding it."
+" something outside the tree of $root_pid is holding it. Held by:$held Tree killed:"\
+" $(echo "$before" | tr '\n' ' ')Server log: $(redacted_tail "$log" 8 | tr '\n' ' ')"
     rm -f "$log"
     return
   fi
@@ -307,7 +443,7 @@ $(descendants_of "$root_pid")"
 }
 
 # ------------------------------------------------------------------------------------------------
-# Case 2 — a synthetic three-deep tree. Fast, hermetic, no npm, and the one to mutate against.
+# Case 3 — a synthetic three-deep tree. Fast, hermetic, no npm, and the one to mutate against.
 synthetic_case() {
   local dir port
   dir="$(mktemp -d)"
@@ -341,8 +477,157 @@ EOF
     "node '$dir/spawner.mjs' $port & wait" 20
 }
 
+# The listener every synthetic fixture below binds with: the deepest process, and the only one
+# that binds. `$1` is the directory to write it into.
+write_listener() {
+  cat > "$1/listener.mjs" <<'EOF'
+import { createServer } from 'node:net';
+const server = createServer(() => {});
+server.on('error', () => setTimeout(() => server.listen(Number(process.argv[2]), '127.0.0.1'), 10));
+server.listen(Number(process.argv[2]), '127.0.0.1');
+setInterval(() => {}, 1 << 30);
+EOF
+}
+
 # ------------------------------------------------------------------------------------------------
-# Case 3 — the tree that actually leaked: a real `wrangler pages dev`.
+# Case 4 — a supervisor that restarts its listener, which is what wrangler is.
+#
+# **This is the CI failure, reproduced hermetically.** Measured on a real `wrangler pages dev`:
+# kill the `workerd` holding the port and miniflare logs "The Workers runtime crashed unexpectedly
+# and is being restarted" and spawns another, which rebinds the port. `SIGKILL` is
+# indistinguishable from a crash, so the old depth-first `kill_tree` was racing a supervisor it had
+# not yet killed — and on Linux, where `children_of` was a `/proc` scan forking `cat` per entry, it
+# lost. The replacement was born after the tree had been enumerated, so nothing killed it and
+# nothing listed it as a survivor: exactly the verdict run 33949251306 printed.
+#
+# **The sleeping siblings are the window and they are not padding.** wrangler's supervisor has four
+# children — two esbuild, two workerd — and the one holding the port is not the last of them, so
+# the old code ran `children_of` for every remaining sibling *after* killing it and before killing
+# their parent. A fixture whose supervisor has exactly one child gives that code no window at all
+# and passes against it, which would make this case a decoration. Forty siblings is a window on a
+# fast Mac as well as on the runner.
+#
+# So: remove the `kill -STOP` from `freeze_tree` and this must go red. That is the mutation this
+# case exists to be broken by.
+respawning_case() {
+  local dir port
+  dir="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$dir'" RETURN
+
+  write_listener "$dir"
+
+  cat > "$dir/supervisor.mjs" <<'EOF'
+import { spawn } from 'node:child_process';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const here = dirname(fileURLToPath(import.meta.url));
+const port = process.argv[2];
+const start = () => {
+  const child = spawn(process.execPath, [join(here, 'listener.mjs'), port], { stdio: 'inherit' });
+  // What miniflare does when workerd dies: assume it crashed, and start another.
+  child.on('exit', () => start());
+};
+start();
+// The siblings that give a depth-first kill something to walk before it reaches this process.
+for (let i = 0; i < 40; i++) spawn('sleep', ['300'], { stdio: 'ignore' });
+setInterval(() => {}, 1 << 30);
+EOF
+
+  port="$(next_free_port 8894)"
+
+  drive_tree_case RESPAWNING_TREE "$port" "node '$dir/supervisor.mjs' $port & wait" 20
+}
+
+# ------------------------------------------------------------------------------------------------
+# Case 5 — the port held by a pid that is in nobody's tree, which is the verdict CI printed.
+#
+# **`kill_tree` is a walk of parent links, and an orphan has no link to walk.** Once a process is
+# reparented onto init its ppid is 1, so no walk from `server_pid` can reach it however deep the
+# recursion goes. Case 4 is where such a process comes from; this is the check that the harness
+# clears one up regardless of where it came from, and it is deterministic rather than a race: the
+# wrapper exits on purpose, immediately, leaving the listener behind.
+#
+# It is therefore the direct test of `port_holders` against real sockets and real pids — the
+# `/proc` arm on the runner, the `lsof` arm on a Mac — where `PROC_NET_PARSE` only tests the parse.
+#
+# **The positive control is that the holder really is outside the tree.** If it were a descendant
+# of `server_pid`, `kill_tree` would clear it and this case would pass while proving nothing about
+# the backstop it exists for — which is this repository's most-repeated guard fault, a check that
+# holds for the wrong reason.
+orphan_case() {
+  local dir port log holder tree
+  dir="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$dir'" RETURN
+
+  write_listener "$dir"
+  log="$dir/orphan.log"
+  port="$(next_free_port 8898)"
+
+  # The wrapper backgrounds the listener and exits at once, so the listener is reparented onto
+  # init before anything asks who its parent is.
+  (
+    exec bash -c "node '$dir/listener.mjs' $port >'$log' 2>&1 & exit 0"
+  ) &
+  server_pid=$!
+  server_port="$port"
+  local root_pid="$server_pid"
+
+  local deadline=$((SECONDS + 20))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    port_in_use "$port" && break
+    sleep 1
+  done
+
+  if ! port_in_use "$port"; then
+    stop_server
+    fail ORPHANED_LISTENER "[CONTROL] nothing ever listened on port $port, so 'the port is free"\
+" afterwards' would have held against a fixture that never bound it. Fixture output:"\
+" $(tail -5 "$log" 2>/dev/null)"
+    return
+  fi
+
+  holder="$(port_holders "$port" | head -1)"
+  if [ -z "$holder" ]; then
+    stop_server
+    fail ORPHANED_LISTENER "[CONTROL] port $port is listening and port_holders named nobody, so"\
+" the backstop under test has nothing to act on and the outcome below would be meaningless."
+    return
+  fi
+
+  tree=" $(descendants_of "$root_pid" | tr '\n' ' ')$root_pid "
+  case "$tree" in
+    *" $holder "*)
+      stop_server
+      fail ORPHANED_LISTENER "[CONTROL] the listener ($holder) is still inside the tree of"\
+" $root_pid ($tree), so kill_tree would clear it and this case would prove nothing about the"\
+" port-holder backstop it exists for."
+      return
+      ;;
+  esac
+
+  stop_server
+
+  if live "$holder"; then
+    kill -9 "$holder" 2>/dev/null || true
+    fail ORPHANED_LISTENER "[OUTCOME] $(describe_pid "$holder") was holding port $port from"\
+" outside the tree of $root_pid and outlived stop_server. The port-holder backstop did not run,"\
+" or did not find it."
+    return
+  fi
+
+  if port_in_use "$port"; then
+    fail ORPHANED_LISTENER "[OUTCOME] the orphan is dead and port $port is still listening."
+    return
+  fi
+
+  pass ORPHANED_LISTENER "a listener orphaned onto init held port $port from outside the tree of"\
+" $root_pid, and stop_server found it by its socket and killed it."
+}
+
+# ------------------------------------------------------------------------------------------------
+# Case 6 — the tree that actually leaked: a real `wrangler pages dev`.
 #
 # **This is the case with the evidence behind it.** Measured on macOS on 2026-09-05, the tree is
 # four processes deep and the port is held at the bottom of it:
@@ -392,7 +677,7 @@ wrangler_case() {
 }
 
 # ------------------------------------------------------------------------------------------------
-# Case 4 — the other thing `scripts/e2e/process.sh` owns: quoting a log without quoting a token.
+# Case 7 — the other thing `scripts/e2e/process.sh` owns: quoting a log without quoting a token.
 #
 # **Every failure arm of `start_server` prints the tail of a wrangler log, and that log is a request
 # log.** Stage two drives `/signin?t=<raw sign-in token>`, so the line for that navigation carries
@@ -461,14 +746,18 @@ echo "=== kill_tree, proved by reading the pids ================================
 echo ""
 
 proc_parse_case
+proc_net_parse_case
 synthetic_case
+respawning_case
+orphan_case
 redaction_case
 
 if [ "$skip_wrangler" -eq 1 ]; then
   echo ""
   echo "--skip-wrangler: THE TREE THAT ACTUALLY LEAKED WAS NOT DRIVEN."
-  echo "The synthetic fixture is three deep; wrangler's is four, and the port is held at the"
-  echo "bottom of it. Re-run without the flag before believing this."
+  echo "The synthetic fixtures reproduce its shape and its restart-on-crash supervisor, but"
+  echo "wrangler's real tree is four deep with the port at the bottom of it, and it is the one"
+  echo "that leaked. Re-run without the flag before believing this."
 else
   wrangler_case
 fi
