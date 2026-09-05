@@ -2226,11 +2226,29 @@ public sealed class ProofPages
             // baseline `.banner-tools` aligns the whole control by — and the chord is measured
             // separately, in the key box, which does hold text.
             //
-            // **Two rows rather than one, because one of them could pass while the other was
-            // wrong.** The control's baseline is what the band aligns; the key box's is what a
-            // reader sees beside the field. Break `.palette-open`'s own `align-items` and the
-            // first still lands on the row while the second does not — measuring only the control
-            // would report a tidy band with the chord sitting off the line.
+            // **Two rows rather than one, and each was measured catching a defect the other
+            // reports as a tidy band.** The control's baseline is what the band aligns the whole
+            // thing by; the key box's is what a reader sees beside the field. Neither subsumes
+            // the other, and the two mutations that establish that are worth naming exactly,
+            // because the obvious guess about which row catches which is wrong:
+            //
+            //   * `.palette-open { align-items: center }` — the wrapper stops sharing its
+            //     children's baseline. The **control** reads 28.17 against the band's 32.00 and
+            //     the chord reads 32.25. Spread 4.08px, FAIL. On the chord row alone the spread
+            //     is 0.25px, which is a PASS: the row that catches this is the control.
+            //   * `.palette-open .key { align-self: center; position: relative; top: 3px }` — a
+            //     defect confined to the key boxes. The control stays on 32.00 with the rest of
+            //     the band and the chord reads 37.00. Spread 5.00px, FAIL. On the control row
+            //     alone the spread is 0.00px, a clean PASS over a chord sitting 5px off the
+            //     line: the row that catches this is the chord.
+            //
+            // **And the field's own box model is not what this proof holds.** Deleting
+            // `.palette-field`'s `border: none` and `padding: 0` — restoring the UA border and
+            // fill the rule exists to undo — moves every one of the seven items from 32.00 to
+            // 33.00 together and leaves the spread at 0.00px. `align-items: baseline` re-aligns
+            // the band to the field's new baseline, so a *spread* cannot see it. Those
+            // declarations are held by the pixel goldens and by the eye, not by this page; see
+            // the note on the rule itself in `app.css`.
             const parts = [
               ['build',    '.avenue-nav .banner-link'],
               ['rules',    '.avenue-nav .banner-link'],

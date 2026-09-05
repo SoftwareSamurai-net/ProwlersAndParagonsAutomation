@@ -127,8 +127,10 @@ placeholder.
   - **And it is measured.** The banner's baseline is proved in a browser on every CI run, and an
     `<input>` brings a box model no rule in this repository states — a border, a fill, padding and
     a `line-height` of the browser's choosing, with the shared rule for every text box on the site
-    adding a panel ground on top. `.palette-field` undoes all of it and the proof reads the field
-    and the chord as two of seven items; see the baseline section below for what was measured.
+    adding a panel ground on top. `.palette-field` undoes all of it, and the proof reads the field
+    and the chord as two of seven items — **its place in the row, not its box**, which is a
+    distinction the baseline section below records with the measurement behind it, because the
+    natural assumption is the other one.
 - **The word is "Search" and the palette still calls itself "Go to".** The label has to survive
   being read at a glance beside the other tools; "Go to" between two underlined links read as a
   third link with no destination. What the palette offers is unchanged and its own box says so in
@@ -383,11 +385,27 @@ the spread under 0.5px. Twenty-one browser verdicts now, not nineteen.
   independently of the face. No computed style exposes that number and a range box gives the line
   box instead.
 - **The positive control is the count.** A spread over one found item is 0.00 and passes, so a
-  banner that had lost five of its six controls would report a perfectly aligned row. Proved by
-  mutation: deleting `<SettingsMenu />` gave `FAIL` at `items 5 of 6` with a spread of 0.00.
+  banner that had lost six of its seven controls would report a perfectly aligned row. Proved by
+  mutation: dropping the `.key` class from the chord's two spans gave `FAIL` at `items 6 of 7`
+  with a spread of 0.00 — the six that were still found genuinely did share a line, which is
+  exactly the reading the count exists to refuse.
+- **Seven items, because the search control is a field and is measured as two of them.** The
+  `<input>` takes no children, so its baseline is read off `.palette-open` — the probe joins that
+  flex line — and the chord is read separately in a `.key` box, which holds text of its own.
+  **Each row was measured catching a defect the other reports as a tidy band**, which is why there
+  are two: `.palette-open { align-items: center }` puts the control on 28.17 against the band's
+  32.00 while the chord stays within 0.25px (chord row alone: PASS), and a defect confined to the
+  key boxes leaves the control on 32.00 with everything else while the chord goes to 37.00
+  (control row alone: PASS at 0.00px, over a chord 5px off the line).
+- **What this page does *not* hold is the field's own box model.** Restoring the UA border and
+  padding `.palette-field` strips moves all seven items from 32.00 to 33.00 *together* and leaves
+  the spread at 0.00px, still `PASS`: `align-items: baseline` re-aligns the band to the field's new
+  baseline, and a spread cannot see a band that moved as one. Recorded because the opposite is the
+  natural assumption and this page is read as evidence — those declarations are held by the pixel
+  goldens, not here.
 - **A twin reproduces `align-items: center`** — the owner's reported defect — driving the
   byte-identical script, and CI requires it to say `FAIL`. Measured: PASS at 0.00px, twin FAIL at
-  1.00px. **The C# suites stay green against that mutation**, which is the whole reason the harness
+  2.00px. **The C# suites stay green against that mutation**, which is the whole reason the harness
   exists: a CSS guard asserting `align-items: baseline` would pass the day somebody adds a taller
   child the baseline no longer saves.
 

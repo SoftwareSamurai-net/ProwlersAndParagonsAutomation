@@ -183,11 +183,23 @@ public sealed class PaletteBookTests
     /// banner and asserts on the palette: the box holds the word, the steps and Powers are matched
     /// against it, and the book is asked for it.</para>
     ///
-    /// <para><b>Once is the assertion that would catch a second search implementation.</b> A field
-    /// that asked the book on its own behalf as well as handing the word over would put two
+    /// <para><b>Once is the assertion that catches a second corpus reader in the banner.</b> A
+    /// field that read the book on its own behalf as well as handing the word over would put two
     /// requests on the wire for one keystroke and look completely correct on screen — the rows
     /// would be right, because the second answer would land on the first one's. It is asserted
-    /// against the requests rather than against what is drawn for exactly that reason.</para>
+    /// against the requests rather than against what is drawn for exactly that reason. Proved by
+    /// mutation: a <c>RulebookReader.AskAboutAsync</c> call added to the banner's own input handler
+    /// fails here with the two requests printed —
+    /// <c>["GET /api/rulebook/search?q=knock", "GET /api/rulebook/search?q=knock&amp;limit=5"]</c>.</para>
+    ///
+    /// <para><b>What it does not catch, and the distinction is the service's rather than this
+    /// test's.</b> A duplicate ask routed through <see cref="Commands.AskTheBookAsync"/> — the
+    /// banner calling the same method the palette calls — survives this assertion, and correctly:
+    /// that method takes a sequence number on entry and abandons any call the next one overtook
+    /// during the pause, so two calls in one keystroke put <em>one</em> request on the wire by
+    /// design. The wire is honest either way; it is only the *shape* of the second implementation
+    /// that decides whether this fails. A banner that reached past <c>Commands</c> is the one this
+    /// guard is for, and it is the one that could actually double the traffic.</para>
     /// </summary>
     [Fact]
     public async Task AWordTypedIntoTheBannerReachesTheBookThroughThePaletteAndOnlyOnce()

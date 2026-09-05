@@ -1716,10 +1716,19 @@ label {
 
    An `<input>` arrives with a border, a fill, padding and a `line-height` of the browser's
    choosing, and the rule every text box on this site shares adds a panel ground and a rule border
-   on top of that — all of it right inside a form and all of it wrong on the one band whose
-   alignment is measured in a browser. Stripped back to type, the field's baseline is its text's
-   baseline, which `.palette-open`'s own `align-items: baseline` then sets on the row beside the
-   key boxes. See `proof-align.html`, which measures the field and the chord as two items.
+   on top of that — all of it right inside a form and all of it wrong on a band that is a row of
+   words rather than a form. Stripped back to type, the field's baseline is its text's baseline,
+   which `.palette-open`'s own `align-items: baseline` then sets on the row beside the key boxes.
+
+   **`proof-align.html` does not hold this rule, and saying it did would be the wrong claim on the
+   one page in this repository that gets read as evidence.** Measured: deleting the `border` and
+   `padding` lines below moves all seven measured items from 32.00 to 33.00 *together* and leaves
+   the spread at 0.00px, still a PASS — because `align-items: baseline` re-aligns the band to
+   whatever baseline the field ends up with, and a spread cannot see a band that moved as one. What
+   that proof does hold is the field's place *relative to the band*, and it holds it in two rows
+   (the control and the chord), each of which was measured catching a defect the other misses — see
+   `AlignHarness` in `ProofPages.cs` for both mutations and their numbers. The border and the fill
+   are held by the pixel goldens, where a box drawn around the word is what a golden is for.
 
    **`letter-spacing` and `text-transform` are set rather than left to inherit**, because they are
    inherited properties everywhere except on a form control: the browser's own stylesheet declares
