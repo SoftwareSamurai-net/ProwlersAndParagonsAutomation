@@ -45,7 +45,27 @@ Same discipline as `powers.json`: verification is tracked **per field**, not wit
 trigger · roll · threshold · effect · duration · cost · description
 ```
 
-An entry's `verified_fields` must be non‑empty, must be a subset of that list, and must include `description` — the one field that is *written* rather than transcribed, and therefore the one most easily left unchecked. A test enforces all three.
+An entry's `verified_fields` must be non‑empty, must be a subset of that list, and must include `description` — the one field that is *written* rather than transcribed, and therefore the one most easily left unchecked.
+
+**And a claimed word has to answer to a key the entry actually carries.** `VerifiedFieldKeys` maps each word to the JSON keys it may cover, and a claim no key can answer goes red. That found three: both band tables declared `threshold` while carrying only net‑success bands — which is the figure left *after* a threshold has been subtracted, not a threshold — and `assisting` declared `trigger` with nothing trigger‑shaped on it. The map is deliberately generous everywhere except `threshold`, because widening it to admit the bands would have made the check say nothing.
+
+## Every fact field is compared, and a reflection walk proves it
+
+`EveryFieldInAPlayRulesFileIsReadByTheTestModels` used to be read as the coverage guarantee. It is not, and it is now called `…DeserializesIntoATestModel`: **loading a value is not verifying it.** An adversarial pass found around twenty fields that deserialized perfectly and were compared to nothing at all — `gm_is_opponent_when_unopposed`, `sixes_explode`, `regain_consciousness`, `wing_it_is_endorsed` and the rest — every one of them reading as verified data with nothing behind it.
+
+`EveryFactFieldOfEveryEntryIsComparedAgainstTheRulebook` walks the test models by reflection and requires every leaf below an entry's envelope to be one of three things:
+
+| | |
+|---|---|
+| **transcribed** | registered in `CanonicalChecks` against a value in `CanonicalChallengeRules`, which carries the printed sentence in its own comment |
+| **derived** | listed in `DerivedPaths` — this project's reading, proved by a named test that *computes* it from transcribed values |
+| **prose** | `what_this_is`, `note`, or any `*_note`, asserted non‑empty and nothing else |
+
+Anything else fails, naming the path. **Prose is identified by a naming rule rather than an exemption list**, because a list of "this one is only descriptive" is exactly how twenty fact fields came to be unchecked.
+
+Two properties are load-bearing. The walk carries a **positive control** on itself — it must find at least 90 leaves, against 98 today — because a reflection walk that stopped finding properties would report no faults and prove nothing. And `TheCoverageWalkReportsAFieldNothingComparesToTheRulebook` is its **negative control**: an unregistered field on a throwaway record is fed to the same classifier and must be reported, with the two prose spellings beside it passing. A classifier that faulted nothing would satisfy the main test perfectly.
+
+**What the walk cannot see is a field whose value is null**, since a null leaf and an optional shape an entry does not use are the same thing to reflection. `arduous_exchanges_max` is the only one, and it is asserted by name.
 
 Every entry also carries a `source_ref` in the existing spelling (`"Ultimate Edition, Ch.3 Action, p.67"`) naming a page in 67–72, or p.7 for the Glossary's rounding rule. A test enforces the range, so a value pasted in from another chapter cannot pass as Chapter 3's.
 

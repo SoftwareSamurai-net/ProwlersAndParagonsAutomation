@@ -27,7 +27,7 @@
         { "min_net_successes": 3, "max_net_successes": null, "outcome": "actor", "embellishment": false }
       ],
       "description": "The net figure is looked up on a four-row band table that says which of the two parties tells the table what happened, and whether the loser may add a detail to it. Both middle bands hand out that right; the outer two do not.",
-      "verified_fields": ["threshold", "effect", "description"],
+      "verified_fields": ["effect", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
       "ambiguity": null
     },
@@ -63,9 +63,8 @@
         { "difficulty": "Godlike", "threshold_min": 12, "threshold_max": null }
       ],
       "interpretation": {
-        "what_this_is": "This repository's reading of the rows above, not a column the book prints. It is kept out of the transcription and labelled so nobody cites it back as the rulebook.",
-        "gm_discretion_difficulties": ["Superhuman", "Legendary", "Godlike"],
-        "gm_discretion_rule": "a row whose printed threshold is a range rather than a single number leaves the GM to choose inside it"
+        "what_this_is": "This repository's reading of the rows above, not a column the book prints: a row whose printed threshold is a range rather than a single number leaves the GM to choose inside it. Kept out of the transcription and labelled so nobody cites it back as the rulebook, and derived by a test from the rows themselves rather than typed out here.",
+        "gm_discretion_difficulties": ["Superhuman", "Legendary", "Godlike"]
       },
       "naming_convention": "difficulty, threshold in brackets, then the Trait - an Average (1) Might roll",
       "description": "With nobody resisting, the GM picks the number to beat off a nine-step ladder running from a standing start up to twelve or more. The bottom six steps are a single number each; the top three are ranges, so the GM chooses within them.",
@@ -145,7 +144,7 @@
       "silver_linings_and_complications_decided_by": "gm",
       "mixable_per_player": true,
       "description": "A table for groups that would rather be told whether they succeeded than be asked to narrate. It reuses the same four bands and turns each into a pass-or-fail verdict, with the GM supplying whatever the qualified verdicts qualify. One player may use it while another narrates.",
-      "verified_fields": ["threshold", "effect", "description"],
+      "verified_fields": ["effect", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.69",
       "ambiguity": null
     },
@@ -166,10 +165,9 @@
         "explode_cost_resolve": 1,
         "decided_after_the_roll": true,
         "explosion_recurses_while_sixes_keep_coming": true,
-        "other_explode_offers_provide_no_extra_benefit": true,
-        "intent": "a flatter, less swingy distribution for a grittier game"
+        "other_explode_offers_provide_no_extra_benefit": true
       },
-      "description": "An optional setting for the whole table, not a thing one character does. Under it every even face is worth exactly one success, so a six stops being twice as good as a two; a player who wants more out of their sixes pays a point of Resolve to reroll them, and may decide that after seeing the dice. Elsewhere in the rules the same purchase is offered, and at this setting it buys nothing extra.",
+      "description": "An optional setting for the whole table, not a thing one character does, and it exists for a group that wants a flatter and less swingy game than the default. Under it every even face is worth exactly one success, so a six stops being twice as good as a two; a player who wants more out of their sixes pays a point of Resolve to reroll them, and may decide that after seeing the dice. Elsewhere in the rules the same purchase is offered, and at this setting it buys nothing extra.",
       "verified_fields": ["roll", "effect", "cost", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.69",
       "ambiguity": "One Resolve is spent to make sixes explode, and the book does not say whether that covers the whole cascade or only the first reroll. Its interaction with the sub-1d floor is also unaddressed: that floor says only a six counts and counts for one success, which happens to agree with this map, so it is unclear whether the floor is meant to be read as a separate rule at all here. And the clause voiding the other explode offers does not say what becomes of a Defining Moment's exploding sixes, which cost no Resolve to begin with and so cannot be the purchase being voided."
@@ -187,7 +185,7 @@
         "best_helper_only": true
       },
       "description": "A second character can put their shoulder to the same task. They roll against a fixed number of two, and every pair of net successes they clear buys the character actually attempting the task one more die - with the odd one rounding upward, as halves do everywhere in this book. Extra helpers do not add up; only the best of them counts.",
-      "verified_fields": ["trigger", "roll", "threshold", "effect", "description"],
+      "verified_fields": ["roll", "threshold", "effect", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.69",
       "ambiguity": "Rounding up means one net success buys a full die, so a helper who barely clears the threshold helps exactly as much as one who doubles it. Nothing is said about a helper who fails - whether zero or negative net successes is simply no bonus, or a penalty - and nothing says whether the same character may both assist and act."
     },

@@ -96,8 +96,7 @@ public sealed class PlayRulesDataTests
     /// </summary>
     private sealed record ThresholdsInterpretationModel(
         string WhatThisIs,
-        IReadOnlyList<string> GmDiscretionDifficulties,
-        string GmDiscretionRule);
+        IReadOnlyList<string> GmDiscretionDifficulties);
 
     private sealed record OpposedModel(string ThresholdSource, string StaticThresholdUsedWhen);
 
@@ -117,8 +116,7 @@ public sealed class PlayRulesDataTests
         int ExplodeCostResolve,
         bool DecidedAfterTheRoll,
         bool ExplosionRecursesWhileSixesKeepComing,
-        bool OtherExplodeOffersProvideNoExtraBenefit,
-        string Intent);
+        bool OtherExplodeOffersProvideNoExtraBenefit);
 
     private sealed record AssistModel(
         int HelperRollsAgainstThreshold,
@@ -785,9 +783,73 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
+    /// Which JSON keys each word of the <c>verified_fields</c> vocabulary may be claimed on. <b>It
+    /// is a coverage map, not a semantic one</b>: it says a word is answerable from at least one
+    /// key the entry carries, which is the difference between a claim and a decoration.
+    ///
+    /// <para><b>It is generous everywhere except <c>threshold</c></b>, and that is where it bit: the
+    /// two band tables claimed <c>threshold</c> while carrying only net-success bands, which is a
+    /// different quantity — net successes are what is left <em>after</em> a threshold. Widening the
+    /// map to admit them would have made the check say nothing.</para>
+    /// </summary>
+    private static readonly Dictionary<string, HashSet<string>> VerifiedFieldKeys =
+        new(StringComparer.Ordinal)
+        {
+            ["trigger"] = Keys(
+                "trigger", "context", "declared_by", "offered_by", "actor_is", "opponent_is",
+                "when_two_or_more_pursue_the_same_goal", "structure", "offered_at_gm_option"),
+            ["roll"] = Keys(
+                "die_sides", "pool_formula", "success_map", "dice_rolled", "counting_faces",
+                "dice_per_success", "gm_may_veto", "net_success_formula", "min_dice", "max_dice",
+                "sixes_explode", "decided_after_the_roll", "explosion_recurses_while_sixes_keep_coming",
+                "six_still_worth_successes", "dice_per_resolve_spent", "ordinary_dice_per_resolve_spent",
+                "challenge_roll_penalty_dice", "exchange_win_bonus_dice_next_exchange",
+                "helper_rolls_against_threshold", "net_successes_per_bonus_die", "bonus_formula",
+                "everyone_rolls_individually", "threshold_source"),
+            ["threshold"] = Keys(
+                "threshold_min", "threshold_max", "difficulty", "threshold", "threshold_source",
+                "static_threshold_used_when", "helper_rolls_against_threshold",
+                "helper_threshold_difficulty", "gm_discretion_difficulties", "net_success_formula"),
+            ["effect"] = Keys(
+                "outcome", "embellishment", "held_by", "size", "must_not_contradict_the_narration",
+                "must_not_render_it_meaningless", "trade", "requires_agreement_of_both",
+                "opponent_may_refuse", "silver_linings_and_complications_decided_by",
+                "mixable_per_player", "applied_by", "may_apply_to", "examples_given",
+                "distribute_above_net_successes", "above_is_strict",
+                "minimum_net_successes_to_distribute", "distribute_to",
+                "exchange_winner_narrates_that_exchange", "final_exchange_decides_the_contest",
+                "aftermath_permanent_ability_loss_dice", "physical_task_reduces_one_of",
+                "mental_task_reduces_one_of", "health_after", "unconscious", "direction", "scope",
+                "examples", "successes_when_hit", "otherwise", "net_success_formula",
+                "gm_is_opponent_when_unopposed",
+                "gm_accepts_player_input_when_actor_is_npc", "dice_per_success",
+                "other_explode_offers_provide_no_extra_benefit", "rounding", "best_helper_only",
+                "success_map", "challenge_roll_penalty_dice", "replaces_the_permanent_ability_loss",
+                "wing_it_is_endorsed", "naming_convention"),
+            ["duration"] = Keys(
+                "penalty_duration", "regain_consciousness", "limit_per_story",
+                "limit_per_scene_per_group", "concurrent_scenes_each_allow_one",
+                "may_last_longer_than_an_instant", "typical_exchanges", "arduous_exchanges_min",
+                "arduous_exchanges_max", "arduous_condition"),
+            ["cost"] = Keys(
+                "explode_cost_resolve", "dice_per_resolve_spent", "ordinary_dice_per_resolve_spent",
+                "aftermath_permanent_ability_loss_dice", "ability_may_be_bought_back_later",
+                "health_after", "unconscious", "challenge_roll_penalty_dice")
+        };
+
+    private static HashSet<string> Keys(params string[] names) =>
+        new HashSet<string>(names, StringComparer.Ordinal);
+
+    /// <summary>
     /// <c>verified_fields</c> is what distinguishes a transcribed value from a plausible one, and
     /// it is worthless if the vocabulary drifts: the closed list lives in each file's header and
     /// both files have to agree on it.
+    ///
+    /// <para><b>And a word has to answer to a key the entry actually carries.</b> Both band tables
+    /// declared <c>threshold</c> and carry no threshold — they are net-success bands, which is the
+    /// figure left after a threshold has been subtracted — and <c>assisting</c> declared
+    /// <c>trigger</c> with no trigger-shaped field on it. A claim about a field that is not there
+    /// cannot be checked by anything and reads as verification, so it is worse than no claim.</para>
     /// </summary>
     [Fact]
     public void EveryEntryDeclaresVerifiedFieldsDrawnFromTheClosedList()
@@ -800,11 +862,20 @@ public sealed class PlayRulesDataTests
         var closed = meta.Header.VerifiedFieldsClosedList;
         Assert.NotEmpty(closed);
 
+        // Every word of the closed list except "description" has to be mapped, or an unmapped word
+        // would be silently unenforceable — the same hole one layer up.
+        var unmapped = closed
+            .Where(word => word != "description" && !VerifiedFieldKeys.ContainsKey(word))
+            .ToList();
+
+        Assert.True(
+            unmapped.Count == 0,
+            $"The closed list names {string.Join(", ", unmapped)}, which VerifiedFieldKeys does not "
+            + "map to any JSON key, so a claim of it could never be checked.");
+
         var faults = new List<string>();
 
-        foreach (var (id, fields) in
-                 meta.Entries.Select(e => (e.Id, e.VerifiedFields))
-                     .Concat(challenge.Entries.Select(e => (e.Id, e.VerifiedFields))))
+        foreach (var (id, entry, fields) in AllEntriesWithVerifiedFields())
         {
             if (fields.Count == 0)
             {
@@ -819,10 +890,70 @@ public sealed class PlayRulesDataTests
             // unchecked, since it is the only field written rather than transcribed.
             if (!fields.Contains("description", StringComparer.Ordinal))
                 faults.Add($"{id}: verified_fields does not include description");
+
+            var carried = EntryLeaves(id, entry, stopAt: null)
+                .Select(leaf => leaf.Path[(leaf.Path.LastIndexOf('.') + 1)..])
+                .ToHashSet(StringComparer.Ordinal);
+
+            foreach (var word in fields.Where(f => f != "description" && closed.Contains(f, StringComparer.Ordinal)))
+            {
+                if (VerifiedFieldKeys.TryGetValue(word, out var allowed) && !carried.Overlaps(allowed))
+                {
+                    faults.Add(
+                        $"{id}: verified_fields claims '{word}', and the entry carries no field that "
+                        + $"could answer it — it has {string.Join(", ", carried.Order())}");
+                }
+            }
         }
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
+
+    /// <summary>
+    /// <c>kind</c> sorts the entries by the shape of the mechanic and is this project's word rather
+    /// than the book's, so it is a closed list for the same reason <c>verified_fields</c> is: a
+    /// typo would otherwise invent a sixth kind nothing handles.
+    /// </summary>
+    [Fact]
+    public void EveryEntryDeclaresAKindFromTheClosedList()
+    {
+        var kinds = Meta().Entries.Select(e => (e.Id, e.Kind))
+            .Concat(Challenge().Entries.Select(e => (e.Id, e.Kind)))
+            .ToList();
+
+        Assert.True(kinds.Count >= 15, $"Only {kinds.Count} entries were read across the two files.");
+
+        var faults = kinds
+            .Where(k => !CanonicalChallengeRules.EntryKinds.Contains(k.Kind, StringComparer.Ordinal))
+            .Select(k => $"{k.Id}: kind '{k.Kind}' is not one of {string.Join(", ", CanonicalChallengeRules.EntryKinds)}")
+            .ToList();
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>
+    /// The header is the file's own account of itself, and every line of it is load-bearing: the
+    /// placement note is the access-control decision <see cref="PlayPayloadTests"/> proves, and
+    /// <c>not_logic</c> is what stops the next reader wiring an engine to it.
+    /// </summary>
+    [Theory]
+    [InlineData("play_meta.json")]
+    [InlineData("challenge.json")]
+    public void EachFileSaysWhatItIsWhereItSitsAndThatNothingReadsIt(string fileName)
+    {
+        var header = fileName == "play_meta.json" ? Meta().Header : Challenge().Header;
+
+        Assert.False(string.IsNullOrWhiteSpace(header.WhatThisIs));
+        Assert.False(string.IsNullOrWhiteSpace(header.NotLogic));
+        Assert.Contains(@"data\rules\*.json", header.PlacementNote, StringComparison.Ordinal);
+        Assert.Contains("Ch.3 Action", header.SourceRef, StringComparison.Ordinal);
+    }
+
+    /// <summary>Both files, as (id, entry, verified_fields) triples.</summary>
+    private static IEnumerable<(string Id, object Entry, IReadOnlyList<string> Fields)>
+        AllEntriesWithVerifiedFields() =>
+        Meta().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields))
+            .Concat(Challenge().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)));
 
     /// <summary>
     /// <b>Descriptions in <c>data/rules/</c> are this project's own words, never the book's.</b>
@@ -969,14 +1100,20 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
-    /// <b>Every field in a play rules file is read by the models above.</b> Same failure this
-    /// guards against as <see cref="RulesFileCoverageTests"/>: a key nothing deserializes reads
-    /// like a source of truth and is not one, and cannot fail a test because nothing loads it.
+    /// <b>Every field in a play rules file deserializes into one of the models above — and that is
+    /// all this proves.</b> Same failure <see cref="RulesFileCoverageTests"/> guards against: a key
+    /// nothing deserializes reads like a source of truth and is not one.
+    ///
+    /// <para><b>It was called <c>EveryFieldInAPlayRulesFileIsReadByTheTestModels</c>, and the name
+    /// was doing work the body does not.</b> "Read" was taken for "checked" — an adversarial pass
+    /// found some twenty fields that deserialized here and were compared to nothing at all. Loading
+    /// a value is not verifying it, and the test that verifies is
+    /// <see cref="EveryFactFieldOfEveryEntryIsComparedAgainstTheRulebook"/> below.</para>
     /// </summary>
     [Theory]
     [InlineData("play_meta.json")]
     [InlineData("challenge.json")]
-    public void EveryFieldInAPlayRulesFileIsReadByTheTestModels(string fileName)
+    public void EveryFieldInAPlayRulesFileDeserializesIntoATestModel(string fileName)
     {
         var json = File.ReadAllText(Path.Combine(PlayDataPath, fileName));
 
@@ -988,6 +1125,466 @@ public sealed class PlayRulesDataTests
             $"{fileName} carries a field no model reads, so nothing can hold it to the "
             + $"rulebook: {ex?.Message}");
     }
+
+    // ── Every fact field, compared ───────────────────────────────────────────
+
+    /// <summary>
+    /// The seven keys every entry carries whatever it is about. Each has its own guard above —
+    /// <see cref="EverySourceRefNamesAPageInChapterThreeOrTheGlossary"/>,
+    /// <see cref="EveryEntryDeclaresVerifiedFieldsDrawnFromTheClosedList"/>,
+    /// <see cref="NoDescriptionRepeatsARunOfTheBooksOwnWords"/>,
+    /// <see cref="EveryEntryDeclaresAKindFromTheClosedList"/> — so the walk starts below them.
+    /// </summary>
+    private static readonly HashSet<string> EnvelopeFields =
+        new HashSet<string>(StringComparer.Ordinal)
+        { "id", "name", "kind", "description", "verified_fields", "source_ref", "ambiguity" };
+
+    /// <summary>
+    /// <b>Prose is identified by name, not by a hand-kept list of exemptions.</b> A list of "this
+    /// one is only descriptive" is how twenty fact fields came to be unchecked in the first place;
+    /// a naming rule cannot be extended quietly. <c>what_this_is</c> labels a block as this
+    /// project's own words, and a <c>*_note</c> suffix marks an aside. Everything else is a fact
+    /// field and has to be compared to the book.
+    /// </summary>
+    private static bool IsProse(string leafName) =>
+        leafName is "what_this_is" or "note" || leafName.EndsWith("_note", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Fields that are this repository's reading of the transcribed values beside them, each proved
+    /// by a named test that <em>derives</em> it rather than typing it out — see
+    /// <see cref="TheRowsLeftToGmDiscretionAreExactlyTheOnesPrintedAsARange"/>. They are exempt from
+    /// the canonical comparison because there is nothing in the book to compare them to; that is
+    /// the whole reason they are labelled.
+    /// </summary>
+    private static readonly HashSet<string> DerivedPaths =
+        new HashSet<string>(StringComparer.Ordinal) { "thresholds.interpretation.gm_discretion_difficulties" };
+
+    /// <summary>
+    /// <b>Every fact field of every entry, and the rulebook value it must equal.</b> A path is
+    /// <c>&lt;entry id&gt;.&lt;field&gt;</c>, descending into nested objects and indexing into lists
+    /// of objects. Registering a path also stops the walk descending into it, so a whole table is
+    /// one entry here checked by one comparer.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, Func<object?, string?>> CanonicalChecks =
+        new Dictionary<string, Func<object?, string?>>(StringComparer.Ordinal)
+        {
+            // play_meta.json
+            ["dice_pool.die_sides"] = Is(CanonicalChallengeRules.DieSides),
+            ["dice_pool.pool_formula"] = Is(CanonicalChallengeRules.PoolFormula),
+            ["success_map.success_map"] = MapIs(CanonicalChallengeRules.SuccessMap),
+            ["sub_one_die_floor.sub_one_die.dice_rolled"] = Is(CanonicalChallengeRules.SubOneDieDiceRolled),
+            ["sub_one_die_floor.sub_one_die.counting_faces"] =
+                Is(new[] { CanonicalChallengeRules.SubOneDieCountingFace }),
+            ["sub_one_die_floor.sub_one_die.successes_when_hit"] = Is(CanonicalChallengeRules.SubOneDieSuccessesWhenHit),
+            ["sub_one_die_floor.sub_one_die.otherwise"] = Is(CanonicalChallengeRules.SubOneDieOtherwise),
+            ["automatic_successes.automatic_successes.dice_per_success"] =
+                Is(CanonicalChallengeRules.DiceNotRolledPerAutomaticSuccess),
+            ["automatic_successes.automatic_successes.gm_may_veto"] =
+                Is(CanonicalChallengeRules.AutomaticSuccessesCanBeVetoed),
+            ["net_successes.net_success_formula"] = Is(CanonicalChallengeRules.NetSuccessFormula),
+            ["half_rounds_up.rounding.direction"] = Is(CanonicalChallengeRules.HalfRoundingDirection),
+            ["half_rounds_up.rounding.scope"] = Is(CanonicalChallengeRules.HalfRuleScope),
+            ["half_rounds_up.rounding.examples"] = Is(CanonicalChallengeRules.HalfRuleExamples),
+            ["half_rounds_up.rounding.exceptions[0].name"] = Is(CanonicalChallengeRules.HalfRuleExceptionName),
+            ["half_rounds_up.rounding.exceptions[0].direction"] = Is(CanonicalChallengeRules.HalfRuleExceptionDirection),
+            ["half_rounds_up.rounding.exceptions[0].what_it_governs"] =
+                Is(CanonicalChallengeRules.HalfRuleExceptionGoverns),
+            ["half_rounds_up.rounding.exceptions[0].reference"] =
+                Names(CanonicalChallengeRules.HalfRuleExceptionPage),
+
+            // challenge.json
+            ["narrative_control.bands"] = BandsAre(CanonicalChallengeRules.NarrativeControl),
+            ["actor_selection.actor_selection.actor_is"] = Is(CanonicalChallengeRules.ActorIs),
+            ["actor_selection.actor_selection.opponent_is"] = Is(CanonicalChallengeRules.OpponentIs),
+            ["actor_selection.actor_selection.when_two_or_more_pursue_the_same_goal"] =
+                Is(CanonicalChallengeRules.WhenTwoOrMorePursueTheSameGoal),
+            ["actor_selection.actor_selection.gm_is_opponent_when_unopposed"] =
+                Is(CanonicalChallengeRules.GmIsOpponentWhenUnopposed),
+            ["actor_selection.actor_selection.gm_accepts_player_input_when_actor_is_npc"] =
+                Is(CanonicalChallengeRules.GmAcceptsPlayerInputWhenActorIsNpc),
+            ["thresholds.thresholds"] = ThresholdsAre(CanonicalChallengeRules.Thresholds),
+            ["thresholds.naming_convention"] = Is(CanonicalChallengeRules.ThresholdNamingConvention),
+            ["opposed_threshold.opposed.threshold_source"] = Is(CanonicalChallengeRules.OpposedThresholdSource),
+            ["opposed_threshold.opposed.static_threshold_used_when"] =
+                Is(CanonicalChallengeRules.StaticThresholdUsedWhen),
+            ["condition_modifier.condition_modifier.min_dice"] = Is(CanonicalChallengeRules.ConditionModifierMinDice),
+            ["condition_modifier.condition_modifier.max_dice"] = Is(CanonicalChallengeRules.ConditionModifierMaxDice),
+            ["condition_modifier.condition_modifier.applied_by"] =
+                Is(CanonicalChallengeRules.ConditionModifierAppliedBy),
+            ["condition_modifier.condition_modifier.may_apply_to"] =
+                Is(CanonicalChallengeRules.ConditionModifierMayApplyTo),
+            ["condition_modifier.condition_modifier.examples_given"] =
+                Is(CanonicalChallengeRules.ConditionModifierExamples),
+            ["embellishment.embellishment.held_by"] = Is(CanonicalChallengeRules.EmbellishmentHeldBy),
+            ["embellishment.embellishment.must_not_contradict_the_narration"] =
+                Is(CanonicalChallengeRules.EmbellishmentMustNotContradictTheNarration),
+            ["embellishment.embellishment.must_not_render_it_meaningless"] =
+                Is(CanonicalChallengeRules.EmbellishmentMustNotRenderItMeaningless),
+            ["embellishment.embellishment.size"] = Is(CanonicalChallengeRules.EmbellishmentSize),
+            ["compromise.compromise.offered_by"] = Is(CanonicalChallengeRules.CompromiseOfferedBy),
+            ["compromise.compromise.trade"] = Is(CanonicalChallengeRules.CompromiseTrade),
+            ["compromise.compromise.requires_agreement_of_both"] =
+                Is(CanonicalChallengeRules.CompromiseRequiresAgreementOfBoth),
+            ["compromise.compromise.opponent_may_refuse"] = Is(CanonicalChallengeRules.CompromiseOpponentMayRefuse),
+            ["traditional_results.bands"] = BandsAre(CanonicalChallengeRules.TraditionalResults),
+            ["traditional_results.silver_linings_and_complications_decided_by"] =
+                Is(CanonicalChallengeRules.TraditionalResultsQualifiersDecidedBy),
+            ["traditional_results.mixable_per_player"] = Is(CanonicalChallengeRules.TraditionalResultsMixablePerPlayer),
+            ["checking_your_swing.checking_your_swing.success_map"] =
+                MapIs(CanonicalChallengeRules.CheckingYourSwingSuccessMap),
+            ["checking_your_swing.checking_your_swing.sixes_explode"] =
+                Is(CanonicalChallengeRules.CheckingYourSwingSixesExplode),
+            ["checking_your_swing.checking_your_swing.explode_cost_resolve"] =
+                Is(CanonicalChallengeRules.CheckingYourSwingExplodeCostResolve),
+            ["checking_your_swing.checking_your_swing.decided_after_the_roll"] =
+                Is(CanonicalChallengeRules.CheckingYourSwingDecidedAfterTheRoll),
+            ["checking_your_swing.checking_your_swing.explosion_recurses_while_sixes_keep_coming"] =
+                Is(CanonicalChallengeRules.CheckingYourSwingExplosionRecurses),
+            ["checking_your_swing.checking_your_swing.other_explode_offers_provide_no_extra_benefit"] =
+                Is(CanonicalChallengeRules.CheckingYourSwingOtherExplodeOffersProvideNoExtraBenefit),
+            ["assisting.assist.helper_rolls_against_threshold"] = Is(CanonicalChallengeRules.AssistHelperThreshold),
+            ["assisting.assist.helper_threshold_difficulty"] = Is(CanonicalChallengeRules.AssistHelperDifficulty),
+            ["assisting.assist.net_successes_per_bonus_die"] = Is(CanonicalChallengeRules.AssistNetSuccessesPerBonusDie),
+            ["assisting.assist.rounding"] = Is(CanonicalChallengeRules.HalfRoundingDirection),
+            ["assisting.assist.bonus_formula"] = Is(CanonicalChallengeRules.AssistBonusFormula),
+            ["assisting.assist.best_helper_only"] = Is(CanonicalChallengeRules.AssistBestHelperOnly),
+            ["group_action.group_action.trigger"] = Is(CanonicalChallengeRules.GroupActionTrigger),
+            ["group_action.group_action.everyone_rolls_individually"] =
+                Is(CanonicalChallengeRules.GroupActionEveryoneRollsIndividually),
+            ["group_action.group_action.distribute_above_net_successes"] =
+                Is(CanonicalChallengeRules.GroupActionDistributeAboveNetSuccesses),
+            ["group_action.group_action.above_is_strict"] = Is(CanonicalChallengeRules.GroupActionAboveIsStrict),
+            ["group_action.group_action.minimum_net_successes_to_distribute"] =
+                Is(CanonicalChallengeRules.GroupActionMinimumNetSuccessesToDistribute),
+            ["group_action.group_action.distribute_to"] = Is(CanonicalChallengeRules.GroupActionDistributeTo),
+            ["group_action.group_action.examples_given"] = Is(CanonicalChallengeRules.GroupActionExamples),
+            ["contests.contest.structure"] = Is(CanonicalChallengeRules.ContestStructure),
+            ["contests.contest.typical_exchanges"] = Is(CanonicalChallengeRules.ContestTypicalExchanges),
+            ["contests.contest.arduous_exchanges_min"] = Is(CanonicalChallengeRules.ContestArduousExchangesMin),
+            ["contests.contest.arduous_condition"] = Is(CanonicalChallengeRules.ContestArduousCondition),
+            ["contests.contest.exchange_winner_narrates_that_exchange"] =
+                Is(CanonicalChallengeRules.ContestExchangeWinnerNarratesThatExchange),
+            ["contests.contest.exchange_win_bonus_dice_next_exchange"] =
+                Is(CanonicalChallengeRules.ContestExchangeWinBonusDice),
+            ["contests.contest.final_exchange_decides_the_contest"] =
+                Is(CanonicalChallengeRules.ContestFinalExchangeDecidesTheContest),
+            ["defining_moment.defining_moment.declared_by"] = Is(CanonicalChallengeRules.DefiningMomentDeclaredBy),
+            ["defining_moment.defining_moment.sixes_explode"] = Is(CanonicalChallengeRules.DefiningMomentSixesExplode),
+            ["defining_moment.defining_moment.six_still_worth_successes"] = Is(CanonicalChallengeRules.SuccessMap[6]),
+            ["defining_moment.defining_moment.explosion_recurses_while_sixes_keep_coming"] =
+                Is(CanonicalChallengeRules.DefiningMomentExplosionRecurses),
+            ["defining_moment.defining_moment.dice_per_resolve_spent"] =
+                Is(CanonicalChallengeRules.DefiningMomentDicePerResolveSpent),
+            ["defining_moment.defining_moment.ordinary_dice_per_resolve_spent"] =
+                Is(CanonicalChallengeRules.OrdinaryDicePerResolveSpent),
+            ["defining_moment.defining_moment.limit_per_story"] =
+                Is(CanonicalChallengeRules.DefiningMomentLimitPerStory),
+            ["defining_moment.defining_moment.limit_per_scene_per_group"] =
+                Is(CanonicalChallengeRules.DefiningMomentLimitPerScene),
+            ["defining_moment.defining_moment.concurrent_scenes_each_allow_one"] =
+                Is(CanonicalChallengeRules.DefiningMomentConcurrentScenesEachAllowOne),
+            ["defining_moment.defining_moment.may_last_longer_than_an_instant"] =
+                Is(CanonicalChallengeRules.DefiningMomentMayLastLongerThanAnInstant),
+            ["defining_moment.defining_moment.aftermath_permanent_ability_loss_dice"] =
+                Is(CanonicalChallengeRules.DefiningMomentPermanentAbilityLossDice),
+            ["defining_moment.defining_moment.physical_task_reduces_one_of"] =
+                Is(CanonicalChallengeRules.DefiningMomentPhysicalAbilities),
+            ["defining_moment.defining_moment.mental_task_reduces_one_of"] =
+                Is(CanonicalChallengeRules.DefiningMomentMentalAbilities),
+            ["defining_moment.defining_moment.ability_may_be_bought_back_later"] =
+                Is(CanonicalChallengeRules.DefiningMomentAbilityMayBeBoughtBackLater),
+            ["defining_moment_one_shot.one_shot_variant.context"] = Is(CanonicalChallengeRules.OneShotContext),
+            ["defining_moment_one_shot.one_shot_variant.health_after"] = Is(CanonicalChallengeRules.OneShotHealthAfter),
+            ["defining_moment_one_shot.one_shot_variant.unconscious"] = Is(CanonicalChallengeRules.OneShotUnconscious),
+            ["defining_moment_one_shot.one_shot_variant.regain_consciousness"] =
+                Is(CanonicalChallengeRules.OneShotRegainConsciousness),
+            ["defining_moment_one_shot.one_shot_variant.challenge_roll_penalty_dice"] =
+                Is(CanonicalChallengeRules.OneShotChallengeRollPenaltyDice),
+            ["defining_moment_one_shot.one_shot_variant.penalty_duration"] =
+                Is(CanonicalChallengeRules.OneShotPenaltyDuration),
+            ["defining_moment_one_shot.one_shot_variant.ordinary_games_option.offered_at_gm_option"] =
+                Is(CanonicalChallengeRules.OneShotOptionOfferedInOrdinaryGamesAtGmOption),
+            ["defining_moment_one_shot.one_shot_variant.ordinary_games_option.replaces_the_permanent_ability_loss"] =
+                Is(CanonicalChallengeRules.OneShotOptionInOrdinaryGamesReplacesTheAbilityLoss),
+            ["defining_moment_one_shot.one_shot_variant.ordinary_games_option.mandatory"] =
+                Is(CanonicalChallengeRules.OneShotOptionInOrdinaryGamesIsMandatory),
+            ["judging_thresholds.judging_guideline"] = JudgingIs(CanonicalChallengeRules.JudgingThresholds),
+            ["judging_thresholds.calibrated_for"] = Is(CanonicalChallengeRules.JudgingThresholdsCalibratedFor),
+            ["judging_thresholds.wing_it_is_endorsed"] = Is(CanonicalChallengeRules.JudgingThresholdsWingItIsEndorsed)
+        };
+
+    private static HashSet<string> RegisteredPaths =>
+        new HashSet<string>(CanonicalChecks.Keys.Concat(DerivedPaths), StringComparer.Ordinal);
+
+    /// <summary>
+    /// <b>The test the review asked for, and the one the deserialization check was mistaken for.</b>
+    /// It walks the models by reflection, so a field cannot be added to a play rules file and
+    /// quietly go unchecked: every leaf below an entry's envelope is prose, a labelled derivation,
+    /// or a value compared here against <see cref="CanonicalChallengeRules"/>. Anything else is a
+    /// fault naming the path.
+    ///
+    /// <para><b>What it does not see is a field whose value is null</b>, because a null leaf and an
+    /// optional shape this entry does not use are the same thing to reflection —
+    /// <c>arduous_exchanges_max</c> is the one such field and
+    /// <see cref="AContestIsUsuallyThreeExchangesAndAnArduousOneIsSixOrMore"/> asserts it by
+    /// name.</para>
+    /// </summary>
+    [Fact]
+    public void EveryFactFieldOfEveryEntryIsComparedAgainstTheRulebook()
+    {
+        var faults = new List<string>();
+        var leaves = 0;
+
+        foreach (var (id, entry) in AllEntryObjects())
+        {
+            leaves += EntryLeaves(id, entry, RegisteredPaths).Count();
+            faults.AddRange(CoverageFaults(id, entry));
+        }
+
+        // Positive control on the walk itself. A reflection walk that stopped finding properties —
+        // a records-to-classes refactor, a filter that matched everything — would report no faults
+        // and prove nothing, which is the exact shape of the four guard failures CLAUDE.md lists.
+        Assert.True(
+            leaves >= 90,
+            $"The walk found only {leaves} fact fields across both files, which is fewer than the "
+            + "entries carry — there are 98 today. It has stopped reading the models; fix the "
+            + "walk, not this number.");
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>A record with one unregistered fact field, one prose field and one aside.</summary>
+    private sealed record CoverageProbe(int MadeUpNumber, string WhatThisIs, string ExtraNote);
+
+    /// <summary>
+    /// <b>The negative control for the walk above, and it is the whole instrument.</b> A classifier
+    /// that faulted nothing would pass <see cref="EveryFactFieldOfEveryEntryIsComparedAgainstTheRulebook"/>
+    /// perfectly while checking nothing at all — which is how a guard in this repository has been
+    /// wrong four times. So an unregistered field is fed to the same classifier and must be
+    /// reported, and the two prose spellings beside it must not be.
+    /// </summary>
+    [Fact]
+    public void TheCoverageWalkReportsAFieldNothingComparesToTheRulebook()
+    {
+        var faults = CoverageFaults("probe", new CoverageProbe(1, "ours", "an aside"));
+
+        var fault = Assert.Single(faults);
+        Assert.Contains("probe.made_up_number", fault, StringComparison.Ordinal);
+
+        // And prose really is passing as prose rather than being missed by the walk, which would
+        // look identical from the count above.
+        var empty = CoverageFaults("probe", new CoverageProbe(1, "   ", "an aside"));
+        Assert.Equal(2, empty.Count);
+        Assert.Contains(empty, f => f.Contains("probe.what_this_is", StringComparison.Ordinal));
+    }
+
+    private static List<string> CoverageFaults(string entryId, object entry)
+    {
+        var faults = new List<string>();
+
+        foreach (var (path, value) in EntryLeaves(entryId, entry, RegisteredPaths))
+        {
+            var leafName = path[(path.LastIndexOf('.') + 1)..];
+
+            if (IsProse(leafName))
+            {
+                if (value is not string text || string.IsNullOrWhiteSpace(text))
+                    faults.Add($"{path}: prose field is empty");
+
+                continue;
+            }
+
+            if (DerivedPaths.Contains(path)) continue;
+
+            if (!CanonicalChecks.TryGetValue(path, out var check))
+            {
+                faults.Add(
+                    $"{path} is a fact field and nothing compares it to CanonicalChallengeRules. "
+                    + "Transcribe it there with the sentence it came from, register it, or move it "
+                    + "into description/ambiguity prose — an unchecked fact field reads as verified "
+                    + "data and is not");
+                continue;
+            }
+
+            var fault = check(value);
+            if (fault is not null) faults.Add($"{path} {fault}");
+        }
+
+        return faults;
+    }
+
+    /// <summary>
+    /// Every leaf below an entry's envelope, as a dotted path. Nested models are descended into and
+    /// lists of models are indexed; a list of scalars, a dictionary or a scalar is a leaf. A path in
+    /// <paramref name="stopAt"/> is yielded whole rather than descended into, so a table registered
+    /// as one value is compared by one comparer.
+    /// </summary>
+    private static IEnumerable<(string Path, object Value)> EntryLeaves(
+        string entryId, object entry, HashSet<string>? stopAt)
+    {
+        foreach (var property in entry.GetType().GetProperties())
+        {
+            var name = JsonNamingPolicy.SnakeCaseLower.ConvertName(property.Name);
+            if (EnvelopeFields.Contains(name)) continue;
+
+            var value = property.GetValue(entry);
+            if (value is null) continue;
+
+            foreach (var leaf in Descend($"{entryId}.{name}", value, stopAt)) yield return leaf;
+        }
+    }
+
+    private static IEnumerable<(string Path, object Value)> Descend(
+        string path, object value, HashSet<string>? stopAt)
+    {
+        if (stopAt is not null && stopAt.Contains(path))
+        {
+            yield return (path, value);
+            yield break;
+        }
+
+        if (IsTestModel(value))
+        {
+            foreach (var property in value.GetType().GetProperties())
+            {
+                var child = property.GetValue(value);
+                if (child is null) continue;
+
+                var name = JsonNamingPolicy.SnakeCaseLower.ConvertName(property.Name);
+
+                foreach (var leaf in Descend($"{path}.{name}", child, stopAt)) yield return leaf;
+            }
+
+            yield break;
+        }
+
+        if (value is System.Collections.IEnumerable items and not string)
+        {
+            var rows = items.Cast<object>().ToList();
+
+            if (rows.Count > 0 && rows.TrueForAll(IsTestModel))
+            {
+                for (var i = 0; i < rows.Count; i++)
+                {
+                    foreach (var leaf in Descend($"{path}[{i}]", rows[i], stopAt)) yield return leaf;
+                }
+
+                yield break;
+            }
+        }
+
+        yield return (path, value);
+    }
+
+    /// <summary>A model is one of the records declared in this class; anything else is a value.</summary>
+    private static bool IsTestModel(object value) =>
+        value.GetType().DeclaringType == typeof(PlayRulesDataTests);
+
+    private static Func<object?, string?> Is(object? expected) => actual =>
+        ValuesEqual(expected, actual) ? null : $"is {Show(actual)}; the rulebook says {Show(expected)}";
+
+    private static Func<object?, string?> Names(int page) => actual =>
+        actual is string text && text.Contains($"p.{page}", StringComparison.Ordinal)
+            ? null
+            : $"is {Show(actual)}, which does not name p.{page}";
+
+    private static Func<object?, string?> MapIs(IReadOnlyDictionary<int, int> expected) => actual =>
+    {
+        if (actual is not IReadOnlyDictionary<string, int> map) return $"is {Show(actual)}, not a success map";
+
+        var faces = map.Keys.Select(k => int.Parse(k, CultureInfo.InvariantCulture)).Order().ToList();
+        if (!faces.SequenceEqual(expected.Keys.Order())) return $"maps faces {string.Join(",", faces)}";
+
+        var wrong = expected
+            .Where(pair => map[pair.Key.ToString(CultureInfo.InvariantCulture)] != pair.Value)
+            .Select(pair => $"{pair.Key}→{map[pair.Key.ToString(CultureInfo.InvariantCulture)]} not {pair.Value}")
+            .ToList();
+
+        return wrong.Count == 0 ? null : $"scores {string.Join(", ", wrong)}";
+    };
+
+    private static Func<object?, string?> BandsAre(IReadOnlyList<CanonicalChallengeRules.Band> expected) => actual =>
+    {
+        if (actual is not IReadOnlyList<BandModel> bands) return $"is {Show(actual)}, not a band table";
+        if (bands.Count != expected.Count) return $"has {bands.Count} rows, not {expected.Count}";
+
+        for (var i = 0; i < expected.Count; i++)
+        {
+            if (bands[i].MinNetSuccesses != expected[i].Min
+                || bands[i].MaxNetSuccesses != expected[i].Max
+                || !string.Equals(bands[i].Outcome, expected[i].Outcome, StringComparison.Ordinal)
+                || bands[i].Embellishment != expected[i].Embellishment)
+            {
+                return $"row {i} is {bands[i]}; the rulebook says {expected[i]}";
+            }
+        }
+
+        return null;
+    };
+
+    private static Func<object?, string?> ThresholdsAre(
+        IReadOnlyList<CanonicalChallengeRules.Threshold> expected) => actual =>
+    {
+        if (actual is not IReadOnlyList<ThresholdModel> rows) return $"is {Show(actual)}, not a thresholds table";
+        if (rows.Count != expected.Count) return $"has {rows.Count} rows, not {expected.Count}";
+
+        for (var i = 0; i < expected.Count; i++)
+        {
+            if (!string.Equals(rows[i].Difficulty, expected[i].Difficulty, StringComparison.Ordinal)
+                || rows[i].ThresholdMin != expected[i].Min
+                || rows[i].ThresholdMax != expected[i].Max)
+            {
+                return $"row {i} is {rows[i]}; the rulebook says {expected[i]}";
+            }
+        }
+
+        return null;
+    };
+
+    private static Func<object?, string?> JudgingIs(
+        IReadOnlyList<CanonicalChallengeRules.Judging> expected) => actual =>
+    {
+        if (actual is not IReadOnlyList<JudgingModel> rows) return $"is {Show(actual)}, not a judging guideline";
+        if (rows.Count != expected.Count) return $"has {rows.Count} rows, not {expected.Count}";
+
+        for (var i = 0; i < expected.Count; i++)
+        {
+            if (!string.Equals(rows[i].Descriptor, expected[i].Descriptor, StringComparison.Ordinal)
+                || !string.Equals(rows[i].Difficulty, expected[i].Difficulty, StringComparison.Ordinal)
+                || rows[i].Threshold != expected[i].ThresholdValue)
+            {
+                return $"row {i} is {rows[i]}; the rulebook says {expected[i]}";
+            }
+        }
+
+        return null;
+    };
+
+    private static bool ValuesEqual(object? expected, object? actual)
+    {
+        if (expected is null || actual is null) return expected is null && actual is null;
+
+        if (expected is System.Collections.IEnumerable left and not string
+            && actual is System.Collections.IEnumerable right and not string)
+        {
+            return left.Cast<object>().SequenceEqual(right.Cast<object>());
+        }
+
+        return Equals(expected, actual);
+    }
+
+    private static string Show(object? value) => value switch
+    {
+        null => "null",
+        string text => $"\"{text}\"",
+        System.Collections.IEnumerable items => "[" + string.Join(", ", items.Cast<object>()) + "]",
+        _ => value.ToString() ?? "null"
+    };
+
+    /// <summary>Both files, as (entry id, entry) pairs, for the reflection walk.</summary>
+    private static IEnumerable<(string Id, object Entry)> AllEntryObjects() =>
+        Meta().Entries.Select(e => (e.Id, (object)e))
+            .Concat(Challenge().Entries.Select(e => (e.Id, (object)e)));
 
     /// <summary>Both files, as (id, source_ref) pairs.</summary>
     private static IEnumerable<(string Id, string SourceRef)> AllEntries() =>
