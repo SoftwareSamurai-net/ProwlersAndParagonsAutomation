@@ -336,13 +336,30 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
-    /// <b>Deliberately <c>Single</c>.</b> A gap between two bands and an overlap between them are
-    /// both silent faults — the first makes an outcome unreachable, the second makes it arbitrary
-    /// — and <c>First</c> would hide both.
+    /// <b>Exactly one band must match, not the first one that does.</b> A gap between two bands
+    /// and an overlap between them are both silent faults — the first makes an outcome
+    /// unreachable, the second makes it arbitrary — and <c>First</c> would hide both.
+    ///
+    /// <para>Written out rather than left to <c>Single</c> so the failure says which figure fell
+    /// through and how many rows claimed it. A bare LINQ "sequence contains more than one matching
+    /// element" names neither, and a boundary bug is exactly the case where you need both.</para>
     /// </summary>
-    private static BandModel BandFor(IReadOnlyList<BandModel> bands, int netSuccesses) =>
-        bands.Single(b => (b.MinNetSuccesses is null || netSuccesses >= b.MinNetSuccesses)
-                          && (b.MaxNetSuccesses is null || netSuccesses <= b.MaxNetSuccesses));
+    private static BandModel BandFor(IReadOnlyList<BandModel> bands, int netSuccesses)
+    {
+        var matching = bands
+            .Where(b => (b.MinNetSuccesses is null || netSuccesses >= b.MinNetSuccesses)
+                        && (b.MaxNetSuccesses is null || netSuccesses <= b.MaxNetSuccesses))
+            .ToList();
+
+        Assert.True(
+            matching.Count == 1,
+            $"{netSuccesses} net successes matched {matching.Count} bands, not 1. "
+            + (matching.Count == 0
+                ? "The table has a hole, so that outcome cannot be reached at all."
+                : "The table overlaps, so which outcome applies is whichever row is read first."));
+
+        return matching[0];
+    }
 
     // ── The rest of Chapter 3 ────────────────────────────────────────────────
 

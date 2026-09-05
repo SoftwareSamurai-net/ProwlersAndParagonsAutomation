@@ -121,6 +121,22 @@ public sealed class PlayPayloadTests
         // The other direction: the play files exist, and exist where this test thinks they do.
         var play = everything.Where(IsUnderPlay).Select(Path.GetFileName).Order().ToList();
         Assert.Equal(["challenge.json", "play_meta.json"], play);
+
+        // <b>And by name as well as by path, which the path check alone misses.</b> Found by
+        // mutation: copying data/rules/play/challenge.json up one level leaves it outside the
+        // play directory, so IsUnderPlay says nothing about it — while it is now swept into
+        // every host's copy, which is the whole failure. A file sharing a name with one under
+        // play/ is that mistake and nothing else.
+        var byName = matched
+            .Select(Path.GetFileName)
+            .OfType<string>()
+            .Where(n => play.Contains(n, StringComparer.Ordinal))
+            .ToList();
+
+        Assert.True(
+            byName.Count == 0,
+            "A play rules file has been copied or moved up into data/rules/, where every host's "
+            + $"glob sweeps it: {string.Join(", ", byName)}. It belongs in data/rules/play/.");
     }
 
     private static bool IsUnderPlay(string path) =>
