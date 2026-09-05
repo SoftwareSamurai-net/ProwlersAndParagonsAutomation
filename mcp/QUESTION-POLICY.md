@@ -51,6 +51,14 @@ Resolve towards zero. The specialist at the cap and the generalist three ranks b
 both defensible and the engine will not choose between them. Build the specialist, say in one
 sentence what it cost, and let them move if they want the other one.
 
+**And Expertise is the cheap way past that trade, except in a fight.** At 1 HP per 2 ranks on top
+of a Trait's rank it is the cheapest high number on the sheet, and Ch.5 p.83 exempts it from
+Resolve — *"except for combat skills"*. So an Expertise nominated to **Might or Agility** counts at
+its full rank and drives Resolve down exactly as the Ability would; one nominated to a Talent, or to
+a Power the same page exempts, costs nothing. A 6d Hero with Expertise (Agility: Firearms) at a 12d
+cap opens on 0 Resolve, not 12. Do not quote the figure yourself — ask `check_character` — but do
+not sell a combat Expertise as free Resolve either.
+
 **That trade is a Hero's alone.** Only Heroes have Resolve, so for a Villain there is nothing on
 the other side of it — cap everything the concept supports and do not mention the figure. See
 "If they are building a Villain".

@@ -150,6 +150,14 @@ between the Trait Cap and the highest relevant rank, so taking a headline Trait 
 drives Resolve towards zero. Build the specialist, say what it cost in one sentence, and let
 them take the generalist instead if that is what they wanted.
 
+**Expertise is the cheap way past that trade, except in a fight.** At 1 HP per 2 ranks on top of a
+Trait's rank it is the cheapest high number on the sheet, and Ch.5 p.83 exempts it from Resolve —
+*"except for combat skills"*. So an Expertise nominated to **Might or Agility** counts at its full
+rank and drives Resolve down exactly as the Ability would; one nominated to a Talent, or to a Power
+the same page exempts, costs nothing. A 6d Hero with Expertise (Agility: Firearms) at a 12d cap
+opens on 0 Resolve, not 12. Read the figure from the report rather than working it out, and do not
+sell a combat Expertise as free Resolve.
+
 **And the cap may not be the tier's.** A campaign can impose a tighter one — Pinnacle City caps a
 non-superhuman NPC at 6d where the Standard tier allows 12d — and that is `TraitCapRank` on the
 character file, or `--trait-cap <n>` for a whole run. **It substitutes for the tier's rather than
