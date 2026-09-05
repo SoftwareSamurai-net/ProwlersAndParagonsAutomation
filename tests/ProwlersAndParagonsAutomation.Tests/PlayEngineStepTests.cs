@@ -71,7 +71,7 @@ public sealed class PlayEngineStepTests
         Assert.Equal(north.Kind, south.Kind);
         Assert.Equal(["north", "south"], state.TurnOrder);
 
-        var final = encounter.RunToEnd(state, new AttackTheWeakest(), maxPages: 40);
+        var final = encounter.RunToEnd(state, new AttackTheWeakest(_play), maxPages: 40);
 
         // The control: they actually fought. A fight neither of them could reach would end at the
         // page limit with both on full Health and satisfy "Over" perfectly.
@@ -118,7 +118,7 @@ public sealed class PlayEngineStepTests
             },
             ["toughness", "agility"], side: "the turncoat");
 
-        var policy = new AttackTheWeakest();
+        var policy = new AttackTheWeakest(_play);
         var state = encounter.Begin([villain, minions, foe]);
 
         // The control, before any dice: the policy sees across the line and not across the kind.
@@ -938,6 +938,71 @@ public sealed class PlayEngineStepTests
         Assert.Equal(1, dying.State["healthy"].Resolve);
     }
 
+    // ── The policy ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>The Traits the policy will attack with are derived from p.75's table and the combatant's
+    /// own Powers, not from four ids typed into the policy.</b>
+    ///
+    /// <para>The old list was <c>blast</c>, <c>strike</c>, <c>might</c>, <c>agility</c> — two of them
+    /// Powers nobody had said the combatant had — so a character built out of Energy Blast held their
+    /// action for the whole fight while holding an obvious weapon, and every balance figure measured
+    /// on them was a figure about a character who never attacked.</para>
+    ///
+    /// <para>The expected list is assembled from the entry rather than restated, so a corrected table
+    /// moves this fixture with it.</para>
+    /// </summary>
+    [Fact]
+    public void ThePolicyAttacksWithWhatTheTableAndTheCharacterOffer()
+    {
+        var policy = new AttackTheWeakest(_play);
+
+        var rows = _play.GetCombat("attack_and_defense_table").AttackDefenseTable!;
+
+        var attacking = rows
+            .Select(r => r.AttackTrait)
+            .Where(t => !string.Equals(t, "Power", StringComparison.Ordinal))
+            .Select(t => t.ToLowerInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // The control: the table really does name Abilities as attacking Traits, so the derivation
+        // below has something to derive.
+        Assert.NotEmpty(attacking);
+        Assert.Contains("might", attacking, StringComparer.Ordinal);
+
+        var exotic = Combatant.Hero("exotic", "the exotic Hero", edge: 7, health: 10, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 3, ["agility"] = 2, ["toughness"] = 4, ["energy_blast"] = 12
+            },
+            ["toughness"]);
+
+        var available = policy.TraitsAvailableTo(exotic);
+
+        // A Power the table does not name is one of theirs, and the Abilities it names are there too.
+        Assert.Contains("energy_blast", available, StringComparer.Ordinal);
+        foreach (var trait in attacking) Assert.Contains(trait, available, StringComparer.Ordinal);
+
+        // The Traits the table names only as defences are not attacking Traits.
+        Assert.DoesNotContain("toughness", available, StringComparer.Ordinal);
+
+        // And the choice follows the rank: the 12d Power, not the 3d Ability.
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 4 }, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(19));
+        var state = encounter.Begin([exotic, villain]);
+
+        var chosen = Assert.IsType<Attack>(policy.Choose(state, state["exotic"]));
+        Assert.Equal("energy_blast", chosen.TraitId);
+
+        // The old hard-coded list held this character's action for the whole fight, which is what
+        // makes the derivation worth having rather than tidier.
+        var typed = new AttackTheWeakest(_play) { AttackTraits = ["blast", "strike", "might", "agility"] };
+        Assert.Equal("might", Assert.IsType<Attack>(typed.Choose(state, state["exotic"])).TraitId);
+    }
+
     // ── Grappling ────────────────────────────────────────────────────────────
 
     /// <summary>Three characters: a grappler, somebody to grapple, and a bystander to be dodged.</summary>
@@ -1335,7 +1400,7 @@ public sealed class PlayEngineStepTests
 
         foreach (var intent in refusals) state = encounter.Step(state, intent).State;
 
-        state = encounter.RunToEnd(state, new AttackTheWeakest(), maxPages: 20);
+        state = encounter.RunToEnd(state, new AttackTheWeakest(_play), maxPages: 20);
 
         // The control: the refusals really happened, so the assertions below are about lines that
         // exist. A run that produced only ordinary lines would satisfy them trivially.

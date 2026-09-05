@@ -51,7 +51,7 @@ public sealed class PlayEnginePropertyTests
     public void AnEncounterAlwaysTerminatesInsideItsPageLimit(int seed)
     {
         var encounter = new Encounter(_play, new SeededDice(seed));
-        var final = encounter.RunToEnd(encounter.Begin(Party()), new AttackTheWeakest(), MaxPages);
+        var final = encounter.RunToEnd(encounter.Begin(Party()), new AttackTheWeakest(_play), MaxPages);
 
         Assert.True(final.Over);
         Assert.True(final.Page <= MaxPages + 1, $"the run reached page {final.Page}");
@@ -82,7 +82,7 @@ public sealed class PlayEnginePropertyTests
 
         Assert.False(TableRules.Book.FatalDamage, "the baseline has every gritty rule off");
 
-        var final = encounter.RunToEnd(encounter.Begin(Party()), new AttackTheWeakest(), MaxPages);
+        var final = encounter.RunToEnd(encounter.Begin(Party()), new AttackTheWeakest(_play), MaxPages);
 
         Assert.All(final.Combatants.Values, c =>
             Assert.True(c.CurrentHealth >= floor,
@@ -111,7 +111,7 @@ public sealed class PlayEnginePropertyTests
         var encounter = new Encounter(_play, new SeededDice(seed));
         var state = encounter.Begin(Party());
 
-        var policy = new AttackTheWeakest();
+        var policy = new AttackTheWeakest(_play);
         var moved = false;
 
         for (var i = 0; i < 12 && !state.Over; i++)
@@ -192,7 +192,7 @@ public sealed class PlayEnginePropertyTests
             ["toughness"]);
 
         var encounter = new Encounter(_play, new SeededDice(7));
-        var final = encounter.RunToEnd(encounter.Begin([hero, villain]), new AttackTheWeakest(), MaxPages);
+        var final = encounter.RunToEnd(encounter.Begin([hero, villain]), new AttackTheWeakest(_play), MaxPages);
 
         Assert.True(final.Over);
         Assert.Equal(before, CharacterSheetJson.Write(sheet));
