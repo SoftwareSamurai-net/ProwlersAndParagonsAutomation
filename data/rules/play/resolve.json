@@ -68,7 +68,7 @@
         "named_list_is_qualified_as_usual": true,
         "gm_has_final_say": true
       },
-      "description": "Not every Trait is looked at when the opening pool is worked out. Talents are out altogether, on the grounds that a trained skill is not the same order of thing as a superpower. So is any Power that cannot be turned on somebody or something - eleven are named as illustrations rather than as a closed list, and the naming sentence is hedged twice over, once with an 'except' inside it and once with an 'usually' around it. The last word belongs to the GM in every case.",
+      "description": "Not every Trait is looked at when the opening pool is worked out. Talents are out altogether, on the grounds that a trained skill is not the same order of thing as a superpower. So is any Power that cannot be turned on somebody or something - eleven are named as illustrations rather than as a closed list, and the sentence naming them is hedged at both ends: it opens by offering them as examples and stops short of saying they never count. One of the eleven carries a carve-out of its own, since an Expertise is exempt only while it is not a combat skill. The last word belongs to the GM in every case.",
       "verified_fields": ["effect", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
       "ambiguity": "The eleven Powers are introduced as examples of the criterion rather than as the exhaustive list, and the sentence carrying them says they do not USUALLY count, so a simulator cannot treat the list as a lookup table without deciding what the hedge is worth. The Expertise entry carves out combat skills without saying how a combat skill is told from any other, and this repository's powers.json has one Expertise entry with one flag, so the carve-out cannot be expressed there at all. Nor is it said whether the criterion is judged against the Power as printed or against the use a particular character has put it to."
@@ -422,7 +422,7 @@
         "gm_may_add_ways_to_earn": true,
         "should_not_be_as_easy_to_earn_as_resolve": true
       },
-      "description": "The GM opens each session with one point for every Hero at the table and, like the players, keeps nothing at the end of it. The chapter is explicit that this side of the economy is meant to be tighter: the GM may invent further ways to earn, but is told not to make them as easy as the players'.",
+      "description": "The GM opens each session with one point per Hero - which Heroes are counted is a question the chapter leaves open, and the ambiguity below carries it - and, like the players, keeps nothing at the end of it. The chapter is explicit that this side of the economy is meant to be tighter: the GM may invent further ways to earn, but is told not to make them as easy as the players'.",
       "verified_fields": ["effect", "duration", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
       "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.11"],
