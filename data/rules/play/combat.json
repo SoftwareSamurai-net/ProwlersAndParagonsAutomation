@@ -28,7 +28,6 @@
       "description": "Combat is cut into fixed slices, each standing for a handful of seconds, and everybody caught up in the fight gets exactly one turn inside each slice. A new slice opens only once the last character has either acted or waived the chance.",
       "verified_fields": [
         "duration",
-        "effect",
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
@@ -139,7 +138,6 @@
       },
       "description": "A table that finds a guaranteed first slot too strong can swap the purchase's effect for a doubling of the buyer's order number instead, which leaves genuinely fast opponents ahead of them. It is the GM's choice, not the buyer's.",
       "verified_fields": [
-        "cost",
         "effect",
         "duration",
         "description"

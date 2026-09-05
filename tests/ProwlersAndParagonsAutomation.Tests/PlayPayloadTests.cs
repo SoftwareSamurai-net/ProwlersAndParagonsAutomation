@@ -127,7 +127,7 @@ public sealed class PlayPayloadTests
 
         // The other direction: the play files exist, and exist where this test thinks they do.
         var play = everything.Where(IsUnderPlay).Select(Path.GetFileName).Order().ToList();
-        Assert.Equal(["challenge.json", "play_meta.json", "resolve.json"], play);
+        Assert.Equal(["challenge.json", "combat.json", "gritty.json", "play_meta.json", "resolve.json"], play);
 
         // <b>And by name as well as by path, which the path check alone misses.</b> Found by
         // mutation: copying data/rules/play/challenge.json up one level leaves it outside the
@@ -193,7 +193,8 @@ public sealed class PlayPayloadTests
     /// play file copied up one level is outside the directory and inside every host's glob — which
     /// is the whole failure, and which a path check alone misses.
     /// </summary>
-    private static readonly string[] PlayFileNames = ["challenge.json", "play_meta.json", "resolve.json"];
+    private static readonly string[] PlayFileNames =
+        ["challenge.json", "combat.json", "gritty.json", "play_meta.json", "resolve.json"];
 
     private static bool IsUnderPlay(string path) =>
         Path.GetFullPath(path).StartsWith(
@@ -283,7 +284,10 @@ public sealed class PlayPayloadTests
 
     /// <summary>Every spelling of a play rules path a source file could reach one by.</summary>
     private static readonly string[] PlayFileTokens =
-        ["play_meta.json", "challenge.json", "resolve.json", "rules/play", @"rules\play"];
+    [
+            "play_meta.json", "challenge.json", "resolve.json", "combat.json", "gritty.json",
+            "rules/play", @"rules\play"
+        ];
 
     /// <summary>
     /// <b><c>docs/guide/play-rules.md</c> says "Nothing reads either of them", and until now nothing
