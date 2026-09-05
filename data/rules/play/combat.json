@@ -1,9 +1,9 @@
 {
   "header": {
-    "what_this_is": "Every mechanic printed in Chapter 4, Combat, pp.73-79, as data: the page, the order of action, range and movement, the attack and defense machinery, damage, Health, special effects, grappling, stunts, Minions, and the eleven special cases. The ten optional Gritty Combat Rules (pp.79-81) are in gritty.json beside this file. The dice model these entries are expressed in - pool, success map, net successes, and the book-wide rounding rule - is in play_meta.json, and the challenge roll itself is in challenge.json.",
+    "what_this_is": "Every mechanic printed in Chapter 4, Combat, pp.73-79, as data: the page, the order of action, range and movement, the attack and defense machinery, damage, Health, special effects, grappling, stunts, Minions, and the nine special cases. The ten optional Gritty Combat Rules (pp.79-81) are in gritty.json beside this file. The dice model these entries are expressed in - pool, success map, net successes, and the book-wide rounding rule - is in play_meta.json, and the challenge roll itself is in challenge.json.",
     "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
     "not_logic": "Data only. No engine reads this file, and none may. Two of the figures here - the Edge formula and the Health formula - are already implemented in engine/DerivedStatsCalculator because they are also printed in Chapter 2 as part of building a character; tests hold the two statements to the same answer and nothing wires the engine to these bytes.",
-    "deliberately_omitted": "The chapter opening (p.73) is not here: it is an essay about tone, with no number and no procedure in it. Neither is the Special Cases preamble (p.78), which introduces the eleven entries that follow it and states nothing of its own. The Example of Combat (p.81) is not an entry either - it is a worked fight rather than a mechanic - and it is exercised as a test fixture against these entries instead, which is the stronger use for it. The corpus filed that example's heading and the Wound Penalties rule as one section until the extractor was fixed in this slice; see docs/guide/rulebook-corpus.md.",
+    "deliberately_omitted": "The chapter opening (p.73) is not here: it is an essay about tone, with no number and no procedure in it. Neither is the Special Cases preamble (p.78), which introduces the nine entries that follow it and states nothing of its own. The Example of Combat (p.81) is not an entry either - it is a worked fight rather than a mechanic - and it is exercised as a test fixture against these entries instead, which is the stronger use for it. The corpus filed that example's heading and the Wound Penalties rule as one section until the extractor was fixed in this slice; see docs/guide/rulebook-corpus.md.",
     "verified_fields_closed_list": [
       "trigger",
       "roll",
@@ -13,7 +13,8 @@
       "cost",
       "description"
     ],
-    "source_ref": "Ultimate Edition, Ch.4 Combat, pp.73-82"
+    "source_ref": "Ultimate Edition, Ch.4 Combat, pp.73-82",
+    "special_cases_count": 9
   },
   "entries": [
     {
@@ -1250,7 +1251,7 @@
     {
       "id": "ambushes",
       "name": "Ambushes",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "AMBUSHES",
       "ambush": {
         "roll": "Covert",
@@ -1281,7 +1282,7 @@
     {
       "id": "area_attacks",
       "name": "Area attacks",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "AREA ATTACKS",
       "area_attack": {
         "targets": "everyone and everything in the area of effect",
@@ -1308,7 +1309,7 @@
     {
       "id": "charge_attacks",
       "name": "Charge attacks",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "CHARGE ATTACKS",
       "charge": {
         "what_it_is": "an attack in which you slam into your target",
@@ -1338,7 +1339,7 @@
     {
       "id": "clobbering_attacks",
       "name": "Clobbering attacks",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "CLOBBERING ATTACKS",
       "clobbering": {
         "what_it_is": "using one enemy to hit another",
@@ -1364,7 +1365,7 @@
     {
       "id": "defending_others",
       "name": "Defending others",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "DEFENDING OTHERS",
       "defending_others": {
         "cost": "forego your next turn to act",
@@ -1387,7 +1388,7 @@
     {
       "id": "going_all_out",
       "name": "Going all-out",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "GOING ALL-OUT",
       "all_out_attack": {
         "attack_bonus_dice": 2,
@@ -1419,7 +1420,7 @@
     {
       "id": "knockback",
       "name": "Knockback",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "KNOCKBACK",
       "knockback": {
         "requires_damage_type": "subdual",
@@ -1446,7 +1447,7 @@
     {
       "id": "luring",
       "name": "Luring",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "LURING",
       "luring": {
         "what_it_is": "letting an enemy attack you and moving aside so their attack strikes what is behind you",
@@ -1476,7 +1477,7 @@
     {
       "id": "team_attacks",
       "name": "Team attacks",
-      "kind": "formula",
+      "kind": "special_case",
       "printed_under": "TEAM ATTACKS",
       "team_attack": {
         "what_it_is": "several characters coordinating their attacks against a single opponent",

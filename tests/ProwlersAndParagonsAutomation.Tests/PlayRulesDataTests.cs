@@ -94,7 +94,8 @@ public sealed class PlayRulesDataTests
         string NotLogic,
         string? DeliberatelyOmitted,
         IReadOnlyList<string> VerifiedFieldsClosedList,
-        string SourceRef);
+        string SourceRef,
+        int? SpecialCasesCount);
 
     private sealed record SubOneDieModel(
         int DiceRolled, IReadOnlyList<int> CountingFaces, int SuccessesWhenHit, string Otherwise);
@@ -3217,6 +3218,47 @@ public sealed class PlayRulesDataTests
         var rest = entries.Where(e => e.Kind != "table_setting").Select(e => e.Id).ToList();
         Assert.Equal(["gritty_overview"], rest);
         Assert.True(GrittyEntryById("gritty_overview").Overview!.AnySubsetMayBeUsed);
+    }
+
+    /// <summary>
+    /// <b>Finding 3's proof.</b> p.78's Special Cases preamble introduces nine entries — AMBUSHES,
+    /// AREA ATTACKS, CHARGE ATTACKS, CLOBBERING ATTACKS, DEFENDING OTHERS, GOING ALL-OUT, KNOCKBACK,
+    /// LURING, TEAM ATTACKS — not eleven; the header, <c>play-rules.md</c> and
+    /// <c>RULEBOOK-COVERAGE.md</c> all said eleven before this fix. The nine now carry their own
+    /// <c>kind</c>, <c>special_case</c>, the same way the Gritty rules carry <c>table_setting</c> —
+    /// so a rule quietly dropped from the file, or one wrongly reclassified, moves the count this
+    /// test checks against the header's own <c>special_cases_count</c>, rather than the two figures
+    /// being able to drift with nothing to compare them.
+    /// </summary>
+    [Fact]
+    public void TheHeadersSpecialCasesCountEqualsTheNumberOfSpecialCaseEntries()
+    {
+        var header = Combat().Header;
+        var specialCases = Combat().Entries.Where(e => e.Kind == "special_case").Select(e => e.Id).ToList();
+
+        Assert.NotNull(header.SpecialCasesCount);
+        Assert.Equal(header.SpecialCasesCount, specialCases.Count);
+
+        Assert.Equal(
+            [
+                "ambushes", "area_attacks", "charge_attacks", "clobbering_attacks",
+                "defending_others", "going_all_out", "knockback", "luring", "team_attacks"
+            ],
+            specialCases.Order(StringComparer.Ordinal));
+
+        // And the corpus really does print nine headings under SPECIAL CASES, before GRITTY COMBAT
+        // RULES starts the next section — a positive control on the number itself.
+        var headings = ChapterHeadings("ch04-combat.json");
+        var specialCaseHeadings = new[]
+        {
+            "AMBUSHES", "AREA ATTACKS", "CHARGE ATTACKS", "CLOBBERING ATTACKS", "DEFENDING OTHERS",
+            "GOING ALL-OUT", "KNOCKBACK", "LURING", "TEAM ATTACKS"
+        };
+        Assert.Equal(9, specialCaseHeadings.Length);
+        foreach (var heading in specialCaseHeadings)
+        {
+            Assert.Contains(headings, h => h.Heading == heading && h.Page is 78 or 79);
+        }
     }
 
     /// <summary>

@@ -209,7 +209,7 @@ Both are reading-order faults rather than heading-recognition ones, and both are
 
 From Chapter 4:
 
-- **The chapter opening (p.73)**, an essay about tone, and the **Special Cases preamble (p.78)**, which introduces the eleven entries under it and states nothing of its own.
+- **The chapter opening (p.73)**, an essay about tone, and the **Special Cases preamble (p.78)**, which introduces the nine entries under it and states nothing of its own.
 - **The Example of Combat (p.81)** — a worked fight rather than a mechanic, and exercised as a fixture against the entries instead, which is the stronger use for it.
 - **Two more worked examples in `gritty.json`**: p.80's sword, which shows Gear Limit arithmetic the entry already states as numbers, and p.79's Clint Castle, likewise a fixture rather than a second transcription.
 

@@ -57,7 +57,7 @@ public static class CanonicalChallengeRules
     /// entries. It is a closed list so a typo cannot invent a sixth kind nobody handles.
     /// </summary>
     public static readonly IReadOnlyList<string> EntryKinds =
-        ["formula", "narrative", "scalar", "table", "table_setting"];
+        ["formula", "narrative", "scalar", "special_case", "table", "table_setting"];
 
     /// <summary>"you roll a number of 6-sided dice equal to the Trait that applies to the action attempted".</summary>
     public const int DieSides = 6;
