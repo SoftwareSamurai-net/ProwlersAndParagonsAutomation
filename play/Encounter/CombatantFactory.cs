@@ -103,15 +103,7 @@ public static class CombatantFactory
         var rule = play.GetCombat("health").Health!;
         if (kind != CombatantKind.Foe || !rule.FoesHalveTheResult) return health;
 
-        var direction = play.GetMeta("half_rounds_up").Rounding!.Direction;
-
-        return direction switch
-        {
-            "up" => (int)Math.Ceiling(health / 2.0),
-            "down" => health / 2,
-            var other => throw new InvalidOperationException(
-                $"play_meta.json's rounding direction is '{other}', which is neither up nor down.")
-        };
+        return Rounding.Half(play, health);
     }
 
     /// <summary>

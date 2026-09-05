@@ -270,9 +270,11 @@ public sealed partial class Encounter
             return index < 0 ? ladder.Count : index;
         }
 
+        var doubling = Table.GmAlternativeToSeizingInitiative ? GmAlternativeFactor() : 1;
+
         int EffectiveEdge(Combatant c) =>
             Table.GmAlternativeToSeizingInitiative && seized.Contains(c.Id, StringComparer.Ordinal)
-                ? edges[c.Id] * 2
+                ? edges[c.Id] * doubling
                 : edges[c.Id];
 
         int Seizing(Combatant c) =>
@@ -292,6 +294,36 @@ public sealed partial class Encounter
             "the order of action is " + string.Join(", ", order.Select(id => everyone[id].Name))));
 
         return order;
+    }
+
+    /// <summary>
+    /// What the GM's alternative multiplies an Edge by.
+    ///
+    /// <para><b>The factor is not in the data and cannot be, because the entry's effect is a
+    /// sentence.</b> <c>seize_initiative_gm_alternative.gm_alternative.effect</c> reads "doubles the
+    /// buyer's effective Edge" — a printed word, not a number — so this engine reads the word and
+    /// supplies the arithmetic, which is a reading and is recorded as one in
+    /// <c>docs/guide/play-engine.md</c>. It throws rather than defaulting if the entry stops saying
+    /// it: a silent fallback to 2 against an entry that had been corrected to say something else
+    /// would apply a rule the book no longer prints, which is exactly the failure the store exists
+    /// to prevent.</para>
+    /// </summary>
+    private int GmAlternativeFactor()
+    {
+        var entry = _play.GetCombat("seize_initiative_gm_alternative");
+        var effect = entry.GmAlternative!.Effect;
+
+        if (!effect.Contains("double", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"seize_initiative_gm_alternative's effect now reads '{effect}'. This engine reads "
+                + "the printed word \"doubles\" and supplies the factor of 2 itself, because the "
+                + "entry states an effect in prose rather than a multiplier; a rule that no longer "
+                + "says \"doubles\" is a rule this engine cannot apply. See "
+                + "docs/guide/play-engine.md's readings table.");
+        }
+
+        return 2;
     }
 
     private string SourceRefOf(TableSwitch setting) => setting.File switch

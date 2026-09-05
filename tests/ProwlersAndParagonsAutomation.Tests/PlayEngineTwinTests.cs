@@ -142,10 +142,7 @@ public sealed class PlayEngineTwinTests
     /// <summary>The five files a twin is built from: four shipped, one substituted.</summary>
     private static Dictionary<string, string> TwinFiles()
     {
-        var files = PlayRulesRepository.DataFileNames.ToDictionary(
-            name => name,
-            name => File.ReadAllText(Path.Combine(PlayFixture.DataPath, name)),
-            StringComparer.Ordinal);
+        var files = SubstitutedPlayRules.ShippedFiles();
 
         files[PlayRulesRepository.CombatFile] =
             WithDefect(files[PlayRulesRepository.CombatFile], HealthyLine, DefectiveLine);
@@ -157,39 +154,16 @@ public sealed class PlayEngineTwinTests
 
     /// <summary>
     /// The shipped text with one documented line substituted, <b>throwing if that line does not occur
-    /// exactly once</b>.
+    /// exactly once</b> — <see cref="SubstitutedPlayRules.WithDefect"/>, which is shared with the
+    /// other fixtures that build a twin so there is one implementation of it rather than two.
     ///
     /// <para>Zero occurrences means the twin has stopped reproducing its defect and would pass for
     /// the wrong reason; more than one means it is not the single change it documents. Both are
     /// silent failures otherwise, and both have happened to harnesses in this repository.</para>
     /// </summary>
-    private static string WithDefect(string source, string find, string replace)
-    {
-        var count = Occurrences(source, find);
+    private static string WithDefect(string source, string find, string replace) =>
+        SubstitutedPlayRules.WithDefect(source, find, replace);
 
-        if (count != 1)
-        {
-            throw new InvalidOperationException(
-                $"The twin substitutes one documented line and found it {count} times: \"{find}\". "
-                + "Zero means the twin has stopped reproducing its defect and would pass for the "
-                + "wrong reason; more than one means it is not the single change it documents. Fix "
-                + "the line this twin names, not this check.");
-        }
-
-        return source.Replace(find, replace, StringComparison.Ordinal);
-    }
-
-    private static int Occurrences(string source, string find)
-    {
-        var count = 0;
-        var at = source.IndexOf(find, StringComparison.Ordinal);
-
-        while (at >= 0)
-        {
-            count++;
-            at = source.IndexOf(find, at + find.Length, StringComparison.Ordinal);
-        }
-
-        return count;
-    }
+    private static int Occurrences(string source, string find) =>
+        SubstitutedPlayRules.Occurrences(source, find);
 }

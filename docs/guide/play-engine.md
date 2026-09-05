@@ -120,6 +120,7 @@ Three properties of it are load-bearing:
 | **Wound Penalties' deeper band replaces the shallower one.** | The entry's own `ambiguity`: the two are printed as thresholds rather than steps, and at zero Health a character is already below half of any positive Health. |
 | **All-out and charge penalties expire at the end of the following page.** | The page says "until after your next turn to act", which is a turn rather than a page. This is that sentence to within a turn. |
 | **The GM's alternative to seizing the initiative is a table setting.** | `seize_initiative_gm_alternative`'s `ambiguity`: no page says whether the GM's preference is fixed for a table, a campaign, or taken per purchase. A setting is the reading that makes a measurement reproducible. |
+| **The GM's alternative multiplies an Edge by two.** The factor is supplied here, not read. | `seize_initiative_gm_alternative`'s effect is a sentence — "doubles the buyer's effective Edge" — and the entry carries no multiplier. The engine requires the word *doubles* to still be there and throws if it is not, rather than defaulting to 2 against a rule that has changed. |
 | **A "Travel Power" is one of eight named ids.** | The entry says "a Travel Power" and Ch.2 has no such category flag; the Movement category is the closest thing and holds Powers nobody would call travel. |
 | **The id breaks a tie the ladder cannot.** | p.73 says characters on the same figure and the same rung act *simultaneously*; a stepped engine has to pick an order to step in. |
 

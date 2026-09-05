@@ -143,6 +143,138 @@ public sealed class PlayEngineStepTests
         Assert.Single(sidesStanding);
     }
 
+    // ── Rounding, and the one factor that is prose ───────────────────────────
+
+    /// <summary>
+    /// <b>Every halving reads <c>play_meta.half_rounds_up</c>, and none of them is a
+    /// <c>Math.Ceiling</c> typed beside the rule.</b>
+    ///
+    /// <para>The check is a twin, on <c>CLAUDE.md</c>'s reasoning: reading the code cannot tell you
+    /// whether a number came from the file, so the file's one rounding line is flipped and the
+    /// engine's answers have to move with it. Three halvings are driven — the Toughness that answers
+    /// a lethal attack (p.75), the defences going all-out costs (p.78), and a Foe's Health (p.75) —
+    /// and each is required to differ under the flip. A hard-coded ceiling leaves all three
+    /// unchanged, which is what this fixture was written against.</para>
+    /// </summary>
+    [Fact]
+    public void EveryHalvingReadsTheGlossarysRoundingDirection()
+    {
+        var flipped = SubstitutedPlayRules.With(
+            PlayRulesRepository.PlayMetaFile, "\"direction\": \"up\"", "\"direction\": \"down\"");
+
+        // The control: the shipped file really does round up, so "the answers moved" below is the
+        // flip biting rather than two arbitrary numbers.
+        Assert.Equal("up", _play.GetMeta("half_rounds_up").Rounding!.Direction);
+        Assert.Equal("down", flipped.GetMeta("half_rounds_up").Rounding!.Direction);
+
+        // p.75: a Toughness of 5 answers a lethal attack at half — 3 rounding up, 2 rounding down.
+        Assert.Contains("defends with toughness 3d", DefenceAgainst(_play, DamageKind.Lethal, allOut: false),
+            StringComparison.Ordinal);
+        Assert.Contains("defends with toughness 2d", DefenceAgainst(flipped, DamageKind.Lethal, allOut: false),
+            StringComparison.Ordinal);
+
+        // p.78: going all-out halves the attacker's own defences. Subdual, so the lethal halving
+        // above is out of the way and this is the only halving in the figure.
+        Assert.Contains("defends with toughness 3d", DefenceAgainst(_play, DamageKind.Subdual, allOut: true),
+            StringComparison.Ordinal);
+        Assert.Contains("defends with toughness 2d", DefenceAgainst(flipped, DamageKind.Subdual, allOut: true),
+            StringComparison.Ordinal);
+
+        // p.75: "Foes halve the result", of a Health the character engine computed as an odd 3.
+        var rules = new RulesFixture();
+        var sheet = rules.LegalSheet();
+        sheet.Name = "Odd Health";
+        sheet.AbilityRanks["toughness"] = 3;
+        sheet.AbilityRanks["might"] = 2;
+
+        Assert.Equal(3, rules.Derived.CalculateHealth(sheet));
+        Assert.Equal(2, CombatantFactory
+            .From(sheet, rules.Rules, rules.Derived, _play, CombatantKind.Foe).FullHealth);
+        Assert.Equal(1, CombatantFactory
+            .From(sheet, rules.Rules, rules.Derived, flipped, CombatantKind.Foe).FullHealth);
+    }
+
+    /// <summary>
+    /// One attack, and the ledger line saying what the target answered it with. The pool is what the
+    /// halvings landed on, so reading it out of the sentence the engine printed is the cheapest way
+    /// to watch a rounding rule move.
+    /// </summary>
+    private static string DefenceAgainst(PlayRulesRepository play, DamageKind damage, bool allOut)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 4, ["toughness"] = 5
+        };
+
+        // The target has the higher Edge, so they act first and can commit to an all-out attack of
+        // their own before the blow that measures their defences lands.
+        var target = Combatant.Hero("target", "the target", edge: 9, health: 12, resolve: 0,
+            traits, ["toughness"]);
+        var attacker = Combatant.Villain("attacker", "the attacker", edge: 8, health: 12,
+            traits, ["toughness"]);
+
+        var encounter = new Encounter(play, new SeededDice(2));
+        var state = encounter.Begin([target, attacker]);
+
+        if (allOut)
+        {
+            state = encounter.Step(state, new Attack("target", "attacker", "might", AllOut: true)).State;
+        }
+
+        state = encounter.Step(state, new EndTurn("target")).State;
+
+        var added = encounter.Step(state, new Attack("attacker", "target", "might", damage)).Added;
+
+        return added.Single(l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal)).Text;
+    }
+
+    /// <summary>
+    /// <b>The GM's alternative to seizing the initiative reads the printed word it doubles.</b>
+    ///
+    /// <para>The entry states an effect in prose — "doubles the buyer's effective Edge" — and carries
+    /// no multiplier, so the factor of 2 is this engine's reading and the guide's table records it as
+    /// one. What the engine may not do is default to 2 against an entry that has stopped saying
+    /// "doubles", which would be applying a rule the book no longer prints; it throws instead, and
+    /// the throw names the entry.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmAlternativeToSeizingInitiativeReadsThePrintedWordDoubles()
+    {
+        var table = TableRules.Book with { GmAlternativeToSeizingInitiative = true };
+
+        var fast = Combatant.Villain("fast", "the fast one", edge: 10, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]);
+        var hero = Combatant.Hero("hero", "the Hero", edge: 6, health: 10, resolve: 2,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(1), table);
+        var state = encounter.Begin([fast, hero]);
+
+        // The control: 6d Edge is behind 10d before the purchase.
+        Assert.Equal(["fast", "hero"], state.TurnOrder);
+
+        state = encounter.Step(state, new EndTurn("fast")).State;
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.SeizeInitiative)).State;
+        state = encounter.Step(state, new EndTurn("hero")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+
+        // Doubled to 12d, the Hero is now in front — and it is a doubling and not a jump to the
+        // front, which is the whole of what the alternative changes.
+        Assert.Equal(["hero", "fast"], state.TurnOrder);
+
+        var reworded = SubstitutedPlayRules.With(
+            PlayRulesRepository.CombatFile,
+            "\"effect\": \"doubles the buyer's effective Edge\"",
+            "\"effect\": \"puts the buyer one rung up the tie-break ladder\"");
+
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            new Encounter(reworded, new SeededDice(1), table).Begin([fast, hero]));
+
+        Assert.Contains("seize_initiative_gm_alternative", thrown.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// <b>The side is the caller's and the kind is not consulted for it.</b> A Villain built onto
     /// the Heroes' side is on the Heroes' side, and a Hero built onto the opposition's is not —

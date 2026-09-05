@@ -999,15 +999,15 @@ public sealed partial class Encounter
     }
 
     /// <summary>Half, in the direction the entry's own reading names.</summary>
-    private static int Half(int value, string direction) => direction switch
-    {
-        "up" => (int)Math.Ceiling(value / 2.0),
-        "down" => value / 2,
-        var other => throw new InvalidOperationException($"'{other}' is neither up nor down.")
-    };
+    private static int Half(int value, string direction) => Rounding.Half(value, direction);
 
-    /// <summary>Half, rounding the way the Glossary's book-wide rule does.</summary>
-    private static int Halve(int value) => (int)Math.Ceiling(value / 2.0);
+    /// <summary>
+    /// Half, rounding the way the Glossary's book-wide rule (p.7) rounds — <b>read out of
+    /// <c>play_meta.half_rounds_up</c> and not typed here</b>. It used to be a
+    /// <c>Math.Ceiling(value / 2.0)</c>, which is a second transcription of the convention and would
+    /// have gone on agreeing with the file right up until somebody corrected the file.
+    /// </summary>
+    private int Halve(int value) => Rounding.Half(_play, value);
 
     /// <summary>A printed Trait name as the character rules spell its id.</summary>
     private static string Normalise(string name) =>
