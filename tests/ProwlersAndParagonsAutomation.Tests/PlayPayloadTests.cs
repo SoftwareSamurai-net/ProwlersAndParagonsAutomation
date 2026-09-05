@@ -322,9 +322,11 @@ public sealed class PlayPayloadTests
             }
         }
 
-        // Positive control, and it is the instrument rather than a formality: this project names all
-        // four tokens, so a scan that found nothing here has stopped reading files and would report
-        // the application clean whatever it contained.
+        // Positive control, and it is the instrument rather than a formality: this project names
+        // every token in the list, so a scan that found nothing here has stopped reading files and
+        // would report the application clean whatever it contained. The count in the message is
+        // read off the array — the comment said "all four" while there were five, which is the
+        // kind of number that goes stale silently and reads as authority while it does.
         var self = SourceFilesUnder(Path.Combine(RepoRoot, "tests", "ProwlersAndParagonsAutomation.Tests"))
             .Select(File.ReadAllText)
             .ToList();
@@ -333,8 +335,9 @@ public sealed class PlayPayloadTests
         {
             Assert.True(
                 self.Exists(text => text.Contains(token, StringComparison.OrdinalIgnoreCase)),
-                $"The scan found no file naming '{token}' in the test project, which names all of "
-                + "them. It has stopped reading source; fix the scan, not this assertion.");
+                $"The scan found no file naming '{token}' in the test project, which names all "
+                + $"{PlayFileTokens.Length} of them. It has stopped reading source; fix the scan, "
+                + "not this assertion.");
         }
 
         Assert.True(scanned >= 50, $"Only {scanned} source files were read across {string.Join(", ", ApplicationTrees)}.");

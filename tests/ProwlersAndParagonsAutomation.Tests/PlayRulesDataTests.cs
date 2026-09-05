@@ -1050,11 +1050,28 @@ public sealed class PlayRulesDataTests
         var cap = tier.TraitCapRank;
         var rank = cap - ranksBelowTheCap;
 
-        // Positive control on the fixture: the sheet must actually reach the rank being tested, or
-        // every row would be measuring an empty character and agreeing trivially at 2 x cap.
         var sheet = RulesFixture.StandardSheet();
         sheet.AbilityRanks["might"] = rank;
-        Assert.Equal(rank, sheet.AbilityRanks["might"]);
+
+        // Positive control on the fixture, and it has to be a claim about the sheet rather than
+        // about the line above it: the rank under test must be the highest relevant Trait the
+        // character has, or the row is measuring something else and agreeing by accident. The
+        // version this replaces asserted the value it had just assigned, which is true by
+        // construction and would have gone on passing over an empty sheet.
+        var top = sheet.AbilityRanks.Values.Max();
+        var atTheTop = sheet.AbilityRanks.Where(r => r.Value == top).Select(r => r.Key).Order(StringComparer.Ordinal).ToList();
+
+        Assert.Equal(["might"], atTheTop);
+        Assert.Equal(rank, top);
+
+        // No Power can out-rank it either, and the two Chapter 2 additions to this same figure are
+        // absent — Determination buys Resolve outright and a Condition or Plot Hook Flaw grants a
+        // point — so what is compared is the base the chapter's table states and nothing else.
+        Assert.Empty(sheet.SelectedPowers);
+        Assert.Null(sheet.GetPower("determination"));
+        Assert.DoesNotContain(
+            sheet.Flaws,
+            f => _f.Rules.GetFlaw(f.FlawId)?.FlawType is "condition" or "plot_hook" or "plot_hook_and_condition");
 
         var fromTheFile = table.AtTraitCap + ranksBelowTheCap * table.ResolvePerRankBelowCap;
         var fromTheEngine = _f.Derived.CalculateResolve(sheet);
@@ -1543,8 +1560,12 @@ public sealed class PlayRulesDataTests
         // the entries on it and read as a data error, so the count is asserted.
         Assert.True(headings.Count >= 25, $"Only {headings.Count} headings were read out of Chapter 5.");
 
-        // Negative control: the classifier has to be capable of rejecting something.
-        Assert.DoesNotContain((83, "SPENDING GLASS BEADS"), headings);
+        // Negative control, and it has to be a heading that really exists somewhere else: a made-up
+        // one is rejected by a lookup that had lost every page number too. VILLAINY is printed on
+        // p.85 and on no other page of the chapter, so the pair is right and the page is wrong.
+        Assert.Contains((85, "VILLAINY"), headings);
+        Assert.DoesNotContain((83, "VILLAINY"), headings);
+        Assert.DoesNotContain((84, "VILLAINY"), headings);
 
         var faults = new List<string>();
 
@@ -1647,6 +1668,58 @@ public sealed class PlayRulesDataTests
                 || entry.Earning.AwardStated == false,
                 $"{entry.Id} is left to the GM here and carries nothing on the page that says so.");
         }
+    }
+
+    /// <summary>
+    /// <b>The one claim <c>resolve.json</c> makes about another play file, checked across both.</b>
+    /// <c>spend_challenge_roll_dice</c>'s description says Chapter 3's Defining Moment is the same
+    /// purchase at three times the rate, and until now that was a sentence in prose with the two
+    /// numbers a file apart — <c>challenge.json</c> carrying both, and nothing tying either to the
+    /// ordinary spend Chapter 5 actually prints.
+    ///
+    /// <para>The multiple is read out of <c>challenge.json</c>'s own pair, so this is not a third
+    /// place to type 3: the Defining Moment rate has to be exactly that multiple of the ordinary
+    /// one, and the ordinary one has to be the rate Chapter 5's entry states in dice per point of
+    /// Resolve. Change either file alone and the two stop agreeing.</para>
+    /// </summary>
+    [Fact]
+    public void TheDefiningMomentBuysTripleWhatChapterFivesOrdinaryDiceSpendBuys()
+    {
+        var moment = ChallengeEntryById("defining_moment").DefiningMoment;
+        var ordinary = ResolveEntryById("spend_challenge_roll_dice").Spend;
+
+        Assert.NotNull(moment);
+        Assert.NotNull(ordinary);
+
+        // Chapter 5's ordinary purchase, as dice per point: one point buys one die.
+        Assert.NotNull(ordinary.CostResolve);
+        Assert.NotNull(ordinary.DiceGained);
+        Assert.Equal(0, ordinary.DiceGained % ordinary.CostResolve);
+
+        var chapterFivesRate = ordinary.DiceGained / ordinary.CostResolve;
+
+        // Positive control: a rate of zero would divide into anything and prove nothing.
+        Assert.True(chapterFivesRate > 0, $"Chapter 5's ordinary dice spend comes out at {chapterFivesRate} dice per point.");
+
+        // Chapter 3 restates the ordinary rate beside its own, which is what makes the comparison
+        // possible at all — and the two files have to agree about it before the multiple means
+        // anything.
+        Assert.Equal(chapterFivesRate, moment.OrdinaryDicePerResolveSpent);
+
+        var multiple = moment.DicePerResolveSpent / moment.OrdinaryDicePerResolveSpent;
+
+        // And the literal below is tied to the sentence that makes the claim, so the two cannot be
+        // changed apart: resolve.json's description calls the Defining Moment "the same purchase at
+        // three times the rate", and that sentence is what this test exists to hold to the data.
+        const int theMultipleTheDescriptionClaims = 3;
+
+        Assert.Contains(
+            "three times the rate",
+            ResolveEntryById("spend_challenge_roll_dice").Description,
+            StringComparison.Ordinal);
+
+        Assert.Equal(theMultipleTheDescriptionClaims, multiple);
+        Assert.Equal(theMultipleTheDescriptionClaims * chapterFivesRate, moment.DicePerResolveSpent);
     }
 
     /// <summary>
