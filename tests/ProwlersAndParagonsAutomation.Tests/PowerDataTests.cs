@@ -263,6 +263,79 @@ public sealed class PowerDataTests
         Assert.False(string.IsNullOrWhiteSpace(p.Description));
     }
 
+    /// <summary>
+    /// <b>The one nomination-dependent Resolve rule in the book, and the set it is read as.</b>
+    /// Ch.5 p.83 exempts "Expertise (except for combat skills)", so <c>affects_resolve: false</c> is
+    /// the Expertise entry's default answer and <c>affects_resolve_when_nominated</c> names the
+    /// nominations that overturn it. <see cref="ExpertiseCombatSkillNominations"/> carries the
+    /// reading and where each half of it comes from.
+    ///
+    /// <para><b>Both edges are asserted, because widening is the likelier error and it is silent.</b>
+    /// A set that had grown a Talent, or an Ability the book never puts in a fight, would quietly
+    /// stop exempting Expertises the page exempts — Resolve is measured from the gap, so the sheet
+    /// simply comes out lower and nothing looks wrong. So: the ids are exactly the reading, every
+    /// one of them is a real Ability, none is a Talent, and no other Power in the file carries the
+    /// field at all.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyExpertiseCarriesTheCombatSkillCarveOutAndItNamesTheCombatAbilities()
+    {
+        var expertise = _f.Rules.GetPower("expertise");
+
+        Assert.NotNull(expertise);
+        Assert.Equal(ExpertiseCombatSkillNominations, expertise.AffectsResolveWhenNominated);
+
+        // The default the carve-out is an exception to. Flipping this to true would exempt nothing
+        // and is the opposite error — see PlayRulesDataTests for the arithmetic that catches it.
+        Assert.False(expertise.AffectsResolve);
+
+        var abilityIds = _f.Rules.Abilities.Select(a => a.Id).ToHashSet(StringComparer.Ordinal);
+        var talentIds  = _f.Rules.Talents.Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
+
+        // Positive control on the fixture: an empty rules set would satisfy the subset check below
+        // and the disjointness check too.
+        Assert.Equal(6, abilityIds.Count);
+        Assert.Equal(12, talentIds.Count);
+
+        Assert.All(expertise.AffectsResolveWhenNominated, id => Assert.Contains(id, abilityIds));
+        Assert.All(expertise.AffectsResolveWhenNominated, id => Assert.DoesNotContain(id, talentIds));
+
+        var others = _f.Rules.Powers
+            .Where(p => p.Id != "expertise" && p.AffectsResolveWhenNominated.Count > 0)
+            .Select(p => p.Id);
+
+        Assert.Empty(others);
+    }
+
+    /// <summary>
+    /// <b>This repository's reading of "combat skills", kept here rather than in
+    /// <see cref="CanonicalResolveRules"/> — that file is the rulebook and a reading must never be
+    /// in it.</b> The phrase appears exactly once in the whole extracted corpus, on p.83, and the
+    /// book never says what a combat skill is. Three printed sentences narrow it, and
+    /// <see cref="RulebookCorpusTests.ThePagesBehindTheCombatSkillReadingSayWhatItRestsOn"/> holds
+    /// each of them to the page it is claimed from.
+    ///
+    /// <para><b>No Talent is a combat Talent</b> — p.18 names all twelve (Academics, Charm, Command,
+    /// Covert, Investigation, Medicine, Professional, Science, Streetwise, Survival, Technology,
+    /// Vehicles) and not one of them attacks or defends.</para>
+    ///
+    /// <para><b>Two Abilities are.</b> p.17, Might: "It is used to perform armed and unarmed close
+    /// combat attacks". p.17, Agility: "Agility also applies when firing mundane ranged weapons and
+    /// defending against attacks." Toughness and Willpower are p.75's <em>passive</em> defences —
+    /// resisting is not a skill exercised — and Intellect and Perception are neither.</para>
+    ///
+    /// <para><b>And an Ability is the granularity a nomination has.</b> Ch.2 p.28: "Your
+    /// specialization must fall under one of your Abilities or Talents … For example, you could have
+    /// Expertise (Agility: Firearms)". Firearms is the book's own combat specialisation, so a set
+    /// without Agility would exclude the printed example.</para>
+    ///
+    /// <para>What that granularity costs is recorded as an <c>ambiguity</c> on
+    /// <c>resolve_exceptions</c>: the specialisation itself is free text, so Expertise (Agility:
+    /// Acrobatics) counts here where a GM probably would not count it. p.83 gives the GM the last
+    /// word in every case.</para>
+    /// </summary>
+    private static readonly string[] ExpertiseCombatSkillNominations = ["might", "agility"];
+
     // ── Verification bookkeeping ─────────────────────────────────────────────
 
     [Fact]

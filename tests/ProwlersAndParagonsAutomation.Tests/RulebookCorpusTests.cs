@@ -522,4 +522,84 @@ public sealed class RulebookCorpusTests
             + "usually means a break was invented mid-sentence rather than read off the page:\n  "
             + string.Join("\n  ", badBreaks));
     }
+
+    /// <summary>
+    /// <b>The sentences <c>powers.json</c>'s combat-skill carve-out is read out of, held to the
+    /// pages they are claimed from.</b> Ch.5 p.83 exempts "Expertise (except for combat skills)"
+    /// and never says what a combat skill is — the phrase occurs once in the whole book, which this
+    /// asserts too. So the reading in <c>affects_resolve_when_nominated</c> rests on Chapter 2
+    /// instead, and a reading resting on quotes nobody checks is a claim nobody can check.
+    ///
+    /// <para><b>The Talents half is the load-bearing one and it is a negative.</b> "Martial Arts"
+    /// is a <em>Power</em> in this game, not a Talent, so the natural first guess at the set — the
+    /// combat Talents — has no members at all. p.18 names all twelve, and this requires each of
+    /// them to be printed there and none of the two chosen Abilities to be among them: if a combat
+    /// Talent ever turns out to exist, the set is wrong and this is where it shows.</para>
+    ///
+    /// <para>See <c>PowerDataTests.OnlyExpertiseCarriesTheCombatSkillCarveOutAndItNamesTheCombatAbilities</c>
+    /// for the set itself and the whole argument.</para>
+    /// </summary>
+    [Fact]
+    public void ThePagesBehindTheCombatSkillReadingSayWhatItRestsOn()
+    {
+        var chapters = All();
+        var ch2 = chapters.Single(c => c.Number == 2);
+
+        string Section(string heading, int printedPage)
+        {
+            var found = ch2.Sections.Single(s =>
+                string.Equals(s.Heading, heading, StringComparison.Ordinal) && s.PrintedPage == printedPage);
+
+            // Positive control per lookup: an empty passage would satisfy nothing asserted of it
+            // and would look exactly like agreement.
+            Assert.True(found.Text.Length > 200,
+                $"Ch.2 p.{printedPage} '{heading}' came back as {found.Text.Length} characters.");
+
+            return found.Text;
+        }
+
+        // "Combat skills" is p.83's phrase and the book's only use of it, so there is no definition
+        // anywhere to transcribe instead of reading one.
+        var uses = chapters
+            .SelectMany(c => c.Sections)
+            .Count(s => s.Text.Contains("combat skill", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(1, uses);
+
+        // Might and Agility are the two Abilities the book puts to work in a fight.
+        Assert.Contains(
+            "used to perform armed and unarmed close combat attacks",
+            Section("MIGHT", 17),
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "applies when firing mundane ranged weapons and defending against attacks",
+            Section("AGILITY", 17),
+            StringComparison.Ordinal);
+
+        // And not one of the twelve Talents is a combat Talent, which is why the set holds none.
+        var talents = Section("TALENTS", 18);
+        var rules = new RulesRepository(RulesFixture.DataPath);
+
+        Assert.Equal(12, rules.Talents.Count);
+        Assert.All(rules.Talents, t => Assert.Contains(t.Name, talents, StringComparison.Ordinal));
+
+        var combatAbilities = new[] { "Might", "Agility" };
+        Assert.All(
+            combatAbilities,
+            name => Assert.DoesNotContain(
+                rules.Talents,
+                t => string.Equals(t.Name, name, StringComparison.Ordinal)));
+
+        // The nomination's granularity, and the book's own combat specialisation.
+        var expertise = ch2.Sections.Single(s =>
+            string.Equals(s.Heading, "EXPERTISE", StringComparison.Ordinal));
+
+        Assert.Contains(
+            "Your specialization must fall under one of your Abilities or Talents",
+            expertise.Text,
+            StringComparison.Ordinal);
+
+        Assert.Contains("Expertise (Agility: Firearms)", expertise.Text, StringComparison.Ordinal);
+    }
 }
