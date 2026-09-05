@@ -3310,6 +3310,13 @@ public sealed class PlayRulesDataTests
     /// chapter offers them as things a group turns on rather than as things a character does, which is
     /// what <c>kind</c> records — and the count is asserted because a rule quietly dropped from the
     /// file would leave every other test green.
+    ///
+    /// <para><b>The eleventh entry is not one of them</b>, and neither is <c>kind</c> a marker for the
+    /// file. <c>gritty_overview</c> is the paragraph that offers the ten and is <c>narrative</c>, so
+    /// "every entry in <c>gritty.json</c> is a <c>table_setting</c>" is false; and <c>combat.json</c>
+    /// carries a <c>table_setting</c> of its own — <c>seize_initiative_gm_alternative</c>, p.73's
+    /// choice offered to the GM — so selecting on <c>kind</c> across the store would not reproduce
+    /// this list. Hence ten ids, named.</para>
     /// </summary>
     [Fact]
     public void TheTenGrittyRulesAreEachATableSetting()
@@ -4134,12 +4141,21 @@ public sealed class PlayRulesDataTests
     /// table — worked examples of thresholds already stated numerically, and the one part of that
     /// chapter the extractor is known to scramble. For Chapter 5 it is the chapter-opening essay
     /// and the advice to track both pools with poker chips, neither of which carries a mechanic.
+    ///
+    /// <para><b>A header also has to say when its chapter's printed range is wider than its text.</b>
+    /// Chapters 4 and 5 both end on a page the corpus extracts nothing from — p.82 and p.86 — and a
+    /// header's <c>source_ref</c> names the whole chapter, so without the sentence the range reads as
+    /// a claim that the page was read and found empty. Chapter 5's header said so and Chapter 4's two
+    /// did not.</para>
     /// </summary>
     [Theory]
     [InlineData("challenge.json", "Sample Thresholds")]
     [InlineData("resolve.json", "poker chips")]
     [InlineData("combat.json", "Example of Combat")]
     [InlineData("gritty.json", "worked example")]
+    [InlineData("resolve.json", "p.86")]
+    [InlineData("combat.json", "p.82")]
+    [InlineData("gritty.json", "p.82")]
     public void TheHeaderSaysWhatWasDeliberatelyLeftOut(string fileName, string mustName)
     {
         var omitted = HeaderOf(fileName).DeliberatelyOmitted;
