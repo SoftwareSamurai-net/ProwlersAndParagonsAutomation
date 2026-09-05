@@ -162,6 +162,112 @@ public sealed class DerivedStatsCalculatorTests
         Assert.True(DerivedStatsCalculator.ResolveAffectedByPower(power));
     }
 
+    /// <summary>
+    /// <b>The one Power whose Resolve answer depends on the purchase rather than on the entry.</b>
+    /// Ch.5 p.83 exempts "Expertise (except for combat skills)", so
+    /// <see cref="DerivedStatsCalculator.ResolveAffectedBySelection"/> reads the nomination while
+    /// <see cref="DerivedStatsCalculator.ResolveAffectedByPower"/> keeps answering for the entry —
+    /// and the entry's answer stays <c>false</c>, which is the right default for the fourteen of
+    /// the eighteen legal nominations (six Abilities, twelve Talents) that are not combat skills.
+    ///
+    /// <para><b>The cases are every kind of nomination there is.</b> Ch.2 p.28 allows two: an
+    /// Ability or a Talent. All six Abilities are here, because the reading is an inclusion and an
+    /// exclusion at once — Might, Agility, Toughness and Willpower are the four Ch.4 p.75's Attack
+    /// and Defense table uses to attack or defend, and Intellect and Perception are in no row of
+    /// it. A Talent never counts. A nominated <em>Power</em> is not a legal Expertise at all and is
+    /// not a case with an answer: <c>CharacterValidator</c> reports it as
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c>, and the branch that used to give one a Resolve
+    /// answer is gone — see
+    /// <c>CharacterValidatorTests.AnExpertiseNominatedToAPowerIsReportedAndBoostIsNot</c>.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("agility", true)]        // a combat Ability, and the book's printed example
+    [InlineData("might", true)]          // armed and unarmed close combat, p.75's attack column
+    [InlineData("toughness", true)]      // the passive defence in four of p.75's five rows
+    [InlineData("willpower", true)]      // the defence against a Mental Power, p.75's last row
+    [InlineData("intellect", false)]     // in no row of the table
+    [InlineData("perception", false)]    // likewise
+    [InlineData("science", false)]       // no Talent is a combat Talent
+    [InlineData("academics", false)]     // Scáthach's, and her printed Resolve says so
+    [InlineData(null, false)]            // nothing nominated yet; the validator reports that gap
+    public void AnExpertiseCountsTowardsResolveOnlyWhenItsNominationIsACombatSkill(
+        string? nomination, bool counts)
+    {
+        var selection = new SelectedPower("expertise", 4) { BaselineTraitId = nomination };
+
+        Assert.Equal(counts, _f.Derived.ResolveAffectedBySelection(selection));
+
+        // The entry itself is untouched by the nomination, and stays the exemption p.83 prints.
+        Assert.False(DerivedStatsCalculator.ResolveAffectedByPower(_f.Rules.GetPower("expertise")!));
+    }
+
+    /// <summary>
+    /// <b>An Expertise nominated to a Power gets the entry's own answer and no reasoning of its
+    /// own, however combat-capable that Power is.</b> Ch.2 p.28 allows an Ability or a Talent and
+    /// nothing else, so this is not a case with an answer — it is
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c>, and an illegal character is reported, never
+    /// repaired.
+    ///
+    /// <para><b>This exists because the branch it forbids was here and nothing caught its
+    /// return.</b> <see cref="DerivedStatsCalculator.ResolveAffectedBySelection"/> used to ask
+    /// p.83's "can it be used for attack, defense, or to affect other characters or objects" of
+    /// the nominated Power, which handed an illegal sheet a defensible Resolve — Martial Arts
+    /// counted, Flight did not — and left the validator's finding beside a figure that looked
+    /// considered. Re-adding that branch passed the whole suite until this test existed: every
+    /// other guard asks about legal nominations, which the branch answers identically.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("martial_arts")]   // a Power that attacks
+    [InlineData("flight")]         // a Power p.83 exempts in its own right
+    [InlineData("expertise")]      // and an Expertise, which must not recurse into its own rule
+    public void AnExpertiseNominatedToAPowerGetsNoAnswerOfItsOwn(string nomination)
+    {
+        var selection = new SelectedPower("expertise", 4) { BaselineTraitId = nomination };
+
+        // Positive control: the nomination really does name a Power, or this asserts nothing about
+        // the branch it exists to forbid.
+        Assert.NotNull(_f.Rules.GetPower(nomination));
+
+        Assert.False(_f.Derived.ResolveAffectedBySelection(selection));
+
+        // And the entry's own answer is what came back, rather than a coincidence: Martial Arts
+        // affects Resolve in its own right, so a branch reading the nominated Power would say true.
+        Assert.Equal(
+            DerivedStatsCalculator.ResolveAffectedByPower(_f.Rules.GetPower("expertise")!),
+            _f.Derived.ResolveAffectedBySelection(selection));
+    }
+
+    /// <summary>
+    /// The carve-out moves the figure, not merely a flag. A Standard-tier 6d character who buys
+    /// Expertise up to the 12d cap opens on nothing when the specialisation is a combat skill and on
+    /// twelve when it is not — one sheet, one rank, and the nomination is the only thing that moves.
+    ///
+    /// <para>Toughness is here beside Agility because it is the half of Ch.4 p.75's table an
+    /// earlier reading dropped, and Intellect beside Science because the exclusion has to cost
+    /// something too: every Ability is at 6d, so the twelve is the Expertise being exempt and not
+    /// the Expertise being short.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("agility", 0)]
+    [InlineData("toughness", 0)]
+    [InlineData("intellect", 12)]
+    [InlineData("science", 12)]
+    public void TheCombatSkillCarveOutMovesStartingResolve(string nomination, int expected)
+    {
+        var sheet = RulesFixture.StandardSheet();   // Trait Cap 12d
+        foreach (var ability in _f.Rules.Abilities) sheet.AbilityRanks[ability.Id] = 6;
+        sheet.TalentRanks["science"]  = 6;          // a Talent never counts, whatever its rank
+
+        sheet.SelectedPowers.Add(
+            new SelectedPower("expertise", 6) { BaselineTraitId = nomination });
+
+        // Positive control: the Expertise really does reach the cap, or both figures would be 12
+        // for a reason that has nothing to do with the carve-out.
+        Assert.Equal(12, _f.Derived.GetEffectiveRank(sheet.SelectedPowers[0], sheet));
+
+        Assert.Equal(expected, _f.Derived.CalculateResolve(sheet));
+    }
+
     [Fact]
     public void ConditionAndPlotHookFlawsEachGrantOneResolve()
     {

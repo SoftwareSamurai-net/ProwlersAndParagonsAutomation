@@ -293,6 +293,14 @@ public static class CanonicalCombatRules
     /// This assumes you're fighting in an ordinary environment with terrain that limits how fast
     /// characters with Travel Powers can move. If the terrain is wide open, the GM is free to let
     /// characters with Travel Powers at high ranks cross 2 or even 3 range classes in a single page."
+    ///
+    /// <para><b>The last sentence is a range with two qualifiers on it, and it used to be recorded as the
+    /// number 3.</b> "2 or even 3" is a floor and a ceiling the GM chooses between; "if the terrain is wide
+    /// open" and "at high ranks" are conditions on the whole allowance, and flattening them left a bare 3
+    /// that reads as a rate. All four are separate constants below. <b>"High ranks" is not the 6d threshold
+    /// restated</b> — that figure buys the ordinary one-class-per-page allowance three sentences earlier, so
+    /// reading it in here would make one rank buy both; the page means a higher bar and never names it, which
+    /// is what the entry's <c>ambiguity</c> records.</para>
     /// </summary>
     public static class Movement
     {
@@ -303,7 +311,10 @@ public static class CanonicalCombatRules
         public const bool MovingPreventsActions = false;
         public const string AssumedTerrain =
             "an ordinary environment whose terrain limits how fast a Travel Power can move";
-        public const int OpenTerrainGmMayAllowRangeClassesPerPage = 3;
+        public const int OpenTerrainGmMayAllowRangeClassesPerPageMin = 2;
+        public const int OpenTerrainGmMayAllowRangeClassesPerPageMax = 3;
+        public const string OpenTerrainAllowanceAppliesTo = "characters with Travel Powers at high ranks";
+        public const bool OpenTerrainAllowanceIsGmDiscretion = true;
     }
 
     /// <summary>
@@ -864,13 +875,20 @@ public static class CanonicalCombatRules
     /// stack effects that let you defeat 2 Minions per net success rolled). If the attack inflicts
     /// damage, defeated Minions are knocked out. If it inflicts a special effect, defeated Minions are
     /// subject to that effect for the rest of the scene."
+    ///
+    /// <para><b>The cap is a parenthesis on the area-attack clause, and it is recorded there.</b> It closes
+    /// "2 Minions per net success rolled when using an area attack (…)", not the sentence — so the constant
+    /// is <see cref="AreaAttackCappedBy"/> and not a bare <c>CappedBy</c> that reads as covering the whole
+    /// entry. Its own second half reads wider than its position: "or within reach" is the phrase for an
+    /// ordinary attack rather than an area one. That is the entry's <c>ambiguity</c>, not a licence to file
+    /// the parenthesis somewhere it is not printed.</para>
     /// </summary>
     public static class AttackingMinions
     {
         public const bool MinionsHaveHealth = false;
         public const int MinionsDefeatedPerNetSuccess = 1;
         public const int MinionsDefeatedPerNetSuccessWithAnAreaAttack = 2;
-        public const string CappedBy = "the number of Minions in the area of effect or within reach";
+        public const string AreaAttackCappedBy = "the number of Minions in the area of effect or within reach";
         public const int MaximumMinionsPerNetSuccess = 2;
         public const bool EffectsThatDoubleTheRateDoNotStack = true;
         public const string OnADamagingAttack = "the defeated Minions are knocked out";
@@ -918,6 +936,12 @@ public static class CanonicalCombatRules
     /// fail, your target isn't surprised and can act normally. When you have multiple ambushers, they can
     /// make Covert rolls as a group… Either way, each target should be allowed their own Perception roll
     /// (although Minions should roll in groups)."
+    ///
+    /// <para><b>"But that's about it" is a hedge, and it used to be transcribed as "and nothing else".</b>
+    /// The two are not the same sentence: the page grants the active defenses and then declines to enumerate
+    /// what else, if anything, a partially surprised target keeps. <see cref="PartialSurpriseKeeps"/> carries
+    /// the grant and <see cref="PartialSurpriseLimitPrintedAs"/> carries the qualifier in the book's own
+    /// words; the entry's <c>ambiguity</c> says what neither settles.</para>
     /// </summary>
     public static class Ambush
     {
@@ -929,7 +953,8 @@ public static class CanonicalCombatRules
         public const bool ASurprisedTargetCanUseActiveDefenses = false;
         public const string SurpriseLasts = "the first page of combat";
         public const bool EmbellishmentRightsAllowPartialSurprise = true;
-        public const string PartialSurpriseKeeps = "active defenses, and nothing else";
+        public const string PartialSurpriseKeeps = "their active defenses";
+        public const string PartialSurpriseLimitPrintedAs = "but that's about it";
         public const string OnFailure = "the target is not surprised and acts normally";
         public const bool MultipleAmbushersMayRollAsAGroup = true;
         public const bool EveryTargetRollsTheirOwnPerception = true;
@@ -1140,6 +1165,11 @@ public static class CanonicalCombatRules
 
         public static readonly string[] TurnOrder =
             ["the mecha", "Citizen Soldier", "Gatecrasher", "the robotic Minions"];
+
+        /// <summary>The Example's own name for the mob. The fixture places it using
+        /// <c>tie_break.minions_act</c> rather than appending it to the three named characters, so
+        /// a file that stopped putting Minions last would move the order the fixture builds.</summary>
+        public const string MinionsLabel = "the robotic Minions";
 
         /// <summary>
         /// "It rolls its 13d Might and gets 8 successes. Gate uses his 12d Armor to defend himself and

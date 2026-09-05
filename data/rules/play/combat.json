@@ -3,7 +3,7 @@
     "what_this_is": "Every mechanic printed in Chapter 4, Combat, pp.73-79, as data: the page, the order of action, range and movement, the attack and defense machinery, damage, Health, special effects, grappling, stunts, Minions, and the nine special cases. The ten optional Gritty Combat Rules (pp.79-81) are in gritty.json beside this file. The dice model these entries are expressed in - pool, success map, net successes, and the book-wide rounding rule - is in play_meta.json, and the challenge roll itself is in challenge.json.",
     "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
     "not_logic": "Data only. No engine reads this file, and none may. Two of the figures here - the Edge formula and the Health formula - are already implemented in engine/DerivedStatsCalculator because they are also printed in Chapter 2 as part of building a character; tests hold the two statements to the same answer and nothing wires the engine to these bytes.",
-    "deliberately_omitted": "The chapter opening (p.73) is not here: it is an essay about tone, with no number and no procedure in it. Neither is the Special Cases preamble (p.78), which introduces the nine entries that follow it and states nothing of its own. The Example of Combat (p.81) is not an entry either - it is a worked fight rather than a mechanic - and it is exercised as a test fixture against these entries instead, which is the stronger use for it. The corpus filed that example's heading and the Wound Penalties rule as one section until the extractor was fixed in this slice; see docs/guide/rulebook-corpus.md.",
+    "deliberately_omitted": "The chapter opening (p.73) is not here: it is an essay about tone, with no number and no procedure in it. Neither is the Special Cases preamble (p.78), which introduces the nine entries that follow it and states nothing of its own. The Example of Combat (p.81) is not an entry either - it is a worked fight rather than a mechanic - and it is exercised as a test fixture against these entries instead, which is the stronger use for it. The corpus filed that example's heading and the Wound Penalties rule as one section until the extractor was fixed in this slice; see docs/guide/rulebook-corpus.md. Printed p.82 carries no chapter text: the chapter's printed range is pp.73-82, the corpus extracts sections for pp.73-81 only, and this file's own entries cite pp.73-79 - so the pp.73-82 in the header's source_ref is the chapter's range and not a claim that p.82 was read.",
     "verified_fields_closed_list": [
       "trigger",
       "roll",
@@ -329,16 +329,19 @@
         "travel_power_rank_required": 6,
         "moving_prevents_actions": false,
         "assumed_terrain": "an ordinary environment whose terrain limits how fast a Travel Power can move",
-        "open_terrain_gm_may_allow_range_classes_per_page": 3
+        "open_terrain_gm_may_allow_range_classes_per_page_min": 2,
+        "open_terrain_gm_may_allow_range_classes_per_page_max": 3,
+        "open_terrain_allowance_applies_to": "characters with Travel Powers at high ranks",
+        "open_terrain_allowance_is_gm_discretion": true
       },
-      "description": "Distance is spent in slices rather than in feet. Stepping up to or away from somebody already in the nearest band takes one, and it does not use up the slice's act. Crossing a whole band takes two, halved to one by a Power meant for travelling at six dice or better; in genuinely open country the GM may let a fast character cross two or three bands at once.",
+      "description": "Distance is spent in slices rather than in feet. Stepping up to or away from somebody already in the nearest band takes one, and it does not use up the slice's act. Crossing a whole band takes two, halved to one by a Power meant for travelling at six dice or better; where the ground is genuinely open the GM may let a highly ranked traveller cross two bands in a slice, or even three.",
       "verified_fields": [
         "duration",
         "effect",
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.4 Combat, p.74",
-      "ambiguity": null
+      "ambiguity": "The open-terrain allowance is offered to \"characters with Travel Powers at high ranks\" and the page never says what a high rank is. The rule it relaxes does print a threshold - a Travel Power at 6d or greater crosses one range class per page - but that figure is what buys the ordinary allowance, so reading it in here would make one rank buy both, and the page plainly means a second and higher bar without ever naming one. It is also two figures rather than one: 2 range classes or 3, at the GM's choice, with nothing said about when to allow which."
     },
     {
       "id": "movement_contest",
@@ -1172,20 +1175,20 @@
         "minions_have_health": false,
         "minions_defeated_per_net_success": 1,
         "minions_defeated_per_net_success_with_an_area_attack": 2,
-        "capped_by": "the number of Minions in the area of effect or within reach",
+        "area_attack_capped_by": "the number of Minions in the area of effect or within reach",
         "maximum_minions_per_net_success": 2,
         "effects_that_double_the_rate_do_not_stack": true,
         "on_a_damaging_attack": "the defeated Minions are knocked out",
         "on_a_special_effect": "the defeated Minions are subject to it for the rest of the scene"
       },
-      "description": "With no pool to whittle down, a hit simply removes one of the mob per net success, or two per net success when the attack covers an area - never more than two however the effects are combined, and never more than are actually there. A damaging hit lays them out; an effect holds them for the scene.",
+      "description": "With no pool to whittle down, a hit simply removes one of the mob per net success, or two per net success when the attack covers an area - and the area case is the one the page caps at however many bodies are actually in it. Two per net success is the ceiling however the effects are combined. A damaging hit lays them out; an effect holds them for the scene.",
       "verified_fields": [
         "effect",
         "duration",
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.4 Combat, p.77",
-      "ambiguity": null
+      "ambiguity": "The cap is printed as a parenthesis on the area-attack clause alone - \"2 Minions per net success rolled when using an area attack (up to the number of Minions in the area of effect or within reach)\" - so it is recorded on that clause and named for it. Its second half reads wider than its position: \"or within reach\" is the phrase for an ordinary attack rather than an area one, which suggests the whole rule was meant to be capped. The page never states a cap on the 1-per-net-success rate, and a simulator that reads the parenthesis where it is printed will let an ordinary attack defeat more Minions than are present."
     },
     {
       "id": "minions_attacking",
@@ -1262,13 +1265,14 @@
         "a_surprised_target_can_use_active_defenses": false,
         "surprise_lasts": "the first page of combat",
         "embellishment_rights_allow_partial_surprise": true,
-        "partial_surprise_keeps": "active defenses, and nothing else",
+        "partial_surprise_keeps": "their active defenses",
+        "partial_surprise_limit_printed_as": "but that's about it",
         "on_failure": "the target is not surprised and acts normally",
         "multiple_ambushers_may_roll_as_a_group": true,
         "every_target_rolls_their_own_perception": true,
         "minions_roll_perception_in_groups": true
       },
-      "description": "Jumping somebody is stealth against their alertness, or charm against it where the trick is flirtation rather than shadows. Winning costs the target their whole first slice - no act and no dodging - though a target holding the loser's right to add a detail may claim they were only half caught and keep their dodge. Each target answers for themselves, the nameless in mobs.",
+      "description": "Jumping somebody is stealth against their alertness, or charm against it where the trick is flirtation rather than shadows. Winning costs the target their whole first slice - no act and no dodging - though a target holding the loser's right to add a detail may claim they were only half caught and keep their dodge. The page allows them little beyond that without saying what the little is. Each target answers for themselves, the nameless in mobs.",
       "verified_fields": [
         "roll",
         "threshold",
@@ -1277,7 +1281,7 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
-      "ambiguity": null
+      "ambiguity": "What partial surprise leaves the target is printed as \"but that's about it\" - a hedge rather than a closed list. It plainly does not give the action back, since the sentence names only the active defenses as restored, but whether the target keeps anything else a page normally carries - a move, a free minor action, a reaction that is neither an active defense nor an action - is not said. partial_surprise_keeps transcribes what the page grants; partial_surprise_limit_printed_as carries the qualifier in the words that are actually printed, because 'and nothing else' is a stronger sentence than the book wrote."
     },
     {
       "id": "area_attacks",

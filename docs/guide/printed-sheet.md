@@ -10,7 +10,7 @@ Read before changing the print stylesheet, `SheetView`, or the two sample charac
 
 ## The printed sheet is the deliverable
 
-**It is modelled on the published Ultimate Edition Hero Sheet**, which is at `docs/Prowlers_&_Paragons_Ultimate_Edition_Hero_Sheet.pdf` — untracked, because `*.pdf` is gitignored repository-wide, so get your own copy from the publisher. Look at it before changing the layout.
+**It is modelled on the published Ultimate Edition Hero Sheet**, `Prowlers_&_Paragons_Ultimate_Edition_Hero_Sheet.pdf` — untracked, because `*.pdf` is gitignored repository-wide, so it is not in `docs/` or anywhere else in the checkout; get your own copy from the publisher and see below for where this machine's sits. Look at it before changing the layout.
 
 What is reproduced is the **structure**: a masthead of three boxes, three columns (Traits / the Powers stack / the four figures), a foot of free-text boxes, every section ruled with a centred heading in a bar. What is *not* reproduced is any of the trade dress — no hex pattern, no wordmark, no colour scheme. Those are LakeSide Games'.
 
@@ -38,7 +38,7 @@ Two consequences of the reference being a **form** rather than a summary, both d
 - **The sheet is one page and should stay one page.** The three columns are equal height and the box marked `fill` in each — Notes and Origin — absorbs the difference, so a short character still prints a full page instead of a third of one. That is a flex `flex: 1` on `.sheet-section.fill` plus `justify-content: space-between` on its rules, not a tuned line count; do not go back to counting lines.
 - **The browser prints its own header, and no page can stop it.** The URL, the date and the page number across the top are the print dialogue's "Headers and footers" setting, which belongs to the person printing. The review step tells them where the switch is; that is the only lever there is. Do not add a `@page` margin box or a page counter to try — Chrome supports neither.
 
-**The PDFs are in `docs/`, and a worktree cannot see them.** `*.pdf` is gitignored repository-wide, so both books sit in the main working directory and `docs/` inside a `.claude/worktrees/…` checkout holds only the extraction guide. `ls docs/*.pdf` from a worktree therefore reports nothing, which reads as "there is no rulebook" and is wrong — a whole slice was worked through on that assumption. Look at `<repo root>/docs/`, not the worktree's.
+**The PDFs are outside the repository entirely, and no checkout can see them.** `*.pdf` is gitignored repository-wide, so neither book is tracked and neither is in `docs/` — not a worktree's, and not the main working directory's either. `ls docs/*.pdf` therefore reports nothing from *any* checkout, which reads as "there is no rulebook" and is wrong; a whole slice was worked through on that assumption, and a later one on the narrower version of it that said to look in the main checkout. **Ask the owner where the books are and use an absolute path** — on this machine that is `~/Downloads/P&P/`, and it is a fact about the machine rather than about the repository, so do not turn it back into a repo-relative one.
 
 **To read the rulebook itself, extract its text with PdfPig.** There is no `pdftoppm`, and the `Read` tool cannot open a PDF without it — so a scratch console project referencing `PdfPig` is the way in. Group each page's words by rounded baseline and sort descending to recover lines; `page.Text` unbroken is fine for searching.
 

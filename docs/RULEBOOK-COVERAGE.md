@@ -101,7 +101,8 @@ verified data in `data/rules/play/`, held to the page by `PlayRulesDataTests`.
 **Two things the slices found that the sweep did not, and both are the same shape**: a formula the
 chapter prints turns out to be one `engine/` already implements, so the chapter is not wholly
 inapplicable to character creation after all. The starting-Resolve table is Ch.5's own (p.83); Edge
-and Health are Ch.4's (p.75, and reprinted from Ch.2 p.60). Nothing had ever compared the engine's
+and Health are Ch.4's (Edge on p.73 under `EDGE`, Health on p.75 under `HEALTH`, both reprinted from
+Ch.2 p.60 — this line said p.75 for the pair). Nothing had ever compared the engine's
 arithmetic to the pages it came from; three tests do now, each building its expected figure out of
 the shipped JSON rather than out of a number typed into the test.
 

@@ -508,7 +508,8 @@ public sealed class PlayRulesDataTests
         string? DurationRounds,
         string? ReductionRounds,
         string? ResolveReducesDamageTo,
-        int? OnePointEveryHoursForTheLowestBand);
+        int? OnePointEveryHoursForTheLowestBand,
+        int? FatalDamageIsRequiredBelowHealth);
 
     private sealed record ActionsModel(
         string OnYourTurn,
@@ -564,7 +565,10 @@ public sealed class PlayRulesDataTests
         int TravelPowerRankRequired,
         bool MovingPreventsActions,
         string AssumedTerrain,
-        int OpenTerrainGmMayAllowRangeClassesPerPage);
+        int OpenTerrainGmMayAllowRangeClassesPerPageMin,
+        int OpenTerrainGmMayAllowRangeClassesPerPageMax,
+        string OpenTerrainAllowanceAppliesTo,
+        bool OpenTerrainAllowanceIsGmDiscretion);
 
     private sealed record MovementContestModel(
         string Trigger,
@@ -793,7 +797,7 @@ public sealed class PlayRulesDataTests
         bool MinionsHaveHealth,
         int MinionsDefeatedPerNetSuccess,
         int MinionsDefeatedPerNetSuccessWithAnAreaAttack,
-        string CappedBy,
+        string AreaAttackCappedBy,
         int MaximumMinionsPerNetSuccess,
         bool EffectsThatDoubleTheRateDoNotStack,
         string OnADamagingAttack,
@@ -825,6 +829,7 @@ public sealed class PlayRulesDataTests
         string SurpriseLasts,
         bool EmbellishmentRightsAllowPartialSurprise,
         string PartialSurpriseKeeps,
+        string PartialSurpriseLimitPrintedAs,
         string OnFailure,
         bool MultipleAmbushersMayRollAsAGroup,
         bool EveryTargetRollsTheirOwnPerception,
@@ -1019,7 +1024,7 @@ public sealed class PlayRulesDataTests
     private sealed record WoundPenaltiesModel(
         int AtOrBelowHalfFullHealthPenaltyDice,
         int AtOrBelowZeroHealthPenaltyDice,
-        string ZeroOrLessIsReachableOnlyWith,
+        string ZeroOrLessParenthetical,
         string AppliesTo,
         int CostResolveToIgnore,
         int PagesIgnoredPerResolvePoint);
@@ -1757,11 +1762,11 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
-    /// <b>The eleven Powers Chapter 5 names as Resolve-exempt, checked against the flags
-    /// <c>powers.json</c> actually carries.</b> The character rules answer this question through
-    /// <see cref="DerivedStatsCalculator.ResolveAffectedByPower"/> — an explicit
-    /// <c>affects_resolve</c> if there is one, and the Movement/Sensory category default otherwise —
-    /// and until now nothing compared that answer to the page it came from.
+    /// <b>The eleven Powers Chapter 5 names as Resolve-exempt, checked against what
+    /// <c>powers.json</c> actually makes the engine answer.</b> The character rules answer this
+    /// question through <see cref="DerivedStatsCalculator.ResolveAffectedByPower"/> — an explicit
+    /// <c>affects_resolve</c> if there is one, and the Movement/Sensory category default otherwise
+    /// — and until now nothing compared that answer to the page it came from.
     ///
     /// <para><b>One of the eleven needs a mapping and it is ours, not the book's.</b> "Swinging" is
     /// <c>swing_line</c> in the rules data. "Super Senses" needs none — its sixteen entries are all
@@ -1769,11 +1774,16 @@ public sealed class PlayRulesDataTests
     /// and the mapping lives here rather than in the JSON precisely because it is a reading:
     /// <c>resolve.json</c> transcribes the printed names and nothing else.</para>
     ///
-    /// <para><b>And one of the eleven is not asked at all.</b> p.83 exempts "Expertise (except for
-    /// combat skills)", which is a carve-out and not an exemption, so requiring <c>false</c> for it
-    /// would have made a green test ratify an answer the page contradicts. It is excluded by name,
-    /// with the reason, and the divergence is asserted on purpose by
-    /// <see cref="ADivergenceTheEngineCannotYetExpress"/>.</para>
+    /// <para><b>Ten of the eleven are exemptions and are checked as exemptions. The eleventh is
+    /// not one, and asking the entry about it answers a different question.</b> p.83 exempts
+    /// "Expertise (except for combat skills)", which is a carve-out: what the page governs is the
+    /// <em>purchase</em>, and the entry's <c>affects_resolve: false</c> is only the default the
+    /// carve-out is an exception to. A loop that required <c>false</c> of that flag would be
+    /// satisfied by an engine that had lost the carve-out entirely — the flag is what stays put
+    /// when the rule is deleted. So Expertise is asked per selection instead, both ways round:
+    /// nominated to a Talent it is exempt, and nominated to one of the Abilities in
+    /// <c>affects_resolve_when_nominated</c> it counts. That is what p.83 actually says, and it is
+    /// the one printed name on this list whose answer is not a property of an entry.</para>
     /// </summary>
     [Fact]
     public void EveryPowerChapterFiveNamesAsExemptIsExemptInTheRulesData()
@@ -1783,14 +1793,11 @@ public sealed class PlayRulesDataTests
         Assert.NotNull(named);
         Assert.Equal(CanonicalResolveRules.NamedResolveExemptPowers, named.NamedPowers);
 
-        // The names this check does not ask about have to be names the page actually prints, or an
-        // exclusion could quietly cover nothing (a typo) or everything (a widened rule).
-        Assert.Subset(named.NamedPowers.ToHashSet(StringComparer.Ordinal), NamesThisCheckCannotAsk.Keys.ToHashSet(StringComparer.Ordinal));
-
         var faults = new List<string>();
         var matched = 0;
+        var askedPerSelection = 0;
 
-        foreach (var printedName in named.NamedPowers.Where(n => !NamesThisCheckCannotAsk.ContainsKey(n)))
+        foreach (var printedName in named.NamedPowers)
         {
             var dataName = ChapterFivePowerNames.GetValueOrDefault(printedName, printedName);
 
@@ -1809,6 +1816,36 @@ public sealed class PlayRulesDataTests
             {
                 matched++;
 
+                // The carve-out entry: the page's claim is about a purchase, so ask about one.
+                if (power.AffectsResolveWhenNominated.Count > 0)
+                {
+                    askedPerSelection++;
+
+                    var exemptNomination = _f.Rules.Talents[0].Id;
+                    var countingNomination = power.AffectsResolveWhenNominated[0];
+
+                    if (_f.Derived.ResolveAffectedBySelection(
+                            new SelectedPower(power.Id, 1) { BaselineTraitId = exemptNomination }))
+                    {
+                        faults.Add(
+                            $"'{printedName}' is named on p.{CanonicalResolveRules.ExceptionsPage} as a "
+                            + $"Power that does not affect Resolve, and entry '{power.Id}' nominated to "
+                            + $"the Talent '{exemptNomination}' counts towards it");
+                    }
+
+                    if (!_f.Derived.ResolveAffectedBySelection(
+                            new SelectedPower(power.Id, 1) { BaselineTraitId = countingNomination }))
+                    {
+                        faults.Add(
+                            $"p.{CanonicalResolveRules.ExceptionsPage} exempts '{printedName}' "
+                            + $"'{CanonicalResolveRules.ExpertiseQualifier}', and entry '{power.Id}' "
+                            + $"nominated to '{countingNomination}' is exempt anyway — the carve-out "
+                            + "is gone and only the entry's default is left");
+                    }
+
+                    continue;
+                }
+
                 if (DerivedStatsCalculator.ResolveAffectedByPower(power))
                 {
                     faults.Add(
@@ -1820,10 +1857,15 @@ public sealed class PlayRulesDataTests
             }
         }
 
-        // Positive control: ten of the eleven printed names are asked about, and Super Senses alone
-        // is sixteen entries, so a lookup that had stopped matching would fault nothing and prove
+        // Positive control: all eleven printed names are asked about, and Super Senses alone is
+        // sixteen entries, so a lookup that had stopped matching would fault nothing and prove
         // nothing.
-        Assert.True(matched >= 25, $"Only {matched} powers.json entries were reached for {named.NamedPowers.Count} printed names.");
+        Assert.True(matched >= 26, $"Only {matched} powers.json entries were reached for {named.NamedPowers.Count} printed names.");
+
+        // And the carve-out branch was actually taken, or the paragraph above describes a check
+        // that did not run and every Expertise assertion held by not being made.
+        Assert.Equal(1, askedPerSelection);
+
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
 
@@ -1837,49 +1879,35 @@ public sealed class PlayRulesDataTests
         new(StringComparer.Ordinal) { ["Swinging"] = "Swing Line" };
 
     /// <summary>
-    /// The printed names the exemption cross-check must <b>not</b> ask <c>powers.json</c> about,
-    /// each with the reason it cannot answer. <b>Excluded by name and never by a rule</b>, so a
-    /// second one cannot be added without writing down why.
+    /// <b>The carve-out on p.83, asserted from both sides on one character.</b> The page exempts
+    /// "Expertise (except for combat skills)", so an Expertise nominated to a combat skill
+    /// <em>does</em> count towards the opening pool while one nominated to anything else does not.
+    /// A Standard-tier 6d character with Expertise at the 12d cap therefore opens on 0 Resolve when
+    /// the nomination is Might, Agility or Willpower and on 12 when it is Science — the same sheet,
+    /// the same rank, two answers, and the nomination is the only thing that moved.
     ///
-    /// <para>Expertise is the only member, and it is a carve-out rather than an exemption: p.83
-    /// reads "Expertise (except for combat skills)", so whether an Expertise counts depends on the
-    /// Trait it was nominated to. <c>affects_resolve</c> is one flag on one entry and cannot say
-    /// that, so the entry is an unconditional <c>false</c> and the engine's answer is wrong for
-    /// exactly the combat-skill case. Requiring <c>false</c> here made a green test <em>ratify</em>
-    /// that; <see cref="ADivergenceTheEngineCannotYetExpress"/> asserts it instead, so it is
-    /// recorded rather than blessed.</para>
-    /// </summary>
-    private static readonly Dictionary<string, string> NamesThisCheckCannotAsk =
-        new(StringComparer.Ordinal)
-        {
-            ["Expertise"] =
-                "p.83 exempts Expertise 'except for combat skills', and powers.json carries one "
-                + "unconditional affects_resolve flag for all of them"
-        };
-
-    /// <summary>
-    /// <b>A place where the page and the engine give different answers, asserted on purpose.</b>
-    /// p.83 exempts "Expertise (except for combat skills)" — so an Expertise nominated to a combat
-    /// skill <em>does</em> count towards the opening pool. <c>powers.json</c> has one Expertise
-    /// entry with one <c>affects_resolve: false</c>, and the flag has no room for the nomination,
-    /// so the engine exempts every Expertise there is.
+    /// <para><b>The nominations here are Abilities, which is all an Expertise may be nominated
+    /// to.</b> Ch.2 p.28: "Your specialization must fall under one of your Abilities or Talents".
+    /// This test used to nominate the Martial Arts <em>Power</em>, which is not a legal Expertise
+    /// at all — the engine answered p.83's attack-or-defence question of that Power, so the case
+    /// passed while asserting the carve-out against a sheet
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c> now refuses. Willpower is here because it is the
+    /// half of Ch.4 p.75's Attack and Defense table an earlier reading of "combat skills" left
+    /// out: defending against a Mental Power is its own row.</para>
     ///
-    /// <para><b>The engine is not changed here, and neither is the data.</b> Chapter 5 is
-    /// transcribed in this slice; teaching <c>DerivedStatsCalculator</c> the carve-out is
-    /// <c>PROGRESS.md</c> item 14's engine work, and <c>CLAUDE.md</c>'s rule is that this
-    /// repository <em>reports</em> rather than repairs. What was not acceptable was the previous
-    /// state: <see cref="EveryPowerChapterFiveNamesAsExemptIsExemptInTheRulesData"/> required
-    /// <c>false</c> for all eleven names including Expertise, so a green suite was ratifying an
-    /// answer the page contradicts.</para>
+    /// <para><b>This replaces a test that pinned the wrong answer on purpose.</b>
+    /// <c>ADivergenceTheEngineCannotYetExpress</c> asserted the engine's 12 for the combat case and
+    /// was written to go red the day the carve-out landed, because a divergence recorded as a test
+    /// that would still pass after the fix is one nobody notices was closed. It went red, and this
+    /// is what it was replaced with.</para>
     ///
-    /// <para><b>This test is written to go red when the gap closes, and that is the point.</b> It
-    /// asserts the engine's present answer exactly. The day the carve-out lands, the figure becomes
-    /// the one the page wants and this fails — at which point flip the two numbers and delete the
-    /// exclusion in <see cref="NamesThisCheckCannotAsk"/>. A divergence recorded as a passing test
-    /// that would still pass after the fix is a divergence nobody will ever notice was closed.</para>
+    /// <para><b>Both halves are here deliberately.</b> Asserting only the combat case would be
+    /// satisfied by an entry whose <c>affects_resolve</c> had simply been flipped to true, which is
+    /// the opposite error and exempts nothing; asserting only the Science case would be satisfied by
+    /// the engine as it stood before the fix.</para>
     /// </summary>
     [Fact]
-    public void ADivergenceTheEngineCannotYetExpress()
+    public void AnExpertiseNominatedToACombatSkillCountsTowardsResolve()
     {
         var tier = _f.Rules.GetTier("standard");
         Assert.NotNull(tier);
@@ -1887,28 +1915,39 @@ public sealed class PlayRulesDataTests
         const int abilityRank = 6;
         var cap = tier.TraitCapRank;
 
-        // A 6d martial artist whose Martial Arts specialisation is bought up to the cap: Martial
-        // Arts sits at its Might baseline, and Expertise nominated to it is bought the rest of the
-        // way. No Determination and no Condition or Plot Hook Flaw, so the figure below is the
-        // chapter's base table and nothing else.
-        var sheet = RulesFixture.StandardSheet();
-        foreach (var ability in _f.Rules.Abilities) sheet.AbilityRanks[ability.Id] = abilityRank;
+        // A 6d character with one specialisation bought up to the cap. Every Ability and every
+        // Talent is at 6d, so the Expertise reaches the cap whatever it is nominated to and the
+        // only thing that differs between the sheets below is the nomination. No Determination and
+        // no Condition or Plot Hook Flaw, so the figure is the chapter's base table and nothing
+        // else.
+        CharacterSheet Character(string nomination)
+        {
+            var built = RulesFixture.StandardSheet();
+            foreach (var ability in _f.Rules.Abilities) built.AbilityRanks[ability.Id] = abilityRank;
+            foreach (var talent in _f.Rules.Talents) built.TalentRanks[talent.Id] = abilityRank;
 
-        sheet.SelectedPowers.Add(new SelectedPower("martial_arts", 0));
-        sheet.SelectedPowers.Add(
-            new SelectedPower("expertise", cap - abilityRank) { BaselineTraitId = "martial_arts" });
+            built.SelectedPowers.Add(
+                new SelectedPower("expertise", cap - abilityRank) { BaselineTraitId = nomination });
 
-        // Positive controls on the fixture, because every assertion below is about a rank the
-        // character has to actually reach. An Expertise that came out at 6 would produce the same
-        // Resolve for a reason that has nothing to do with the carve-out.
-        var expertise = sheet.GetPower("expertise");
-        Assert.NotNull(expertise);
-        Assert.Equal(cap, _f.Derived.GetEffectiveRank(expertise, sheet));
-        Assert.Equal(abilityRank, sheet.AbilityRanks.Values.Max());
-        Assert.Null(sheet.GetPower("determination"));
-        Assert.Empty(sheet.Flaws);
+            return built;
+        }
 
-        // And the flag really is the unconditional one the page cannot be expressed through.
+        var fromTheTable = ResolveEntryById("starting_resolve").StartingResolve;
+        Assert.NotNull(fromTheTable);
+
+        // The nomination is a combat skill, so the Expertise counts, the highest relevant rank is
+        // the cap, and the opening pool is nothing.
+        var atTheCap = fromTheTable.AtTraitCap;
+
+        // Nominated to a Talent instead, the Expertise is exempt however high it was bought, so the
+        // highest relevant rank is the 6d Ability and the pool is six dice of room, twice over.
+        var sixDiceUnderTheCap =
+            fromTheTable.AtTraitCap + (cap - abilityRank) * fromTheTable.ResolvePerRankBelowCap;
+
+        Assert.NotEqual(atTheCap, sixDiceUnderTheCap);
+
+        // The entry's own flag is still the exemption, because the carve-out rides on the
+        // nomination. A flipped flag would pass the combat cases below and break the Science one.
         var entry = _f.Rules.GetPower("expertise");
         Assert.NotNull(entry);
         Assert.False(
@@ -1918,34 +1957,28 @@ public sealed class PlayRulesDataTests
             + $"{CanonicalResolveRules.ExpertiseQualifier}', so an Expertise nominated to anything "
             + "else must still be exempt. The carve-out needs the nomination, not a flipped flag.");
 
-        var fromTheTable = ResolveEntryById("starting_resolve").StartingResolve;
-        Assert.NotNull(fromTheTable);
+        foreach (var (nomination, expected) in new[]
+                 {
+                     ("might",     atTheCap),
+                     ("agility",   atTheCap),
+                     ("willpower", atTheCap),
+                     ("science",   sixDiceUnderTheCap)
+                 })
+        {
+            var sheet = Character(nomination);
 
-        // What the page wants: the nomination is a combat skill, so the Expertise counts, the
-        // highest relevant rank is the cap, and the opening pool is nothing.
-        var thePageWants = fromTheTable.AtTraitCap;
+            // Positive controls per sheet, because every assertion is about a rank the character
+            // has to actually reach. An Expertise that came out at 6 would produce the Science
+            // figure for a reason that has nothing to do with the carve-out.
+            var expertise = sheet.GetPower("expertise");
+            Assert.NotNull(expertise);
+            Assert.Equal(cap, _f.Derived.GetEffectiveRank(expertise, sheet));
+            Assert.Equal(abilityRank, sheet.AbilityRanks.Values.Max());
+            Assert.Null(sheet.GetPower("determination"));
+            Assert.Empty(sheet.Flaws);
 
-        // What the engine answers: the Expertise is exempt whatever it was nominated to, so the
-        // highest relevant rank is the 6d Ability and the pool is six dice of room, twice over.
-        var theEngineAnswers =
-            fromTheTable.AtTraitCap + (cap - abilityRank) * fromTheTable.ResolvePerRankBelowCap;
-
-        Assert.NotEqual(thePageWants, theEngineAnswers);
-
-        var answer = _f.Derived.CalculateResolve(sheet);
-
-        // The informative assertion first: this is the one that fires the day the gap closes, and
-        // "Expected 12, Actual 0" on its own would send the reader to fix the wrong side.
-        Assert.True(
-            answer != thePageWants,
-            $"CalculateResolve now answers {thePageWants} for an Expertise nominated to a combat "
-            + $"skill, which is what p.{CanonicalResolveRules.ExceptionsPage} wants — 'Expertise "
-            + $"({CanonicalResolveRules.ExpertiseQualifier})' means the nomination counts towards "
-            + "the opening pool. The engine has learned the carve-out: swap the two figures in this "
-            + "test so it asserts agreement, and delete the Expertise entry from "
-            + "NamesThisCheckCannotAsk so the exemption cross-check asks about it again.");
-
-        Assert.Equal(theEngineAnswers, answer);
+            Assert.Equal(expected, _f.Derived.CalculateResolve(sheet));
+        }
     }
 
     /// <summary>
@@ -2868,6 +2901,79 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
+    /// <b>p.81's parenthetical covers the "or less", not the "0".</b> "Whenever you are down to 0
+    /// Health or less (which is possible when using the Fatal Damage rules) you suffer a −4d penalty"
+    /// hangs the clause off the whole phrase — but exactly 0 needs no optional rule whatever: p.75
+    /// says "Once a target's Health falls to 0, they are defeated", in any fight at any table. Only
+    /// the negative half of the band needs Fatal Damage, which is the rule that lets Health go below
+    /// zero at all.
+    ///
+    /// <para><b>The entry used to assert the other reading as a fact.</b> The field said
+    /// <c>zero_or_less_is_reachable_only_with: "the Fatal Damage rule"</c> — flat, and a claim the
+    /// page does not make: read that way the −4d band is unreachable in an ordinary game and a
+    /// defeated character's rolls carry no penalty. The fact field now carries p.81's clause as
+    /// printed and the reading is an <c>interpretation</c>.</para>
+    ///
+    /// <para>The reading is <b>derived rather than typed</b>: the boundary is Chapter 4's own
+    /// <c>damage.defeated_at_health</c>, read out of <c>combat.json</c>, and the corpus is asked for
+    /// both printed sentences so the derivation is against the book rather than against two of this
+    /// project's files agreeing with each other.</para>
+    /// </summary>
+    [Fact]
+    public void TheWoundPenaltyParentheticalCoversTheNegativeHalfOfItsBand()
+    {
+        var wounds = ChapterFourSectionText("WOUND PENALTIES");
+        var damageSection = ChapterFourSectionText("DAMAGE");
+
+        Assert.False(string.IsNullOrEmpty(wounds));
+        Assert.False(string.IsNullOrEmpty(damageSection));
+
+        var entry = GrittyEntryById("gritty_wound_penalties");
+        var penalties = entry.WoundPenalties;
+        var interpretation = entry.Interpretation;
+
+        Assert.NotNull(penalties);
+        Assert.NotNull(interpretation);
+        Assert.False(string.IsNullOrWhiteSpace(interpretation.WhatThisIs));
+
+        // The fact field is the page's clause and nothing else — verbatim, out of the corpus.
+        Assert.Contains(penalties.ZeroOrLessParenthetical, wounds, StringComparison.Ordinal);
+        Assert.Equal(CanonicalGrittyRules.WoundPenalties.ZeroOrLessParenthetical, penalties.ZeroOrLessParenthetical);
+
+        // p.75 is what makes the flat reading wrong: a character reaches exactly the defeat figure
+        // with no Gritty rule switched on, so the boundary the parenthetical guards is below it.
+        var damage = CombatEntryById("damage").Damage;
+
+        Assert.NotNull(damage);
+        Assert.Contains(
+            $"Health falls to {damage.DefeatedAtHealth}, they are defeated",
+            damageSection,
+            StringComparison.Ordinal);
+
+        Assert.Equal(
+            damage.DefeatedAtHealth,
+            interpretation.FatalDamageIsRequiredBelowHealth);
+
+        // And the rule the parenthetical names is the one that opens the negatives up. Without it
+        // there is nothing below the defeat figure to reach, which is the whole of the reading.
+        var fatal = GrittyEntryById("gritty_fatal_damage").FatalDamage;
+
+        Assert.NotNull(fatal);
+        Assert.True(
+            fatal.HealthCanGoNegative,
+            "Fatal Damage is what puts Health below the defeat figure. If it no longer does, "
+            + "p.81's parenthetical is about something else and this reading has to be redone.");
+
+        // The band's top value is therefore reachable in an ordinary fight, and its penalty applies
+        // there. Stated as a bound rather than as prose so a widened reading has to move it.
+        Assert.True(
+            interpretation.FatalDamageIsRequiredBelowHealth >= damage.DefeatedAtHealth,
+            "The reading may not push the Fatal Damage requirement above the defeat figure: that "
+            + "would make the −4d band unreachable without an optional rule, which is the flat "
+            + "reading this interpretation exists to replace.");
+    }
+
+    /// <summary>
     /// <b>The Example of Combat, p.81, stepped through the data.</b> Six of its rolls resolve
     /// against three different files — Chapter 4's damage rule, its Grappling table, its Minion rule,
     /// and Chapter 3's narrative-control bands for the last one — and every threshold and rate comes
@@ -2893,10 +2999,13 @@ public sealed class PlayRulesDataTests
         Assert.NotNull(order);
         Assert.NotNull(bands);
 
-        // Turn order: three Edge scores sorted downward, then the Minions, who have none.
+        // Turn order: three Edge scores sorted downward, and then the Minions — who go where the
+        // file puts them. Appending them was the fixture answering its own question: the whole
+        // content of "Minions act last" is tie_break.minions_act, so that field decides, and a file
+        // that moved them to the front builds an order p.81 does not print.
         Assert.False(order.MinionsHaveAnEdge);
 
-        var byEdge = new[]
+        var named = new[]
             {
                 ("Citizen Soldier", CanonicalCombatRules.ExampleOfCombat.CitizenSoldierEdge),
                 ("the mecha", CanonicalCombatRules.ExampleOfCombat.MechaEdge),
@@ -2904,10 +3013,18 @@ public sealed class PlayRulesDataTests
             }
             .OrderByDescending(c => c.Item2)
             .Select(c => c.Item1)
-            .Append("the robotic Minions")
             .ToArray();
 
-        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.TurnOrder, byEdge);
+        var byEdge = order.MinionsAct switch
+        {
+            "after everyone else" => named.Append(CanonicalCombatRules.ExampleOfCombat.MinionsLabel),
+            "before everyone else" => named.Prepend(CanonicalCombatRules.ExampleOfCombat.MinionsLabel),
+            var other => throw new InvalidOperationException(
+                $"tie_break.minions_act '{other}' does not say where in the order the Minions go, "
+                + "so the Example of Combat's turn order cannot be built from the data.")
+        };
+
+        Assert.Equal(CanonicalCombatRules.ExampleOfCombat.TurnOrder, byEdge.ToArray());
 
         // "With a total of 2 net successes, a giant mechanical foot stomps Gate into the ground,
         // inflicting 2 points of damage."
@@ -2923,9 +3040,23 @@ public sealed class PlayRulesDataTests
 
         var couldDefeat = minionNet * minions.MinionsDefeatedPerNetSuccess;
         Assert.Equal(CanonicalCombatRules.ExampleOfCombat.MinionsCouldHaveBeenDefeated, couldDefeat);
-        Assert.Equal(
-            CanonicalCombatRules.ExampleOfCombat.MinionsPresent,
-            Math.Min(couldDefeat, CanonicalCombatRules.ExampleOfCombat.MinionsPresent));
+
+        // The cap has to be doing work on this fixture, or Math.Min below is the identity and
+        // asserting its result against MinionsPresent is a tautology — which is what this was.
+        // "Could have defeated up to five … turns these four into scrap" is precisely an allowance
+        // that overshoots the mob, so the overshoot is the positive control.
+        var present = CanonicalCombatRules.ExampleOfCombat.MinionsPresent;
+
+        Assert.True(
+            couldDefeat > present,
+            $"The rate allows {couldDefeat} and {present} are present. p.81's sentence is an "
+            + "allowance that overshoots the mob; if it no longer does, this step proves nothing "
+            + "about the cap and the fixture needs a different example.");
+
+        var actuallyDefeated = Math.Min(couldDefeat, present);
+
+        Assert.Equal(present, actuallyDefeated);
+        Assert.NotEqual(couldDefeat, actuallyDefeated);
 
         // "the mecha also gets 9 successes when it rolls its 15d Armor for defense. Gatecrasher's
         // attack has no effect."
@@ -2977,6 +3108,15 @@ public sealed class PlayRulesDataTests
     /// rather than about the book: a rounding rule with no exception recorded and an exception with no
     /// rule to except from would each pass on their own.
     ///
+    /// <para><b>"One place" means the one the book NAMES, and that distinction is load-bearing.</b>
+    /// It is not a claim that no other rate in Chapter 4 halves something: <c>gritty_slow_healing</c>'s
+    /// Medicine rate is the identical "1 point per 2 net successes" construction on p.80, and p.80
+    /// prints no direction for it at all. Tough Minions is the exception because p.81 says "note that
+    /// you are rounding down in this unique case"; Slow Healing is silent, which is a third state —
+    /// neither the book-wide rule confirmed nor a second exception — and a simulator that reads "the
+    /// one place" as "the only rate of this shape" would settle it by accident. So the silence is
+    /// asserted here beside the exception, on the entry's own <c>ambiguity</c>.</para>
+    ///
     /// <para>The worked example is what makes it bite. Five net successes defeat two Minions, and the
     /// book-wide direction would defeat three — so the two directions are computed and the printed
     /// answer picks one.</para>
@@ -2992,7 +3132,16 @@ public sealed class PlayRulesDataTests
 
         Assert.Equal("up", rounding.Direction);
 
-        var exception = Assert.Single(rounding.Exceptions);
+        Assert.True(
+            rounding.Exceptions.Count == 1,
+            $"p.7 names one exception to the half-rounds-up rule; play_meta.json records "
+            + $"{rounding.Exceptions.Count}. \"The one place a half goes downward\" is a claim about "
+            + "what the book NAMES, not about which rates halve something — p.80's Medicine rate is "
+            + "the same 'per 2 net successes' shape with no direction printed for it, and is silent "
+            + "rather than a second exception. A new entry here has to be a rule that prints its own "
+            + "direction, the way p.81 does.");
+
+        var exception = rounding.Exceptions[0];
         Assert.Equal("Tough Minions", exception.Name);
         Assert.Equal("down", exception.Direction);
         Assert.Contains(
@@ -3014,6 +3163,23 @@ public sealed class PlayRulesDataTests
         Assert.NotEqual(
             CanonicalGrittyRules.ToughMinions.WorkedExampleMinionsDefeated,
             HalfBy(net, rounding.Direction));
+
+        // And the other rate of this shape is on record as unresolved rather than quietly assumed.
+        // Slow Healing's Medicine roll heals 1 point per 2 net successes on p.80 with no direction
+        // printed beside it — the same construction, without the sentence that makes this one an
+        // exception. Asserting the shapes match is what stops the ambiguity from being about some
+        // other field: if the rate ever stops being "per 2", this pairing stops being the point.
+        var healing = GrittyEntryById("gritty_slow_healing");
+
+        Assert.NotNull(healing.SlowHealing);
+        Assert.Equal(
+            tough.NetSuccessesPerMinionDefeated,
+            healing.SlowHealing.MedicineNetSuccessesPerPoint);
+        Assert.False(
+            string.IsNullOrWhiteSpace(healing.Ambiguity),
+            "gritty_slow_healing carries the same 'per 2 net successes' rate as Tough Minions with "
+            + "no printed rounding direction, and records no ambiguity — which leaves the direction "
+            + "for an odd roll to be decided silently by whoever implements it first.");
     }
 
     /// <summary>
@@ -3197,6 +3363,13 @@ public sealed class PlayRulesDataTests
     /// chapter offers them as things a group turns on rather than as things a character does, which is
     /// what <c>kind</c> records — and the count is asserted because a rule quietly dropped from the
     /// file would leave every other test green.
+    ///
+    /// <para><b>The eleventh entry is not one of them</b>, and neither is <c>kind</c> a marker for the
+    /// file. <c>gritty_overview</c> is the paragraph that offers the ten and is <c>narrative</c>, so
+    /// "every entry in <c>gritty.json</c> is a <c>table_setting</c>" is false; and <c>combat.json</c>
+    /// carries a <c>table_setting</c> of its own — <c>seize_initiative_gm_alternative</c>, p.73's
+    /// choice offered to the GM — so selecting on <c>kind</c> across the store would not reproduce
+    /// this list. Hence ten ids, named.</para>
     /// </summary>
     [Fact]
     public void TheTenGrittyRulesAreEachATableSetting()
@@ -3986,11 +4159,20 @@ public sealed class PlayRulesDataTests
     [InlineData("resolve.json", "resolve_exceptions")]
     // Chapter 4. The throwing gap and the Minion group bonus change results outright; the GM's
     // alternative to seizing the initiative is the one Chapter 5 pointed at and could not answer;
-    // and Wound Penalties records the extraction fault that filed it under another heading.
+    // and Wound Penalties records the extraction fault that filed it under another heading. Slow
+    // Healing is the fifth: its Medicine rate is Tough Minions' construction without Tough Minions'
+    // sentence about which way a half goes.
     [InlineData("combat.json", "throwing_table")]
     [InlineData("combat.json", "minions_attacking")]
     [InlineData("combat.json", "seize_initiative_gm_alternative")]
     [InlineData("gritty.json", "gritty_wound_penalties")]
+    [InlineData("gritty.json", "gritty_slow_healing")]
+    // Three more the chapter leaves loose in its own sentences: an allowance offered to "high
+    // ranks" with no rank named, a cap printed as a parenthesis that reads wider than where it
+    // sits, and "but that's about it" standing in for a list the page never gives.
+    [InlineData("combat.json", "movement")]
+    [InlineData("combat.json", "attacking_minions")]
+    [InlineData("combat.json", "ambushes")]
     public void TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect(string file, string id)
     {
         var ambiguity = file switch
@@ -4012,12 +4194,21 @@ public sealed class PlayRulesDataTests
     /// table — worked examples of thresholds already stated numerically, and the one part of that
     /// chapter the extractor is known to scramble. For Chapter 5 it is the chapter-opening essay
     /// and the advice to track both pools with poker chips, neither of which carries a mechanic.
+    ///
+    /// <para><b>A header also has to say when its chapter's printed range is wider than its text.</b>
+    /// Chapters 4 and 5 both end on a page the corpus extracts nothing from — p.82 and p.86 — and a
+    /// header's <c>source_ref</c> names the whole chapter, so without the sentence the range reads as
+    /// a claim that the page was read and found empty. Chapter 5's header said so and Chapter 4's two
+    /// did not.</para>
     /// </summary>
     [Theory]
     [InlineData("challenge.json", "Sample Thresholds")]
     [InlineData("resolve.json", "poker chips")]
     [InlineData("combat.json", "Example of Combat")]
     [InlineData("gritty.json", "worked example")]
+    [InlineData("resolve.json", "p.86")]
+    [InlineData("combat.json", "p.82")]
+    [InlineData("gritty.json", "p.82")]
     public void TheHeaderSaysWhatWasDeliberatelyLeftOut(string fileName, string mustName)
     {
         var omitted = HeaderOf(fileName).DeliberatelyOmitted;
@@ -4130,7 +4321,11 @@ public sealed class PlayRulesDataTests
             // gritty.json's Slow Healing: only the top three bands print an hourly figure. The
             // lowest band's 24-hour reading is 24 (a day's hours, not a page reference) divided by
             // itself, i.e. a day converted to hours — arithmetic, not a transcription.
-            "gritty_slow_healing.interpretation.one_point_every_hours_for_the_lowest_band"
+            "gritty_slow_healing.interpretation.one_point_every_hours_for_the_lowest_band",
+            // gritty.json's Wound Penalties: p.81 hangs its parenthetical on the whole of "0 Health
+            // or less", and which half it governs is a reading — derived from p.75's own defeat
+            // figure by TheWoundPenaltyParentheticalCoversTheNegativeHalfOfItsBand.
+            "gritty_wound_penalties.interpretation.fatal_damage_is_required_below_health"
         };
 
     /// <summary>
@@ -4602,7 +4797,10 @@ public sealed class PlayRulesDataTests
             ["movement.movement.travel_power_rank_required"] = Is(CanonicalCombatRules.Movement.TravelPowerRankRequired),
             ["movement.movement.moving_prevents_actions"] = Is(CanonicalCombatRules.Movement.MovingPreventsActions),
             ["movement.movement.assumed_terrain"] = Is(CanonicalCombatRules.Movement.AssumedTerrain),
-            ["movement.movement.open_terrain_gm_may_allow_range_classes_per_page"] = Is(CanonicalCombatRules.Movement.OpenTerrainGmMayAllowRangeClassesPerPage),
+            ["movement.movement.open_terrain_gm_may_allow_range_classes_per_page_min"] = Is(CanonicalCombatRules.Movement.OpenTerrainGmMayAllowRangeClassesPerPageMin),
+            ["movement.movement.open_terrain_gm_may_allow_range_classes_per_page_max"] = Is(CanonicalCombatRules.Movement.OpenTerrainGmMayAllowRangeClassesPerPageMax),
+            ["movement.movement.open_terrain_allowance_applies_to"] = Is(CanonicalCombatRules.Movement.OpenTerrainAllowanceAppliesTo),
+            ["movement.movement.open_terrain_allowance_is_gm_discretion"] = Is(CanonicalCombatRules.Movement.OpenTerrainAllowanceIsGmDiscretion),
 
             ["movement_contest.movement_contest.trigger"] = Is(CanonicalCombatRules.MovementContest.Trigger),
             ["movement_contest.movement_contest.roll"] = Is(CanonicalCombatRules.MovementContest.Roll),
@@ -4778,7 +4976,7 @@ public sealed class PlayRulesDataTests
             ["attacking_minions.attacking_minions.minions_have_health"] = Is(CanonicalCombatRules.AttackingMinions.MinionsHaveHealth),
             ["attacking_minions.attacking_minions.minions_defeated_per_net_success"] = Is(CanonicalCombatRules.AttackingMinions.MinionsDefeatedPerNetSuccess),
             ["attacking_minions.attacking_minions.minions_defeated_per_net_success_with_an_area_attack"] = Is(CanonicalCombatRules.AttackingMinions.MinionsDefeatedPerNetSuccessWithAnAreaAttack),
-            ["attacking_minions.attacking_minions.capped_by"] = Is(CanonicalCombatRules.AttackingMinions.CappedBy),
+            ["attacking_minions.attacking_minions.area_attack_capped_by"] = Is(CanonicalCombatRules.AttackingMinions.AreaAttackCappedBy),
             ["attacking_minions.attacking_minions.maximum_minions_per_net_success"] = Is(CanonicalCombatRules.AttackingMinions.MaximumMinionsPerNetSuccess),
             ["attacking_minions.attacking_minions.effects_that_double_the_rate_do_not_stack"] = Is(CanonicalCombatRules.AttackingMinions.EffectsThatDoubleTheRateDoNotStack),
             ["attacking_minions.attacking_minions.on_a_damaging_attack"] = Is(CanonicalCombatRules.AttackingMinions.OnADamagingAttack),
@@ -4805,6 +5003,7 @@ public sealed class PlayRulesDataTests
             ["ambushes.ambush.surprise_lasts"] = Is(CanonicalCombatRules.Ambush.SurpriseLasts),
             ["ambushes.ambush.embellishment_rights_allow_partial_surprise"] = Is(CanonicalCombatRules.Ambush.EmbellishmentRightsAllowPartialSurprise),
             ["ambushes.ambush.partial_surprise_keeps"] = Is(CanonicalCombatRules.Ambush.PartialSurpriseKeeps),
+            ["ambushes.ambush.partial_surprise_limit_printed_as"] = Is(CanonicalCombatRules.Ambush.PartialSurpriseLimitPrintedAs),
             ["ambushes.ambush.on_failure"] = Is(CanonicalCombatRules.Ambush.OnFailure),
             ["ambushes.ambush.multiple_ambushers_may_roll_as_a_group"] = Is(CanonicalCombatRules.Ambush.MultipleAmbushersMayRollAsAGroup),
             ["ambushes.ambush.every_target_rolls_their_own_perception"] = Is(CanonicalCombatRules.Ambush.EveryTargetRollsTheirOwnPerception),
@@ -4974,7 +5173,7 @@ public sealed class PlayRulesDataTests
 
             ["gritty_wound_penalties.wound_penalties.at_or_below_half_full_health_penalty_dice"] = Is(CanonicalGrittyRules.WoundPenalties.AtOrBelowHalfFullHealthPenaltyDice),
             ["gritty_wound_penalties.wound_penalties.at_or_below_zero_health_penalty_dice"] = Is(CanonicalGrittyRules.WoundPenalties.AtOrBelowZeroHealthPenaltyDice),
-            ["gritty_wound_penalties.wound_penalties.zero_or_less_is_reachable_only_with"] = Is(CanonicalGrittyRules.WoundPenalties.ZeroOrLessIsReachableOnlyWith),
+            ["gritty_wound_penalties.wound_penalties.zero_or_less_parenthetical"] = Is(CanonicalGrittyRules.WoundPenalties.ZeroOrLessParenthetical),
             ["gritty_wound_penalties.wound_penalties.applies_to"] = Is(CanonicalGrittyRules.WoundPenalties.AppliesTo),
             ["gritty_wound_penalties.wound_penalties.cost_resolve_to_ignore"] = Is(CanonicalGrittyRules.WoundPenalties.CostResolveToIgnore),
             ["gritty_wound_penalties.wound_penalties.pages_ignored_per_resolve_point"] = Is(CanonicalGrittyRules.WoundPenalties.PagesIgnoredPerResolvePoint)

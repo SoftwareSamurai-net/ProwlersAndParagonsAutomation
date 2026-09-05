@@ -1,9 +1,9 @@
 {
   "header": {
-    "what_this_is": "The ten optional Gritty Combat Rules printed in Chapter 4, pp.79-81, plus the paragraph that introduces them, as data. Each is a setting for the whole table rather than something one character does, which is why every one of them carries the kind table_setting. The combat rules they modify are in combat.json beside this file; the dice model is in play_meta.json.",
+    "what_this_is": "The ten optional Gritty Combat Rules printed in Chapter 4, pp.79-81, plus the paragraph that introduces them, as data. Each of the ten is a setting for the whole table rather than something one character does, which is why each of them carries the kind table_setting; the introductory paragraph is not one of them and carries the kind narrative. The kind is not what files an entry here - combat.json carries a table_setting of its own, seize_initiative_gm_alternative on p.73 - the split is between the ten optional rules and the ordinary ones the book prints before them. The combat rules they modify are in combat.json beside this file; the dice model is in play_meta.json.",
     "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
     "not_logic": "Data only. No engine reads this file, and none may; the models arrive with the simulator.",
-    "deliberately_omitted": "Two worked examples are not transcribed as mechanics. p.80's sword shows the Gear Limit arithmetic that gritty_raised_gear_limit already states as numbers, and p.79's Clint Castle shows the Fatal Damage threshold that gritty_fatal_damage already states as a formula - a worked example is exercised as a test fixture against the entry, which is a stronger use for it than a second transcription that could disagree with the first.",
+    "deliberately_omitted": "Two worked examples are not transcribed as mechanics. p.80's sword shows the Gear Limit arithmetic that gritty_raised_gear_limit already states as numbers, and p.79's Clint Castle shows the Fatal Damage threshold that gritty_fatal_damage already states as a formula - a worked example is exercised as a test fixture against the entry, which is a stronger use for it than a second transcription that could disagree with the first. Printed p.82 carries no chapter text: the chapter's printed range is pp.73-82, the corpus extracts sections for pp.73-81 only, and this file's own entries cite pp.79-81 - so the pp.73-82 in the header's source_ref is the chapter's range and not a claim that p.82 was read.",
     "verified_fields_closed_list": [
       "trigger",
       "roll",
@@ -267,7 +267,7 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.4 Combat, p.80",
-      "ambiguity": null
+      "ambiguity": "medicine_net_successes_per_point is the same 'per 2 net successes' construction as Tough Minions' net_successes_per_minion_defeated, and the page states no rounding direction for it. Tough Minions names its own rounding down in as many words, as the Glossary's (p.7) one recorded exception to rounding up; this entry has no equivalent sentence, so whether an odd net-successes roll on a Medicine check rounds up (the book-wide default) or down (like Tough Minions) is unstated."
     },
     {
       "id": "gritty_tough_minions",
@@ -301,10 +301,14 @@
       "wound_penalties": {
         "at_or_below_half_full_health_penalty_dice": -2,
         "at_or_below_zero_health_penalty_dice": -4,
-        "zero_or_less_is_reachable_only_with": "the Fatal Damage rule",
+        "zero_or_less_parenthetical": "which is possible when using the Fatal Damage rules",
         "applies_to": "all challenge rolls",
         "cost_resolve_to_ignore": 1,
         "pages_ignored_per_resolve_point": 1
+      },
+      "interpretation": {
+        "what_this_is": "This repository's reading of how far p.81's parenthetical reaches. The page attaches 'which is possible when using the Fatal Damage rules' to the whole phrase '0 Health or less', but exactly 0 needs no optional rule at all: p.75 says a character is defeated once their Health falls to 0, in any fight. So the parenthetical is about the 'or less' half - only a Health strictly below the defeat figure requires Fatal Damage, which is the rule that lets Health go negative in the first place. Read the other way round, the -4d band would be unreachable in an ordinary game, and a defeated character's rolls would carry no penalty at all.",
+        "fatal_damage_is_required_below_health": 0
       },
       "description": "Being hurt shows: everything a character rolls is two dice worse once half their pool is gone, and four dice worse once the pool is empty or past it. A point of the Hero currency buys one slice free of it, and buying more slices costs more points.",
       "verified_fields": [

@@ -264,6 +264,17 @@ public static class CanonicalGrittyRules
         public const bool StabilizationAvailableAsOftenAsNecessary = true;
         public const string MedicineHealingLimit = "once per week";
         public const int MedicineHealthPerNetSuccesses = 1;
+
+        /// <summary>
+        /// "heals only 1 point of damage per 2 net successes rolled" — <b>the same construction as
+        /// <see cref="ToughMinions.NetSuccessesPerMinionDefeated"/> and with no rounding direction
+        /// printed for it.</b> Tough Minions names its own direction in as many words, which is what
+        /// makes it the Glossary's (p.7) one recorded exception; p.80 prints no equivalent sentence
+        /// here, so an odd net-successes Medicine roll is unresolved rather than settled either way.
+        /// The entry's <c>ambiguity</c> records that, and
+        /// <c>PlayRulesDataTests.ToughMinionsIsTheOnePlaceAHalfGoesDownward</c> holds the two
+        /// together so "one place" cannot be read as "the only rate of this shape".
+        /// </summary>
         public const int MedicineNetSuccessesPerPoint = 2;
     }
 
@@ -277,8 +288,11 @@ public static class CanonicalGrittyRules
     /// affect only 1 Minion per net success rolled when using this rule. If this still seems like too much,
     /// you can do away with the idea of Minions entirely and use Foes in their place."
     ///
-    /// <para><b>This is the exception the Introduction's rounding rule names</b>, and the only place in the
-    /// book where a half goes downward.</para>
+    /// <para><b>This is the exception the Introduction's rounding rule names</b> — the one place the book
+    /// says in as many words that a half goes downward. That is a claim about what p.7 and p.81 print
+    /// between them, not about arithmetic: <see cref="SlowHealing.MedicineNetSuccessesPerPoint"/> is the
+    /// same "per 2 net successes" rate on p.80 with no direction printed beside it at all, and is
+    /// therefore silent rather than a second exception. See that field's comment.</para>
     /// </summary>
     public static class ToughMinions
     {
@@ -304,12 +318,20 @@ public static class CanonicalGrittyRules
     /// <para><b>The corpus filed this section's heading under the Example of Combat's until the extractor was
     /// fixed in this slice</b> — "EXAMPLE OF COMBAT — WOUND PENALTIES", the qualifier inverted. The prose was
     /// never damaged; only the heading was. See <c>docs/guide/rulebook-corpus.md</c>.</para>
+    ///
+    /// <para><b>The parenthetical is transcribed, not resolved.</b> It sits against the whole phrase
+    /// "0 Health or less", and exactly 0 needs no optional rule: p.75 defeats a character once their Health
+    /// falls to 0, in any fight. Which half the parenthetical governs is therefore a reading, and it lives in
+    /// the entry's <c>interpretation</c> — see
+    /// <c>PlayRulesDataTests.TheWoundPenaltyParentheticalCoversTheNegativeHalfOfItsBand</c>. The field below
+    /// carries p.81's clause and nothing more; it used to say "the Fatal Damage rule" flat, which asserted
+    /// the reading as though the page printed it.</para>
     /// </summary>
     public static class WoundPenalties
     {
         public const int AtOrBelowHalfFullHealthPenaltyDice = -2;
         public const int AtOrBelowZeroHealthPenaltyDice = -4;
-        public const string ZeroOrLessIsReachableOnlyWith = "the Fatal Damage rule";
+        public const string ZeroOrLessParenthetical = "which is possible when using the Fatal Damage rules";
         public const string AppliesTo = "all challenge rolls";
         public const int CostResolveToIgnore = 1;
         public const int PagesIgnoredPerResolvePoint = 1;

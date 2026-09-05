@@ -183,7 +183,13 @@ So **use the awaited form wherever anything the component subscribes to can stil
 
 **Fixing the one that failed does not fix the file, and this one did not.** The same class went red a second time in the same test class, on a `Click` rather than a `KeyDown` and with a failure that reads nothing like the first: `TypingAgainDropsTheRowsForTheQueryBeforeIt` had a synchronous click on a book row followed by `Assert.Equal("trait cap", TakeRequestedSearch())`, and under load the handler had not run, so the request had never been made and the assertion read `null`. **That is the dangerous shape** — a dispatch that has not landed yet is indistinguishable from a product that did not do the thing, so the flake accuses the component instead of the drive. Two more reads in that one test were one render early for the same reason. So when one of these is found, **fix every synchronous drive in the file whose next line reads the result**, rather than the one that happened to be caught; the awaited form costs nothing where the renderer is idle.
 
-**And the fix is unprovable without holding the renderer busy on purpose**, so that test does — a work item posted from another thread, because one posted from the test's own thread runs inline and occupies nothing — with a positive control on the elapsed time, since an instrument that has stopped occupying anything leaves a drive that passes for the wrong reason. Reverting that one press to `KeyDown` fails it every run; reverting it *without* the instrument passes on any quiet machine, which is precisely the check that was never there. The instrument is `PaletteBookTests.Occupying` now, shared by both drives that need it — one copy, so the positive control cannot be left off the second one.
+**And the fix is unprovable without holding the renderer busy on purpose**, so that test does — a work item posted from another thread, because one posted from the test's own thread runs inline and occupies nothing — with a positive control on the elapsed time, since an instrument that has stopped occupying anything leaves a drive that passes for the wrong reason. Reverting that one press to `KeyDown` fails it every run; reverting it *without* the instrument passes on any quiet machine, which is precisely the check that was never there. The instrument is `BusyRenderer.Occupying`, generic over the component and shared by every drive that needs it — one copy, so the positive control cannot be left off the next one.
+
+**It happened a third time, and "fix every drive in the file" turned out to be the wrong unit too.** Run 33981303114 failed `AWordTypedIntoTheBannerReachesTheBookThroughThePaletteAndOnlyOnce` at `PaletteBookTests.cs:315` on `Assert.Empty() Failure: Collection was not empty` — an `HtmlDivElement`, which is the palette overlay still up one line after a synchronous `KeyDown` of Escape. A third failure, a third spelling, and a third message reading nothing like the two before it. The renderer is busy after **every** book answer in that class, because `Settle` → `BookAnswered` → `Redraw` queues through `InvokeAsync`, so any drive that follows a `WaitForAssertionAsync` there is exposed — and the first two fixes had each converted one test.
+
+So the unit is now the **surface**, not the file: `PaletteBookTests`, `BannerTests` and `CommandPaletteTests` were swept together, **56 synchronous drives converted to the awaited form** — 36, 10 and 10 — and the drives whose next line *is* the assertion the test exists for are driven under `Occupying`, which goes from 3 sites to 26, so the losing order is taken every run rather than waited for. Two of those were not merely early but wrong about themselves: the debounce test released its pause gate before either keystroke had reached the pause, under a comment claiming both were inside it, and `EnterOnAPowerRequestsItAndAddsNothing` pressed Enter on whatever row a posted `Input` had not yet moved off. The failure the *first* commit found was still the shape of all of them — **a dispatch that has not landed is indistinguishable from a product that did not do the thing**.
+
+**And a fourth cannot be written by hand any more.** `PaletteDispatchTests` scans those three files for `.Input(`, `.Click(`, `.KeyDown(`, `.Change(` and `.Submit(` and fails naming the file and line, with the two positive controls that stop "no synchronous drive" being satisfied by three files that drive nothing: the pattern is asserted to fire on a known-bad line and not to fire on the awaited one, and each scanned file is asserted still to contain an awaited drive and still to reach for `Occupying`. **Its own doc comment says what it cannot do**, per `CLAUDE.md`'s rule: a drive routed through a helper or through `TriggerEvent` walks straight through it, and no scan of source text has an opinion about ordering, which is the actual defect. The scan is the cheap catch; `Occupying` is the proof.
 
 bUnit pulls AngleSharp transitively at a version carrying a published advisory, so `web/`'s test project pins AngleSharp forward. Do not suppress NU1902 instead — see the comment in its csproj.
 
@@ -703,21 +709,35 @@ whole section opens with.
 ### What the A11Y check measured, and the readings it corrected
 
 **axe's full default ruleset, nothing turned off, four palettes × four addresses: 536 passing rule
-instances and one violation, the same one in every palette, exempt under WCAG's own text.** So
-`theme.css`'s contrast claims hold in the assembled app — which nothing had ever checked. It writes
-its ratios into its comments as claims beside its own "re-measure if you change it; do not eyeball",
-two of its tokens are `color-mix()` which only a browser resolves, and
+instances and, at the time, one violation, the same one in every palette, exempt under WCAG's own
+text.** So `theme.css`'s contrast claims hold in the assembled app — which nothing had ever
+checked. It writes its ratios into its comments as claims beside its own "re-measure if you change
+it; do not eyeball", two of its tokens are `color-mix()` which only a browser resolves, and
 `EveryScreenPairInUseHoldsItsContrastFloor` measures the *tokens*, not every rendered combination.
 
-**The one finding, with its figures, because somebody has to decide about it.** The wizard's Next
-control on `/build` before a tier is chosen — `StepButtons.razor` renders an anchor with
-`aria-disabled="true"`, `app.css` paints it at `opacity: 0.45` — measures 2.23:1 Hero/Light, 3.28:1
-Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark, against 4.5:1. WCAG 1.4.3 exempts text in an
-*inactive* component and this one is inactive; axe cannot apply that exemption because it looks for
-the `disabled` attribute, which an anchor cannot carry. So the check drops those nodes **node by
-node rather than turning `color-contrast` off**, counts them, prints the count in its verdict, and
-goes red if the exemption ever matches nothing. Whether a disabled Next should be legible anyway is
-a design decision, not a conformance one — `PROGRESS.md` item 10 carries it.
+**The one finding there used to be, with its figures, because somebody had to decide about it.**
+The wizard's Next control on `/build` before a tier is chosen — `StepButtons.razor` renders an
+anchor with `aria-disabled="true"`, `app.css` used to paint it at `opacity: 0.45` — measured
+2.23:1 Hero/Light, 3.28:1 Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark, against 4.5:1.
+WCAG 1.4.3 exempts text in an *inactive* component and this one is inactive; axe could not apply
+that exemption itself because it looks for the `disabled` attribute, which an anchor cannot carry.
+So the check used to drop those nodes **node by node rather than turning `color-contrast` off**,
+count them, print the count in its verdict, and go red if the exemption ever matched nothing.
+Whether a disabled Next should be legible anyway was a design decision, not a conformance one —
+`PROGRESS.md` item 10 carried it, and the owner's ruling (2026-09-06) was to make it legible
+rather than rely on the exemption.
+
+**The exemption is gone, not narrowed, because the fix cleared the floor outright.**
+`.btn.disabled` in `app.css` no longer fades the primary fill by `opacity`; it paints `--muted`
+text on `--panel-sunk`, the same recessed, secondary-text combination `.btn.quiet` already uses on
+`--panel`, one step further sunk so the two are not the same control at a glance. That pair
+measures 6.01:1 Hero/Light, 7.26:1 Hero/Dark, 6.01:1 Villain/Light, 7.21:1 Villain/Dark — clear of
+4.5:1 in every palette, asserted alongside every other pair `theme.css` promises in
+`EveryScreenPairInUseHoldsItsContrastFloor`. With nothing left for `color-contrast` to find on
+that element, keeping the per-node exemption would have meant dead code guarding against a
+violation that can no longer occur — worse than no exemption, since a dead one hides a future
+regression instead of merely permitting a known one. If a later palette change ever pushes that
+pair back under 4.5:1, `Accessibility.cs` should simply go red on it like any other finding.
 
 **Getting there produced two wrong readings and nearly discarded a right one.** The first said 32
 violations; the second said 2, then 3, then 2, on different elements each run, reporting one
