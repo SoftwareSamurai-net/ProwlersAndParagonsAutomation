@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components;
@@ -115,6 +116,17 @@ public sealed class PaletteBookTests
     /// drives where an ask can reach the pause at all.
     /// </summary>
     private static readonly TimeSpan Impatient = TimeSpan.FromMilliseconds(20);
+
+    /// <summary>
+    /// How long the renderer is held busy under a keypress, where a drive is about a press that
+    /// arrives while the palette is redrawing.
+    ///
+    /// <para><b>Long enough that the press cannot possibly be handled inline, and no longer.</b>
+    /// It is spent once, in one test; the figure only has to be well clear of the microseconds an
+    /// inline dispatch takes, because the drive that reads it asserts on a fraction of it rather
+    /// than on the figure itself.</para>
+    /// </summary>
+    private static readonly TimeSpan Occupation = TimeSpan.FromMilliseconds(250);
 
     /// <summary>Wait for something the renderer is not going to redraw when it happens.</summary>
     private static async Task Until(Func<bool> ready, string what)
@@ -857,6 +869,15 @@ public sealed class PaletteBookTests
     /// rows are appended below the app's own, so reaching them means arrowing past everything that
     /// matched in the browser first. The group heading is <c>role="presentation"</c> with no id and
     /// is deliberately not a stop on the way.</para>
+    ///
+    /// <para><b>Every press is awaited, and the renderer is deliberately busy under the arrows.</b>
+    /// This test failed on one CI run and passed six times out of six on a quiet laptop, and the
+    /// reason is that a keypress is <i>dispatched</i>: bUnit's synchronous <c>KeyDown</c> posts the
+    /// event and returns without waiting whenever the renderer is not idle, so the assertion after
+    /// it can read the markup from before the press — <c>aria-selected="false"</c> on a row the
+    /// palette moves to a moment later. Nothing was lost and nothing was wrong in the component;
+    /// the drive was reading one render early. See the instrument below for why this is the one
+    /// palette test where that window is wide.</para>
     /// </summary>
     [Fact]
     public async Task TheArrowKeysReachTheBooksRowsAndEnterChoosesOne()
@@ -879,8 +900,40 @@ public sealed class PaletteBookTests
         // below is arrowing rather than a no-op on a one-row list.
         Assert.True(at > 0, $"the book's first row is at {at}, so nothing was arrowed past.");
 
-        for (var i = 0; i < at; i++)
-            page.Find(".palette-box").KeyDown(new KeyboardEventArgs { Key = "ArrowDown" });
+        // **The renderer is held busy across the arrows, on purpose, and that is what makes the
+        // press below arrive the way it did on the runner rather than the way it does on an idle
+        // machine.** The palette leaves the renderer occupied exactly here: the book's answer lands
+        // on a thread-pool continuation, and the redraw it raises is queued through `InvokeAsync`
+        // — so for the moment after `WaitForAssertionAsync` returns, a keypress cannot be handled
+        // inline. Held from another thread because work posted from this one runs inline while the
+        // renderer is idle, which occupies nothing.
+        using var occupied = new ManualResetEventSlim();
+        var busy = Task.Run(() => page.InvokeAsync(() =>
+        {
+            occupied.Set();
+            Thread.Sleep(Occupation);
+        }), Xunit.TestContext.Current.CancellationToken);
+
+        occupied.Wait(Xunit.TestContext.Current.CancellationToken);
+
+        var clock = Stopwatch.StartNew();
+
+        foreach (var _ in Enumerable.Range(0, at))
+            await page.Find(".palette-box").KeyDownAsync(new KeyboardEventArgs { Key = "ArrowDown" });
+
+        // **The positive control, and it is what keeps the two halves above honest.** A press that
+        // was handled inline comes back in microseconds; an awaited press posted behind a busy
+        // renderer cannot come back until the renderer is free. So the elapsed time is the one
+        // thing that says this drive is still the ordering that failed, and it fires for either
+        // way of losing it: the presses no longer being awaited, or the occupation no longer
+        // occupying anything. Both leave a green drive on any quiet machine and one red CI run in
+        // some number of them, which is exactly the check that was missing.
+        Assert.True(clock.Elapsed > Occupation / 2,
+            $"the {at} press(es) came back in {clock.ElapsedMilliseconds}ms, so they were handled "
+            + "inline: either they are not being awaited any more, or the renderer was not "
+            + "actually busy. Read bUnit's event dispatch before deleting either half.");
+
+        await busy;
 
         // On the row, and announced as being on it: aria-activedescendant is what a screen reader
         // is told, and a ring that moved without it would look right and announce the first row.
@@ -889,7 +942,9 @@ public sealed class PaletteBookTests
         Assert.Equal(current.Id, page.Find(".palette-box").GetAttribute("aria-activedescendant"));
         Assert.Contains(current.QuerySelector(".palette-label")!.TextContent.Trim(), BookRows(page));
 
-        page.Find(".palette-box").KeyDown(new KeyboardEventArgs { Key = "Enter" });
+        // Awaited for the same reason, and with the renderer idle this time, so the ordinary
+        // ordering is driven here as well as the loaded one above.
+        await page.Find(".palette-box").KeyDownAsync(new KeyboardEventArgs { Key = "Enter" });
 
         // The same outcome the click has: the palette is gone, /rules is where the reader is, and
         // the question that goes with them is the one they typed.
