@@ -628,6 +628,15 @@ public sealed partial class Encounter
         return InflictDamage(after, actor, target, net, lines);
     }
 
+    /// <summary>
+    /// How many of a Minion group one attack removes, and a ledger line that says what was applied.
+    ///
+    /// <para><b>The line used to announce the figure before the cap and then skip the line that
+    /// applied it.</b> Under Tough Minions the engine printed "5 net successes defeat 5" and then
+    /// quietly removed the two Minions that were actually there, suppressing the capping line
+    /// altogether — so the ledger's number and the state's number disagreed, and the ledger's was the
+    /// one a reader would have quoted. There is one line now and it carries both figures.</para>
+    /// </summary>
     private EncounterState DefeatMinions(
         EncounterState state, Attack attack, Combatant target, int net, List<LedgerLine> lines)
     {
@@ -639,7 +648,9 @@ public sealed partial class Encounter
             rule.MaximumMinionsPerNetSuccess);
 
         var couldDefeat = net * perNet;
-        var citation = entry;
+        var id = entry.Id;
+        var sourceRef = entry.SourceRef;
+        var rate = $"{net} net successes could defeat {couldDefeat} Minions";
 
         if (state.Table.ToughMinions)
         {
@@ -657,12 +668,11 @@ public sealed partial class Encounter
                 ? net * tough.AreaAttackMinionsPerNetSuccess
                 : net / tough.NetSuccessesPerMinionDefeated;
 
-            citation = null;
+            id = gritty.Id;
+            sourceRef = gritty.SourceRef;
 
-            lines.Add(new LedgerLine(
-                state.Page, "", gritty.Id, gritty.SourceRef,
-                $"Tough Minions: {net} net successes defeat {couldDefeat}, rounding down — the one "
-                + "place in the book where a half goes downward"));
+            rate = $"Tough Minions: {net} net successes could defeat {couldDefeat}, rounding down — "
+                + "the one place in the book where a half goes downward";
         }
 
         // <b>The cap is applied to both rates, and the entry's ambiguity is why that is a
@@ -673,13 +683,9 @@ public sealed partial class Encounter
         // only reading under which an attack cannot knock out a Minion who is not there.
         var defeated = Math.Min(couldDefeat, target.GroupSize);
 
-        if (citation is not null)
-        {
-            lines.Add(new LedgerLine(
-                state.Page, "", citation.Id, citation.SourceRef,
-                $"{net} net successes could defeat {couldDefeat} Minions, capped by the "
-                + $"{target.GroupSize} actually there: {defeated} defeated"));
-        }
+        lines.Add(new LedgerLine(
+            state.Page, "", id, sourceRef,
+            $"{rate}, capped by the {target.GroupSize} actually there: {defeated} defeated"));
 
         return state.With(target.WithGroupSize(target.GroupSize - defeated));
     }

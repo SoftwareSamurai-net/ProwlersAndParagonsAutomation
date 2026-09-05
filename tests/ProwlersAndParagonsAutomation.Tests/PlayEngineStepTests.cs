@@ -622,6 +622,64 @@ public sealed class PlayEngineStepTests
         Assert.Equal(1, rerolled.State["hero"].Resolve);
     }
 
+    // ── Minions ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>The Tough Minions line says how many were defeated, not how many could have been.</b>
+    ///
+    /// <para>Under that setting the engine printed the uncapped figure — "3 net successes defeat 3"
+    /// — and then suppressed the line that applied the cap, so the ledger said three and the state
+    /// said two. A run's number and its audit trail disagreed, and the audit trail's is the one a
+    /// reader would have quoted.</para>
+    ///
+    /// <para>The rate is the one Tough Minions replaces the area rate with, read off the entry: the
+    /// fixture asserts the shipped figures first, so a change to the data is a failing assertion here
+    /// rather than a fixture that has quietly stopped being about the same rule.</para>
+    /// </summary>
+    [Fact]
+    public void ToughMinionsReportsWhatItDefeatedAndNotWhatItCouldHave()
+    {
+        var tough = _play.GetGritty("gritty_tough_minions").ToughMinions!;
+
+        // The controls: the setting's own figures, which the arithmetic below is built on.
+        Assert.Equal(1, tough.AreaAttackMinionsPerNetSuccess);
+        Assert.Equal(2, tough.AreaAttackRateItReplaces);
+        Assert.Equal("down", tough.Rounding);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["blast"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var minions = Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 2, "threat");
+
+        // Six successes against three is three net; under Tough Minions an area attack takes one
+        // Minion each, so three could go down and only two are there.
+        var dice = new ScriptedDice([.. FacesFor(8, 6), .. FacesFor(4, 3)]);
+
+        var encounter = new Encounter(
+            _play, dice, TableRules.Book with { ToughMinions = true });
+
+        var state = encounter.Begin([hero, minions]);
+
+        var step = encounter.Step(state, new Attack(
+            "hero", "minions", "blast", DamageKind.Lethal, AttackType.PhysicalPower, Area: true));
+
+        // The controls: the roll is the one the fixture is about, and no extra dice were asked for.
+        Assert.Equal(6, step.State.LastAttack!.AttackSuccesses);
+        Assert.Equal(3, step.State.LastAttack.DefenceSuccesses);
+        Assert.Equal(0, dice.Remaining);
+
+        var line = Assert.Single(step.Added, l =>
+            string.Equals(l.Rule, "gritty_tough_minions", StringComparison.Ordinal));
+
+        Assert.Contains("could defeat 3", line.Text, StringComparison.Ordinal);
+        Assert.Contains("capped by the 2 actually there: 2 defeated", line.Text, StringComparison.Ordinal);
+
+        // And the state agrees with the sentence, which is the whole of the complaint.
+        Assert.Equal(0, step.State["minions"].GroupSize);
+        Assert.EndsWith("2 defeated", line.Text, StringComparison.Ordinal);
+    }
+
     // ── Defeat ───────────────────────────────────────────────────────────────
 
     /// <summary>
