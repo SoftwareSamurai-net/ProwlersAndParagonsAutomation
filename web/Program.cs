@@ -45,6 +45,7 @@ builder.Services.AddScoped<CharacterSession>();
 builder.Services.AddScoped<Accounts>();
 builder.Services.AddScoped<Invitations>();
 builder.Services.AddScoped<ErrorLog>();
+builder.Services.AddScoped<AdminAccounts>();
 builder.Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
 builder.Services.AddScoped<CharacterStore>();
 // The plural store, registered separately from CharacterStore even though CharacterStore

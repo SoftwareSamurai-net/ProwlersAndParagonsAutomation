@@ -6,6 +6,7 @@
 // there is exactly one routed file — `functions/api/[[path]].js` — and everything else is a
 // module that has to be wired in on purpose to be reachable at all.
 
+import * as adminAccounts from './adminAccounts.js';
 import * as adminErrorLog from './adminErrorLog.js';
 import * as auth from './auth.js';
 import * as campaigns from './campaigns.js';
@@ -300,7 +301,8 @@ async function route(request, env, deps) {
     // withdrawing somebody's flag has to take effect on their next request and not when their
     // month-old cookie expires.
     if (path === '/api/admin/invitations' || path.startsWith('/api/admin/invitations/')
-        || path === '/api/admin/error-log') {
+        || path === '/api/admin/error-log'
+        || path === '/api/admin/accounts' || path.startsWith('/api/admin/accounts/')) {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
         if (!await invitations.isAdministrator(env, user)) return fail(404, 'No such address.');
@@ -309,6 +311,33 @@ async function route(request, env, deps) {
         // here beyond GET, because there is nothing to write. See `adminErrorLog.js`.
         if (path === '/api/admin/error-log') {
             return only('GET', method, () => adminErrorLog.list(request, env, deps, user));
+        }
+
+        // **The players in this caller's own campaigns, and the cap each of them is held to.**
+        // Inside this block rather than beside it, for the reason the campaign routes are inside
+        // the signed-in one: the gate is the thing being shared, and a second block asking the
+        // same question is a second block that could forget to. Everything past the key is a
+        // property *of* one account — the cap it is held to, the characters it holds — so both
+        // are sub-paths, and anything else past the key is unrouted.
+        if (path === '/api/admin/accounts') {
+            return only('GET', method, () => adminAccounts.list(request, env, deps, user));
+        }
+
+        if (path.startsWith('/api/admin/accounts/')) {
+            const [key, ...rest] = path.slice('/api/admin/accounts/'.length).split('/');
+            const tail = rest.join('/');
+
+            if (tail === 'character-limit') {
+                return only('PUT', method,
+                    () => adminAccounts.setLimit(request, env, deps, user, key));
+            }
+
+            if (tail === 'characters') {
+                return only('GET', method,
+                    () => adminAccounts.characters(request, env, deps, user, key));
+            }
+
+            return fail(404, 'No such address.');
         }
 
         if (path === '/api/admin/invitations') {

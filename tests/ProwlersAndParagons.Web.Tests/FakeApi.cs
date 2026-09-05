@@ -84,8 +84,29 @@ public sealed class FakeApi : HttpMessageHandler
     /// <para>Still a counter underneath, because ordering is the only property anything here reads
     /// — the list comes back most-recently-touched first — and a counter cannot hand out two equal
     /// stamps the way a fast clock can.</para>
+    ///
+    /// <para><b>It starts a minute <i>behind</i> now, and the minute is headroom this had none
+    /// of.</b> <see cref="Ages.Since"/> answers null for a stamp it has not reached — correctly,
+    /// because a character edited in the future is not a thing to narrate — so a row whose stamp is
+    /// ahead of the render draws no time at all, and the two tests that count those phrases go red.
+    /// <b>That is not reasoning, it is watched</b>: seed this a minute forward instead and
+    /// <c>RosterTests.TheTimeBelongsToTheRecentOrder</c> and
+    /// <c>ATimeIsShownOnlyOnceThereAreTwoCharactersToTellApart</c> both fail on the spot, with the
+    /// same <c>Assert.Equal</c> shape those tests failed with in the wild. Starting exactly at now
+    /// left single-digit milliseconds of that headroom, because the counter is pre-incremented: the
+    /// first save of a fixture is stamped a millisecond ahead, the eighth eight, and the render is
+    /// what has to catch up.</para>
+    ///
+    /// <para><b>What is <i>not</i> established is that this was the cause of the flake it was found
+    /// through.</b> <c>TheTimeBelongsToTheRecentOrder</c> failed three times here — twice under
+    /// <c>scripts/count-tests.sh</c>, once replicating its <c>dotnet test</c> line — and would not
+    /// reproduce on demand either before or after this line changed, including twenty runs of the
+    /// same suites and three under deliberate load. So this removes a real and provable way for
+    /// those tests to fail; whether it removes the one that fired is not something the runs
+    /// support, and a later recurrence should be read as this hypothesis being wrong rather than as
+    /// a new fault.</para>
     /// </summary>
-    private long _clock = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    private long _clock = DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds();
 
     /// <summary>This account's cap, as the list endpoint reports it. Five, like the server's default.</summary>
     public int Limit { get; set; } = 5;
@@ -221,7 +242,39 @@ public sealed class FakeApi : HttpMessageHandler
     /// </summary>
     public string? LinkRequestReference { get; set; }
 
-    protected override Task<HttpResponseMessage> SendAsync(
+    /// <summary>
+    /// Held between a request being recorded and its answer being handed back, so a test can
+    /// decide the order two answers arrive in.
+    ///
+    /// <para><b>This is a seam at the wire and nowhere else, which is the only place one belongs
+    /// here.</b> The campaign approval work records the lesson: a seam placed where the race is
+    /// not races nothing and reads as a guarantee. The race the palette guards against is between
+    /// two HTTP answers to two different queries, so the gate is on the answer — the request has
+    /// already been counted into <see cref="Asked"/> by the time it is reached, which is what lets
+    /// a test know a call is in flight before releasing it.</para>
+    ///
+    /// <para>Null for every test that does not care, and then this costs an <c>await</c> on an
+    /// already-completed task.</para>
+    /// </summary>
+    public Func<HttpRequestMessage, Task>? Holding { get; set; }
+
+    /// <summary>
+    /// Set to refuse every address under <c>/api/rulebook/</c> with a 401 while
+    /// <see cref="SignedIn"/> still says somebody is here.
+    ///
+    /// <para><b>This is the session that expired, and it is not the same state as being signed
+    /// out.</b> The browser remembers who it is — <see cref="Accounts"/> asks the server once and
+    /// keeps the answer — so a session dropped on the server, or signed out in another tab, is a
+    /// client that goes on believing it may read the book and a server that refuses every request
+    /// for it. There is no way to reach that through this app's own UI, and it is exactly the state
+    /// in which "the book has nothing for you" is a lie.</para>
+    ///
+    /// <para>On the prefix, because that is where the real server refuses: one rule for all four
+    /// addresses, checked before any of them is dispatched.</para>
+    /// </summary>
+    public bool BookRefusesTheSession { get; set; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -230,9 +283,19 @@ public sealed class FakeApi : HttpMessageHandler
         Asked.Add(request.Method + " " + path + request.RequestUri.Query);
 
         if (Unreachable) throw new HttpRequestException("no network");
-        if (ServerNotDeployed) return Text(HttpStatusCode.OK, "<!DOCTYPE html><html><body></body></html>");
+        if (ServerNotDeployed) return await Text(HttpStatusCode.OK, "<!DOCTYPE html><html><body></body></html>");
 
-        return path switch
+        if (Holding is { } gate) await gate(request);
+
+        if (BookRefusesTheSession && path.StartsWith("/api/rulebook/", StringComparison.Ordinal))
+            return await Status(HttpStatusCode.Unauthorized);
+
+        return await Answer(path, request);
+    }
+
+    /// <summary>What this server answers one address with. Split out so the gate above can wrap it.</summary>
+    private Task<HttpResponseMessage> Answer(string path, HttpRequestMessage request) =>
+        path switch
         {
             "/api/me" => Identity(),
             "/api/me/display-name" => SetDisplayName(request),
@@ -279,9 +342,12 @@ public sealed class FakeApi : HttpMessageHandler
 
             "/api/admin/error-log" => ErrorLogList(),
 
+            "/api/admin/accounts" => ManagedAccountList(),
+            var p when p.StartsWith("/api/admin/accounts/", StringComparison.Ordinal) =>
+                ManagedAccount(request, p["/api/admin/accounts/".Length..]),
+
             _ => Status(HttpStatusCode.NotFound),
         };
-    }
 
     /// <summary>Whoever <see cref="SignedIn"/> says, or 401. One answer, so two routes agree.</summary>
     private Task<HttpResponseMessage> Identity() =>
@@ -489,6 +555,181 @@ public sealed class FakeApi : HttpMessageHandler
             """);
 
         return Json($$"""{"rows":[{{string.Join(",", rows)}}]}""");
+    }
+
+    // ── The players in the signed-in account's own campaigns ─────────────────────────────
+    //
+    // **Gated by `ManagesInvitations` like the two above, because the real server gates all three
+    // from the identical `invitations.isAdministrator` check.** What the real server *decides* —
+    // that the list is scoped to `campaign_members`, that the caller is not in it, that an address
+    // outside the scope answers byte-identically to one nobody has used — is tested against the
+    // real code in `tests/worker/admin-accounts.test.mjs` against real SQLite. What is tested here
+    // is the other half: what the panel does with 200, 400, 404 and nothing at all.
+    //
+    // **So the scope is a list a test fills rather than a join reimplemented here.** A second
+    // implementation of the scoping in this class would be a second thing to keep in step, and a
+    // test passing against it would say nothing about the server.
+
+    /// <summary>
+    /// The players this account may see, as the accounts endpoint reports them.
+    ///
+    /// <para>A list rather than a canned body, so a test can set a cap and assert the row redraws.
+    /// Each entry is exactly the shape the server sends; the contract between the two is pinned by
+    /// <c>AccountsContractTests</c> and not by this.</para>
+    /// </summary>
+    public List<(string Email, string? DisplayName, int CharacterCount, int CharacterLimit)>
+        Players { get; } = [];
+
+    /// <summary>
+    /// What each of those players holds, keyed by address. An address with no entry holds nothing,
+    /// which is an ordinary state and not a refusal.
+    /// </summary>
+    public Dictionary<string, List<(string Id, string Label, long UpdatedAt, string? Kind,
+        string? TierId, int? Spent)>> Held { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Set to have every cap change refused the way a number out of range is: 400.</summary>
+    public bool RefuseCapChanges { get; set; }
+
+    /// <summary>Set to have every cap change answer the 404 an out-of-scope address gets.</summary>
+    public bool CapAccountIsGone { get; set; }
+
+    /// <summary>
+    /// Set to have a cap change answer a status this client does not model — a 409.
+    ///
+    /// <para><b>A knob rather than <see cref="Unreachable"/>, and the difference is the whole
+    /// test it makes possible.</b> Taking the server away refuses the page's own gate too, so the
+    /// panel is not drawn at all and its refusal is unreachable. A server that answers *something*
+    /// this client has no branch for is the state where a sentence has to be said, and it is a
+    /// real one: the real server can answer 405, and something in front of it can answer anything
+    /// at all.</para>
+    /// </summary>
+    public bool CapChangeBreaks { get; set; }
+
+    /// <summary>Set to have a player's sheets refuse, the shape of a membership ended mid-read.</summary>
+    public bool HeldCharactersUnavailable { get; set; }
+
+    /// <summary>
+    /// Set to have the list of players answer a status this client does not model — a 500.
+    ///
+    /// <para><b>The mirror of <see cref="HeldCharactersUnavailable"/>, and it exists because the
+    /// panel could not be driven into the state it was getting wrong.</b> Storage failing under
+    /// the list is not a decision about the reader, and the panel drew it as *"Nobody is in one
+    /// of your campaigns yet."* — a GM told their games are empty on the strength of a request
+    /// that failed. A knob rather than <see cref="Unreachable"/> for the reason
+    /// <see cref="CapChangeBreaks"/> gives: taking the server away refuses the page's own gate
+    /// too, so the panel is never drawn and its sentence is unreachable.</para>
+    /// </summary>
+    public bool ManagedAccountsUnavailable { get; set; }
+
+    /// <summary>
+    /// Answers held until a test lets them go, keyed by the address whose sheets were asked for.
+    ///
+    /// <para><b>The only way to have two requests in flight at once</b>, which is the state the
+    /// disclosure was getting wrong: everything else here answers before the click returns, so
+    /// there is no window in which a second row can be opened. Complete the source and that
+    /// address's answer is handed over as it always would have been.</para>
+    /// </summary>
+    public Dictionary<string, TaskCompletionSource> HoldSheets { get; } =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Every held answer that has since been let go, in the order they were handed over.
+    ///
+    /// <para><b>The positive control for a test about a stale answer being dropped.</b> That test
+    /// is an absence, and an absence over a response that never came back at all is satisfied for
+    /// free — which is the single most common way a check in this repository has been wrong.</para>
+    /// </summary>
+    public List<string> Released { get; } = [];
+
+    private Task<HttpResponseMessage> ManagedAccountList()
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+        if (ManagedAccountsUnavailable) return Status(HttpStatusCode.InternalServerError);
+
+        return Json($$"""{"accounts":[{{string.Join(",", Players.Select(Row))}}]}""");
+    }
+
+    /// <summary>An answer that does not arrive until the gate opens. See <see cref="HoldSheets"/>.</summary>
+    private async Task<HttpResponseMessage> WhenReleased(
+        string email, TaskCompletionSource gate, Task<HttpResponseMessage> answer)
+    {
+        await gate.Task;
+
+        var response = await answer;
+        Released.Add(email);
+
+        return response;
+    }
+
+    private static string Row(
+        (string Email, string? DisplayName, int CharacterCount, int CharacterLimit) player) =>
+        $$"""
+        {"email":{{Quote(player.Email)}},"displayName":{{Quote(player.DisplayName)}},
+         "characterCount":{{player.CharacterCount}},"characterLimit":{{player.CharacterLimit}}}
+        """;
+
+    /// <summary>
+    /// One player's cap or one player's sheets, keyed by the address in the path.
+    ///
+    /// <para>The address arrives percent-encoded, exactly as the real server receives it, so a
+    /// client that forgot to escape it would miss here as it would there.</para>
+    /// </summary>
+    private Task<HttpResponseMessage> ManagedAccount(HttpRequestMessage request, string rest)
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+
+        var slash = rest.IndexOf('/', StringComparison.Ordinal);
+        if (slash < 0) return Status(HttpStatusCode.NotFound);
+
+        var email = Uri.UnescapeDataString(rest[..slash]);
+        var tail = rest[(slash + 1)..];
+
+        if (tail == "character-limit")
+        {
+            if (request.Method != HttpMethod.Put) return Status(HttpStatusCode.MethodNotAllowed);
+            if (RefuseCapChanges) return Status(HttpStatusCode.BadRequest);
+            if (CapAccountIsGone) return Status(HttpStatusCode.NotFound);
+            if (CapChangeBreaks) return Status(HttpStatusCode.Conflict);
+
+            var at = Players.FindIndex(p => p.Email == email);
+            if (at < 0) return Status(HttpStatusCode.NotFound);
+
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var sent = JsonDocument.Parse(body);
+
+            if (!sent.RootElement.TryGetProperty("characterLimit", out var wanted)
+                || wanted.ValueKind != JsonValueKind.Number)
+            {
+                return Status(HttpStatusCode.BadRequest);
+            }
+
+            Players[at] = Players[at] with { CharacterLimit = wanted.GetInt32() };
+
+            return Json($$"""{"account":{{Row(Players[at])}}}""");
+        }
+
+        if (tail != "characters") return Status(HttpStatusCode.NotFound);
+        if (request.Method != HttpMethod.Get) return Status(HttpStatusCode.MethodNotAllowed);
+        if (HeldCharactersUnavailable) return Status(HttpStatusCode.NotFound);
+        if (!Players.Exists(p => p.Email == email)) return Status(HttpStatusCode.NotFound);
+
+        var sheets = Held.TryGetValue(email, out var theirs) ? theirs : [];
+
+        // **No payload, exactly as the real server sends none.** A fake that answered one would
+        // make "this panel never shows a character" a claim no test could check.
+        var rows = sheets.Select(s => $$"""
+            {"id":{{Quote(s.Id)}},"label":{{Quote(s.Label)}},"updatedAt":{{s.UpdatedAt}},
+             "kind":{{Quote(s.Kind)}},"tierId":{{Quote(s.TierId)}},
+             "spent":{{s.Spent?.ToString(CultureInfo.InvariantCulture) ?? "null"}}}
+            """);
+
+        var answer = Json($$"""{"email":{{Quote(email)}},"characters":[{{string.Join(",", rows)}}]}""");
+
+        return HoldSheets.TryGetValue(email, out var gate)
+            ? WhenReleased(email, gate, answer)
+            : answer;
     }
 
     /// <summary>
@@ -1041,7 +1282,16 @@ public sealed class FakeApi : HttpMessageHandler
                 || h.Passage.Prose.Contains(w, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
-        var rows = hits.Select(h => $$"""
+        // **`limit` cuts the list and never the count**, which is the ordering the real server's
+        // own comment insists on: `found` is computed over the whole ranking and only then is the
+        // list cut, so a caller asking for five rows is still told how many passages matched. A
+        // stub that cut `found` too would let a palette showing five rows report "5 passages" for
+        // a word the book uses forty times, which is the one thing this API is built not to say.
+        var listed = int.TryParse(asked["limit"], out var most) && most > 0
+            ? hits.Take(most)
+            : hits;
+
+        var rows = listed.Select(h => $$"""
             {"chapter":{{h.Chapter.Number}},"chapterTitle":{{Quote(h.Chapter.Title)}},
              "index":{{h.Index}},"heading":{{Quote(h.Passage.Heading)}},"printedPage":21,
              "sourceRef":{{Quote($"Ultimate Edition, Ch.{h.Chapter.Number} {h.Chapter.Title}, pp.1-2")}},

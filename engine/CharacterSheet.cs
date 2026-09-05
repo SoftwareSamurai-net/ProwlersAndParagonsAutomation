@@ -189,6 +189,49 @@ public class CharacterSheet
     public string? CampaignId { get; set; }
 
     /// <summary>
+    /// A <b>house Trait Cap</b> this character is built to, or null for "whatever the tier
+    /// says". Pinnacle City caps a non-superhuman at 6d where the Standard tier allows 12d.
+    ///
+    /// <para><b>It substitutes for the tier's cap; it does not merely gate validation.</b>
+    /// <see cref="DerivedStatsCalculator.CalculateResolve"/> is
+    /// <c>max(0, (TraitCap − highestRelevantRank) × 2)</c>, so the cap <em>is</em> the datum
+    /// Resolve is measured from. Gate on a 6d house cap while a 12d tier keeps doing the
+    /// arithmetic and a character sitting at 4d is paid <c>(12−4)×2 = 16</c> Resolve for a
+    /// restraint the campaign imposed rather than one they chose; substituting pays
+    /// <c>(6−4)×2 = 4</c>, and staying low becomes a decision with a price. The owner settled
+    /// this on 2026-09-05 and the trade is the player's to make. <b>The other direction comes
+    /// with it</b>: a tighter cap lowers the Resolve <em>ceiling</em> too — 24 at 12d, 12 at
+    /// 6d — which is what being tied to the cap means, and reads as a nerf the first time
+    /// somebody sees it.</para>
+    ///
+    /// <para><b>The character carries its own copy for the same reason it carries its tier.</b>
+    /// A character is portable: exported, imported, handed to <c>build --from</c> and priced by
+    /// an MCP client, none of which has a campaign in front of it.
+    /// <c>web/Services/CampaignJoin.cs</c> copies a campaign's cap into this field when it is
+    /// empty and reports a disagreement otherwise — never repairs one.</para>
+    ///
+    /// <para><b>Read it through <see cref="DerivedStatsCalculator.EffectiveTraitCap"/> and
+    /// nowhere else</b> — <em>every</em> surface that answers "what is this character built to",
+    /// which is Resolve, the validator, the browser's session, the printed sheet, a replay's
+    /// verdict, both report builders, the JSON export and all three rank prompts in the terminal
+    /// wizard. A second spelling of <c>sheet.TraitCapRank ?? tier.TraitCapRank</c> is how one of
+    /// them ends up disagreeing with the figure beside it.</para>
+    ///
+    /// <para><b>The list is not a count, and it used to be one.</b> This paragraph said "six
+    /// places" while there were eight, because a number in a sentence is not a guard and nothing
+    /// re-counted it. <c>TraitCapReadTests</c> is the guard: it scans <c>web/</c>, <c>cli/</c>,
+    /// <c>mcp/</c> and <c>sheets/</c> for a tier-shaped read of this property and requires each
+    /// one to be named there with the reason it is about the tier rather than about a
+    /// character.</para>
+    ///
+    /// <para><b>Nonsense here is reported, never repaired</b>, like everything else: a cap above
+    /// the tier's, or below 1d, is an error and the arithmetic still uses the number as written.
+    /// An older saved character has no such field and reads back as null, which correctly means
+    /// "the tier's" — which is why nothing about this bumped <c>StoredCharacter</c>'s version.</para>
+    /// </summary>
+    public int? TraitCapRank { get; set; }
+
+    /// <summary>
     /// Id of the optional package applied (Civilian/Hero/Superhero), or null.
     /// The package sets a floor on ability and talent ranks — it does not
     /// prevent buying higher ranks on top.

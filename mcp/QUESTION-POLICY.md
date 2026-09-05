@@ -55,6 +55,29 @@ sentence what it cost, and let them move if they want the other one.
 the other side of it — cap everything the concept supports and do not mention the figure. See
 "If they are building a Villain".
 
+### The cap may not be the tier's
+
+**A house Trait Cap is a field on the character**, `TraitCapRank`, and null means "the tier's". A
+campaign can cap tighter than any tier does — a setting that caps a non-superhuman at **6d**, with
+3d an average adult, against the Standard tier's 12d. If they mention one, put it on the character
+and build to it.
+
+**It moves Resolve; it does not merely gate validation.** Resolve is measured from the cap, so
+substituting is the only honest answer: a 4d character at Standard is paid `(12−4)×2 = 16` for the
+tier's room, and under a 6d house cap the same character is paid `(6−4)×2 = 4` for the room it
+actually has. **Read `trait_cap` from the report, never the tier's figure**, and note that the
+ceiling moves with it — the most Resolve a character can hold is twice the cap, so **24 at 12d and
+12 at 6d**. Say that out loud the first time, because it reads as a nerf.
+
+**On a Villain the cap is doing validation work and nothing else.** Only Heroes have Resolve, so
+build to the house cap because the table set it and stay silent about the figure, exactly as with
+every other mention of Resolve on a Villain.
+
+**A cap the tool refuses is still the cap it used.** `TRAIT_CAP_ABOVE_TIER` (a house cap looser
+than the tier's — it is not a house rule, it is playing above the agreed power level) and
+`TRAIT_CAP_BELOW_MINIMUM` (below the 1d floor) are errors, and the figures beside them were
+computed from the cap as written. This tool reports and never repairs.
+
 **What this does not license:**
 
 - **It does not overrule a weakness they stated.** "Useless with people" is a decision they
@@ -194,7 +217,9 @@ it**, and follow it through:
   them for the story, not for the number.
 - **The Trait Cap trade disappears.** Resolve comes off the gap between the cap and the highest
   relevant rank, so it is what a *Hero* pays for a rank at the cap. A Villain pays nothing.
-  Take every Trait the concept supports to the cap and say nothing about Resolve.
+  Take every Trait the concept supports to the cap and say nothing about Resolve. A **house**
+  cap still binds — it is the table's rule about how strong an NPC may be, and on a Villain it
+  is doing validation work with the Resolve half of it noise.
 
 **A Villain's Flaws are the players' handles — choose them for that and nothing else.** For a
 Hero a Flaw is a bargain: a drawback bought with the Resolve it pays out. A Villain gets no
@@ -290,6 +315,7 @@ fill.
   "Name": "Chrono Jab",
   "IsVillain": false,                   // presentation only — the sheet's palette, never a cost or a rank
   "SelectedTierId": "standard",          // sets the budget and the cap; nothing works without it
+  "TraitCapRank": null,                  // a house cap tighter than the tier's; null = the tier's
   "SelectedPackageId": "hero_package",   // omit for a character who took none
 
   // ALL SIX Abilities and ALL TWELVE Talents, every time. See the traps below.
@@ -372,8 +398,10 @@ they want different things:
 - **`hero_points.spent` is null** — something on the character has no cost yet, such as a
   variable-cost Power with no `CostVariantKey`. The issues say which; fix them and the figure
   appears.
-- **`hero_points.budget` and `trait_cap` are null** — there is no usable tier. A character
-  without one cannot be checked against anything, so settle the tier first.
+- **`hero_points.budget` and `tier_trait_cap` are null** — there is no usable tier. A character
+  without one cannot be checked against anything, so settle the tier first. `trait_cap` is the cap
+  in force and answers even then, if a house cap was set; `tier_trait_cap` is what the tier would
+  have allowed, and the two differing is the whole signal that a table has tightened the ceiling.
 - **A figure under `derived` is null while the character is otherwise fine** — that is a fault
   in the tool rather than in the character. Say so; do not send somebody round a repair loop
   for it. If the whole total is unanswerable on a character that breaks no rule, the verdict

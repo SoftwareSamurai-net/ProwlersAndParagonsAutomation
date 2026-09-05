@@ -56,7 +56,15 @@ public sealed class ProgressArchiveTests
     public void ProgressKeepsNoCompletedEntriesOfItsOwn()
     {
         var text = Progress;
-        var start = text.IndexOf("## Completed work", StringComparison.Ordinal);
+
+        // **At the start of a line, not anywhere in the text.** A bare IndexOf anchored on the
+        // first *mention* of the heading rather than the heading, and item 22 mentions it in an
+        // inline code span while arguing about where new items get appended. The section then ran
+        // from that sentence to the real heading and swallowed every entry in between, reporting
+        // an open item as a completed one. Any entry that discusses this document's own structure
+        // would have done the same.
+        var match = Regex.Match(text, "^## Completed work", RegexOptions.Multiline, TimeSpan.FromSeconds(5));
+        var start = match.Success ? match.Index : -1;
 
         Assert.True(start >= 0,
             "PROGRESS.md no longer has a Completed work heading, so this test is looking for "

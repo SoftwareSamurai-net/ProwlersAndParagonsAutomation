@@ -75,6 +75,42 @@ public sealed class DerivedStatsCalculator
         return Math.Max(mightHealth, willpowerHealth);
     }
 
+    // ── The Trait Cap ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>The one answer to "what ceiling is this character built to".</b> The house cap on the
+    /// character if it has one, otherwise the tier's, otherwise nothing — a character with
+    /// neither has no cap to measure anything against, and every caller here already had a
+    /// branch for that.
+    ///
+    /// <para><b>It substitutes rather than gates, and that is the whole of the design
+    /// question.</b> <see cref="CalculateResolve"/> reads the cap as the datum Resolve is
+    /// measured from, so a house cap that only gated validation would pay a character the
+    /// tier's Resolve for a restraint the campaign imposed on them —
+    /// <c>(12−4)×2 = 16</c> on a 4d character at Standard under a 6d house rule, rather than
+    /// the <c>(6−4)×2 = 4</c> the room they actually have is worth. The owner settled it on
+    /// 2026-09-05: the rules tie the two together and the trade is the player's to make.</para>
+    ///
+    /// <para><b>Static, and given the tier rather than resolving one.</b> Two of its six
+    /// callers hold a tier and no rules repository, and the browser's session holds one it has
+    /// already looked up. It reads two fields of the character and nothing else — a house cap
+    /// reaches the engine by having been written onto the sheet, never by an id this layer
+    /// would have to resolve, which would mean asking storage.</para>
+    ///
+    /// <para><b>It answers with the number as written, including a nonsensical one.</b> A house
+    /// cap above the tier's, or below 1d, is an error <c>CharacterValidator</c> reports and this
+    /// still returns: the engine is a judge and does not repair somebody's character, and a cap
+    /// silently clamped here would make the finding beside it read as a lie.</para>
+    /// </summary>
+    /// <param name="sheet">The character, whose <see cref="CharacterSheet.TraitCapRank"/> wins.</param>
+    /// <param name="tier">The character's tier, already resolved, or null where it has none.</param>
+    public static int? EffectiveTraitCap(CharacterSheet sheet, Models.TierModel? tier)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        return sheet.TraitCapRank ?? tier?.TraitCapRank;
+    }
+
     // ── Resolve ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -89,6 +125,10 @@ public sealed class DerivedStatsCalculator
     /// Relevant ranks: all Ability ranks; Power effective ranks where the power
     /// affects Resolve. Talents excluded. Movement and Sensory category powers
     /// excluded by default; explicit overrides via PowerModel.AffectsResolve.
+    ///
+    /// <para><b>The cap is <see cref="EffectiveTraitCap"/>, so a house cap moves this figure.</b>
+    /// That is the one read this method makes of the cap and it is deliberately the only one —
+    /// see that method for why substituting is the honest answer and gating is not.</para>
     /// </summary>
     public int CalculateResolve(CharacterSheet sheet)
     {
@@ -96,7 +136,7 @@ public sealed class DerivedStatsCalculator
         var tier = _rules.GetTier(sheet.SelectedTierId);
         if (tier is null) return 0;
 
-        var traitCap = tier.TraitCapRank;
+        var traitCap = EffectiveTraitCap(sheet, tier) ?? tier.TraitCapRank;
 
         var highestAbility = sheet.AbilityRanks.Values.DefaultIfEmpty(0).Max();
 
@@ -181,6 +221,46 @@ public sealed class DerivedStatsCalculator
             "baseline_selected_trait" => selection?.BaselineTraitId is { } traitId
                 ? GetTraitRank(traitId, sheet)
                 : 0,
+
+            _ => throw new InvalidOperationException(
+                     $"Unknown prerequisite relationship '{prereq.Relationship}' on power '{power.Id}'.")
+        };
+    }
+
+    /// <summary>
+    /// The Trait ids a Power's baseline rank is read from, in the order the rulebook
+    /// names them — Armor answers <c>toughness</c>, Strike answers <c>might</c> and
+    /// <c>martial_arts</c>, Boost answers whatever was nominated on the selection.
+    ///
+    /// <para><b>It answers "from where", never "how much"</b>, which is
+    /// <see cref="GetBaselineRank"/>'s question. A reader asking whether a Power justifies
+    /// an effective rank needs both: the rank on its own says nothing about whether it was
+    /// bought or derived, and a derived one is only as good as the Trait underneath it.</para>
+    ///
+    /// <para>Empty where there is nothing to name: a Power with no prerequisite, a fixed
+    /// baseline printed in the entry (Running's 3d), or a nominated Trait nobody has
+    /// nominated yet — which the validator reports separately.</para>
+    /// </summary>
+    public static IReadOnlyList<string> BaselineTraitIds(PowerModel power, SelectedPower? selection = null)
+    {
+        ArgumentNullException.ThrowIfNull(power);
+
+        var prereq = power.Prerequisite;
+        if (prereq is null) return [];
+
+        return prereq.Relationship switch
+        {
+            "baseline_equal" or "baseline_half" =>
+                prereq.Ability is null ? [] : [prereq.Ability],
+
+            "baseline_fixed" => [],
+
+            "baseline_greater_of" =>
+                [.. (prereq.Ability is null ? Array.Empty<string>() : [prereq.Ability])
+                    .Concat(prereq.Powers)],
+
+            "baseline_selected_trait" =>
+                selection?.BaselineTraitId is { } traitId ? [traitId] : [],
 
             _ => throw new InvalidOperationException(
                      $"Unknown prerequisite relationship '{prereq.Relationship}' on power '{power.Id}'.")

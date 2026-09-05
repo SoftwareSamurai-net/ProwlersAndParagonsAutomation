@@ -463,6 +463,11 @@ public sealed class WorkflowFilterTests
     /// <para>Collected out of the workflows themselves, so a script added later is covered without
     /// anybody remembering this file exists. Watched to fail three ways: the real defect, the same
     /// bit cleared on a script that was already right, and the scan matching nothing.</para>
+    ///
+    /// <para><b>A workflow is not the only thing that runs a script as <c>./path</c>, and this
+    /// test's collection set is why four more shipped broken.</b> See
+    /// <see cref="EveryScriptTheDocumentationTellsYouToRunIsExecutable"/> next door, which asks the
+    /// same question of the Markdown. Both halves are kept; neither subsumes the other.</para>
     /// </summary>
     [Fact]
     public void EveryScriptAWorkflowRunsDirectlyIsExecutable()
@@ -499,13 +504,101 @@ public sealed class WorkflowFilterTests
         }
     }
 
-    /// <summary>Every tracked script's mode, read out of git — the one place Windows agrees.</summary>
-    private static Dictionary<string, string> Modes()
+    /// <summary>
+    /// <b>Every script the documentation tells a reader to run as <c>./path</c> is executable in
+    /// the index.</b> The sibling of
+    /// <see cref="EveryScriptAWorkflowRunsDirectlyIsExecutable"/>, and the half that was missing.
+    ///
+    /// <para><b>This is a second test rather than a widening of that one, on purpose.</b> The two
+    /// collect from different places and report different bugs: a workflow's <c>./path</c> failing
+    /// is a red CI run and a deploy that cannot ship, and the documentation's is a person following
+    /// <c>CLAUDE.md</c> to the letter and being told <c>permission denied</c>. Merging the sets
+    /// would give one failure message that has to hedge about which contract broke, and would put
+    /// the workflow half's hard-won collection logic — anchored on the <c>run:</c> invocation,
+    /// itself the product of a mutation that defeated its first version — one careless edit away
+    /// from being replaced by a Markdown scan. Two tests, two messages, neither able to lose the
+    /// other's coverage.</para>
+    ///
+    /// <para><b>The failure it was written after.</b> <c>scripts/qodana-scan.sh</c>,
+    /// <c>test-deploy-gate.sh</c>, <c>test-visual.sh</c> and <c>test-worker.sh</c> were all
+    /// committed <c>100644</c>. <c>CLAUDE.md</c>'s Commands section says to run
+    /// <c>./scripts/test-worker.sh</c>; doing so answers <c>permission denied</c>. Qodana's is
+    /// worse than an inconvenience — <c>docs/guide/testing.md</c> makes
+    /// <c>./scripts/qodana-scan.sh</c> the only static-analysis pass before a merge, since the
+    /// pull-request trigger was taken off the workflow, so the documented gate could not be run at
+    /// all. <b>And it fails silently in a pipeline</b>:
+    /// <c>./scripts/test-worker.sh 2&gt;&amp;1 | tail -12</c> exits <b>0</b>, because the status is
+    /// <c>tail</c>'s — anything queueing these as verification steps records a pass. None of the
+    /// four is invoked by a workflow as <c>./path</c> (CI inlines the steps), so the workflow half
+    /// never had them in its set and never could have.</para>
+    ///
+    /// <para><b>Read out of git, not off the filesystem</b>, for the reason the sibling's comment
+    /// gives at length: Git for Windows does not honour the mode bit in the working tree, so the
+    /// filesystem answer differs by platform and the index answer does not.</para>
+    ///
+    /// <para>Collected out of every tracked Markdown file, matched on the path pattern rather than
+    /// by parsing fences — these occurrences sit both inside fenced code blocks and in prose, and a
+    /// fence parser would silently drop half of them. A file naming a script git does not track is
+    /// a failure too, and reported as a dead pointer: the reader is being sent to a command that
+    /// does not exist. Watched to fail three ways: the real defect, the same bit cleared on a
+    /// script that was already right, and the scan matching nothing.</para>
+    /// </summary>
+    [Fact]
+    public void EveryScriptTheDocumentationTellsYouToRunIsExecutable()
+    {
+        var markdown = Tracked("*.md");
+
+        var documented = markdown
+            .SelectMany(file => Regex.Matches(
+                File.ReadAllText(Path.Combine(RepoRoot, file)),
+                @"\./(?<path>[\w./-]+\.sh)",
+                RegexOptions.None, TimeSpan.FromSeconds(5)))
+            .Select(m => m.Groups["path"].Value)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        // The positive control, and the reason it is spelled out rather than a bare Assert.NotEmpty:
+        // a scan that has stopped matching — a moved repository root, a regex edited past the
+        // occurrences, a Markdown convention that changed — leaves an empty set and passes while
+        // asserting nothing. That is the single most common way a check in this repository has been
+        // wrong, so the message says what was actually scanned.
+        Assert.True(documented.Count > 0,
+            $"no tracked Markdown file names a script as ./path, across the {markdown.Count} "
+            + $"Markdown files git tracks under {RepoRoot}. That is not plausible — CLAUDE.md's "
+            + "Commands section alone has one — so the scan has stopped seeing what it is for, and "
+            + "everything below it would pass vacuously.");
+
+        var modes = Modes();
+
+        foreach (var script in documented)
+        {
+            Assert.True(modes.TryGetValue(script, out var mode),
+                $"the documentation tells a reader to run ./{script}, which git is not tracking at "
+                + "all. A dead pointer is worse than no pointer: either the script was deleted and "
+                + "the documentation still names it, or the path is wrong.");
+
+            Assert.True(mode == "100755",
+                $"the documentation tells a reader to run ./{script} and git records it as {mode}, "
+                + "not 100755, so the documented command answers `permission denied`. Worse than "
+                + "it looks in a pipeline: `./" + script + " 2>&1 | tail -12` exits 0, because the "
+                + "status is tail's, so a verification step that cannot run records a pass. Fix it "
+                + $"with `git update-index --chmod=+x {script}` — and note a Windows checkout runs "
+                + "it happily either way, so this cannot be checked by hand here.");
+        }
+    }
+
+    /// <summary>
+    /// Runs one read-only git command in the repository and returns its standard output. Both
+    /// collectors below go through git rather than the filesystem, so both get the answer that is
+    /// the same on Windows and on a Linux runner.
+    /// </summary>
+    private static string Git(string arguments)
     {
         using var git = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
         {
             FileName = "git",
-            Arguments = "ls-files --stage -- scripts",
+            Arguments = arguments,
             WorkingDirectory = RepoRoot,
             RedirectStandardOutput = true,
             UseShellExecute = false,
@@ -518,7 +611,28 @@ public sealed class WorkflowFilterTests
 
         Assert.Equal(0, git.ExitCode);
 
-        return listed
+        return listed;
+    }
+
+    /// <summary>Every tracked path matching <paramref name="pathspec"/>, as git lists it.</summary>
+    private static List<string> Tracked(string pathspec) =>
+        Git($"ls-files -- \"{pathspec}\"")
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0)
+            .ToList();
+
+    /// <summary>
+    /// Every tracked file's mode, read out of git — the one place Windows agrees.
+    ///
+    /// <para>This used to be scoped to <c>-- scripts</c>, which was right while the only caller
+    /// collected from workflows that name nothing else. It is not scoped now, because a
+    /// documentation scan can legitimately name a path outside <c>scripts/</c> and a scoped listing
+    /// would report a tracked file as untracked — a wrong diagnosis rather than a missed one.</para>
+    /// </summary>
+    private static Dictionary<string, string> Modes()
+    {
+        return Git("ls-files --stage")
             .Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.Split('\t', 2))
             .Where(parts => parts.Length == 2)
