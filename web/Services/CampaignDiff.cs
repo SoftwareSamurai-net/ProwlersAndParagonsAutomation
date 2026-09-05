@@ -160,6 +160,26 @@ public static class CampaignDiff
         compared += Compare(rows, "Tier", TierName(rules, was.SelectedTierId), TierName(rules, after.SelectedTierId));
         compared += Compare(rows, "Package", PackageName(rules, was.SelectedPackageId), PackageName(rules, after.SelectedPackageId));
 
+        // ── The ceiling the character is built to ────────────────────────────────────
+        //
+        // **The cap in force, not the field.** `Trait Cap 12d → 6d` is what moved for the
+        // character; `TraitCapRank: null → 6` is this application's bookkeeping, which is the same
+        // reason a rank stepped back to zero reads as removed rather than as `0d`. So the figure
+        // is `DerivedStatsCalculator.EffectiveTraitCap` — a house cap where there is one and the
+        // tier's otherwise — and a house cap set to exactly the tier's own moves nothing and says
+        // nothing.
+        //
+        // **Without it the screen said "nothing changed" over a real change.** The cap is the
+        // datum Resolve is measured from and the ceiling every Ability is judged against, so a
+        // player who added a house cap between submissions moved their Resolve and could turn a
+        // legal Trait illegal while the GM's list of what changed stayed empty. It costs no Hero
+        // Points, which is why the spend could not be the trigger either.
+        //
+        // A tier change moves this row as well as the Tier row, and that is the honest report
+        // rather than a duplicate: the two rows say different things — which table this is, and
+        // what the ranks are now bounded by.
+        compared += Compare(rows, "Trait Cap", CapOf(rules, was), CapOf(rules, after));
+
         // ── Ranks ────────────────────────────────────────────────────────────────────
         //
         // `6d → 8d`, which is how a rank is written everywhere else in this app and on the sheet.
@@ -532,6 +552,21 @@ public static class CampaignDiff
     /// <summary>Null for a name nobody has typed, so an empty field reads as absent.</summary>
     private static string? Blank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>
+    /// The Trait Cap this character is built to, written the way every rank in this app is, or
+    /// null for a character with no tier and no house cap — which has no ceiling to report.
+    ///
+    /// <para><b>Read through <c>DerivedStatsCalculator.EffectiveTraitCap</c> and never spelled out
+    /// here</b>, so the row a GM decides about is the same number the validator judged the
+    /// submission by and the same one its Resolve was measured from.</para>
+    /// </summary>
+    private static string? CapOf(RulesRepository rules, CharacterSheet sheet) =>
+        DerivedStatsCalculator.EffectiveTraitCap(
+            sheet, sheet.SelectedTierId is null ? null : rules.GetTier(sheet.SelectedTierId))
+            is { } cap
+            ? Rank(cap)
+            : null;
 
     private static string? TierName(RulesRepository rules, string? id) =>
         id is null ? null : rules.GetTier(id)?.Name ?? id;

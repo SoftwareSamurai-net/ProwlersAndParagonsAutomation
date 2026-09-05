@@ -2339,6 +2339,25 @@ label {
     font-size: var(--text-sm);
 }
 
+/* The line between what this app offers and what the book says.
+
+   Two kinds of thing share one list: above it are places to go and controls to open, below it
+   are the publisher's own headings. Nothing on the page should leave the two looking like one
+   voice — the same reason a Power's entry is set apart as a quotation rather than run in with
+   the mechanics beside it.
+
+   It is the palette's own footer treatment rather than a new one: --panel-sunk under --muted at
+   --text-xs, the size that ink's 4.5:1 floor was measured at, so no unmeasured pair arrives in
+   any of the four palettes. No uppercase, which would cost this class a page in
+   UppercasedTextTests' list for a marking the rule and the ground already make. */
+.palette-group {
+    padding: var(--space-2) var(--space-4);
+    border-top: var(--rule-weight) solid var(--rule);
+    background: var(--panel-sunk);
+    color: var(--muted);
+    font-size: var(--text-xs);
+}
+
 .palette-keys {
     display: flex;
     flex-wrap: wrap;

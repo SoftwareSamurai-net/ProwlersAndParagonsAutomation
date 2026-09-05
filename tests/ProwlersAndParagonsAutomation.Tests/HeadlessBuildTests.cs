@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using ProwlersAndParagonsAutomation.Cli.Headless;
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Sheets;
 
 namespace ProwlersAndParagonsAutomation.Tests;
 
@@ -209,7 +210,139 @@ public sealed class HeadlessBuildTests : IDisposable
         Assert.Equal(tier.HeroPoints - _f.Costs.TotalCost(hero),
                      (int)run.Report["hero_points"]!["remaining"]!);
         Assert.Equal(tier.TraitCapRank, (int)run.Report["trait_cap"]!);
+        Assert.Equal(tier.TraitCapRank, (int)run.Report["tier_trait_cap"]!);
         Assert.Equal(hero.SelectedPackageId, (string?)run.Report["character"]!["package"]);
+    }
+
+    // ── The house Trait Cap ───────────────────────────────────────────────
+
+    /// <summary>
+    /// <b><c>--trait-cap</c> is the whole finding, end to end.</b> A campaign caps a
+    /// non-superhuman at 6d and the tool could not see it, so a 7d Ability at the Standard
+    /// tier validated <c>ok: true</c>. Under the flag it is <c>TRAIT_ABOVE_CAP</c> against a
+    /// limit of 6, and Resolve moves with the cap because the cap is what Resolve is measured
+    /// from — the two halves the owner settled together, asserted together.
+    ///
+    /// <para>The run without the flag is the positive control: 7d really is legal at this tier,
+    /// so nothing below can be satisfied by a character that was already illegal.</para>
+    /// </summary>
+    [Fact]
+    public void TheTraitCapFlagMovesTheCapTheCharacterIsJudgedAndPaidAgainst()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.AbilityRanks["intellect"] = 7;
+        var file = CharacterFile(CharacterSheetJson.Write(sheet));
+
+        var tier = _f.Rules.GetTier("standard")!;
+        var free = Invoke("--from", file, "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, free.ExitCode);
+        Assert.Null(free.Issue("TRAIT_ABOVE_CAP"));
+        Assert.Equal(tier.TraitCapRank, (int)free.Report["trait_cap"]!);
+        Assert.Equal((tier.TraitCapRank - 7) * 2, (int)free.Report["derived"]!["resolve"]!);
+
+        var capped = Invoke("--from", file, "--no-export", "--trait-cap", "6");
+
+        Assert.Equal(BuildCommand.CharacterIllegal, capped.ExitCode);
+        Assert.Equal(6, (int)capped.Report["trait_cap"]!);
+        Assert.Equal(tier.TraitCapRank, (int)capped.Report["tier_trait_cap"]!);
+
+        var issue = capped.Issue("TRAIT_ABOVE_CAP");
+        Assert.NotNull(issue);
+        Assert.Equal("intellect", (string?)issue["subject_id"]);
+        Assert.Equal(7, (int)issue["value"]!);
+        Assert.Equal(6, (int)issue["limit"]!);
+
+        // Resolve is measured from the cap in force, so a rank over it pays nothing.
+        Assert.Equal(0, (int)capped.Report["derived"]!["resolve"]!);
+    }
+
+    /// <summary>
+    /// The flag applies to <b>every</b> character in a roster and beats the field on the file.
+    /// A house cap is a fact about the table, and a caller checking twenty-eight sheets against
+    /// a campaign's rule must not be answered about twenty-seven of them plus whatever the
+    /// twenty-eighth believed about itself.
+    /// </summary>
+    [Fact]
+    public void TheTraitCapFlagAppliesToEveryCharacterAndBeatsTheFileField()
+    {
+        var plain = _f.LegalSheet();
+        plain.Name = "Plain";
+
+        var believes = _f.LegalSheet();
+        believes.Name = "Believes";
+        believes.TraitCapRank = 10;
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(plain)),
+                         "--from", CharacterFile(CharacterSheetJson.Write(believes)),
+                         "--no-export", "--trait-cap", "6");
+
+        var reported = run.Report["characters"]!.AsArray()
+            .Select(c => (int)c!["trait_cap"]!)
+            .ToList();
+
+        Assert.Equal([6, 6], reported);
+        Assert.All(run.Report["characters"]!.AsArray(),
+            c => Assert.Equal(_f.Rules.GetTier("standard")!.TraitCapRank, (int)c!["tier_trait_cap"]!));
+    }
+
+    /// <summary>
+    /// <b>The file's own field is honoured with no flag at all</b>, which is what makes a
+    /// character portable: the cap travels with it and does not have to be remembered on a
+    /// command line.
+    /// </summary>
+    [Fact]
+    public void AHouseCapOnTheFileIsHonouredWithNoFlag()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.TraitCapRank = 6;
+        sheet.AbilityRanks["intellect"] = 7;
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
+
+        Assert.Equal(6, (int)run.Report["trait_cap"]!);
+        Assert.Equal(6, (int)run.Issue("TRAIT_ABOVE_CAP")!["limit"]!);
+    }
+
+    /// <summary>
+    /// A cap that is not a whole number is an argument fault — exit 2, and the report names the
+    /// flag rather than the character. A number that is merely nonsense is not: 0d and a cap
+    /// above the tier's are findings on the character, the same ones the file's field gets, so
+    /// the flag and the field cannot disagree about what a bad cap means.
+    /// </summary>
+    [Theory]
+    [InlineData("six")]
+    [InlineData("6d")]
+    [InlineData("")]
+    public void ATraitCapThatIsNotAWholeNumberIsRefused(string value)
+    {
+        var run = Invoke("--from", SampleHeroFile(), "--no-export", "--trait-cap", value);
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.Equal("BAD_ARGUMENTS", (string?)run.Issues[0]!["code"]);
+        Assert.Contains("--trait-cap", (string?)run.Issues[0]!["message"] ?? "", StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ATraitCapWithNoValueIsRefused()
+    {
+        var run = Invoke("--from", SampleHeroFile(), "--no-export", "--trait-cap");
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.Equal("BAD_ARGUMENTS", (string?)run.Issues[0]!["code"]);
+    }
+
+    [Theory]
+    [InlineData("0", "TRAIT_CAP_BELOW_MINIMUM")]
+    [InlineData("40", "TRAIT_CAP_ABOVE_TIER")]
+    public void ACapThatIsANumberAndStillNonsenseIsAFindingOnTheCharacter(string value, string code)
+    {
+        var run = Invoke("--from", SampleHeroFile(), "--no-export", "--trait-cap", value);
+
+        Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
+        Assert.NotNull(run.Issue(code));
+        Assert.Equal(int.Parse(value, System.Globalization.CultureInfo.InvariantCulture),
+                     (int)run.Report["trait_cap"]!);
     }
 
     /// <summary>
@@ -921,6 +1054,588 @@ public sealed class HeadlessBuildTests : IDisposable
     {
         Assert.True(Console.IsInputRedirected, "This test assumes the runner redirects input.");
         Assert.False(InteractiveTerminal.IsAvailable);
+    }
+
+    // ── A roster in one process ───────────────────────────────────────────
+
+    /// <summary>
+    /// <b>One character reports exactly as it always did.</b> Every caller of this command
+    /// reads that document, and wrapping a single character in a roster would break all of
+    /// them for nothing — there is no cross-sheet question to ask about one sheet. Asserted
+    /// as the absence of the roster keys as well as the presence of the old ones, because
+    /// adding <c>characters</c> beside <c>character</c> would satisfy every existing test.
+    /// </summary>
+    [Fact]
+    public void OneCharacterIsReportedExactlyAsItAlwaysWas()
+    {
+        var run = Invoke("--from", SampleHeroFile(), "--no-export", "--traits-above", "1");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.Null(run.Report["characters"]);
+        Assert.Null(run.Report["roster"]);
+        Assert.Null(run.Report["source"]);
+        Assert.NotNull(run.Report["character"]);
+        Assert.NotNull(run.Report["hero_points"]);
+    }
+
+    /// <summary>
+    /// Twenty-eight characters were twenty-eight process starts, and every re-check after an
+    /// edit was another twenty-eight. One process, one document, one report per character —
+    /// each keeping its own verdict, since "something in this roster is wrong" is not an
+    /// answer anybody can act on.
+    /// </summary>
+    [Fact]
+    public void ARosterIsOneDocumentHoldingEachCharactersOwnReport()
+    {
+        var hero    = SampleCharacters.Hero();
+        var villain = SampleCharacters.Villain();
+
+        var first  = CharacterFile(CharacterSheetJson.Write(hero));
+        var second = CharacterFile(CharacterSheetJson.Write(villain));
+
+        var run = Invoke("--from", first, "--from", second, "--no-export");
+
+        // One JSON document on standard output, whatever the count. JsonDocument.Parse throws
+        // on trailing content, so two reports printed one after another fail here.
+        Assert.Equal(JsonValueKind.Object, JsonDocument.Parse(run.StdOut).RootElement.ValueKind);
+
+        var characters = run.Report["characters"]!.AsArray();
+        Assert.Equal(2, characters.Count);
+        Assert.Equal([first, second], characters.Select(c => (string?)c!["source"]));
+        Assert.Equal([hero.Name, villain.Name],
+                     characters.Select(c => (string?)c!["character"]!["name"]));
+
+        // Each character's own figures, asked of the engine rather than of a constant.
+        Assert.Equal(_f.Costs.TotalCost(hero),    (int)characters[0]!["hero_points"]!["spent"]!);
+        Assert.Equal(_f.Costs.TotalCost(villain), (int)characters[1]!["hero_points"]!["spent"]!);
+
+        // The top level is the roster's, not the first character's.
+        Assert.Null(run.Report["character"]);
+        Assert.Null(run.Report["hero_points"]);
+    }
+
+    /// <summary>
+    /// <b>The worst news in the run is the exit code, and each character keeps its own.</b>
+    /// A caller looping over a roster learns from one number that something needs attention,
+    /// and from the reports which sheet it was. Every pair is exercised, because a max that
+    /// had become a first-or-last would pass on three of the four.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, BuildCommand.Ok)]
+    [InlineData(true,  false, BuildCommand.CharacterIllegal)]
+    [InlineData(false, true,  BuildCommand.InputUnusable)]
+    [InlineData(true,  true,  BuildCommand.InputUnusable)]
+    public void TheRostersExitCodeIsTheWorstOfItsCharacters(bool illegal, bool unreadable, int expected)
+    {
+        // Two legal characters always, so every case is a roster and the shape is the same
+        // one; a single input is deliberately reported as a single character.
+        var files = new List<string>
+        {
+            CharacterFile(CharacterSheetJson.Write(SampleCharacters.Hero())),
+            CharacterFile(CharacterSheetJson.Write(SampleCharacters.Villain()))
+        };
+
+        // An illegal character first, so a max that had become "the last one" fails.
+        if (illegal) files.Insert(0, CharacterFile(CharacterSheetJson.Write(RulesFixture.StandardSheet())));
+        if (unreadable) files.Insert(0, CharacterFile("{ nope"));
+
+        var run = Invoke([.. files.SelectMany<string, string>(f => ["--from", f]), "--no-export"]);
+
+        Assert.Equal(expected, run.ExitCode);
+        Assert.Equal(expected, (int)run.Report["exit_code"]!);
+        Assert.Equal(expected == BuildCommand.Ok, (bool)run.Report["ok"]!);
+
+        // And the exit code on the wire is each character's own, never the roster's.
+        Assert.Contains(run.Report["characters"]!.AsArray(),
+            c => (int)c!["exit_code"]! == BuildCommand.Ok);
+    }
+
+    /// <summary>
+    /// <b>An unreadable file costs its own report and nothing else.</b> A caller checking
+    /// twenty-eight sheets should not lose twenty-seven answers to a typo in one file name —
+    /// which is what a run that stopped at the first bad file would do.
+    /// </summary>
+    [Fact]
+    public void AnUnreadableFileIsOneExitTwoReportRatherThanTheEndOfTheRun()
+    {
+        var hero    = SampleCharacters.Hero();
+        var broken  = CharacterFile("{ nope");
+        var missing = Path.Combine(_scratch, "no-such-character.json");
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)),
+                         "--from", broken,
+                         "--from", missing,
+                         "--from", CharacterFile(CharacterSheetJson.Write(hero)),
+                         "--no-export");
+
+        var characters = run.Report["characters"]!.AsArray();
+        Assert.Equal(4, characters.Count);
+        Assert.Equal([BuildCommand.Ok, BuildCommand.InputUnusable,
+                      BuildCommand.InputUnusable, BuildCommand.Ok],
+                     characters.Select(c => (int)c!["exit_code"]!));
+
+        // The two that could be read are still whole reports, with the engine's own figures.
+        Assert.Equal(_f.Costs.TotalCost(hero), (int)characters[3]!["hero_points"]!["spent"]!);
+
+        // And the ones that could not name the file they came from, since the message is prose.
+        Assert.Equal(broken, (string?)characters[1]!["source"]);
+        Assert.Equal(missing, (string?)characters[2]!["source"]);
+        Assert.Equal("INPUT_UNREADABLE",
+            (string?)characters[1]!["issues"]!.AsArray()[0]!["code"]);
+    }
+
+    /// <summary>
+    /// A directory of sheets, in name order, and nothing else in it. The order matters
+    /// because two runs over one roster should produce reports a reader can diff; the filter
+    /// matters because a roster directory usually has notes in it.
+    /// </summary>
+    [Fact]
+    public void FromDirTakesEveryJsonDirectlyInItInNameOrder()
+    {
+        var dir = Path.Combine(_scratch, "roster");
+        Directory.CreateDirectory(dir);
+        Directory.CreateDirectory(Path.Combine(dir, "old"));
+
+        foreach (var name in new[] { "c.json", "a.json", "b.json" })
+            File.WriteAllText(Path.Combine(dir, name), CharacterSheetJson.Write(SampleCharacters.Hero()));
+
+        File.WriteAllText(Path.Combine(dir, "notes.txt"), "not a character");
+        File.WriteAllText(Path.Combine(dir, "old", "d.json"),
+            CharacterSheetJson.Write(SampleCharacters.Hero()));
+
+        var run = Invoke("--from-dir", dir, "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.Equal(["a.json", "b.json", "c.json"],
+            run.Report["characters"]!.AsArray()
+               .Select(c => Path.GetFileName((string)c!["source"]!)));
+    }
+
+    [Fact]
+    public void FromDirAndFromAreOneList()
+    {
+        var dir = Path.Combine(_scratch, "combined");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "a.json"),
+            CharacterSheetJson.Write(SampleCharacters.Hero()));
+
+        var run = Invoke("--from-dir", dir, "--from", SampleHeroFile(), "--no-export");
+
+        Assert.Equal(2, run.Report["characters"]!.AsArray().Count);
+    }
+
+    /// <summary>
+    /// A directory that is not there, and one with no characters in it, are argument faults
+    /// rather than empty rosters — an empty roster reports "every character is legal", which
+    /// is a true sentence about nothing and reads as success.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ADirectoryWithNoCharactersInItIsRefusedRatherThanReportedEmpty(bool exists)
+    {
+        var dir = Path.Combine(_scratch, exists ? "empty" : "not-there");
+        if (exists) Directory.CreateDirectory(dir);
+
+        var run = Invoke("--from-dir", dir, "--no-export");
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.NotNull(run.Issue("BAD_ARGUMENTS"));
+    }
+
+    /// <summary>
+    /// <b>Standard input can only be drained once.</b> A second <c>--from -</c> reads a
+    /// stream the first one emptied, so the second character would come back "no character
+    /// arrived" — an answer about a character nobody submitted, which is worse than a refusal.
+    /// </summary>
+    [Fact]
+    public void StandardInputMayOnlyBeNamedOnce()
+    {
+        var run = InvokeWithInput(CharacterSheetJson.Write(SampleCharacters.Hero()),
+                                  "--from", "-", "--from", "-", "--no-export");
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.NotNull(run.Issue("BAD_ARGUMENTS"));
+        Assert.Contains("once", run.Issue("BAD_ARGUMENTS")!["message"]!.ToString(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void StandardInputCanBeOneCharacterOfARoster()
+    {
+        var run = InvokeWithInput(CharacterSheetJson.Write(SampleCharacters.Hero()),
+                                  "--from", "-", "--from", SampleHeroFile(), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.Equal(2, run.Report["characters"]!.AsArray().Count);
+    }
+
+    // ── Stable export names ───────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>Re-exporting a roster should replace its sheets, not double them.</b> The default
+    /// name carries a timestamp, so twenty-eight characters exported twice are fifty-six
+    /// files and a de-duplication script. The control is the run without the flag: two pairs,
+    /// which is the behaviour <c>--overwrite</c> exists to opt out of.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 2)]
+    [InlineData(false, 4)]
+    public void OverwriteReplacesTheSamePairWhereTheDefaultAddsOne(bool overwrite, int expectedFiles)
+    {
+        var dir  = Path.Combine(_scratch, overwrite ? "stable" : "timestamped");
+        var file = CharacterFile(CharacterSheetJson.Write(SampleCharacters.Hero()));
+
+        string[] args = overwrite
+            ? ["--from", file, "--out", dir, "--overwrite"]
+            : ["--from", file, "--out", dir];
+
+        var first  = Invoke(args);
+        var second = Invoke(args);
+
+        Assert.Equal(expectedFiles, Directory.GetFiles(dir).Length);
+        Assert.Equal(overwrite, (string)first.Report["exports"]!["text"]!
+                              == (string)second.Report["exports"]!["text"]!);
+        Assert.True(File.Exists((string)second.Report["exports"]!["text"]!));
+    }
+
+    /// <summary>
+    /// And the stable name really is the character's, with no timestamp left in it — a name
+    /// that still carried one would pass the count above by colliding with itself only when
+    /// two runs landed in the same second.
+    /// </summary>
+    [Fact]
+    public void AnOverwrittenExportIsNamedAfterTheCharacterAlone()
+    {
+        var dir  = Path.Combine(_scratch, "named");
+        var hero = SampleCharacters.Hero();
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)),
+                         "--out", dir, "--overwrite");
+
+        Assert.Equal(CharacterSheetRenderer.BaseFileName(hero) + ".txt",
+                     Path.GetFileName((string)run.Report["exports"]!["text"]!));
+    }
+
+    /// <summary>
+    /// <b>Two characters cannot quietly share one pair of files.</b> <em>Cael Hughes</em> and
+    /// <em>Cael-Hughes</em> have the same safe name, so under a stable name one writes over
+    /// the other and both reports name paths holding somebody else. Reported on every
+    /// character that shares the name, so it cannot matter which one a caller looked at.
+    /// </summary>
+    [Fact]
+    public void TwoCharactersWithOneSafeNameAreReportedRatherThanClobbered()
+    {
+        var first  = SampleCharacters.Hero();
+        var second = SampleCharacters.Hero();
+        first.Name  = "Cael Hughes";
+        second.Name = "Cael-Hughes";
+
+        var firstFile  = CharacterFile(CharacterSheetJson.Write(first));
+        var secondFile = CharacterFile(CharacterSheetJson.Write(second));
+
+        var run = Invoke("--from", firstFile, "--from", secondFile,
+                         "--out", Path.Combine(_scratch, "collide"), "--overwrite");
+
+        var reports = run.Report["characters"]!.AsArray();
+
+        Assert.All(reports, report =>
+        {
+            var issue = report!["issues"]!.AsArray()
+                .FirstOrDefault(i => (string?)i!["code"] == "EXPORT_NAME_COLLISION");
+
+            Assert.NotNull(issue);
+            Assert.Equal("warning", (string?)issue["severity"]);
+            Assert.Equal(CharacterSheetRenderer.BaseFileName(first), (string?)issue["value"]);
+            Assert.Equal([firstFile, secondFile],
+                         issue["options"]!.AsArray().Select(o => (string?)o));
+        });
+
+        // A warning, not an error: the characters are legal, and what is wrong is the pair of
+        // names the caller chose.
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+    }
+
+    /// <summary>
+    /// Without <c>--overwrite</c> there is nothing to collide over — the timestamp and the
+    /// numbered fallback keep the two apart — so the warning must not appear.
+    /// </summary>
+    [Fact]
+    public void TheCollisionWarningIsAboutOverwriteAndNotAboutTheNames()
+    {
+        var first  = SampleCharacters.Hero();
+        var second = SampleCharacters.Hero();
+        first.Name  = "Cael Hughes";
+        second.Name = "Cael-Hughes";
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(first)),
+                         "--from", CharacterFile(CharacterSheetJson.Write(second)),
+                         "--out", Path.Combine(_scratch, "no-collision"));
+
+        Assert.DoesNotContain(run.Report["characters"]!.AsArray(),
+            c => c!["issues"]!.AsArray().Any(i => (string?)i!["code"] == "EXPORT_NAME_COLLISION"));
+    }
+
+    // ── Cross-sheet questions ─────────────────────────────────────────────
+
+    /// <summary>
+    /// A roster with two characters, one Perk each, and Traits over a rank — built once and
+    /// asked of the engine by every test below it.
+    /// </summary>
+    private (string FirstFile, string SecondFile, CharacterSheet First, CharacterSheet Second) Pair()
+    {
+        var first = _f.LegalSheet();
+        first.Name = "Padded";
+        first.AbilityRanks["might"]      = 9;
+        first.AbilityRanks["toughness"]  = 8;
+        first.TalentRanks["streetwise"]  = 7;
+        first.SelectedPowers.Add(new SelectedPower("armor", 5) { SourceId = "tech" });
+        first.SelectedPowers.Add(new SelectedPower("running", 4) { SourceId = "innate" });
+        first.Perks.Add(new SelectedPerk("contacts", 4));
+
+        var second = _f.LegalSheet();
+        second.Name = "Lean";
+        second.AbilityRanks["agility"] = 8;
+        second.Perks.Add(new SelectedPerk("contacts", 2));
+
+        return (CharacterFile(CharacterSheetJson.Write(first)),
+                CharacterFile(CharacterSheetJson.Write(second)),
+                first, second);
+    }
+
+    /// <summary>
+    /// <b>Nobody asked, so there is no answer.</b> An empty list here would read as "no Trait
+    /// on this roster is above the rank", which answers a question that was never put.
+    /// </summary>
+    [Fact]
+    public void TraitsAboveIsAbsentUntilItIsAskedFor()
+    {
+        var (first, second, _, _) = Pair();
+
+        var without = Invoke("--from", first, "--from", second, "--no-export");
+        var with    = Invoke("--from", first, "--from", second, "--no-export", "--traits-above", "6");
+
+        Assert.Null(without.Report["roster"]!["traits_above"]);
+        Assert.NotNull(with.Report["roster"]!["traits_above"]);
+    }
+
+    /// <summary>
+    /// <b>Every Ability, Talent and Power above the rank, and the Power's rank is the
+    /// engine's effective one.</b> Checked against <see cref="DerivedStatsCalculator"/>
+    /// rather than against a number worked out here — Armor's baseline is half a Toughness
+    /// the test also sets, so a literal would pin two rules at once and neither on purpose.
+    /// </summary>
+    [Fact]
+    public void TraitsAboveListsEveryTraitOverTheRankAtTheEnginesEffectiveRank()
+    {
+        var (firstFile, secondFile, first, _) = Pair();
+
+        var run = Invoke("--from", firstFile, "--from", secondFile,
+                         "--no-export", "--traits-above", "6");
+
+        var rows = run.Report["roster"]!["traits_above"]!.AsArray();
+        Assert.Equal(2, rows.Count);
+
+        var padded = rows[0]!["traits"]!.AsArray();
+
+        Assert.Equal(9, (int)Row(padded, "ability", "might")["rank"]!);
+        Assert.Equal(8, (int)Row(padded, "ability", "toughness")["rank"]!);
+        Assert.Equal(7, (int)Row(padded, "talent", "streetwise")["rank"]!);
+
+        var armour = first.SelectedPowers.Single(p => p.PowerId == "armor");
+        Assert.Equal(_f.Derived.GetEffectiveRank(armour, first),
+                     (int)Row(padded, "power", "armor")["rank"]!);
+        Assert.Equal(_f.Derived.GetBaselineRank(_f.Rules.GetPower("armor")!, first, armour),
+                     (int)Row(padded, "power", "armor")["baseline_rank"]!);
+
+        // Nothing at or below the rank. Streetwise is 7 and every other Talent is 1.
+        Assert.DoesNotContain(padded, t => (string?)t!["kind"] == "talent"
+                                        && (string?)t["id"] != "streetwise");
+
+        // The second character's Agility is 8 and is on its own row, so this is not one
+        // character's answer printed twice.
+        Assert.Equal(8, (int)Row(rows[1]!["traits"]!.AsArray(), "ability", "agility")["rank"]!);
+    }
+
+    private static JsonNode Row(JsonArray traits, string kind, string id) =>
+        traits.Single(t => (string?)t!["kind"] == kind && (string?)t["id"] == id)!;
+
+    /// <summary>
+    /// <b>Which Trait a Power's baseline is read from is the half that answers the
+    /// question.</b> "Does a Power justify the rank" cannot be told from the rank: a 10d
+    /// Power bought outright and a 10d Power sitting on a 10d Ability are the same number.
+    /// </summary>
+    [Fact]
+    public void APowersRowSaysWhichTraitItsBaselineComesFrom()
+    {
+        var (firstFile, secondFile, _, _) = Pair();
+
+        var run = Invoke("--from", firstFile, "--from", secondFile,
+                         "--no-export", "--traits-above", "6");
+
+        var armour = Row(run.Report["roster"]!["traits_above"]!.AsArray()[0]!["traits"]!.AsArray(),
+                         "power", "armor");
+
+        Assert.Equal("baseline_half", (string?)armour["baseline_relationship"]);
+        Assert.Equal(DerivedStatsCalculator.BaselineTraitIds(_f.Rules.GetPower("armor")!),
+                     armour["baseline_traits"]!.AsArray().Select(t => (string?)t));
+    }
+
+    /// <summary>
+    /// <b>Nothing is filtered by opinion.</b> Running does not affect Resolve, and it is
+    /// still a high rank on somebody's sheet — excluding it would be this program deciding
+    /// which of a character's Traits are worth a reader's attention. The flag is reported so
+    /// the reader can decide instead.
+    /// </summary>
+    [Fact]
+    public void APowerThatDoesNotAffectResolveIsStillListed()
+    {
+        var (firstFile, secondFile, _, _) = Pair();
+
+        var run = Invoke("--from", firstFile, "--from", secondFile,
+                         "--no-export", "--traits-above", "6");
+
+        var running = Row(run.Report["roster"]!["traits_above"]!.AsArray()[0]!["traits"]!.AsArray(),
+                          "power", "running");
+
+        Assert.False(DerivedStatsCalculator.ResolveAffectedByPower(_f.Rules.GetPower("running")!),
+            "The positive control failed: Running now affects Resolve, so this proves nothing.");
+        Assert.False((bool)running["affects_resolve"]!);
+    }
+
+    /// <summary>
+    /// <b>The per-category totals are the engine's, one call each.</b> Asserted against
+    /// <see cref="CostCalculator"/> rather than against literals, because a figure this
+    /// program worked out itself is the one thing the whole command exists not to produce.
+    /// </summary>
+    [Fact]
+    public void TheRosterSpendingIsTheEnginesOwnPerCategoryFigures()
+    {
+        var (firstFile, secondFile, first, second) = Pair();
+
+        var run = Invoke("--from", firstFile, "--from", secondFile, "--no-export");
+        var rows = run.Report["roster"]!["spending"]!.AsArray();
+
+        Assert.Equal(2, rows.Count);
+
+        foreach (var (row, sheet) in rows.Zip<JsonNode?, CharacterSheet>([first, second]))
+        {
+            var totals = row!["totals"]!;
+
+            Assert.Equal(_f.Costs.PackageCost(sheet),     (int)totals["package"]!);
+            Assert.Equal(_f.Costs.AbilityCost(sheet),     (int)totals["abilities"]!);
+            Assert.Equal(_f.Costs.TalentCost(sheet),      (int)totals["talents"]!);
+            Assert.Equal(_f.Costs.TotalPowersCost(sheet), (int)totals["powers"]!);
+            Assert.Equal(_f.Costs.TotalPerksCost(sheet),  (int)totals["perks"]!);
+            Assert.Equal(_f.Costs.TotalGearCost(sheet),   (int)totals["gear"]!);
+            Assert.Equal(_f.Costs.TotalCost(sheet),       (int)totals["total"]!);
+        }
+
+        // A positive control: the two characters really do spend differently, so a report
+        // that had started printing one of them twice would fail rather than agree with itself.
+        Assert.NotEqual(_f.Costs.TotalCost(first), _f.Costs.TotalCost(second));
+    }
+
+    /// <summary>
+    /// <b>"Padded with Contacts" is invisible in a category total</b>, which is why each Perk
+    /// travels with its Units and its price. Five sheets were padded with invented contact
+    /// categories and their totals looked ordinary.
+    /// </summary>
+    [Fact]
+    public void EveryPerkIsItemisedWithItsUnitsAndTheEnginesPrice()
+    {
+        var (firstFile, secondFile, first, _) = Pair();
+
+        var run = Invoke("--from", firstFile, "--from", secondFile, "--no-export");
+
+        var perk = run.Report["roster"]!["spending"]!.AsArray()[0]!["perks"]!.AsArray().Single()!;
+
+        Assert.Equal("contacts", (string?)perk["id"]);
+        Assert.Equal(4, (int)perk["units"]!);
+        Assert.Equal(_f.Costs.PerkCost(first.Perks[0]), (int)perk["cost"]!);
+    }
+
+    /// <summary>
+    /// The roster-wide half of the same question: which Perk is everybody leaning on, and how
+    /// hard. Two counts and no price — a Hero Point figure across the roster would be this
+    /// program doing the engine's arithmetic.
+    /// </summary>
+    [Fact]
+    public void PerksByIdCountsHoldersAndUnitsAcrossTheRoster()
+    {
+        var (firstFile, secondFile, first, second) = Pair();
+
+        var run = Invoke("--from", firstFile, "--from", secondFile, "--no-export");
+
+        var contacts = run.Report["roster"]!["perks_by_id"]!.AsArray().Single()!;
+
+        Assert.Equal("contacts", (string?)contacts["id"]);
+        Assert.Equal(2, (int)contacts["characters"]!);
+        Assert.Equal(first.Perks[0].Units + second.Perks[0].Units, (int)contacts["units"]!);
+    }
+
+    /// <summary>
+    /// A character nobody could read is in <c>characters</c> and in no roster section: there
+    /// is no sheet to ask about, and a row of nulls beside the ones that answered would read
+    /// as a character who spent nothing.
+    /// </summary>
+    [Fact]
+    public void ACharacterThatCouldNotBeReadIsAbsentFromEveryRosterSection()
+    {
+        var (firstFile, secondFile, _, _) = Pair();
+
+        var run = Invoke("--from", firstFile, "--from", CharacterFile("{ nope"), "--from", secondFile,
+                         "--no-export", "--traits-above", "6");
+
+        var roster = run.Report["roster"]!;
+
+        Assert.Equal(3, (int)roster["character_count"]!);
+        Assert.Equal(2, (int)roster["read_count"]!);
+        Assert.Equal(2, roster["spending"]!.AsArray().Count);
+        Assert.Equal(2, roster["traits_above"]!.AsArray().Count);
+    }
+
+    // ── What --help documents ─────────────────────────────────────────────
+
+    /// <summary>
+    /// <b><c>--no-build</c> is what makes several agents in one working tree safe</b>, and it
+    /// was undocumented in every surface — found by guessing. Several <c>dotnet run</c>
+    /// commands at once collide on the compiler; <c>--no-build</c> skips the build entirely.
+    /// The reason is asserted with the flag, because a flag with no reason beside it is one
+    /// nobody has a reason to type.
+    /// </summary>
+    [Fact]
+    public void HelpNamesTheFlagThatMakesConcurrentUseSafeAndSaysWhy()
+    {
+        var run = Invoke("--help");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.Contains("--no-build", run.StdOut, StringComparison.Ordinal);
+        Assert.Contains("collide", run.StdOut, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Every flag the command accepts is in the text it prints. A flag the parser takes and
+    /// the usage never mentions is one only its author knows about — which is exactly how
+    /// <c>--no-build</c> went unfound.
+    /// </summary>
+    [Theory]
+    [InlineData("--from")]
+    [InlineData("--from-dir")]
+    [InlineData("--out")]
+    [InlineData("--no-export")]
+    [InlineData("--overwrite")]
+    [InlineData("--traits-above")]
+    [InlineData("--help")]
+    public void EveryFlagTheCommandTakesIsInItsUsage(string flag)
+    {
+        Assert.Contains(flag, BuildCommand.Usage, StringComparison.Ordinal);
+
+        // And the parser really does take it, so a flag documented after being dropped from
+        // the switch fails here rather than passing on the usage text alone.
+        var run = Invoke("--from", SampleHeroFile(), "--no-export", flag, "1");
+
+        Assert.DoesNotContain($"'{flag}' is not an option", run.StdOut, StringComparison.Ordinal);
     }
 
     // ── What the arguments mean ───────────────────────────────────────────

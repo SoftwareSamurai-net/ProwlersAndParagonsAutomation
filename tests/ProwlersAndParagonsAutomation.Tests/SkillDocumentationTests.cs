@@ -143,6 +143,50 @@ public sealed class SkillDocumentationTests
     }
 
     /// <summary>
+    /// <b><c>--no-build</c> is the flag that makes several agents in one working tree safe,
+    /// and it appeared in no document at all.</b> Plain <c>dotnet run</c> commands collide on
+    /// the compiler, and the failure that comes back says nothing about the character; it was
+    /// found by guessing. The reason is asserted with the flag, because a flag with no reason
+    /// beside it is one nobody has a reason to type.
+    ///
+    /// <para>Asserted here <em>and</em> in <c>HeadlessBuildTests</c> against the program's own
+    /// usage text, deliberately: this is the pair of documents that drifts, and one test over
+    /// both halves is what stops the skill keeping a claim the program has dropped.</para>
+    /// </summary>
+    [Fact]
+    public void TheSkillNamesTheFlagThatMakesConcurrentUseSafe()
+    {
+        Assert.Contains("--no-build", Text, StringComparison.Ordinal);
+        Assert.Contains("collide", Flowed, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Every flag the command's own usage prints is in the skill's table. The skill is what a
+    /// model reads instead of the program, so a flag the program grew and the skill did not is
+    /// a flag nobody will use — which is exactly the history of <c>--no-build</c>.
+    ///
+    /// <para>The list is read out of <see cref="BuildCommand.Usage"/> rather than written down
+    /// here, so adding a flag to the program adds it to this test in the same commit.</para>
+    /// </summary>
+    [Fact]
+    public void EveryFlagTheCommandPrintsIsInTheSkill()
+    {
+        var flags = new Regex(@"--[a-z][a-z-]+", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(BuildCommand.Usage)
+            .Select(m => m.Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // Positive control on the instrument: an extraction that has stopped matching finds
+        // nothing and satisfies an "all of them are present" assertion completely.
+        Assert.True(flags.Count >= 7,
+            $"Only {flags.Count} flags were found in the command's usage text. Fix this "
+            + "extraction rather than the assertion.");
+
+        Assert.All(flags, flag => Assert.Contains($"`{flag}", Text, StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Every rules file the skill sends a reader to has to be one that ships. This is the
     /// same failure as the example's field names, in the half of the document that is a map
     /// rather than a character.

@@ -378,20 +378,88 @@ nothing with either of them gone.
 
 `users.character_limit`, an integer, **default 5**.
 
-**A GM account is one with that column set to 25**, by hand, by whoever administers the database:
+**A GM account is one with that column set to 25.** It used to be set by hand, by whoever
+administers the database:
 
 ```sql
 UPDATE users SET character_limit = 25 WHERE email = 'someone@example.test';
 ```
 
-Two things about that, both deliberate:
+That still works and is still the only way to raise the *first* administrator's own cap. What has
+changed is that it is no longer the only way to raise anybody else's — see the three admin
+addresses below. Two things about the column are unchanged and deliberate:
 
-- **It is not self-service and there is no endpoint for it.** A cap somebody can raise on themselves
-  is not a cap. There is no sign-up flow that offers it and no field in any request that touches it.
+- **It is not self-service.** A cap somebody can raise on themselves is not a cap. There is no
+  sign-up flow that offers it, no field in any character request that touches it, and the screen
+  below refuses the caller's own address for exactly this reason.
 - **`Identity` does not gain a role, and must not.** It carries a key and a display name and nothing
   else — no claims, no token, no expiry — and a `role` field would reopen exactly that decision. The
   UI does not need one: it needs a *number*, and `limit` on the list response is that number. So
   "am I a GM" is not a question the client can ask, and does not need to be.
+
+### Setting somebody else's cap: three addresses under `/api/admin/accounts`
+
+| | | |
+|---|---|---|
+| `GET` | `/api/admin/accounts` | the players in the caller's own campaigns |
+| `PUT` | `/api/admin/accounts/{key}/character-limit` | set one player's cap |
+| `GET` | `/api/admin/accounts/{key}/characters` | what one player holds |
+
+All three are gated **exactly as `/api/admin/invitations` is** — `invitations.isAdministrator`, so
+401 signed out and the same **404 an unrouted address gets** for an ordinary account, and the page
+cannot be discovered by trying.
+
+**`{key}` is a URL-encoded email address.** It is what the administrator already reads off the
+invitation list on the same page, it is unique in `users` by the schema, and it is one key per
+*account* — a membership id would be several rows for one player in two of the GM's games, and the
+cap is a property of the account rather than of a membership. The account id stays off the wire,
+the same way the membership design keeps it off.
+
+**The scope is campaign membership and it is in every statement's `WHERE`.** An account is visible
+here because it is a player in a campaign the *caller* runs, joined through `campaign_members`. An
+address outside that set answers **byte-identically to an address nobody has ever used**, on both
+the read and the write, so neither is a way of asking who has an account here or who plays in whose
+game. **The caller never appears in their own list and cannot cap their own address**, even having
+redeemed their own join code: that is the "not self-service" rule above, kept true of the screen as
+well as of the database.
+
+```json
+{
+  "accounts": [
+    { "email": "player@example.test", "displayName": "player",
+      "characterCount": 3, "characterLimit": 5 }
+  ]
+}
+```
+
+`PUT …/character-limit` takes `{ "characterLimit": N }`, a whole number from **0 to 500** —
+anything else is 400, which is a malformed request rather than a fact about the account. It is
+**one statement with the scope inside it**, never a read followed by a write, and it answers the
+row as it now stands under an `account` key. The ceiling is a bound on what a column should hold,
+not a rule about how many characters anybody should have.
+
+**Lowering a cap below what somebody already holds is allowed and destroys nothing.** That is
+`putCharacter`'s existing behaviour and this screen is a number over it: the first clause of its
+`WHERE` lets an id the account already owns through however full the account is, so every character
+stays openable, editable and saveable, and only a *new* id is refused with the usual 409.
+
+`GET …/characters` answers that player's own `characters` rows — **not** the campaign's clones,
+which are a different set the GM can already read:
+
+```json
+{
+  "email": "player@example.test",
+  "characters": [
+    { "id": "c_…", "label": "Ninefold", "updatedAt": 1755600000000,
+      "kind": "villain", "tierId": "high", "spent": 118 }
+  ]
+}
+```
+
+**No payload, and the last three are the index columns `0008` added** — every one written by the
+client and handed back verbatim, so answering them is not the server parsing a character. It never
+has and this screen does not teach it to. Ordered most recently touched first; the three are null
+for a row that has none.
 
 ## What happens to `/api/character`
 

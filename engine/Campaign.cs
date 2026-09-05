@@ -25,9 +25,11 @@ namespace ProwlersAndParagonsAutomation.Engine;
 /// front of it.</para>
 ///
 /// <para><b>Nothing here is enforced on a character.</b> Joining a campaign copies settings into
-/// an empty field and reports a disagreement otherwise — <c>web/Services/CampaignJoin.cs</c> — and
-/// <see cref="TraitCapRank"/> in particular is reported and never applied in this slice, so a
-/// campaign cannot silently move a character's Resolve.</para>
+/// an empty field and reports a disagreement otherwise — <c>web/Services/CampaignJoin.cs</c>. That
+/// is as true of <see cref="TraitCapRank"/> as of the tier: it is copied into a character that has
+/// no cap of its own, and a character that already has one keeps it and the disagreement is handed
+/// back. What the character then does with its own copy is the character's business, and it is a
+/// great deal — see the field.</para>
 /// </summary>
 /// <param name="Id">
 /// <c>g_</c> followed by 22 URL-safe characters, mirroring the <c>c_</c> shape a character id
@@ -40,11 +42,18 @@ namespace ProwlersAndParagonsAutomation.Engine;
 /// <param name="TraitCapRank">
 /// A Trait Cap the GM has set for this table, or null for "whatever the tier says".
 ///
-/// <para><b>Reported, never enforced.</b> Applying it would move
-/// <see cref="DerivedStatsCalculator.CalculateResolve"/>, which is
-/// <c>(TraitCap − highestRelevantRank) × 2</c> — so a campaign cap could silently change a figure
-/// the player paid Hero Points for. Deferred deliberately; there is a test that a campaign cap
-/// leaves Resolve exactly where no campaign at all leaves it.</para>
+/// <para><b>It reaches a character by being copied onto it, and never by being read from here.</b>
+/// Joining copies this into <see cref="CharacterSheet.TraitCapRank"/> when that is empty, and from
+/// then on the character's own field is the only thing anything reads — which is what keeps a
+/// character portable and keeps the engine out of storage.</para>
+///
+/// <para><b>And it moves Resolve, which is the point rather than the hazard.</b>
+/// <see cref="DerivedStatsCalculator.CalculateResolve"/> is
+/// <c>(TraitCap − highestRelevantRank) × 2</c>, so the cap <em>is</em> the datum Resolve is
+/// measured from; a cap that only gated validation would pay a character for room the table has
+/// taken away from them. The owner settled that on 2026-09-05, reversing the deferral this
+/// paragraph used to record. It still cannot happen behind anybody's back: nothing here is applied
+/// to a character that has a cap of its own.</para>
 /// </param>
 /// <param name="UnlimitedBudget">
 /// Whether this table builds without a Hero Point limit — the sandbox, one level up from

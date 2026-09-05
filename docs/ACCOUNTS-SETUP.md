@@ -321,10 +321,16 @@ Leave `--remote` off to run it against a local copy instead, same as the migrati
 `UPDATE` statement and run it. Same effect; useful when you are already in the dashboard for
 something else.
 
-**This is deliberately not self-service and there is no endpoint for it** — see
-[`docs/CHARACTERS-API.md`](CHARACTERS-API.md). A cap somebody can raise on themselves is not a
-cap, so the only way to raise one is this command, run by hand by whoever administers the
-database.
+**This is still the only way to raise your *own* cap, and it is deliberately not self-service** —
+see [`docs/CHARACTERS-API.md`](CHARACTERS-API.md). A cap somebody can raise on themselves is not a
+cap, so no screen offers it and no field in any request touches it.
+
+**Somebody else's cap no longer needs this command.** The `Who plays in your campaigns` panel on
+`/admin` sets it for anybody who is a player in a campaign you run — the scope is
+`campaign_members`, and it refuses your own address for the reason above. So this command is for
+the first administrator's own account, and for an account that is not in one of your games. The
+three addresses behind that panel are documented in
+[`docs/CHARACTERS-API.md`](CHARACTERS-API.md).
 
 ---
 
@@ -354,9 +360,11 @@ and inventing a role to answer it looked like a far larger change than reading a
 What changed is that the invitation-list work made "am I an admin" a question the *server*
 already answers, on every request, for an unrelated reason. Gating a read-only error-log endpoint
 behind that existing check adds no role to `Identity` and no new concept — it is the same
-question `/api/admin/invitations` already asks. The character-limit cap above is a different
-case and is unaffected: raising it is a write with no gate built for it yet, so it stays a
-by-hand `UPDATE`.
+question `/api/admin/invitations` already asks. **The character-limit cap above went the same
+way, for the same reason and one slice later**: the `Who plays in your campaigns` panel on
+`/admin` sets the cap of anybody who is a player in a campaign you run, behind that same check.
+The by-hand `UPDATE` is what is left over — your own cap, and an account that is not in one of
+your games.
 
 **One row per `(category, route)`, counted rather than appended.** A failing dependency throws on
 every request, so a log with a row per occurrence would turn one outage into a full database.
@@ -422,9 +430,11 @@ There is a test for each, and one that asserts all three together: `AccountTests
   holds a credential and an injected script cannot read one.
 - **No third-party identity provider.** Nothing about who somebody is leaves the account the
   site is already deployed to.
-- **No self-service for the cap.** `users.character_limit` is set by hand — see the section
-  above. A cap somebody can raise on themselves is not a cap, and `Identity` deliberately does
-  not carry a role field either, so "am I a GM" is not a question the client can ask.
+- **No self-service for the cap.** An administrator can set the cap of a player in one of their
+  own campaigns, from `/admin`, and **never their own** — the statement behind that screen carries
+  `id <> ?` as well as the membership check, so the rule holds in the database and not only on the
+  page. Your own is still the command in the section above. `Identity` deliberately does not carry
+  a role field either, so "am I a GM" is not a question the client can ask.
 - **No rules on the server.** The engine runs in the browser and is the authority on what a
   character costs and whether it is legal. The server stores bytes it never parses.
 - **Self-service for your own name, and nothing else.** A fresh sign-in is called by the local

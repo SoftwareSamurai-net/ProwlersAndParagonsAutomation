@@ -87,6 +87,94 @@ public sealed class ValidationIssueStructureTests
     }
 
     /// <summary>
+    /// <b>A house Trait Cap is the cap Traits are measured against, and the finding says so.</b>
+    /// A 7d Ability is legal at the Standard tier's 12d and is not legal under a table's 6d, and
+    /// the <c>Limit</c> a repair loop reads is <b>6</b> — the ceiling the character is actually
+    /// built to, not the one its tier would allow. A limit naming the tier here would have a
+    /// caller "repair" the Ability to 12d and be told again.
+    /// </summary>
+    [Fact]
+    public void ATraitUnderTheTiersCapAndOverTheHouseOneIsReportedAgainstTheHouseOne()
+    {
+        var sheet = Legal();
+        sheet.AbilityRanks["intellect"] = 7;
+
+        // The positive control: 7d is legal at this tier, so what follows is the house cap
+        // doing the work rather than the tier's 12d catching it anyway.
+        Assert.False(Reports(sheet, "TRAIT_ABOVE_CAP"));
+
+        sheet.TraitCapRank = 6;
+
+        var issue = Issue(sheet, "TRAIT_ABOVE_CAP");
+
+        Assert.Equal(ValidationSubject.Ability, issue.SubjectKind);
+        Assert.Equal("intellect", issue.SubjectId);
+        Assert.Equal(7, issue.Value);
+        Assert.Equal(6, issue.Limit);
+
+        // The repair, made entirely out of the issue, as for the tier's cap.
+        sheet.AbilityRanks[issue.SubjectId!] = issue.Limit!.Value;
+
+        Assert.False(Reports(sheet, "TRAIT_ABOVE_CAP"));
+    }
+
+    /// <summary>
+    /// <b>A house cap above the tier's is reported and still used.</b> The engine is a judge and
+    /// does not repair, so the error carries the house cap in <c>Value</c> and the tier's in
+    /// <c>Limit</c> — and a 20d Ability under a 20d house cap at a 12d tier is <em>not</em>
+    /// separately reported as a Trait over the cap, because the cap it is built to really is 20d.
+    /// A validator that clamped instead would report the Trait and hide the cap.
+    /// </summary>
+    [Fact]
+    public void AHouseCapAboveTheTiersIsTheErrorAndIsStillTheCapInForce()
+    {
+        var sheet = Legal();
+        sheet.TraitCapRank = 20;
+        sheet.AbilityRanks["intellect"] = 20;
+
+        var issue = Issue(sheet, "TRAIT_CAP_ABOVE_TIER");
+
+        Assert.Equal(ValidationSubject.Character, issue.SubjectKind);
+        Assert.Equal(20, issue.Value);
+        Assert.Equal(_f.Rules.GetTier("standard")!.TraitCapRank, issue.Limit);
+        Assert.False(Reports(sheet, "TRAIT_ABOVE_CAP"));
+
+        // The repair the structure implies: bring the house cap down to the tier's. The Ability
+        // is then over the cap, which is the finding that was true all along and was hidden
+        // behind a cap nobody was allowed to set.
+        sheet.TraitCapRank = issue.Limit!.Value;
+
+        Assert.False(Reports(sheet, "TRAIT_CAP_ABOVE_TIER"));
+        Assert.True(Reports(sheet, "TRAIT_ABOVE_CAP"));
+    }
+
+    /// <summary>
+    /// A ceiling below the 1d floor no Trait may go under. Reported on its own rather than folded
+    /// into the finding above, because the two are different mistakes with different repairs and
+    /// one of them does not need a tier to be wrong.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-3)]
+    public void AHouseCapBelowTheTraitFloorIsRefused(int house)
+    {
+        var sheet = Legal();
+        sheet.TraitCapRank = house;
+
+        var issue = Issue(sheet, "TRAIT_CAP_BELOW_MINIMUM");
+
+        Assert.Equal(ValidationSubject.Character, issue.SubjectKind);
+        Assert.Equal(house, issue.Value);
+        Assert.Equal(1, issue.Limit);
+
+        // And it is reported with no tier at all, which is the reason it is checked outside the
+        // tier block: a cap under the floor is nonsense before anybody has picked a power level.
+        var untiered = new CharacterSheet { TraitCapRank = house };
+        Assert.True(Reports(untiered, "TRAIT_CAP_BELOW_MINIMUM"));
+        Assert.False(Reports(untiered, "TRAIT_CAP_ABOVE_TIER"));
+    }
+
+    /// <summary>
     /// A choice the rules fix the set of. The options have to be the keys the data accepts,
     /// not the prose the message sets them as: the message humanises
     /// <c>very_accurate</c> to "Very Accurate", and writing that back would be a second
@@ -918,6 +1006,12 @@ public sealed class ValidationIssueStructureTests
         ["ICONIC_TIER_OPEN_BUDGET"]         = [ValidationSubject.Tier],
         ["UNKNOWN_PACKAGE"]                 = [ValidationSubject.Character],
         ["HP_BUDGET_EXCEEDED"]              = [ValidationSubject.Character],
+
+        // The house Trait Cap is a field on the character rather than on any one Trait, so
+        // both findings about the cap itself are about the sheet. The findings about Traits
+        // measured against it are TRAIT_ABOVE_CAP, further down, and carry the Trait's kind.
+        ["TRAIT_CAP_ABOVE_TIER"]            = [ValidationSubject.Character],
+        ["TRAIT_CAP_BELOW_MINIMUM"]         = [ValidationSubject.Character],
         ["CHARACTER_NOT_PRICEABLE"]         = [ValidationSubject.Character],
         ["FLAW_MIN_NOT_MET"]                = [ValidationSubject.Character],
         ["FLAW_MAX_EXCEEDED"]               = [ValidationSubject.Character],
@@ -1190,7 +1284,8 @@ public sealed class ValidationIssueStructureTests
         "ungraded modifiers", "negative quantities", "options that do not apply",
         "no traits at all", "below its package", "gear without a name", "gear at its floor", "power at its floor",
         "unpriceable", "duplicates", "per-unit with no units",
-        "power-specific ungraded", "sample villain"
+        "power-specific ungraded", "sample villain",
+        "house cap above the tier", "house cap below one"
     ];
 
     /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
@@ -1215,6 +1310,23 @@ public sealed class ValidationIssueStructureTests
                 sheet.AbilityRanks["intellect"] = 40;
                 sheet.TalentRanks["academics"]  = 40;
                 sheet.SelectedPowers.Add(new SelectedPower("blast", 40));
+                return sheet;
+            }
+
+            // A house Trait Cap looser than the tier's is not a house rule, it is a character
+            // playing above the agreed power level — and it raises Resolve as well as the ranks.
+            case "house cap above the tier":
+            {
+                var sheet = Legal();
+                sheet.TraitCapRank = 40;
+                return sheet;
+            }
+
+            // And a ceiling below the 1d floor, which no legal character can fit under.
+            case "house cap below one":
+            {
+                var sheet = Legal();
+                sheet.TraitCapRank = 0;
                 return sheet;
             }
 

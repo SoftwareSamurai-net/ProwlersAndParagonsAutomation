@@ -173,7 +173,7 @@ public sealed class CampaignStorageTests
         var sheet = new CharacterSheet();
         var campaign = ACampaign(tierId: "high_level", unlimited: true);
 
-        Assert.Equal(CampaignJoinOutcome.Inherited, CampaignJoin.Apply(sheet, campaign));
+        Assert.Equal(CampaignJoinOutcome.Inherited, CampaignJoin.Apply(sheet, campaign).Outcome);
 
         Assert.Equal("high_level", sheet.SelectedTierId);
         Assert.True(sheet.UnlimitedBudget);
@@ -206,7 +206,7 @@ public sealed class CampaignStorageTests
         Assert.True(await FreshStore(Signed).Store.SaveAsync(campaign));
 
         // At the join.
-        Assert.Equal(CampaignJoinOutcome.TierDisagrees, CampaignJoin.Apply(sheet, campaign));
+        Assert.Equal(CampaignJoinOutcome.TierDisagrees, CampaignJoin.Apply(sheet, campaign).Outcome);
         Assert.Equal("street_level", sheet.SelectedTierId);
         Assert.False(sheet.UnlimitedBudget);
         Assert.Null(sheet.CampaignId);
@@ -237,6 +237,126 @@ public sealed class CampaignStorageTests
     }
 
     /// <summary>
+    /// <b>A campaign's Trait Cap lands in a character that has none.</b> That is the finding this
+    /// whole slice came from — a table caps a non-superhuman at 6d and the character has to carry
+    /// it, because the character is what everything computes from. Inherited alongside the tier
+    /// where the tier was empty, and alongside nothing where it was not: an empty field is filled
+    /// either way.
+    ///
+    /// <para>The positive control is the figure it moves. Resolve is measured from the cap, so an
+    /// inherited cap is a real change to the character rather than a label — and a join that
+    /// wrote the field and nothing that read it would pass an assertion about the field alone.</para>
+    /// </summary>
+    [Fact]
+    public void AnEmptyTraitCapInheritsTheCampaigns()
+    {
+        // With no tier of its own: the cap arrives with the tier.
+        var fresh = new CharacterSheet();
+        Assert.Equal(CampaignJoinOutcome.Inherited,
+            CampaignJoin.Apply(fresh, ACampaign(tierId: "standard", traitCap: 6)).Outcome);
+        Assert.Equal(6, fresh.TraitCapRank);
+
+        // With a tier that already agrees: the cap still arrives, because the field was empty.
+        var built = new CharacterSheet
+        {
+            SelectedTierId = "standard",
+            AbilityRanks = { ["might"] = 4 },
+        };
+
+        var before = Derived.CalculateResolve(built);
+        Assert.Equal(16, before);   // (12 - 4) x 2 at the Standard tier's cap
+
+        Assert.Equal(CampaignJoinOutcome.Joined,
+            CampaignJoin.Apply(built, ACampaign(tierId: "standard", traitCap: 6)).Outcome);
+
+        Assert.Equal(6, built.TraitCapRank);
+        Assert.Equal(4, Derived.CalculateResolve(built));   // (6 - 4) x 2
+    }
+
+    /// <summary>
+    /// <b>A cap the character already has is kept, and the disagreement is handed back.</b> Same
+    /// rule as the tier and for a sharper reason: writing over it would move Resolve on somebody's
+    /// finished character in the course of typing a join code.
+    /// </summary>
+    [Fact]
+    public void ATraitCapTheCharacterAlreadyHasIsKeptAndTheDisagreementIsReported()
+    {
+        var sheet = new CharacterSheet { SelectedTierId = "standard", TraitCapRank = 8 };
+        var campaign = ACampaign(tierId: "standard", traitCap: 6);
+
+        Assert.Equal(CampaignJoinOutcome.Joined, CampaignJoin.Apply(sheet, campaign).Outcome);
+        Assert.Equal(8, sheet.TraitCapRank);
+
+        var finding = CampaignJoin.Inspect(sheet, campaign);
+
+        Assert.NotNull(finding);
+        Assert.Equal("CAMPAIGN_TRAIT_CAP_MISMATCH", finding!.Code);
+        Assert.Equal(8, finding.CharacterTraitCapRank);
+        Assert.Equal(6, finding.CampaignTraitCapRank);
+
+        // The sentence carries neither figure, the way the tier finding carries neither id.
+        Assert.DoesNotContain("8d", finding.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("6d", finding.Message, StringComparison.Ordinal);
+
+        // And agreement is not a finding, so the check above is not satisfied by any two caps.
+        var agreeing = new CharacterSheet { SelectedTierId = "standard", TraitCapRank = 6 };
+        Assert.Null(CampaignJoin.Inspect(agreeing, campaign));
+    }
+
+    /// <summary>
+    /// <b>A join says which settings it actually took, and every combination is one of them.</b>
+    ///
+    /// <para>The outcome alone cannot carry that sentence and a screen reading it had to guess.
+    /// It guessed wrong: "Its tier and its Trait Cap are now yours" was printed over a join that
+    /// took the tier and left a cap the character already had, because the write is <c>??=</c>
+    /// and is silent by construction. A message claiming a change nobody made is worse than no
+    /// message.</para>
+    ///
+    /// <para>Four rows and not three, because "took neither" is the control: a result that
+    /// reported everything taken would satisfy the three positive cases on its own.</para>
+    /// </summary>
+    [Theory]
+    // an empty character, and a game with both settings — both are taken
+    [InlineData(null, null, "standard", 6, true, true)]
+    // an empty character, and a game with no cap of its own — the tier alone
+    [InlineData(null, null, "standard", null, true, false)]
+    // a character already at this tier with no cap — the cap alone
+    [InlineData("standard", null, "standard", 6, false, true)]
+    // a character with a cap of its own, at a game that sets one — nothing is taken
+    [InlineData("standard", 8, "standard", 6, false, false)]
+    public void AJoinSaysWhichSettingsItTook(
+        string? tier, int? cap, string? gameTier, int? gameCap, bool takesTier, bool takesCap)
+    {
+        var sheet = new CharacterSheet { SelectedTierId = tier, TraitCapRank = cap };
+
+        var result = CampaignJoin.Apply(sheet, ACampaign(tierId: gameTier, traitCap: gameCap));
+
+        Assert.Equal(takesTier, result.TookTier);
+        Assert.Equal(takesCap, result.TookTraitCap);
+
+        // And the flags describe the sheet, rather than being a second opinion beside it.
+        Assert.Equal(takesTier ? gameTier : tier, sheet.SelectedTierId);
+        Assert.Equal(takesCap ? gameCap : cap, sheet.TraitCapRank);
+    }
+
+    /// <summary>
+    /// A refused join took nothing, and says so — the fourth state, which the theory above cannot
+    /// reach because every row of it is a join that lands.
+    /// </summary>
+    [Fact]
+    public void ARefusedJoinTookNothing()
+    {
+        var sheet = new CharacterSheet { SelectedTierId = "street_level" };
+
+        var result = CampaignJoin.Apply(sheet, ACampaign(tierId: "standard", traitCap: 6));
+
+        Assert.Equal(CampaignJoinOutcome.TierDisagrees, result.Outcome);
+        Assert.False(result.TookTier);
+        Assert.False(result.TookTraitCap);
+        Assert.Null(sheet.TraitCapRank);
+    }
+
+    /// <summary>
     /// A campaign that names no tier overrules nobody, and a campaign that agrees is simply
     /// joined. Both are the "nothing to disagree about" half of the rule above.
     /// </summary>
@@ -245,12 +365,12 @@ public sealed class CampaignStorageTests
     {
         var sheet = new CharacterSheet { SelectedTierId = "standard" };
 
-        Assert.Equal(CampaignJoinOutcome.Joined, CampaignJoin.Apply(sheet, ACampaign(tierId: null)));
+        Assert.Equal(CampaignJoinOutcome.Joined, CampaignJoin.Apply(sheet, ACampaign(tierId: null)).Outcome);
         Assert.Equal("standard", sheet.SelectedTierId);
         Assert.Null(CampaignJoin.Inspect(sheet, ACampaign(tierId: null)));
 
         var agreeing = new CharacterSheet { SelectedTierId = "standard" };
-        Assert.Equal(CampaignJoinOutcome.Joined, CampaignJoin.Apply(agreeing, ACampaign()));
+        Assert.Equal(CampaignJoinOutcome.Joined, CampaignJoin.Apply(agreeing, ACampaign()).Outcome);
         Assert.Null(CampaignJoin.Inspect(agreeing, ACampaign()));
     }
 
