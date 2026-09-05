@@ -1389,6 +1389,10 @@
       "specialist"
     ],
     "affects_resolve": false,
+    "affects_resolve_when_nominated": [
+      "might",
+      "agility"
+    ],
     "verified_fields": [
       "range",
       "rank_type",
@@ -1398,7 +1402,7 @@
       "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.28",
-    "notes": "Baseline rank equals the rank of the Ability or Talent the specialisation falls under, nominated by the player at purchase."
+    "notes": "Baseline rank equals the rank of the Ability or Talent the specialisation falls under, nominated by the player at purchase. Ch.5 p.83 exempts Expertise from Resolve 'except for combat skills', so affects_resolve is the default and affects_resolve_when_nominated names the nominations that overturn it. The book never defines a combat skill and names no combat Talent — the twelve on p.18 are Academics, Charm, Command, Covert, Investigation, Medicine, Professional, Science, Streetwise, Survival, Technology and Vehicles — so the set is the two Abilities p.17 puts to work in a fight: Might, 'used to perform armed and unarmed close combat attacks', and Agility, which 'applies when firing mundane ranged weapons and defending against attacks'. Agility is also the Trait behind the book's own worked example, Expertise (Agility: Firearms). A nomination to a Power is deliberately absent: p.83's own criterion already decides that case for every Power in this file."
   },
   {
     "id": "extra_limbs",

@@ -532,8 +532,11 @@ public sealed class BuildCommand
                             .Select(id => JsonValue.Create(id))]);
                 }
 
+                // Asked of the selection, not of the entry: an Expertise nominated to a combat
+                // skill counts where one nominated to Science does not (Ch.5 p.83), and this row
+                // is about a purchase on somebody's sheet rather than about the Power in general.
                 if (power is not null)
-                    row["affects_resolve"] = DerivedStatsCalculator.ResolveAffectedByPower(power);
+                    row["affects_resolve"] = _derived.ResolveAffectedBySelection(selection);
 
                 traits.Add(row);
             }

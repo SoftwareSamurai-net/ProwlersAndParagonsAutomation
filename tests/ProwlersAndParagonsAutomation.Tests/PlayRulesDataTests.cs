@@ -1092,11 +1092,17 @@ public sealed class PlayRulesDataTests
     /// and the mapping lives here rather than in the JSON precisely because it is a reading:
     /// <c>resolve.json</c> transcribes the printed names and nothing else.</para>
     ///
-    /// <para><b>And one of the eleven is not asked at all.</b> p.83 exempts "Expertise (except for
-    /// combat skills)", which is a carve-out and not an exemption, so requiring <c>false</c> for it
-    /// would have made a green test ratify an answer the page contradicts. It is excluded by name,
-    /// with the reason, and the divergence is asserted on purpose by
-    /// <see cref="ADivergenceTheEngineCannotYetExpress"/>.</para>
+    /// <para><b>Eleven of eleven, and the eleventh used to be excluded.</b> p.83 exempts "Expertise
+    /// (except for combat skills)", which is a carve-out and not an exemption, and while
+    /// <c>affects_resolve</c> was the only flag on the entry, requiring <c>false</c> here would have
+    /// made a green test ratify an answer the page contradicts — so Expertise was skipped by name
+    /// and the gap asserted separately. The carve-out now lives on the nomination
+    /// (<c>affects_resolve_when_nominated</c>, read by
+    /// <see cref="DerivedStatsCalculator.ResolveAffectedBySelection"/>), which leaves
+    /// <c>affects_resolve: false</c> as the entry's *default* answer and makes it exactly the right
+    /// thing to require here: an Expertise nominated to anything but a combat skill is exempt, and
+    /// this loop asks about the Power with no nomination in hand.
+    /// <see cref="AnExpertiseNominatedToACombatSkillCountsTowardsResolve"/> covers the other side.</para>
     /// </summary>
     [Fact]
     public void EveryPowerChapterFiveNamesAsExemptIsExemptInTheRulesData()
@@ -1106,14 +1112,10 @@ public sealed class PlayRulesDataTests
         Assert.NotNull(named);
         Assert.Equal(CanonicalResolveRules.NamedResolveExemptPowers, named.NamedPowers);
 
-        // The names this check does not ask about have to be names the page actually prints, or an
-        // exclusion could quietly cover nothing (a typo) or everything (a widened rule).
-        Assert.Subset(named.NamedPowers.ToHashSet(StringComparer.Ordinal), NamesThisCheckCannotAsk.Keys.ToHashSet(StringComparer.Ordinal));
-
         var faults = new List<string>();
         var matched = 0;
 
-        foreach (var printedName in named.NamedPowers.Where(n => !NamesThisCheckCannotAsk.ContainsKey(n)))
+        foreach (var printedName in named.NamedPowers)
         {
             var dataName = ChapterFivePowerNames.GetValueOrDefault(printedName, printedName);
 
@@ -1143,10 +1145,10 @@ public sealed class PlayRulesDataTests
             }
         }
 
-        // Positive control: ten of the eleven printed names are asked about, and Super Senses alone
-        // is sixteen entries, so a lookup that had stopped matching would fault nothing and prove
+        // Positive control: all eleven printed names are asked about, and Super Senses alone is
+        // sixteen entries, so a lookup that had stopped matching would fault nothing and prove
         // nothing.
-        Assert.True(matched >= 25, $"Only {matched} powers.json entries were reached for {named.NamedPowers.Count} printed names.");
+        Assert.True(matched >= 26, $"Only {matched} powers.json entries were reached for {named.NamedPowers.Count} printed names.");
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
 
@@ -1160,49 +1162,26 @@ public sealed class PlayRulesDataTests
         new(StringComparer.Ordinal) { ["Swinging"] = "Swing Line" };
 
     /// <summary>
-    /// The printed names the exemption cross-check must <b>not</b> ask <c>powers.json</c> about,
-    /// each with the reason it cannot answer. <b>Excluded by name and never by a rule</b>, so a
-    /// second one cannot be added without writing down why.
+    /// <b>The carve-out on p.83, asserted from both sides on one character.</b> The page exempts
+    /// "Expertise (except for combat skills)", so an Expertise nominated to a combat skill
+    /// <em>does</em> count towards the opening pool while one nominated to anything else does not.
+    /// A Standard-tier 6d character with Expertise at the 12d cap therefore opens on 0 Resolve when
+    /// the nomination is Martial Arts and on 12 when it is Science — the same sheet, the same rank,
+    /// two answers, and the nomination is the only thing that moved.
     ///
-    /// <para>Expertise is the only member, and it is a carve-out rather than an exemption: p.83
-    /// reads "Expertise (except for combat skills)", so whether an Expertise counts depends on the
-    /// Trait it was nominated to. <c>affects_resolve</c> is one flag on one entry and cannot say
-    /// that, so the entry is an unconditional <c>false</c> and the engine's answer is wrong for
-    /// exactly the combat-skill case. Requiring <c>false</c> here made a green test <em>ratify</em>
-    /// that; <see cref="ADivergenceTheEngineCannotYetExpress"/> asserts it instead, so it is
-    /// recorded rather than blessed.</para>
-    /// </summary>
-    private static readonly Dictionary<string, string> NamesThisCheckCannotAsk =
-        new(StringComparer.Ordinal)
-        {
-            ["Expertise"] =
-                "p.83 exempts Expertise 'except for combat skills', and powers.json carries one "
-                + "unconditional affects_resolve flag for all of them"
-        };
-
-    /// <summary>
-    /// <b>A place where the page and the engine give different answers, asserted on purpose.</b>
-    /// p.83 exempts "Expertise (except for combat skills)" — so an Expertise nominated to a combat
-    /// skill <em>does</em> count towards the opening pool. <c>powers.json</c> has one Expertise
-    /// entry with one <c>affects_resolve: false</c>, and the flag has no room for the nomination,
-    /// so the engine exempts every Expertise there is.
+    /// <para><b>This replaces a test that pinned the wrong answer on purpose.</b>
+    /// <c>ADivergenceTheEngineCannotYetExpress</c> asserted the engine's 12 for the Martial Arts
+    /// case and was written to go red the day the carve-out landed, because a divergence recorded
+    /// as a test that would still pass after the fix is one nobody notices was closed. It went red,
+    /// and this is what it was replaced with.</para>
     ///
-    /// <para><b>The engine is not changed here, and neither is the data.</b> Chapter 5 is
-    /// transcribed in this slice; teaching <c>DerivedStatsCalculator</c> the carve-out is
-    /// <c>PROGRESS.md</c> item 14's engine work, and <c>CLAUDE.md</c>'s rule is that this
-    /// repository <em>reports</em> rather than repairs. What was not acceptable was the previous
-    /// state: <see cref="EveryPowerChapterFiveNamesAsExemptIsExemptInTheRulesData"/> required
-    /// <c>false</c> for all eleven names including Expertise, so a green suite was ratifying an
-    /// answer the page contradicts.</para>
-    ///
-    /// <para><b>This test is written to go red when the gap closes, and that is the point.</b> It
-    /// asserts the engine's present answer exactly. The day the carve-out lands, the figure becomes
-    /// the one the page wants and this fails — at which point flip the two numbers and delete the
-    /// exclusion in <see cref="NamesThisCheckCannotAsk"/>. A divergence recorded as a passing test
-    /// that would still pass after the fix is a divergence nobody will ever notice was closed.</para>
+    /// <para><b>Both halves are here deliberately.</b> Asserting only the combat case would be
+    /// satisfied by an entry whose <c>affects_resolve</c> had simply been flipped to true, which is
+    /// the opposite error and exempts nothing; asserting only the Science case would be satisfied by
+    /// the engine as it stood before the fix.</para>
     /// </summary>
     [Fact]
-    public void ADivergenceTheEngineCannotYetExpress()
+    public void AnExpertiseNominatedToACombatSkillCountsTowardsResolve()
     {
         var tier = _f.Rules.GetTier("standard");
         Assert.NotNull(tier);
@@ -1214,12 +1193,19 @@ public sealed class PlayRulesDataTests
         // Arts sits at its Might baseline, and Expertise nominated to it is bought the rest of the
         // way. No Determination and no Condition or Plot Hook Flaw, so the figure below is the
         // chapter's base table and nothing else.
-        var sheet = RulesFixture.StandardSheet();
-        foreach (var ability in _f.Rules.Abilities) sheet.AbilityRanks[ability.Id] = abilityRank;
+        CharacterSheet Character(string nomination)
+        {
+            var built = RulesFixture.StandardSheet();
+            foreach (var ability in _f.Rules.Abilities) built.AbilityRanks[ability.Id] = abilityRank;
 
-        sheet.SelectedPowers.Add(new SelectedPower("martial_arts", 0));
-        sheet.SelectedPowers.Add(
-            new SelectedPower("expertise", cap - abilityRank) { BaselineTraitId = "martial_arts" });
+            built.SelectedPowers.Add(new SelectedPower("martial_arts", 0));
+            built.SelectedPowers.Add(
+                new SelectedPower("expertise", cap - abilityRank) { BaselineTraitId = nomination });
+
+            return built;
+        }
+
+        var sheet = Character("martial_arts");
 
         // Positive controls on the fixture, because every assertion below is about a rank the
         // character has to actually reach. An Expertise that came out at 6 would produce the same
@@ -1231,7 +1217,8 @@ public sealed class PlayRulesDataTests
         Assert.Null(sheet.GetPower("determination"));
         Assert.Empty(sheet.Flaws);
 
-        // And the flag really is the unconditional one the page cannot be expressed through.
+        // And the entry's own flag is still the exemption, because the carve-out rides on the
+        // nomination. A flipped flag would pass the first assertion below and break the second.
         var entry = _f.Rules.GetPower("expertise");
         Assert.NotNull(entry);
         Assert.False(
@@ -1244,31 +1231,19 @@ public sealed class PlayRulesDataTests
         var fromTheTable = ResolveEntryById("starting_resolve").StartingResolve;
         Assert.NotNull(fromTheTable);
 
-        // What the page wants: the nomination is a combat skill, so the Expertise counts, the
-        // highest relevant rank is the cap, and the opening pool is nothing.
-        var thePageWants = fromTheTable.AtTraitCap;
+        // The nomination is a combat skill, so the Expertise counts, the highest relevant rank is
+        // the cap, and the opening pool is nothing.
+        var atTheCap = fromTheTable.AtTraitCap;
 
-        // What the engine answers: the Expertise is exempt whatever it was nominated to, so the
+        // Nominated to a Talent instead, the Expertise is exempt however high it was bought, so the
         // highest relevant rank is the 6d Ability and the pool is six dice of room, twice over.
-        var theEngineAnswers =
+        var sixDiceUnderTheCap =
             fromTheTable.AtTraitCap + (cap - abilityRank) * fromTheTable.ResolvePerRankBelowCap;
 
-        Assert.NotEqual(thePageWants, theEngineAnswers);
+        Assert.NotEqual(atTheCap, sixDiceUnderTheCap);
 
-        var answer = _f.Derived.CalculateResolve(sheet);
-
-        // The informative assertion first: this is the one that fires the day the gap closes, and
-        // "Expected 12, Actual 0" on its own would send the reader to fix the wrong side.
-        Assert.True(
-            answer != thePageWants,
-            $"CalculateResolve now answers {thePageWants} for an Expertise nominated to a combat "
-            + $"skill, which is what p.{CanonicalResolveRules.ExceptionsPage} wants — 'Expertise "
-            + $"({CanonicalResolveRules.ExpertiseQualifier})' means the nomination counts towards "
-            + "the opening pool. The engine has learned the carve-out: swap the two figures in this "
-            + "test so it asserts agreement, and delete the Expertise entry from "
-            + "NamesThisCheckCannotAsk so the exemption cross-check asks about it again.");
-
-        Assert.Equal(theEngineAnswers, answer);
+        Assert.Equal(atTheCap, _f.Derived.CalculateResolve(sheet));
+        Assert.Equal(sixDiceUnderTheCap, _f.Derived.CalculateResolve(Character("science")));
     }
 
     /// <summary>
