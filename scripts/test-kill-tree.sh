@@ -708,10 +708,13 @@ orphan_case() {
   stop_server
 
   if live "$holder"; then
+    # **Described before it is killed, and that ordering is the message.** The other way round —
+    # which is how this was written first — `ps` has nothing left to report and the failure says
+    # "<no longer running>" about the process it is complaining is still running.
+    local described; described="$(describe_pid "$holder")"
     kill -9 "$holder" 2>/dev/null || true
-    fail ORPHANED_LISTENER "[OUTCOME] $(describe_pid "$holder") was holding port $port from"\
-" outside the tree of $root_pid and outlived stop_server. The port-holder backstop did not run,"\
-" or did not find it."
+    fail ORPHANED_LISTENER "[OUTCOME] $described was holding port $port from outside the tree of"\
+" $root_pid and outlived stop_server. The port-holder backstop did not run, or did not find it."
     return
   fi
 
