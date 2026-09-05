@@ -277,13 +277,19 @@ proc_net_parse_case() {
     printf '   0: 00000000000000000000000001000000:%04X 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1001 0 4242005 1 0 100 0 0 10 0\n' "$want"
   } > "$fake/net/tcp6"
 
-  mkdir -p "$fake/900101/fd" "$fake/900102/fd" "$fake/900103/fd" "$fake/900104/fd" "$fake/900105/fd"
+  mkdir -p "$fake/900101/fd" "$fake/900102/fd" "$fake/900103/fd" "$fake/900104/fd" \
+    "$fake/900105/fd" "$fake/900106/fd"
   ln -s 'socket:[4242001]' "$fake/900101/fd/3"      # the IPv4 listener  — an answer
   ln -s 'socket:[4242005]' "$fake/900102/fd/7"      # the IPv6 listener  — an answer
   ln -s 'socket:[4242003]' "$fake/900103/fd/3"      # listening on $other
   ln -s 'socket:[4242002]' "$fake/900104/fd/3"      # connected, not listening
   ln -s '/dev/null'        "$fake/900105/fd/0"
   ln -s 'pipe:[4242001]'   "$fake/900105/fd/1"      # same number, not a socket
+  # **Every decoy socket has an owner on purpose**, this one most of all: it is the client whose
+  # *remote* address is the wanted port. Leave it unowned and reading field 3 instead of field 2
+  # answers "nobody" — which is red, but red for the wrong reason and indistinguishable from a
+  # parser that read no table at all. Owned, the wrong reading names 900106 and says so.
+  ln -s 'socket:[4242004]' "$fake/900106/fd/5"
 
   local saved="$proc_root"
   proc_root="$fake"
@@ -327,7 +333,7 @@ proc_net_parse_case() {
   fi
 
   pass PROC_NET_PARSE "the /proc socket lookup named both listeners on $want across net/tcp and"\
-" net/tcp6, and none of the four decoys."
+" net/tcp6, and none of the five decoys."
 }
 
 # ------------------------------------------------------------------------------------------------
