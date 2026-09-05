@@ -97,6 +97,7 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — a test-platform migration, blocked on MTP v2 versus the .NET 10 SDK
 - [ ] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table is 61% of this file's churn; convert its measured cells to pointers. **Last, deliberately** — contention, not a defect
 - [ ] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — 21 dead pointers and ten factual drifts in this file, plus the guard that would stop it recurring
+- [x] **[24](#24-a-bunit-event-is-dispatched-not-applied-and-three-palette-tests-read-a-render-early)** — three palette tests raced the renderer and went red on CI one at a time; the whole class is swept and a guard fails the build on the next synchronous drive. Verified by the orchestrator 2026-09-06
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -1650,7 +1651,29 @@ figures above count *how often a region changes*. A separate experiment on 2026-
 three-way merges in a throwaway clone and found that **two branches editing two different `###`
 items merge clean today** — even adjacent ones, even when one deletes its whole block. What
 conflicted there were two shared anchors: the triage preamble that used to name every open item in
-wrapped prose, so any two closures collided inside one bullet, and the `## Completed work`
+wrapped prose, so any two closures collided inside one bullet, and the `### 24. A bUnit event is dispatched, not applied, and three palette tests read a render early
+
+**Three CI runs went red on one class, one test at a time, and each was fixed alone — which was the
+wrong shape of fix, and this entry exists so the class-wide one is not undone.** bUnit's synchronous
+`Input()`, `Click()` and `KeyDown()` post the event and return; only the `…Async` forms come back
+once the render they caused has finished. While the renderer is idle the post runs inline and the
+difference never shows. The command palette is the one place here where the renderer is *not* idle:
+the book's answer lands on a thread-pool continuation and the redraw it raises is queued through
+`InvokeAsync`, so a test that dispatched a keystroke and read the DOM on the next line was reading the
+markup from before the keystroke — on a slow enough machine. That is a fact about the test harness
+and about machine speed, not about Linux and not about the product: every one of the three was traced
+to the drive, and the product's own behaviour was proved right by mutation each time.
+
+It slipped in because it passed on the Mac, three times, and it stayed on CI for the better part of a
+day because each fix converted the one test that had just failed. **The fix now is the class**:
+every drive in `PaletteBookTests`, `BannerTests` and `CommandPaletteTests` that is followed by a read
+uses the awaited form, the sensitive reads run under a deliberately busy renderer
+(`BusyRenderer`, with an elapsed-time positive control) so the losing order is exercised on every
+machine on every run, and `PaletteDispatchTests` reads the three files' source and fails the build on
+the next synchronous drive — its doc comment says what a denylist cannot do. Runs `0361de7`,
+`621939f` and the sweep are the history; `docs/guide/testing.md` carries the rule.
+
+## Completed work`
 boundary that every new item is appended at.
 
 **The preamble half is fixed** — it is now the one-line-per-item checklist above, so two closures
