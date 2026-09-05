@@ -2271,6 +2271,16 @@ public sealed class PlayRulesDataTests
     /// <c>gritty.json</c>'s headings sit on p.79 beside two of <c>combat.json</c>'s, so a check
     /// scoped to one file would accept a Gritty rule citing a heading that belongs to the ordinary
     /// combat rules and the other way round.</para>
+    ///
+    /// <para><b>What it cannot catch, measured rather than assumed:</b> swapping one heading for
+    /// <em>another heading on the same page</em>. Retagging <c>gritty_the_drop</c> from
+    /// <c>THE DROP</c> to <c>FATAL DAMAGE</c> — both p.79 — walks straight through, where the same
+    /// mutation across a page boundary is caught. That is the shape of the check by construction:
+    /// it narrows the target from a page to the headings on that page, which is a real narrowing
+    /// and not an exact one, and telling two headings on one page apart would mean matching an
+    /// entry's content against the section's prose. <see cref="EveryEntryNamesAHeadingPrintedOnThePageItCites"/>
+    /// has had the same property since Chapter 5 and it is written down here rather than left for
+    /// the next reader to discover by mutating it.</para>
     /// </summary>
     [Fact]
     public void EveryChapterFourEntryNamesAHeadingPrintedOnThePageItCites()
