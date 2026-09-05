@@ -1034,6 +1034,13 @@ public sealed partial class Encounter
     ///
     /// <para>The dice are added to the attack pool and the outcome recomputed against the target as
     /// they were, which is why <see cref="EncounterState.LastAttack"/> keeps that snapshot.</para>
+    ///
+    /// <para><b>The pool grows, and that is the half that was missing.</b> A bought die is part of
+    /// the roll from the moment it is bought — p.84 offers both purchases on "a challenge roll" and
+    /// draws no line round the dice that were there first — so a reroll after a purchase picks the
+    /// whole pool back up. Adding the successes and leaving <c>AttackPool</c> where it was meant a
+    /// Hero who spent two points on a 10d attack and then bought a reroll threw ten dice for it and
+    /// silently lost what they had paid for.</para>
     /// </summary>
     private EncounterState BuyDice(EncounterState state, Combatant actor, int points, List<LedgerLine> lines)
     {
@@ -1053,9 +1060,14 @@ public sealed partial class Encounter
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
             $"{actor.Name} spends {cost} Resolve for {extra} more dice after the roll, scoring "
-            + $"{roll.Successes} more: {last.AttackSuccesses} becomes {last.AttackSuccesses + roll.Successes}"));
+            + $"{roll.Successes} more: {last.AttackSuccesses} becomes {last.AttackSuccesses + roll.Successes}, "
+            + $"and the roll on the table is now {last.AttackPool + extra}d"));
 
-        var improved = last with { AttackSuccesses = last.AttackSuccesses + roll.Successes };
+        var improved = last with
+        {
+            AttackPool = last.AttackPool + extra,
+            AttackSuccesses = last.AttackSuccesses + roll.Successes
+        };
 
         var after = state.With(actor.Spending(cost));
         after = ReapplyLastAttack(after, improved, lines);

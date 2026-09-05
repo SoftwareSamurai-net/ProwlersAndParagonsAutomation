@@ -561,6 +561,67 @@ public sealed class PlayEngineStepTests
         }
     }
 
+    // ── Spending Resolve after the roll ──────────────────────────────────────
+
+    /// <summary>
+    /// <b>A reroll picks up the dice that were bought, too.</b>
+    ///
+    /// <para>Ch.5 p.84 offers both purchases on "a challenge roll" and draws no line round the dice
+    /// that were there first, so a Hero who buys two dice onto a 10d attack and then buys a reroll
+    /// throws twelve. The engine kept <c>AttackPool</c> at the figure it was rolled with, so the
+    /// reroll threw ten and the Hero silently lost what they had paid for.</para>
+    ///
+    /// <para>Scripted dice are what prove it rather than an assertion about a field: the fixture
+    /// supplies exactly 10 + 2 + 12 faces and requires none to be left over, so an engine rerolling
+    /// the wrong pool runs out or leaves faces behind either way.</para>
+    /// </summary>
+    [Fact]
+    public void ARerollPicksUpTheDiceThatWereBoughtAsWell()
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 4,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 10, ["toughness"] = 4 },
+            ["toughness"]);
+
+        // No defence at all, so the only pools thrown are the attacker's and the fixture's arithmetic
+        // is about nothing else.
+        var target = Combatant.Villain("target", "the target", edge: 5, health: 40,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 3 }, []);
+
+        var dice = new ScriptedDice([
+            .. FacesFor(10, 2),   // the attack: 10d for 2
+            .. FacesFor(1, 0),    // the target has no defence, and p.67's floor still throws one die
+            .. FacesFor(2, 2),    // the two dice bought, for 2 more
+            .. FacesFor(12, 9)    // the reroll, which has to be twelve dice
+        ]);
+
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, target]);
+
+        state = encounter.Step(state, new Attack("hero", "target", "might")).State;
+
+        // The controls: the roll on the table is the 10d the Hero has, and it scored what the script
+        // says.
+        Assert.Equal(10, state.LastAttack!.AttackPool);
+        Assert.Equal(2, state.LastAttack.AttackSuccesses);
+
+        var bought = encounter.Step(state, new SpendResolve("hero", ResolveSpend.ExtraDice, Points: 2));
+        state = bought.State;
+
+        Assert.Equal(12, state.LastAttack!.AttackPool);
+        Assert.Equal(4, state.LastAttack.AttackSuccesses);
+        Assert.Contains(bought.Added, l => l.Text.Contains("now 12d", StringComparison.Ordinal));
+
+        var rerolled = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Reroll));
+
+        Assert.Contains(rerolled.Added, l =>
+            l.Text.Contains("to reroll 12d", StringComparison.Ordinal));
+        Assert.Equal(9, rerolled.State.LastAttack!.AttackSuccesses);
+
+        // The other half of the control: the engine asked for exactly the dice the page describes.
+        Assert.Equal(0, dice.Remaining);
+        Assert.Equal(1, rerolled.State["hero"].Resolve);
+    }
+
     // ── Defeat ───────────────────────────────────────────────────────────────
 
     /// <summary>
