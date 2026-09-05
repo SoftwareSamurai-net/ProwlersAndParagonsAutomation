@@ -75,6 +75,22 @@ listeners_on() {
     | sort -u
 }
 
+# Where the `/proc` readers below take the process table and the kernel's socket tables. `/proc` in
+# every real use.
+#
+# **It is a variable so that the Linux arms can be driven on a machine that has no `/proc`**, which
+# is every developer machine this project is written on. `scripts/test-kill-tree.sh` builds a
+# synthetic tree of `stat` files from the real process table and points this at it, so
+# `children_of`'s parse — the `(comm) ` trim, the field offset, the ppid comparison — is exercised
+# on macOS as well as on the runner; it builds a synthetic `net/tcp` and a synthetic `<pid>/fd/`
+# for `port_holders` in the same way. That is a test of the *parse* and not of the kill; only CI
+# runs the real Linux arms against real processes, which is why the script is a step in
+# `build.yml`.
+#
+# Same shape and same justification as `WRANGLER_BIN` in `scripts/apply-migrations.sh` and
+# `PP_E2E_CHROME` in `scripts/e2e.sh`: a seam a test sets, never something production reads.
+proc_root="${PP_PROC_ROOT:-/proc}"
+
 # Whether anything is listening on a port. Portable, and portable is the point.
 #
 # **`listeners_on` above is Windows-only — `on_windows || return 0` — so on Linux it reported every
@@ -125,13 +141,13 @@ port_in_use() {
   hex="$(printf '%04X' "$port")"
 
   local table
-  for table in /proc/net/tcp /proc/net/tcp6; do
+  for table in "$proc_root/net/tcp" "$proc_root/net/tcp6"; do
     [ -r "$table" ] || continue
     awk -v want=":$hex" '$4 == "0A" && index($2, want) == length($2) - length(want) + 1 { found = 1 }
          END { exit !found }' "$table" && return 0
   done
 
-  if [ -r /proc/net/tcp ]; then
+  if [ -r "$proc_root/net/tcp" ]; then
     return 1
   fi
 
@@ -161,6 +177,103 @@ port_in_use() {
   echo "::error::cannot tell whether port $port is free: no /proc/net/tcp and no 'ss' on PATH." >&2
   echo "::error::Refusing rather than guessing it is free — see this function's comment." >&2
   exit 2
+}
+
+# The pids listening on a port, from the kernel rather than from a tool that may not be installed.
+#
+# ------------------------------------------------------------------------------------------------
+# WHY THIS EXISTS: `kill_tree` CANNOT REACH A PROCESS THAT IS NOT IN THE TREE.
+#
+# CI run `33949251306` is the first direct evidence about the Linux leak `PROGRESS.md` item 10
+# describes, and it says something the outcome check never could:
+#
+#     KILL-TREE CHECK WRANGLER_TREE: FAIL — [OUTCOME] every pid in the tree is gone and port 8880
+#     is still listening, so something outside the tree of 10448 is holding it.
+#
+# Every pid the harness enumerated *died*. The port stayed. So the holder was not in the tree, and
+# no walk of parent links — however correct — can find it. `kill_tree` below is fixed so that the
+# holder stops being created (see its comment); **this is the backstop that names it when one is
+# created anyway**, and the two are not alternatives. A leak that survives the structural fix has
+# to become a pid and a command line in a log, not a warning about a number.
+#
+# **`/proc` alone, and that constraint is the whole design.** `ss`, `lsof`, `pgrep` and `python3`
+# may all be missing — `port_in_use` already learned that about `ss`, which is not in
+# `mcr.microsoft.com/dotnet/sdk:10.0`. `/proc/net/tcp` cannot be missing on Linux. So: find the
+# LISTEN socket's inode in the kernel's own table, then find which process has that inode open.
+#
+#   1. `/proc/net/tcp` and `/proc/net/tcp6`, field 4 == `0A` (TCP_LISTEN) and field 2's port half
+#      == the port in hex. **Field 2 and not field 3**: field 3 is the *remote* address, and a
+#      connection *to* the listener has the wanted port there — reading the wrong column names the
+#      client instead of the server. Field 10 is the socket inode.
+#   2. `/proc/<pid>/fd/` — every fd is a symlink, and a socket's target is `socket:[<inode>]`. One
+#      `ls -l` per pid rather than a `readlink` per fd, because a busy machine has tens of
+#      thousands of fds and this runs on a cleanup path.
+#
+# macOS has no `/proc` and takes the `lsof` arm, which is the same arm `port_in_use` takes there
+# and for the same reason: `lsof` is in the base system and `ss` is not. Windows reads `netstat`
+# through `listeners_on`, unchanged. Nothing here kills anything; `stop_server` decides that.
+port_holders() {
+  local port="$1"
+
+  [ "${port:-0}" -gt 0 ] 2>/dev/null || return 0
+
+  if on_windows; then
+    listeners_on "$port"
+    return 0
+  fi
+
+  if [ -r "$proc_root/net/tcp" ] || [ -r "$proc_root/net/tcp6" ]; then
+    local hex inodes table entry listing inode
+    hex="$(printf '%04X' "$port")"
+
+    inodes=''
+    for table in "$proc_root/net/tcp" "$proc_root/net/tcp6"; do
+      [ -r "$table" ] || continue
+      inodes="$inodes $(awk -v want=":$hex" \
+        '$4 == "0A" && index($2, want) == length($2) - length(want) + 1 { print $10 }' \
+        "$table" 2>/dev/null | tr '\n' ' ')"
+    done
+
+    # No listening socket at all is a free port, not a holder nobody can name.
+    case "$inodes" in *[0-9]*) ;; *) return 0 ;; esac
+
+    for entry in "$proc_root"/[0-9]*; do
+      [ -d "$entry/fd" ] || continue
+      listing="$(ls -l "$entry/fd" 2>/dev/null)" || continue
+      for inode in $inodes; do
+        case "$listing" in
+          *"socket:[$inode]"*) echo "${entry##*/}"; break ;;
+        esac
+      done
+    done
+
+    return 0
+  fi
+
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null | sort -u
+    return 0
+  fi
+
+  return 0
+}
+
+# A pid and what it is running, for a failure message that names the holder instead of the port.
+#
+# **`/proc/<pid>/cmdline` first, `ps` second**, the same ordering and the same reason as everywhere
+# else in this file: the kernel's own file cannot be missing on Linux, and `ps` is what answers on
+# a Mac. The argument separator is a NUL, so `tr` is what makes it readable.
+describe_pid() {
+  local pid="$1" cmd=''
+
+  if [ -r "$proc_root/$pid/cmdline" ]; then
+    cmd="$(tr '\0' ' ' < "$proc_root/$pid/cmdline" 2>/dev/null)" || cmd=''
+  fi
+
+  [ -n "$cmd" ] || cmd="$(ps -o command= -p "$pid" 2>/dev/null)" || cmd=''
+  [ -n "$cmd" ] || cmd='<no longer running>'
+
+  printf '%s (%s)' "$pid" "$cmd"
 }
 
 # The first port at or after `$1` that nothing is listening on.
@@ -209,21 +322,32 @@ release_port() {
     sleep 1
   done
 
-  echo "::warning::something is still listening on port $port after 30s of asking it not to."
-}
+  # **It stays a `::warning::` and `stop_server` stays exit-0, deliberately.** `stop_server` is the
+  # EXIT trap: a non-zero return from it replaces the script's real exit status, so a cleanup
+  # problem would either fail a run whose six checks were green or overwrite the code that says
+  # *why* a red one was red. The check that fails the job for this fact is
+  # `scripts/test-kill-tree.sh`, which asserts it directly and names the survivors — one loud
+  # signal from the check built to be believed beats a second one that can corrupt a verdict.
+  #
+  # **What did change is what the line says.** It used to name only the port, which is the trap
+  # `PROGRESS.md` item 10 is about: a number nobody can act on, printed on every twin of every run
+  # for weeks. `port_holders` can name the process on all three platforms now, so it does.
+  local holders holder described=''
+  holders="$(port_holders "$port" 2>/dev/null || true)"
 
-# Where `children_of` reads the process table. `/proc` in every real use.
-#
-# **It is a variable so that the Linux arm can be driven on a machine that has no `/proc`**, which
-# is every developer machine this project is written on. `scripts/test-kill-tree.sh` builds a
-# synthetic tree of `stat` files from the real process table and points this at it, so the parse
-# — the `(comm) ` trim, the field offset, the ppid comparison — is exercised on macOS as well as
-# on the runner. That is a test of the *parse* and not of the kill; only CI runs the real Linux
-# arm against real processes, which is why the script is a step in `build.yml`.
-#
-# Same shape and same justification as `WRANGLER_BIN` in `scripts/apply-migrations.sh` and
-# `PP_E2E_CHROME` in `scripts/e2e.sh`: a seam a test sets, never something production reads.
-proc_root="${PP_PROC_ROOT:-/proc}"
+  for holder in $holders; do
+    described="$described $(describe_pid "$holder");"
+  done
+
+  if [ -n "$described" ]; then
+    echo "::warning::something is still listening on port $port after 30s of asking it not to."\
+"Held by:$described See scripts/test-kill-tree.sh, which fails the job for this."
+    return 0
+  fi
+
+  echo "::warning::something is still listening on port $port after 30s of asking it not to,"\
+" and no process on this machine owns the socket — so it is not this run's to kill."
+}
 
 # The direct children of a pid, from the kernel rather than from a tool.
 #
@@ -261,9 +385,17 @@ children_of() {
     return 0
   fi
 
+  # **`read` and not `$(cat …)`, and on this path that is a correctness change rather than a
+  # micro-optimisation.** A command substitution forks a subshell and `cat` forks again, so a walk
+  # of a runner's ~150 `/proc` entries was ~300 forks — *per level, per call*. `kill_tree` calls
+  # this once per process in the tree, so the old walk spent hundreds of milliseconds between
+  # killing one child and killing the next. That interval is exactly the window a supervisor uses
+  # to respawn the child that was just killed; see `kill_tree`. A builtin redirect forks nothing.
   for entry in "$proc_root"/[0-9]*; do
     pid="${entry##*/}"
-    stat="$(cat "$entry/stat" 2>/dev/null)" || continue
+    stat=''
+    read -r stat < "$entry/stat" 2>/dev/null || stat=''
+    [ -n "$stat" ] || continue
     stat="${stat##*) }"
 
     # After the trim, field 2 is ppid: "<state> <ppid> ...".
@@ -275,25 +407,101 @@ children_of() {
 }
 
 
-# Every descendant of a pid, depth first, then the pid itself.
+# `SIGSTOP` a pid and everything under it, printing the tree parent-first as it goes.
 #
-# **One level at a time rather than a process group**: `( ... ) &` in a non-interactive shell is
-# not a group leader, so `kill -- -$pid` names nothing, and turning on job control to make it one
-# changes how every other background command in this script behaves.
+# **Freezing is what makes the kill below atomic, and nothing else does.** See `kill_tree`.
 #
-# **Depth first is load-bearing and not a style choice.** Killing the parent first orphans its
-# children onto init, and an orphan's ppid is 1 — so the walk that would have found them next
-# returns nothing and they survive holding whatever they held. Measured on a real
-# `wrangler pages dev` tree, which is four processes deep: `npx` -> node -> node -> `workerd`,
-# with `workerd` holding the port. Two levels of recursion is not enough for it.
-kill_tree() {
+# The root is stopped *before* its children are enumerated, so it cannot fork one more between the
+# two; each child is then stopped before its own children are read, for the same reason. By the
+# time this returns, every process in the tree is stopped and the set is closed — nothing in it can
+# create anything new, so the list is complete rather than a snapshot that was true once.
+freeze_tree() {
   local pid="$1" child
 
+  kill -STOP "$pid" >/dev/null 2>&1 || true
+  echo "$pid"
+
   for child in $(children_of "$pid"); do
-    kill_tree "$child"
+    freeze_tree "$child"
+  done
+}
+
+# Every descendant of a pid and the pid itself, killed as a set that cannot regrow.
+#
+# ------------------------------------------------------------------------------------------------
+# THE FAULT THIS WAS REWRITTEN FOR, WHICH IS A RACE AND NOT A MISSING LEVEL.
+#
+# This used to walk the tree and `kill -9` depth first, and CI run `33949251306` reported the exact
+# symptom that leaves: every pid the test enumerated was dead and the port was still listening, so
+# **the holder was a process that did not exist when the tree was enumerated.**
+#
+# Where it came from, measured on a real `wrangler pages dev` on 2026-09-05 rather than reasoned
+# about: kill the `workerd` that holds the port and **miniflare starts another one**, which rebinds
+# the same port inside a second. Its own log says so —
+#
+#     [wrangler:warn] The Workers runtime crashed unexpectedly and is being restarted (crash #1).
+#     [wrangler:info] Updated and ready on http://127.0.0.1:8860
+#
+# — and the mechanism is in the pinned miniflare's source: `Runtime.updateConfig` attaches an exit
+# handler to the `workerd` child that calls `onWorkerdCrashRestart`, which reassembles the config
+# and spawns a replacement. `SIGKILL` is indistinguishable from a crash. `stop_server`'s Windows
+# note has recorded this behaviour for months — "wrangler restarts `workerd`, so the port came back,
+# on a new pid, as fast as it could be cleared" — without anyone connecting it to the Linux arm.
+#
+# **So the depth-first kill was racing the supervisor, and on Linux it lost.** The real tree is
+# `npm exec` -> node -> node -> {esbuild, esbuild, workerd, workerd}: the killed `workerd` is not
+# the last child, so the old code ran `children_of` for each remaining sibling *after* killing it
+# and before killing their parent. On Linux that was a `/proc` scan forking `cat` ~150 times —
+# hundreds of milliseconds of window. On macOS it is one `pgrep` fork, and macOS therefore won the
+# race and looked fixed. That is the whole of the platform difference, and it is why the macOS
+# green run was never evidence about the Linux one.
+#
+# **The fix removes the window rather than shortening it.** Freeze the whole tree with `SIGSTOP`
+# first: a stopped supervisor cannot run the exit handler, so it cannot spawn a replacement, and a
+# process that cannot fork cannot add to the set being killed. Only then kill, children before
+# parents. `SIGKILL` is delivered to a stopped process — it is the one signal that cannot be
+# blocked, queued or ignored — so no `SIGCONT` is needed and none is sent, because continuing a
+# supervisor is precisely what must not happen.
+#
+# **Children before parents is still load-bearing, for the original reason.** Killing a parent
+# first orphans its children onto init and an orphan's ppid is 1, so a walk that would have found
+# them next returns nothing. `freeze_tree` prints parent-first, so this reverses it.
+#
+# **Not a process-group kill, and that was checked against wrangler's source rather than assumed.**
+# The obvious reading of run `33949251306` is "the holder escaped into a session of its own, so kill
+# the group" — and it is wrong twice over.
+#
+# *It would not help.* In the pinned miniflare, `Runtime.updateConfig` spawns `workerd` with
+# `stdio`, `windowsHide` and `env` and **no `detached`** — an ordinary child, in the harness's own
+# process group and session. The only `detached: true` in that file is the VS Code inspector
+# watchdog, gated behind `process.env.VSCODE_INSPECTOR_OPTIONS`, which CI does not set; wrangler's
+# own three are docker builds and a cloudchamber `ssh`, none of them on the `pages dev` path. There
+# is no second group to reach for. Neither `setsid` nor `process.setpgid` appears anywhere in
+# either package.
+#
+# *And it would be actively unsafe.* `( ... ) &` in a non-interactive shell is not a group leader,
+# so the tree's pgid is the *harness's own* — `kill -- -$pgid` would take out `e2e.sh` itself.
+# Turning on job control to give it a group of its own changes how every other background command
+# in this script behaves.
+#
+# **The holder escapes by being born, not by changing session.** Kill `workerd`, the supervisor's
+# exit handler runs `onWorkerdCrashRestart`, and the replacement is a pid that did not exist when
+# the tree was enumerated; kill the supervisor next and that replacement is reparented onto init,
+# where a ppid of 1 puts it outside any walk of parent links. That is the whole mechanism behind
+# "every pid in the tree is gone and the port is still listening". The freeze closes the window it
+# is born in, and `stop_server`'s socket lookup catches one born anyway.
+kill_tree() {
+  local pid="$1" frozen p ordered=''
+
+  frozen="$(freeze_tree "$pid")"
+
+  for p in $frozen; do
+    ordered="$p${ordered:+ }$ordered"
   done
 
-  kill -9 "$pid" >/dev/null 2>&1 || true
+  for p in $ordered; do
+    kill -9 "$p" >/dev/null 2>&1 || true
+  done
 }
 
 # Stop the server `server_pid`/`server_port` name, and everything it started.
@@ -343,6 +551,27 @@ stop_server() {
   kill "$pid" >/dev/null 2>&1 || true
   wait "$pid" 2>/dev/null || true
 
-  # The backstop, not the mechanism. If the tree kill above missed something, this names it.
+  # **The backstop, and it is a mechanism now rather than only a complaint.** `kill_tree` above is
+  # the fix; this is what happens when it is not enough, and CI run `33949251306` is the evidence
+  # that "not enough" is a state this reaches: every pid in the tree dead, the port still held.
+  #
+  # Parent links cannot find a holder that was never in the tree — an orphan reparented onto init
+  # has a ppid of 1 — so this asks the other question, "who has this socket open", and kills the
+  # answer's tree. Only ever a port `start_server` has just used and only after its own process has
+  # been asked to stop, so the holder is this run's or nothing; `next_free_port` skipping occupied
+  # ports rather than clearing them is what keeps that true.
+  #
+  # Windows is unchanged and deliberately so: `release_port` there already reads `netstat` and
+  # `taskkill //T`s the holder, which is this, done by the tools that platform has.
+  if ! on_windows; then
+    local holder
+    for holder in $(port_holders "$port"); do
+      echo "::warning::port $port outlived the tree kill, held by $(describe_pid "$holder")."\
+" Killing it and its tree — see kill_tree's comment for why one can exist."
+      kill_tree "$holder"
+    done
+  fi
+
+  # The last word: if even that missed something, this names it rather than passing quietly.
   release_port "$port"
 }
