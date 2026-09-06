@@ -48,6 +48,32 @@ public sealed class CharacterSession
     public CharacterSheet Sheet { get; private set; } = new();
 
     /// <summary>
+    /// Which stored character <see cref="Sheet"/> was read from, or null when it was not read
+    /// from one this session knows the id of.
+    ///
+    /// <para><b>It exists so that "the character on screen" and "the character at this id" can be
+    /// the same claim rather than two hopes.</b> The browser's current-character pointer says
+    /// which id the next write lands on; nothing until now said which character the sheet
+    /// actually is. <see cref="StartAgain"/> empties the sheet without moving the pointer — which
+    /// is what <c>SignIn.razor</c> does when the account's character cannot be read — and from
+    /// there the two disagreed with nothing able to notice.</para>
+    ///
+    /// <para><b>Null is "this session does not know", never "no", and every reader has to take it
+    /// that way.</b> A caller that has not been given an id leaves it null, so a screen weighing
+    /// it must fall back to whatever it did before rather than treating the answer as a
+    /// difference. That is why <see cref="HoldsTheCharacterAt"/> below is the only way to ask.</para>
+    /// </summary>
+    public string? HeldId { get; private set; }
+
+    /// <summary>
+    /// Whether the sheet on screen is known to be the stored character at <paramref name="id"/>.
+    /// False for an unknown id and false for a session that was never told one — see
+    /// <see cref="HeldId"/> for why those two may not be told apart here.
+    /// </summary>
+    public bool HoldsTheCharacterAt(string? id) =>
+        HeldId is { Length: > 0 } && string.Equals(HeldId, id, StringComparison.Ordinal);
+
+    /// <summary>
     /// Hero or Villain. Changes the palette and nothing else.
     ///
     /// <para><b>It is the character's own answer now, not a field beside it.</b> A sheet for a
@@ -161,9 +187,14 @@ public sealed class CharacterSession
     /// <c>Store.OpenAsync</c> then <c>Session.Open</c>, and "showing is not opening" holds in one
     /// vocabulary on both sides.</para>
     /// </summary>
-    public void Open(CharacterSheet sheet, SheetMode mode)
+    /// <param name="id">
+    /// Which stored character this is, where the caller knows — see <see cref="HeldId"/>. Left
+    /// out by a caller putting up a sheet that is not one of the account's rows, or that is one
+    /// whose id it has not been told.
+    /// </param>
+    public void Open(CharacterSheet sheet, SheetMode mode, string? id = null)
     {
-        RestoreBeforeFirstRender(sheet, mode);
+        RestoreBeforeFirstRender(sheet, mode, id);
         NotifyChanged();
     }
 
@@ -183,11 +214,13 @@ public sealed class CharacterSession
     /// may call this; <see cref="Open"/> is what those want, and
     /// <c>NothingDrawnCallsTheSilentRestore</c> holds the line.</para>
     /// </summary>
-    public void RestoreBeforeFirstRender(CharacterSheet sheet, SheetMode mode)
+    /// <param name="id">Which stored character this is, where the caller knows — see <see cref="HeldId"/>.</param>
+    public void RestoreBeforeFirstRender(CharacterSheet sheet, SheetMode mode, string? id = null)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
         Sheet = sheet;
+        HeldId = id;
 
         // **A one-way migration, and the only reason this still takes a mode.** The palette used
         // to live in the storage envelope beside the character rather than on it. A character
@@ -228,6 +261,12 @@ public sealed class CharacterSession
         var unlimited = Sheet.UnlimitedBudget;
 
         Sheet = new CharacterSheet { IsVillain = villain, UnlimitedBudget = unlimited };
+
+        // **The sheet is no longer any stored character**, and saying so is the whole reason
+        // `HeldId` exists: this is the one method that empties the screen without moving the
+        // pointer, so it is the one place the two can come apart.
+        HeldId = null;
+
         NotifyChanged();
 
         if (offerUndo) Buffer(previous);
@@ -246,6 +285,7 @@ public sealed class CharacterSession
         var previous = Sheet;
         Sheet = mode == SheetMode.Hero ? SampleCharacters.Hero() : SampleCharacters.Villain();
         Sheet.IsVillain = mode == SheetMode.Villain;
+        HeldId = null;
         NotifyChanged();
         Buffer(previous);
     }
@@ -268,10 +308,11 @@ public sealed class CharacterSession
     /// elsewhere were getting it wrong</b>, which is why the two are now told apart by their
     /// names rather than by a remark on one of them.</para>
     /// </summary>
-    public void ReplaceWithUndo(CharacterSheet sheet, SheetMode mode)
+    /// <param name="id">Which stored character this is, where the caller knows — see <see cref="HeldId"/>.</param>
+    public void ReplaceWithUndo(CharacterSheet sheet, SheetMode mode, string? id = null)
     {
         var previous = Sheet;
-        Open(sheet, mode);
+        Open(sheet, mode, id);
         Buffer(previous);
     }
 

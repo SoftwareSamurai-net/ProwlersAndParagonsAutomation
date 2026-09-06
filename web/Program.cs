@@ -134,7 +134,16 @@ catch
 try
 {
     saved = await store.LoadAsync();
-    if (saved is { } restored) session.RestoreBeforeFirstRender(restored.Sheet, restored.Mode);
+    // The pointer's own id travels with the character, so the app starts able to say that the
+    // sheet on screen *is* the account's row rather than merely hoping so — see
+    // `CharacterSession.HeldId`. The catch below leaves it null, which is the honest answer for
+    // a restore that never happened.
+    if (saved is { } restored)
+    {
+        session.RestoreBeforeFirstRender(
+            restored.Sheet, restored.Mode,
+            await host.Services.GetRequiredService<AccountCharacterStore>().CurrentIdAsync());
+    }
 }
 catch (Exception)
 {

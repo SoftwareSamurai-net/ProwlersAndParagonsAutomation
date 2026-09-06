@@ -656,7 +656,9 @@
 
     private async Task Open(string id)
     {
-        if (await Store.OpenAsync(id) is { } opened) Session.Open(opened.Sheet, opened.Mode);
+        // The id travels with the sheet: this is the app saying which character is on screen,
+        // which is the claim `CharacterSession.HeldId` exists to be able to make.
+        if (await Store.OpenAsync(id) is { } opened) Session.Open(opened.Sheet, opened.Mode, id);
 
         await Refresh();
     }
@@ -750,7 +752,9 @@
         // The bare `NotifyChanged()` that used to follow this is inside `Open` now — it was the
         // single call site that had been patched for the silence, and patching one is what left
         // the other five wrong.
-        Session.Open(character.Sheet, character.Mode);
+        // `Keep` has already moved the pointer to a fresh slot, so the imported character is
+        // what that slot holds from here on — see `CharacterSession.HeldId`.
+        Session.Open(character.Sheet, character.Mode, await Store.CurrentIdAsync());
 
         await Refresh();
     }

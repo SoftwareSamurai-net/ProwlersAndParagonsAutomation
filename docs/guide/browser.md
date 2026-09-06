@@ -1289,9 +1289,28 @@ works and nobody can reach.
   one this browser has open. From that state the row for a real character still offered Send for
   approval, and sent an empty sheet under its name: the owner's GM opened an approved clone and was
   shown an unnamed character with every Trait at 0d, a 379-byte payload carrying nothing but the
-  tier, campaign id and house Trait Cap that `CampaignJoin.Apply` copies in. It is `ReadAsync` and
-  not `OpenAsync`, because sending is not switching to a character and opening one moves the
-  pointer on the way past.
+  tier, campaign id and house Trait Cap that `CampaignJoin.Apply` copies in.
+- **What holds them to one character is said now rather than hoped, so the sheet on screen is sent
+  again — and that is a correction to the first fix, not a return to the fault.** Reading the
+  stored copy back by id made the two halves agree and bought it with a lag: the ordinary autosave
+  is fire-and-forget over HTTP, so a read taken straight after an edit can answer from before that
+  edit landed. A player who raised a Trait and pressed Send in the same breath sent the rank they
+  had a moment ago, under a sentence saying it had been sent. `CharacterSession.HeldId` is the
+  question that was missing — **which stored character the sheet on screen actually is** — set
+  wherever the app puts one up (the manager, the switcher, sign-in, the boot restore, an import
+  landing in its fresh slot) and cleared by `StartAgain`, which is the one method that empties the
+  screen without moving the pointer. `Submit` sends `Session.Sheet` where
+  `HoldsTheCharacterAt(row.CharacterId)`, and the stored read otherwise. **Null means "this
+  session does not know", never "no"**, so a session that was never told falls back to the stored
+  read rather than treating silence as a difference — which is the safe half of the first fix kept
+  exactly as it was. The label follows the payload either way, because `SubmitAsync` takes it off
+  the sheet it is handed. The stored read is still `ReadAsync` and not `OpenAsync`, because
+  sending is not switching to a character and opening one moves the pointer on the way past.
+- **`FakeApi.BeforeStoringCharacter` is what makes that testable, and it is the twin of
+  `BeforeAnsweringCharacter`.** A write still in the air is a state the real app is in after every
+  edit; a fake that stores synchronously closes the window the fault lives in, and "the stored
+  copy can lag the sheet on screen" becomes unreachable — which is how a lag shipped *inside* a
+  fix in the first place.
 - **A campaign act needs the sheet on screen to be the character the pointer names, and the loss
   it stops is a character.** Reading the submission back by id fixed what was *sent*; it did not
   touch what joining *writes*. `CampaignJoin.Apply` puts the campaign's tier onto

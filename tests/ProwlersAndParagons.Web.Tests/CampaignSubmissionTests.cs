@@ -603,6 +603,159 @@ public sealed class CampaignSubmissionTests
     }
 
     /// <summary>
+    /// <b>The submission carries the edit the player has just made, not the copy the server
+    /// happens to be holding.</b>
+    ///
+    /// <para>Reading the character back by id made the label and the payload agree and bought
+    /// that with a lag: the autosave is fire-and-forget over HTTP and nobody awaits it, so the
+    /// stored copy can be a rank behind the sheet on screen at the moment Send is pressed. The
+    /// player raises Agility, presses Send in the same breath, and is told it was sent — while
+    /// the GM decides about the character as it was a moment ago.</para>
+    ///
+    /// <para><b>The write is genuinely still in flight rather than mocked away</b>: the character
+    /// is opened through the manager the way a reader opens one, the rank is raised on the
+    /// Abilities step by pressing its own button, and <c>FakeApi</c> holds the <c>PUT</c> open
+    /// across the click on Send.</para>
+    /// </summary>
+    [Fact]
+    public async Task SendingCarriesTheEditTheAutosaveHasNotLandedYet()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var disposing = ctx;
+
+        // Opened through the manager's own control, so which character is on screen is the app's
+        // answer rather than this test's. The pointer starts elsewhere, or the row that is open
+        // offers no "Open" to press.
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(SubjectId);
+
+        var manager = ctx.Render<ProwlersAndParagonsAutomation.Web.Components.CharacterManager>();
+
+        await manager.FindAll(".open-target")
+            .First(b => b.TextContent.Contains("Jetstream", StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        Assert.Equal("Jetstream", ctx.Session.Sheet.Name);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        // From here the server stops finishing writes, which is the state every edit is in for
+        // as long as its request is in the air.
+        var held = new TaskCompletionSource();
+        ctx.Api.BeforeStoringCharacter = _ => held.Task;
+
+        var abilities = ctx.Render<Characteristics>();
+
+        await abilities.FindAll("button")
+            .First(b => b.GetAttribute("aria-label") == "Raise Agility")
+            .ClickAsync(new MouseEventArgs());
+
+        // Two controls before the act: the edit really is on the sheet the player sees, and the
+        // server really has not caught up with it. Without the second this test would pass
+        // against a store that had already written.
+        Assert.Equal(7, ctx.Session.Sheet.AbilityRanks["agility"]);
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        Assert.Equal(6, (await account.LoadAsync(JetstreamId))!.Value.Sheet.AbilityRanks["agility"]);
+
+        await Send(page);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var row = Assert.Single((await memberships.MineAsync())!);
+        var detail = await memberships.ReadAsync(row.Id);
+
+        Assert.NotNull(detail!.Pending);
+        Assert.Equal(7, detail.Pending!.AbilityRanks["agility"]);
+        Assert.Equal("Jetstream", detail.Label);
+
+        held.SetResult();
+    }
+
+    /// <summary>
+    /// <b>The other half of the same choice, and the arm that must not be traded away for the
+    /// freshness above: where the sheet on screen is somebody else's character entirely, the
+    /// stored copy is what goes.</b>
+    ///
+    /// <para>Loading a sample replaces the character on screen and deliberately does <em>not</em>
+    /// move the current-character pointer — that is what its one-level undo exists for. So a
+    /// reader who loads one and then opens their campaigns has a Villain on screen and their own
+    /// character under the row's id, which is exactly the shape the reported row was sent from.
+    /// The <c>PUT</c> is held so the sample has not yet reached the server, which is what leaves
+    /// the two genuinely different and makes the assertion able to tell which was sent.</para>
+    /// </summary>
+    [Fact]
+    public async Task SendingFallsBackToTheStoredCopyWhenTheSheetOnScreenIsAnotherCharacter()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var disposing = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero, JetstreamId);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        var held = new TaskCompletionSource();
+        ctx.Api.BeforeStoringCharacter = _ => held.Task;
+
+        // The portfolio's own act: a sample replaces what is on screen, and the pointer stays put.
+        ctx.Session.LoadSample(SheetMode.Villain);
+
+        // Controls: the sheet on screen really is a different character, and the session really
+        // has stopped claiming to hold the row's one.
+        Assert.NotEqual("Jetstream", ctx.Session.Sheet.Name);
+        Assert.False(ctx.Session.HoldsTheCharacterAt(JetstreamId));
+
+        await Send(page);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var row = Assert.Single((await memberships.MineAsync())!);
+        var detail = await memberships.ReadAsync(row.Id);
+
+        Assert.NotNull(detail!.Pending);
+        Assert.Equal("Jetstream", detail.Pending!.Name);
+        Assert.Equal(6, detail.Pending.AbilityRanks["agility"]);
+
+        held.SetResult();
+    }
+
+    /// <summary>
+    /// <b>A session that has been emptied stops claiming the character it was holding.</b>
+    ///
+    /// <para>This is the one clear that matters, because <c>StartAgain</c> is the only method that
+    /// empties the screen without moving the current-character pointer — so it is the only place
+    /// the sheet and the id can come apart. A <c>HeldId</c> left standing over an empty sheet
+    /// would put the submission back exactly where it started: the page would believe the sheet
+    /// on screen was the account's character and send it.</para>
+    ///
+    /// <para>Both halves are driven: the character is opened through the manager's own control,
+    /// and it is the sign-in page that empties the session.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnEmptiedSessionStopsClaimingTheCharacterItHeld()
+    {
+        var (ctx, _) = await ATableAndTwoCharacters();
+        await using var disposing = ctx;
+
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(SubjectId);
+
+        var manager = ctx.Render<ProwlersAndParagonsAutomation.Web.Components.CharacterManager>();
+
+        await manager.FindAll(".open-target")
+            .First(b => b.TextContent.Contains("Jetstream", StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        // The control on the fixture: opening a row really does tell the session which character
+        // it is holding. Without this the assertion below would pass over a session that had
+        // never claimed anything.
+        Assert.True(ctx.Session.HoldsTheCharacterAt(JetstreamId));
+
+        await TheSignInReadFailed(ctx);
+
+        Assert.Null(ctx.Session.HeldId);
+        Assert.False(ctx.Session.HoldsTheCharacterAt(JetstreamId));
+    }
+
+    /// <summary>
     /// <b>The remedy for the row that is already wrong: the player resubmits.</b>
     ///
     /// <para>Starts from the broken state — an empty clone approved into the campaign, labelled

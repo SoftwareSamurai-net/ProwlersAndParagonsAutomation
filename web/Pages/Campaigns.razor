@@ -868,7 +868,7 @@ else
         // already on this id, so the move it makes on the way past is a move to where it is.
         if (await Characters.OpenAsync(id) is { } behind)
         {
-            Session.Open(behind.Sheet, behind.Mode);
+            Session.Open(behind.Sheet, behind.Mode, id);
             _readopted = SavedCharacters.LabelFor(behind.Sheet);
             return null;
         }
@@ -895,21 +895,37 @@ else
     ///
     /// <para><b>The label and the payload come from one place, and that is the whole of this
     /// method's correctness.</b> It used to send <c>Session.Sheet</c> — the character on screen —
-    /// into a membership keyed on the browser's current-character pointer, and nothing holds those
+    /// into a membership keyed on the browser's current-character pointer, and nothing held those
     /// two to the same character. <c>SignIn.razor</c> empties the session on both its paths when
     /// the account's character cannot be read, and <c>Program.cs</c>'s boot restore does the same
     /// for a read that throws; neither moves the pointer, because the account's character is still
     /// there. From that state this row still offered Send for approval and sent an empty sheet
     /// under a real character's name — a GM opened an approved clone and was shown an unnamed
     /// character with every Trait at 0d, 379 bytes carrying nothing but the tier, campaign id and
-    /// house Trait Cap that <c>CampaignJoin.Apply</c> copies in. So the character is read back by
-    /// the id the membership names, and both halves of the submission are that one read.</para>
+    /// house Trait Cap that <c>CampaignJoin.Apply</c> copies in.</para>
+    ///
+    /// <para><b>What holds them to one character is now said rather than hoped, so the sheet on
+    /// screen is sent again — and this is a correction to the first fix rather than a return to
+    /// the fault.</b> Reading the stored copy back by id made the two halves agree, and bought
+    /// that with a lag: the ordinary autosave is fire-and-forget over HTTP, so a read taken
+    /// straight after an edit can answer from before that edit landed. A player who raised a
+    /// Trait and pressed Send in the same breath sent the rank they had a moment ago — silently,
+    /// with a sentence saying it had been sent, and the GM deciding about a character nobody was
+    /// looking at. <see cref="CharacterSession.HoldsTheCharacterAt"/> is the question that was
+    /// missing: where the session is holding <em>this</em> row's character, the sheet on screen is
+    /// the newest copy there is and it is what goes. Where it is not — or where this session was
+    /// never told which character it holds — the stored copy is still the answer, which is the
+    /// safe half of the original fix kept exactly as it was.</para>
+    ///
+    /// <para><b>The label follows the payload either way</b>, because
+    /// <c>ApiMembershipStore.SubmitAsync</c> takes it off the sheet it is given. There is no
+    /// second source left to disagree.</para>
     ///
     /// <para><b>An empty sheet is refused rather than sent, and never repaired.</b> The refusal is
-    /// a sentence under the button for the reason every other refusal here is one: a control that
-    /// silently does nothing is indistinguishable from one that is not wired up. Nothing is
-    /// written to put a bad row right — the player resubmits, which is the remedy this screen
-    /// already has.</para>
+    /// a sentence under the row's own Send button for the reason every other refusal here is one:
+    /// a control that silently does nothing is indistinguishable from one that is not wired up.
+    /// Nothing is written to put a bad row right — the player resubmits, which is the remedy this
+    /// screen already has.</para>
     /// </summary>
     private async Task Submit(MembershipSummary one)
     {
@@ -932,22 +948,33 @@ else
             return;
         }
 
-        // `ReadAsync` rather than `OpenAsync`: sending is not switching to a character, and
-        // opening one would move the pointer on the way past.
-        if (await Characters.ReadAsync(id) is not { } sending)
+        // The sheet on screen where the session is holding this very character — the newest copy
+        // there is, and the one the player is looking at. See the remarks.
+        var sending = Session.HoldsTheCharacterAt(id)
+            ? (Sheet: Session.Sheet, Mode: Session.Mode)
+            : null as (CharacterSheet Sheet, SheetMode Mode)?;
+
+        if (sending is null)
         {
-            _joined = "That character could not be read just now. Try again in a moment.";
-            return;
+            // `ReadAsync` rather than `OpenAsync`: sending is not switching to a character, and
+            // opening one would move the pointer on the way past.
+            if (await Characters.ReadAsync(id) is not { } stored)
+            {
+                _joined = "That character could not be read just now. Try again in a moment.";
+                return;
+            }
+
+            sending = stored;
         }
 
-        if (Session.HasNothingOnIt(sending.Sheet))
+        if (Session.HasNothingOnIt(sending.Value.Sheet))
         {
             _joined = "This character has nothing on it yet, so there is nothing to send. "
                 + "Open it, build it up, and send it when it is ready.";
             return;
         }
 
-        _joined = await Memberships.SubmitAsync(one.Id, sending.Sheet, sending.Mode) is null
+        _joined = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
             ? "That could not be sent just now. Try again in a moment."
             : $"Sent to {one.Label}. Your own copy is unchanged.{PutBack()}";
 
