@@ -280,6 +280,17 @@ public sealed class CampaignSubmissionTests
     /// </summary>
     private static async Task AnEmptyCloneIsApproved(RenderContext ctx, string membership)
     {
+        await AnEmptySnapshotIsSent(ctx, membership);
+
+        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var version = (await store.ReadAsync(membership))!.PendingVersion;
+
+        Assert.Equal(DecisionOutcome.Done, (await store.ApproveAsync(membership, version)).Outcome);
+    }
+
+    /// <summary>The same payload, left waiting for a decision. Ends signed in as the GM.</summary>
+    private static async Task AnEmptySnapshotIsSent(RenderContext ctx, string membership)
+    {
         var http = ctx.Services.GetRequiredService<HttpClient>();
 
         ctx.Api.SignedIn = ("u_player", "Billy");
@@ -294,11 +305,6 @@ public sealed class CampaignSubmissionTests
             "the empty snapshot never landed, so nothing under test is reached");
 
         ctx.Api.SignedIn = ("u_gm", "The GM");
-
-        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
-        var version = (await store.ReadAsync(membership))!.PendingVersion;
-
-        Assert.Equal(DecisionOutcome.Done, (await store.ApproveAsync(membership, version)).Outcome);
     }
 
     /// <summary>
@@ -395,5 +401,77 @@ public sealed class CampaignSubmissionTests
 
         Assert.DoesNotContain("The submission was empty", shown, StringComparison.Ordinal);
         Assert.NotEmpty(approval.FindAll(".campaign-diff .sheet"));
+    }
+
+    /// <summary>
+    /// <b>The same sentence one slot earlier, where it is worth more.</b> A GM told before pressing
+    /// Approve does not make an empty sheet the campaign's clone in the first place — which is the
+    /// state every row of this kind in the deployed database went through.
+    ///
+    /// <para>Approve is still on the screen, because a decision about somebody's character is the
+    /// GM's to take and not this page's to refuse.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheApprovalScreenSaysWhenAWaitingSnapshotIsEmpty()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var membership = Assert.Single((await memberships.MineAsync())!).Id;
+
+        await AnEmptySnapshotIsSent(ctx, membership);
+
+        var approval = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.CampaignApproval>(
+            p => p.Add(c => c.Id, CampaignId));
+
+        await approval.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
+
+        var shown = approval.Find(".campaign-diff").TextContent;
+
+        Assert.Contains("The submission was empty — ask the player to resubmit", shown,
+            StringComparison.Ordinal);
+
+        // The positive control: this is the diff arm, and the diff really ran — so the sentence
+        // is beside a decision rather than instead of one.
+        Assert.Contains("fields compared", shown, StringComparison.Ordinal);
+        Assert.Contains(approval.FindAll(".campaign-diff .btn"),
+            b => b.TextContent.Contains("Approve", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A character that could not be read is a different sentence from one with nothing on
+    /// it</b>, and getting the two the wrong way round is the false alarm this project keeps
+    /// writing down: "your character is empty" over a character that is not is exactly what
+    /// teaches somebody to distrust every message the app gives them.
+    /// </summary>
+    [Fact]
+    public async Task ACharacterThatCouldNotBeReadSaysThatInstead()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        // The read that the submission is now built on, refused the way a network refuses it.
+        ctx.Api.BeforeAnsweringCharacter = _ => throw new HttpRequestException("no network");
+
+        await Send(page);
+
+        Assert.Contains("could not be read just now", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("nothing on it yet", page.Markup, StringComparison.Ordinal);
+
+        ctx.Api.BeforeAnsweringCharacter = null;
+
+        Assert.False(Assert.Single((await ctx.Services
+            .GetRequiredService<ApiMembershipStore>().MineAsync())!).HasPending);
     }
 }
