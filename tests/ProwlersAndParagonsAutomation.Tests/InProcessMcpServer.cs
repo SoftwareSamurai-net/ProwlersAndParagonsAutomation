@@ -27,10 +27,15 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// <para><b>Disposing the transport instead is a race, and CI lost it.</b>
 /// <c>StreamServerTransport.DisposeAsync</c> cancels its shutdown token and then, four lines
 /// later, disposes the input reader — <c>Server/StreamServerTransport.cs</c> lines 277 and 282.
-/// Disposing that reader completes the <see cref="PipeReader"/> underneath it, and
-/// <c>Pipe.ReadAsync</c> tests <c>_readerCompletion.IsCompleted</c> <em>before</em> it tests the
-/// cancellation token: whichever of the two lands first decides whether the read loop comes out
-/// with an <see cref="OperationCanceledException"/> the transport treats as clean or with
+/// Disposing that reader completes the <see cref="PipeReader"/> underneath it, and a completed
+/// reader is a landmine for the loop: <c>Pipe</c> raises
+/// <c>ThrowInvalidOperationException_NoReadingAllowed</c> both from <c>ReadAsync</c>'s entry check
+/// — which runs <em>before</em> the cancellation token is looked at — and from
+/// <c>AdvanceReader</c>, which is where <c>PipeReaderStream.HandleReadResult</c> lands when a read
+/// already in flight comes back. <b>The second is the one measured here</b>, by the mutation this
+/// file's fix was proved with. So whichever of cancellation and completion lands first decides
+/// whether the read loop comes out with an <see cref="OperationCanceledException"/> the transport
+/// treats as clean or with
 /// <c>InvalidOperationException: Reading is not allowed after reader was completed</c>, which it
 /// hands to <c>SetDisconnected(error)</c>. A faulted channel faults
 /// <c>ProcessMessagesCoreAsync</c> — it catches <see cref="OperationCanceledException"/> and
