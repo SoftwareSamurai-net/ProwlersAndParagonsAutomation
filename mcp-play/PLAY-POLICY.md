@@ -181,13 +181,22 @@ last table below marks bought.
 a person rather than into the scenery — and a person is the only thing this engine has to send it
 into. A lure naming nobody is refused, with nothing spent: there is no scenery here to strike.
 
-**What `anything_resolve_can` may name** — the six above are a *Hero's* purchases, and the GM's
-pool does not yet buy all six. p.85's first purchase is the Resolve purchases with different money
+**`team_attack` is bought off an attack that said it was one.** Send `"team": true` on the attack
+and p.79's +2d is in the pool; the point afterwards makes that roll's sixes explode, and keep
+exploding while they keep coming up. A target may be team-attacked once a battle, and the two ways
+p.79 lifts that — the Heroes being clever about it, or the GM ruling otherwise — are a person's
+call, not this engine's: where the GM has ruled otherwise, attack without the flag. What is *not*
+applied is the coordination, because a turn here is one character's action: the participants
+waiting until the end of the page, and all of them having to name the same enemy, are yours to
+keep track of.
+
+**What `anything_resolve_can` may name** — the ten above are a *Hero's* purchases, and the GM's
+pool does not yet buy all ten. p.85's first purchase is the Resolve purchases with different money
 behind them, and the ones this engine runs from the GM's pool are the ones marked bought below; the
 rest still charge the buyer's own pool, which an NPC has none of, so they are recognised and
 answered with a `not yet implemented` line, exactly like the table above. **The two columns
 disagreeing with the engine is the failure this table exists to prevent** — an earlier version of
-this document advertised all six, four of them refused, and a model reading it had no way to tell
+this document advertised every purchase as the GM's, four of them refused, and a model reading it had no way to tell
 a purchase that had happened from one that had not:
 
 | `as_resolve` | What the GM's pool does with it |
