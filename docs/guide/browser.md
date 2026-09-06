@@ -1279,6 +1279,37 @@ works and nobody can reach.
   nothing.** The real race is between the diff being drawn and the button being pressed, which a
   test drives with no seam at all — so the seam was deleted, because one nothing races reads as a
   guarantee and is not one. `FakeApi` records that where the seam used to be.
+- **A submission's label and its payload come from one source: the character the row names, read
+  by id.** `Submit` used to send `Session.Sheet` — the character on screen — into a membership
+  keyed on `AccountCharacterStore.CurrentIdAsync()`, the browser's current-character pointer.
+  **Nothing holds those two to the same character.** `SignIn.razor` calls `Session.StartAgain()` on
+  both its paths whenever `Store.LoadAsync()` answers null — a read that 404s, times out, or comes
+  back as the site's own `index.html` — and `Program.cs`'s boot restore does the same for one that
+  throws; neither moves the pointer, because the account's character is still there and still the
+  one this browser has open. From that state the row for a real character still offered Send for
+  approval, and sent an empty sheet under its name: the owner's GM opened an approved clone and was
+  shown an unnamed character with every Trait at 0d, a 379-byte payload carrying nothing but the
+  tier, campaign id and house Trait Cap that `CampaignJoin.Apply` copies in. It is `ReadAsync` and
+  not `OpenAsync`, because sending is not switching to a character and opening one moves the
+  pointer on the way past.
+- **An empty sheet is refused on the page with a sentence, and never repaired.** `CharacterSession.
+  HasNothingOnIt` is the question, and it is the engine's answer rather than a second opinion: the
+  validator reporting `TRAIT_BELOW_MINIMUM` for *every* Ability is what an untouched sheet looks
+  like, since Ch.2 says twice that no Ability can be under 1d and that every character has all six.
+  **`IsWorthKeeping` cannot answer this and must not be reused for it** — a tier alone counts there,
+  deliberately, and joining writes a tier onto an empty sheet in the course of typing a code, so the
+  submission this refuses passes it by construction. A sheet the engine cannot *price* is not empty
+  and is not refused: that is a half-finished character, and refusing it would be repairing rather
+  than reporting. Two refusals and two sentences — "nothing on it yet" and "could not be read" —
+  because the wrong one of those is a lie about somebody's character.
+- **The GM's screen says when a campaign is holding an empty submission, on both slots.** A clone
+  with nothing on it was drawn as the character the row is named after, which is the same fault the
+  two unreadable arms already have their own sentences for: a state that reads as emptiness is not
+  the same as nothing being there, and the reader is owed which one it is. The sheet is still drawn
+  beneath the sentence — a GM has to see what they are being told about — and Approve is still on
+  the screen, because a decision about somebody's character is theirs to take. **The remedy for a
+  row already like this is the player resubmitting**, which is the only way a clone has ever
+  changed; nothing anywhere rewrites one.
 - **The standing answers "which sheet do I print at the table", and it is silent three ways.** The
   standings could not be read; this character is in no campaign; or there is no id to match against.
   In every one of those a printed standing would answer a question nobody asked — and the first is
