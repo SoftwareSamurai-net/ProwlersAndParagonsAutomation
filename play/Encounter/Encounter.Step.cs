@@ -1349,6 +1349,7 @@ public sealed partial class Encounter
             ResolveSpend.AvoidFatalDamage => AvoidFatalDamage(state, actor, lines),
             ResolveSpend.Stabilise => StabiliseWithResolve(state, actor, lines),
             ResolveSpend.InstantRecovery => InstantRecovery(state, actor, lines),
+            ResolveSpend.KeepingHold => KeepHold(state, actor, lines),
             _ => Unimplemented(state, actor.Id, spend.Kind, lines)
         };
     }
@@ -1481,6 +1482,77 @@ public sealed partial class Encounter
             Effect: resolved.Effect, Area: resolved.Area);
 
         return ApplyAttackOutcome(state, attack, resolved, lines);
+    }
+
+    /// <summary>
+    /// Ch.4 p.76's <c>keeping_hold</c>: a point carries an effect that has put somebody out past the
+    /// end of this scene and into the next, and buying it again carries it further still.
+    ///
+    /// <para><b>What it changes is the effect's clock, not a line about the effect's clock.</b> The
+    /// entry's <c>extends_to</c> is "the end of the following scene", and a scene is longer than any
+    /// page count this engine has — an encounter <em>is</em> the scene, which is what
+    /// <c>defeat_by_effect_lasts</c> and instant recovery's once-a-scene limit already mean here. So
+    /// a kept effect stops being measured in pages: <see cref="ResolveEndPage"/> leaves it alone
+    /// instead of ticking it down, and it is still running when the fight ends.</para>
+    ///
+    /// <para><b>The trigger is the entry's and is checked against the state rather than trusted.</b>
+    /// "Whenever you defeat a target with a special effect" — so the buyer must have an effect of
+    /// their own running on somebody whom that same effect has put out, which is
+    /// <see cref="Combatant.DefeatedByEffect"/> and nothing else. An effect that merely landed buys
+    /// nothing.</para>
+    ///
+    /// <para><b>A buyer who is out of the fight is refused</b>, which is the one place these four
+    /// Chapter 4 purchases part company with Chapter 5's: p.76's instant recovery and p.79's rescue
+    /// are what a character who has just gone down buys, and keeping a hold, knocking somebody
+    /// across the street, luring and leading a team attack are things a character does while they
+    /// are still in it.</para>
+    /// </summary>
+    private EncounterState KeepHold(
+        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
+    {
+        var entry = _play.GetCombat("keeping_hold");
+        var rule = entry.KeepingHold!;
+
+        if (OutOfTheFight(state, actor.Id, "buyer", lines)) return state;
+
+        var held = state.Effects
+            .Where(e => string.Equals(e.Source, actor.Id, StringComparison.Ordinal)
+                        && string.Equals(
+                            state[e.Target].DefeatedByEffect, e.Name, StringComparison.Ordinal))
+            .OrderBy(e => e.Target, StringComparer.Ordinal)
+            .ThenBy(e => e.Name, StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        if (held is null)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} has nobody down under an effect of theirs, and this buys "
+                + $"{rule.ExtendsTo} for {rule.Trigger}");
+        }
+
+        if (!fromAdversity
+            && CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines))
+        {
+            return state;
+        }
+
+        var kept = held with { KeptScenes = held.KeptScenes + 1 };
+
+        var effects = state.Effects
+            .Select(e => ReferenceEquals(e, held) ? kept : e)
+            .ToList();
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{(fromAdversity ? $"the GM spends {rule.CostResolve} Adversity on {actor.Name}" : $"{actor.Name} spends {rule.CostResolve} Resolve")}"
+            + $" to keep hold of {state[held.Target].Name}: the {held.Name} that put them out now "
+            + $"lasts to {rule.ExtendsTo}, and stops counting down in pages"
+            + (rule.MayBeRepeatedSceneAfterScene
+                ? $" — bought {kept.KeptScenes} time{(kept.KeptScenes == 1 ? "" : "s")}, and it may "
+                  + "be bought again scene after scene"
+                : "")));
+
+        return Charge(state, actor, rule.CostResolve, fromAdversity) with { Effects = effects };
     }
 
     private EncounterState SeizeInitiative(EncounterState state, Combatant actor, List<LedgerLine> lines)
@@ -1792,7 +1864,7 @@ public sealed partial class Encounter
         // the guard that holds `mcp-play/PLAY-POLICY.md` to the engine sorts a spend by whether its
         // line carries that phrase. Refusing in different words put this case in neither pile, so a
         // document could claim the GM's pool bought all six and nothing disagreed.
-        if (as_ is not (ResolveSpend.ExtraDice or ResolveSpend.Reroll))
+        if (!AdversityBuys.Contains(as_))
         {
             return NotYetImplementedSpend(
                 state, npc.Id, $"{AdversitySpend.AnythingResolveCan} naming {as_}",
@@ -1804,10 +1876,34 @@ public sealed partial class Encounter
             $"the GM spends Adversity on {npc.Name}, which buys {as_}: p.85 says one point does "
             + "whatever a point of Resolve could have done, on behalf of any NPC"));
 
-        return as_ == ResolveSpend.ExtraDice
-            ? BuyDice(state, npc, spend.Points, lines, fromAdversity: true)
-            : BuyReroll(state, npc, lines, fromAdversity: true);
+        return as_ switch
+        {
+            ResolveSpend.ExtraDice => BuyDice(state, npc, spend.Points, lines, fromAdversity: true),
+            ResolveSpend.Reroll => BuyReroll(state, npc, lines, fromAdversity: true),
+            ResolveSpend.KeepingHold => KeepHold(state, npc, lines, fromAdversity: true),
+            var other => throw new ArgumentOutOfRangeException(
+                nameof(spend), other,
+                "AdversityBuys names a purchase the GM's pool has no branch for.")
+        };
     }
+
+    /// <summary>
+    /// The Resolve purchases p.85's first Adversity spend runs for an NPC.
+    ///
+    /// <para><b>It is one list rather than a condition beside a switch</b>, because the two would
+    /// drift and the drift is invisible: a purchase admitted by the gate and missing from the
+    /// dispatch throws in the middle of a fight, and one implemented in the dispatch and missing
+    /// from the gate refuses a purchase that works. <c>mcp-play/PLAY-POLICY.md</c>'s table of what
+    /// <c>anything_resolve_can</c> may name is held to this by driving every member of the enum
+    /// through <see cref="Step"/>.</para>
+    ///
+    /// <para><b>What is not on it is not a rule about the GM.</b> p.85 says a point of Adversity
+    /// does whatever a point of Resolve could have done; the four missing purchases are the ones
+    /// this engine still charges to the buyer's own pool, and an NPC has none. That is an engine
+    /// limit and the ledger says so in those words.</para>
+    /// </summary>
+    private static readonly HashSet<ResolveSpend> AdversityBuys =
+        [ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.KeepingHold];
 
     // ── Turns and pages ──────────────────────────────────────────────────────
 
@@ -1829,12 +1925,26 @@ public sealed partial class Encounter
     {
         var special = _play.GetCombat("special_effects");
         var holding = _play.GetCombat("holding_an_action");
+        var keeping = _play.GetCombat("keeping_hold");
         var page = state.Page + 1;
 
         var effects = new List<SpecialEffect>();
 
         foreach (var effect in state.Effects)
         {
+            // p.76's keeping_hold: a kept effect is no longer measured in pages. It lasts to the end
+            // of the following scene, which is past the end of this encounter, so it does not tick.
+            if (effect.KeptScenes > 0)
+            {
+                lines.Add(new LedgerLine(
+                    page, effect.Target, keeping.Id, keeping.SourceRef,
+                    $"{effect.Name} on {state[effect.Target].Name} does not run out: it has been "
+                    + $"kept, and lasts to {keeping.KeepingHold!.ExtendsTo}"));
+
+                effects.Add(effect);
+                continue;
+            }
+
             var remaining = effect.RemainingPages - 1;
             if (remaining <= 0)
             {
@@ -2046,7 +2156,6 @@ public sealed partial class Encounter
     {
         var entry = _play.GetCombat(kind switch
         {
-            ResolveSpend.KeepingHold => "keeping_hold",
             ResolveSpend.Knockback => "knockback",
             ResolveSpend.Luring => "luring",
             ResolveSpend.TeamAttack => "team_attacks",

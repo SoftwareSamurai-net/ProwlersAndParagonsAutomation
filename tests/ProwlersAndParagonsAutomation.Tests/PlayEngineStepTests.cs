@@ -2059,6 +2059,143 @@ public sealed class PlayEngineStepTests
         Assert.False(spend.State["down"].Defeated(encounter.DefeatFloor));
     }
 
+    // ── Chapter 4's Resolve purchases ────────────────────────────────────────
+
+    /// <summary>
+    /// <b>p.76's <c>keeping_hold</c> stops the effect's clock, and the ledger line is not the whole
+    /// of it.</b>
+    ///
+    /// <para>The page prints no worked example of the purchase, so this is a property with its own
+    /// control beside it: the <em>same</em> scripted faces are replayed twice, once with the point
+    /// spent and once without, and the effect that runs out in the second run has to still be
+    /// running in the first. A run on its own would prove nothing — an effect that was still there
+    /// might simply have had pages left.</para>
+    ///
+    /// <para>The counts come first, as everywhere here: the attack is required to have scored the
+    /// successes the script pays for and the target to have been <em>defeated by the effect</em>,
+    /// because "whenever you defeat a target with a special effect" is the entry's trigger and a
+    /// fixture where the effect merely landed would be buying something else.</para>
+    /// </summary>
+    [Fact]
+    public void AKeptHoldStopsCountingDownAndAnUnkeptOneRunsOut()
+    {
+        var rule = _play.GetCombat("keeping_hold").KeepingHold!;
+
+        // The control on the data: the purchase costs something, or "the pool moved" below is empty.
+        Assert.True(rule.CostResolve > 0);
+
+        var kept = Hold(buying: true);
+        var lapsed = Hold(buying: false);
+
+        // The unkept effect ran out on the page its duration says, and the kept one did not.
+        Assert.Contains(lapsed.Ledger.Lines, l =>
+            string.Equals(l.Rule, "special_effects", StringComparison.Ordinal)
+            && l.Text.Contains("runs out", StringComparison.Ordinal));
+        Assert.Empty(lapsed.Effects);
+
+        var still = Assert.Single(kept.Effects);
+        Assert.Equal("Mind Control", still.Name);
+        Assert.Equal(1, still.KeptScenes);
+
+        Assert.Contains(kept.Ledger.Lines, l =>
+            string.Equals(l.Rule, "keeping_hold", StringComparison.Ordinal)
+            && l.Text.Contains(rule.ExtendsTo, StringComparison.Ordinal));
+        Assert.DoesNotContain(kept.Ledger.Lines, l =>
+            string.Equals(l.Rule, "special_effects", StringComparison.Ordinal)
+            && l.Text.Contains("runs out", StringComparison.Ordinal));
+
+        // And the point was paid for it.
+        Assert.Equal(3 - rule.CostResolve, kept["hero"].Resolve);
+        Assert.Equal(3, lapsed["hero"].Resolve);
+    }
+
+    /// <summary>
+    /// The same fight twice: 4d of Mind Control for 4 successes against 2d of Willpower for 1, which
+    /// is 3 net and — half of it, rounding the way p.7 rounds — 2 pages of effect on a target with 2
+    /// Health left, so the effect defeats them. Then two pages pass.
+    /// </summary>
+    private EncounterState Hold(bool buying)
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["mind_control"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 2,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["willpower"] = 2, ["might"] = 5 },
+            ["willpower"]);
+
+        var dice = new ScriptedDice(6, 6, 1, 1, 4, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        var attack = encounter.Step(state, new Attack(
+            "hero", "villain", "mind_control", DamageKind.Psychic, AttackType.MentalPower,
+            Effect: "Mind Control"));
+
+        state = attack.State;
+
+        // The positive controls, before any outcome: the printed counts, and the defeat the entry's
+        // trigger names.
+        Assert.Contains(attack.Added, l =>
+            l.Text.Contains("mind_control 4d for 4 successes", StringComparison.Ordinal)
+            && l.Text.Contains("willpower 2d for 1", StringComparison.Ordinal));
+        Assert.Equal("Mind Control", state["villain"].DefeatedByEffect);
+        Assert.Equal(2, Assert.Single(state.Effects).RemainingPages);
+
+        if (buying) state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.KeepingHold)).State;
+
+        state = encounter.Step(state, new EndTurn("hero")).State;
+        state = encounter.Step(state, new EndTurn("villain")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+
+        // Nothing rolled anything the page does not: the purchase and the page turns take no dice.
+        Assert.Equal(0, dice.Remaining);
+
+        return state;
+    }
+
+    /// <summary>
+    /// <b>A buyer who is out of the fight is refused, and the refusal cites the rule that put them
+    /// there.</b>
+    ///
+    /// <para>This is where Chapter 4's four purchases part company with Chapter 5's. p.76's instant
+    /// recovery and p.79's Fatal Damage rescue are what a character who has just gone down buys, so
+    /// <c>OutOfTheFight</c> deliberately does not guard them; keeping a hold is something a
+    /// character does while they are still in the fight.</para>
+    /// </summary>
+    [Fact]
+    public void ADefeatedBuyerCannotKeepHold()
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["mind_control"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 2,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["willpower"] = 2 },
+            ["willpower"]);
+
+        var encounter = new Encounter(_play, new SeededDice(4));
+        var state = encounter.Begin([hero, villain]);
+
+        // The control: on their feet, the purchase is refused for want of a target rather than for
+        // want of a buyer — so the second refusal below is the defeat and not the same refusal twice.
+        var standing = encounter.Step(state, new SpendResolve("hero", ResolveSpend.KeepingHold));
+
+        Assert.Contains(standing.Added, l =>
+            string.Equals(l.Rule, "keeping_hold", StringComparison.Ordinal)
+            && l.Text.Contains("has nobody down under an effect of theirs", StringComparison.Ordinal));
+
+        var down = encounter.Step(
+            state.With(hero.WithHealth(encounter.DefeatFloor)),
+            new SpendResolve("hero", ResolveSpend.KeepingHold));
+
+        var line = Assert.Single(down.Added);
+        Assert.Equal("damage", line.Rule);
+        Assert.Contains("not the buyer of anything", line.Text, StringComparison.Ordinal);
+        Assert.Equal(3, down.State["hero"].Resolve);
+    }
+
     // ── Citations ────────────────────────────────────────────────────────────
 
     /// <summary>

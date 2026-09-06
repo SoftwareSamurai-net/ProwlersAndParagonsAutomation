@@ -10,7 +10,17 @@ namespace ProwlersAndParagonsAutomation.Play.Encounter;
 /// How long it still has. p.76: the target is defeated when this reaches their current Health, and
 /// breaking free takes half the escaper's net successes off it.
 /// </param>
-public sealed record SpecialEffect(string Target, string Source, string Name, int RemainingPages);
+/// <param name="KeptScenes">
+/// How many times p.76's <c>keeping_hold</c> has been bought for this effect.
+///
+/// <para><b>It is a count and not a flag because the entry says the purchase repeats</b> —
+/// <c>may_be_repeated_scene_after_scene</c>, one scene further for each point paid. Above zero, the
+/// effect's duration is no longer measured in pages at all: it runs "until the end of the following
+/// scene", which is past the end of the encounter this engine is stepping, so
+/// <see cref="Encounter.Step"/> stops ticking it down.</para>
+/// </param>
+public sealed record SpecialEffect(
+    string Target, string Source, string Name, int RemainingPages, int KeptScenes = 0);
 
 /// <summary>How far apart two combatants are, in the three classes p.73 prints.</summary>
 public enum RangeBand

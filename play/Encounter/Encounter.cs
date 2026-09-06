@@ -98,7 +98,6 @@ public sealed partial class Encounter
     public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         // Chapter 4's Resolve purchases this slice records and does not resolve.
-        "keeping_hold",
         "knockback",
         "luring",
         "team_attacks",

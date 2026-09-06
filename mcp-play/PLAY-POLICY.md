@@ -70,9 +70,9 @@ their behalf.
 **The GM's pool is Adversity**, opened at one point per Hero per issue plus the scene's Challenge
 Level multiplied by the number of Heroes. `spend_adversity` with kind `anything_resolve_can` buys,
 for an NPC, whatever a point of Resolve could have bought — and it has to name *which* purchase in
-`as_resolve`, because a point spent on nothing in particular is a point spent on nothing. **This
-slice runs two of them**, `extra_dice` and `reroll`; every other purchase it may name is recognised
-and answered with a `not yet implemented` line. The table at the end of this document says which is
+`as_resolve`, because a point spent on nothing in particular is a point spent on nothing. **It runs the
+purchases the last table of this document marks bought**; every other purchase it may name is
+recognised and answered with a `not yet implemented` line. The table at the end of this document says which is
 which, and it is the only place to read that from.
 
 ## Quoting a measurement
@@ -135,7 +135,6 @@ turned one of these table settings on without saying that the numbers do not car
 
 | Entry | What it is |
 |---|---|
-| `keeping_hold` | Ch.4 p.76. Carrying a defeating special effect into the next scene. |
 | `knockback` | Ch.4 p.78. Turning a heavy subdual blow into a spectacular flight. |
 | `luring` | Ch.4 p.79. Redirecting a dodged attack into whatever was behind you. |
 | `team_attacks` | Ch.4 p.79. Making a team attack's sixes explode. |
@@ -170,7 +169,6 @@ recognise, and answer with a `not yet implemented` line:
 
 | Spend | Tool |
 |---|---|
-| `keeping_hold` | `spend_resolve` |
 | `knockback` | `spend_resolve` |
 | `luring` | `spend_resolve` |
 | `team_attack` | `spend_resolve` |
@@ -179,13 +177,14 @@ recognise, and answer with a `not yet implemented` line:
 | `villainy` | `spend_adversity` |
 
 Everything else a spend can name is resolved: `extra_dice`, `reroll`, `seize_initiative`,
-`instant_recovery`, `avoid_fatal_damage` and `stabilise` for a Hero, and `anything_resolve_can`
-for the GM naming `extra_dice` or `reroll`.
+`instant_recovery`, `avoid_fatal_damage`, `stabilise` and `keeping_hold` for a Hero, and
+`anything_resolve_can` for the GM naming one of the purchases the last table below marks bought.
 
 **What `anything_resolve_can` may name** — the six above are a *Hero's* purchases, and the GM's
 pool does not yet buy all six. p.85's first purchase is the Resolve purchases with different money
-behind them, and this slice runs the two that are decided after the roll; the rest are recognised
-and answered with a `not yet implemented` line, exactly like the table above. **The two columns
+behind them, and the ones this engine runs from the GM's pool are the ones marked bought below; the
+rest still charge the buyer's own pool, which an NPC has none of, so they are recognised and
+answered with a `not yet implemented` line, exactly like the table above. **The two columns
 disagreeing with the engine is the failure this table exists to prevent** — an earlier version of
 this document advertised all six, four of them refused, and a model reading it had no way to tell
 a purchase that had happened from one that had not:
@@ -198,7 +197,7 @@ a purchase that had happened from one that had not:
 | `instant_recovery` | not yet implemented |
 | `avoid_fatal_damage` | not yet implemented |
 | `stabilise` | not yet implemented |
-| `keeping_hold` | not yet implemented |
+| `keeping_hold` | bought |
 | `knockback` | not yet implemented |
 | `luring` | not yet implemented |
 | `team_attack` | not yet implemented |
