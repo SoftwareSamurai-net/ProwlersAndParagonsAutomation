@@ -141,6 +141,20 @@ public sealed class AccountCharacterStore : ICharacterStore
             ? await _inTheAccount.ListAsync()
             : new AccountCharacters(null, await _local.ListAsync());
 
+    /// <summary>
+    /// Why the last <see cref="OpenAsync"/> or <see cref="ReadAsync"/> answered null, or
+    /// <see cref="ReadRefusal.None"/> when it did not. See <see cref="ApiCharacterStore.LastReadRefusal"/>
+    /// for why the two failures may not be one null, and why it is beside the read rather than in
+    /// its return type.
+    ///
+    /// <para><b>The browser's own store has no unreachable half</b>: local storage either holds
+    /// the character or does not, and a browser refusing storage answers the same "there is
+    /// nothing here" as an id nobody has written. So the local side is always
+    /// <see cref="ReadRefusal.NotThere"/>, which is the honest reading of it rather than a
+    /// simplification.</para>
+    /// </summary>
+    public ReadRefusal LastReadRefusal { get; private set; } = ReadRefusal.None;
+
     /// <summary>Open one of them. Null when it is not there, or not one this build can read.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> OpenAsync(string id)
     {
@@ -149,6 +163,8 @@ public sealed class AccountCharacterStore : ICharacterStore
         var opened = who.IsSignedIn
             ? await _inTheAccount.LoadAsync(id)
             : await _local.LoadAsync(id);
+
+        LastReadRefusal = Why(who.IsSignedIn, opened);
 
         // The pointer moves only if there was something to move to. Switching to a character that
         // could not be read would leave the app pointed at nothing, and the next autosave would
@@ -221,10 +237,28 @@ public sealed class AccountCharacterStore : ICharacterStore
     /// rather than as nothing, the way <see cref="AccountCharacters.IsFull"/> treats a cap it
     /// could not ask about.</para>
     /// </summary>
-    public async Task<(CharacterSheet Sheet, SheetMode Mode)?> ReadAsync(string id) =>
-        (await _who.CurrentAsync()).IsSignedIn
+    public async Task<(CharacterSheet Sheet, SheetMode Mode)?> ReadAsync(string id)
+    {
+        var who = await _who.CurrentAsync();
+
+        var read = who.IsSignedIn
             ? await _inTheAccount.LoadAsync(id)
             : await _local.LoadAsync(id);
+
+        LastReadRefusal = Why(who.IsSignedIn, read);
+
+        return read;
+    }
+
+    /// <summary>
+    /// Which of the two failures the read that just happened was, read off whichever half
+    /// answered it. Spelled once, because two copies of this would be two chances for one of them
+    /// to report an unreachable server as a character that is not there.
+    /// </summary>
+    private ReadRefusal Why(bool signedIn, (CharacterSheet Sheet, SheetMode Mode)? read) =>
+        read is not null ? ReadRefusal.None
+        : signedIn ? _inTheAccount.LastReadRefusal
+        : ReadRefusal.NotThere;
 
     /// <summary>
     /// Throw one away, wherever it lives.

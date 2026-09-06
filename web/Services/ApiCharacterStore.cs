@@ -21,6 +21,42 @@ public enum SaveOutcome
 }
 
 /// <summary>
+/// Why a read of one character by id came back with nothing.
+///
+/// <para><b>Two answers rather than one null, because they are two different sentences to a
+/// reader and the wrong one of them is a lie about their character.</b> A screen that says "open
+/// it in the character manager" about a character sitting safely on a server behind a dropped
+/// connection has sent somebody looking for a fault that is not theirs; a screen that says "try
+/// again in a moment" about a character this build cannot open will be believed, and the reader
+/// will keep trying. It is the same split <c>CampaignApproval</c> already makes between its
+/// unreachable and unreadable arms.</para>
+///
+/// <para><b>And it is load-bearing rather than cosmetic.</b> The campaigns page reads the
+/// pointer's character before it acts on the sheet on screen, and "there is no character at that
+/// id" is what tells a fresh, empty slot — where there is nothing to lose — apart from a real
+/// character that could not be reached, where acting would risk writing over it.</para>
+/// </summary>
+public enum ReadRefusal
+{
+    /// <summary>Nothing was refused: the character was read.</summary>
+    None,
+
+    /// <summary>
+    /// The server could not be reached, answered with something that is not an answer, or no
+    /// longer knows who is asking. <b>Nothing at all is known about whether the character is
+    /// there</b>, which is what makes this the dangerous one.
+    /// </summary>
+    Unreachable,
+
+    /// <summary>
+    /// The server answered, and there is no character at that id this build can open — it is not
+    /// on the account, or its payload is one this version cannot read. Either way, reading it
+    /// again in a moment will not change the answer.
+    /// </summary>
+    NotThere,
+}
+
+/// <summary>
 /// Keeps an account's characters on the server, so they are there in another browser.
 ///
 /// <para>The addresses and their meanings are <c>docs/CHARACTERS-API.md</c>, which is also what
@@ -97,22 +133,57 @@ public sealed class ApiCharacterStore : ICharacterStore
         catch (Exception e) when (IsUnreachable(e)) { return AccountCharacters.Unknown; }
     }
 
+    /// <summary>
+    /// Why the last <see cref="LoadAsync(string)"/> answered null, or <see cref="ReadRefusal.None"/>
+    /// when it did not.
+    ///
+    /// <para><b>Beside the read rather than in its return type</b>, which is the shape
+    /// <see cref="ApiMembershipStore.LastJoinRefusal"/> already uses for the same reason: this
+    /// method is called from half a dozen places that want the character and nothing else, and
+    /// widening it for the one caller that has to tell the two failures apart would make every
+    /// other call site carry a value it has no use for.</para>
+    /// </summary>
+    public ReadRefusal LastReadRefusal { get; private set; } = ReadRefusal.None;
+
     /// <summary>One character by id, or null if there is none this build can trust.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync(string id)
     {
-        if (string.IsNullOrEmpty(id)) return null;
+        if (string.IsNullOrEmpty(id))
+        {
+            LastReadRefusal = ReadRefusal.NotThere;
+            return null;
+        }
 
         try
         {
             using var response = await _http.GetAsync($"{List}/{Uri.EscapeDataString(id)}");
 
             // A 404 is the ordinary answer for a character this account does not have, and a 401
-            // for a session that ended while the tab was open. Neither is worth a word.
-            if (!response.IsSuccessStatusCode) return null;
+            // for a session that ended while the tab was open. Neither is worth a word to a
+            // reader who is only restoring a character — but they are not the same answer to one
+            // deciding whether it is safe to write, so which it was is recorded above.
+            if (!response.IsSuccessStatusCode)
+            {
+                LastReadRefusal = response.StatusCode == HttpStatusCode.NotFound
+                    ? ReadRefusal.NotThere
+                    : ReadRefusal.Unreachable;
 
-            return _payload.Read(await response.Content.ReadAsStringAsync());
+                return null;
+            }
+
+            var read = _payload.Read(await response.Content.ReadAsStringAsync());
+
+            // A payload this build cannot open is `NotThere` and not `Unreachable`: the server
+            // answered, and asking it again will produce the same bytes.
+            LastReadRefusal = read is null ? ReadRefusal.NotThere : ReadRefusal.None;
+
+            return read;
         }
-        catch (Exception e) when (IsUnreachable(e)) { return null; }
+        catch (Exception e) when (IsUnreachable(e))
+        {
+            LastReadRefusal = ReadRefusal.Unreachable;
+            return null;
+        }
     }
 
     /// <summary>

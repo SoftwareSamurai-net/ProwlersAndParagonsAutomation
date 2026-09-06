@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -117,6 +118,130 @@ public sealed class CampaignSubmissionTests
     /// </summary>
     private static void TheCharacterNeverArrivedOnScreen(RenderContext ctx) =>
         ctx.Session.StartAgain();
+
+    /// <summary>
+    /// The same state, reached through the page that actually produces it: the player follows a
+    /// sign-in link while the read of their character fails, and <c>SignIn.razor</c> empties the
+    /// session and leaves the pointer where it was.
+    ///
+    /// <para><b>Driven rather than arranged, because the arrangement is the thing under
+    /// suspicion.</b> <see cref="TheCharacterNeverArrivedOnScreen"/> above calls
+    /// <c>StartAgain</c> by hand and could go on passing over a sign-in page that had stopped
+    /// doing so; this one presses the app's own path and would go red if it did. The network is
+    /// put back before the page under test is rendered — the failure is a moment, not a
+    /// state.</para>
+    /// </summary>
+    private static async Task TheSignInReadFailed(RenderContext ctx)
+    {
+        ctx.Api.BeforeAnsweringCharacter = _ => throw new HttpRequestException("no network");
+
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("signin?t=a-link");
+
+        var signIn = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.SignIn>();
+
+        // The positive control on the fixture: the page really did spend the token and really did
+        // empty the session, which is the whole of the state the rest of the test is about. A
+        // sign-in that silently did nothing would leave Jetstream on screen and make every
+        // assertion below hold for the wrong reason.
+        Assert.Contains("Signed in", signIn.Markup, StringComparison.Ordinal);
+        Assert.True(ctx.Session.HasNothingOnIt(ctx.Session.Sheet),
+            "the sign-in page did not empty the session, so the reported state is not reached");
+
+        ctx.Api.BeforeAnsweringCharacter = null;
+    }
+
+    /// <summary>The bytes the account is holding under one id, as the server holds them.</summary>
+    private static async Task<string> StoredPayload(RenderContext ctx, string id) =>
+        await ctx.Services.GetRequiredService<HttpClient>()
+            .GetStringAsync($"/api/characters/{id}", Xunit.TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// <b>Joining from the emptied-session state must not write the empty sheet over the
+    /// character the pointer names.</b>
+    ///
+    /// <para>This is the loss rather than the mislabelling: <c>CampaignJoin.Apply</c> writes the
+    /// campaign's tier onto whatever sheet is on screen and rings the session's bell, and the
+    /// write-through that follows lands under the browser's current-character pointer — which is
+    /// still Jetstream. A tier is enough for <c>IsWorthKeeping</c>, so the guard that stops empty
+    /// sheets being written passes it by construction, and a fully statted character was replaced
+    /// by a 379-byte envelope in the course of typing a join code.</para>
+    ///
+    /// <para><b>The payload is compared byte for byte, and the one difference allowed is the one
+    /// the join is entitled to make</b> — the campaign id it now names. Anything else moving is
+    /// the character having been rewritten.</para>
+    /// </summary>
+    [Fact]
+    public async Task JoiningWithAnEmptiedSessionDoesNotWriteOverTheStoredCharacter()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        var before = await StoredPayload(ctx, JetstreamId);
+
+        await TheSignInReadFailed(ctx);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        // The character is exactly as it was, but for the campaign it has now joined. Taking that
+        // one field back out is what makes this a byte comparison rather than a field-by-field
+        // one — and the assertion that it really was taken out is what stops the comparison
+        // passing over a payload that never carried it.
+        var after = await StoredPayload(ctx, JetstreamId);
+        var withoutTheCampaign =
+            after.Replace($"\"CampaignId\":\"{CampaignId}\",", "", StringComparison.Ordinal);
+
+        Assert.NotEqual(after, withoutTheCampaign);
+        Assert.Equal(before, withoutTheCampaign);
+
+        // The row names the character it is actually about, on both halves.
+        var row = Assert.Single((await ctx.Services
+            .GetRequiredService<ApiMembershipStore>().MineAsync())!);
+
+        Assert.Equal("Jetstream", row.Label);
+        Assert.Equal(JetstreamId, row.CharacterId);
+
+        // And the page said what it did rather than doing it silently.
+        Assert.Contains("Jetstream was put back on screen first", page.Markup,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The other side of the same guard: when the pointer's character cannot be read, nothing
+    /// is written at all.</b>
+    ///
+    /// <para>Re-adopting is the preferred answer and it needs a read to succeed. Where the read
+    /// fails there is no way to tell a real character behind the pointer from an empty slot — so
+    /// the join is refused, the character is named so the reader knows which one this is about,
+    /// and the campaign never hears from this browser.</para>
+    /// </summary>
+    [Fact]
+    public async Task AJoinIsRefusedWhenThePointersCharacterCannotBeRead()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        var before = await StoredPayload(ctx, JetstreamId);
+
+        await TheSignInReadFailed(ctx);
+
+        var page = ctx.Render<Campaigns>();
+
+        // The network goes away again, this time for the read the join itself takes.
+        ctx.Api.BeforeAnsweringCharacter = _ => throw new HttpRequestException("no network");
+
+        Join(page, code);
+
+        ctx.Api.BeforeAnsweringCharacter = null;
+
+        Assert.Contains("Jetstream is the character this browser has open", page.Markup,
+            StringComparison.Ordinal);
+
+        Assert.Equal(before, await StoredPayload(ctx, JetstreamId));
+
+        // Nothing joined, so there is no row to be labelled wrongly later.
+        Assert.Empty((await ctx.Services.GetRequiredService<ApiMembershipStore>().MineAsync())!);
+    }
 
     /// <summary>
     /// <b>The defect, driven through the page.</b> The player joins with Jetstream on screen; a

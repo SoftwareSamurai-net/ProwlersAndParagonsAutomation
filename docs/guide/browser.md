@@ -1292,6 +1292,21 @@ works and nobody can reach.
   tier, campaign id and house Trait Cap that `CampaignJoin.Apply` copies in. It is `ReadAsync` and
   not `OpenAsync`, because sending is not switching to a character and opening one moves the
   pointer on the way past.
+- **A campaign act needs the sheet on screen to be the character the pointer names, and the loss
+  it stops is a character.** Reading the submission back by id fixed what was *sent*; it did not
+  touch what joining *writes*. `CampaignJoin.Apply` puts the campaign's tier onto
+  `Session.Sheet` and rings `NotifyChanged`, and that write-through lands under
+  `AccountCharacterStore.CurrentIdAsync()` — so from the emptied-session state a join wrote the
+  379-byte envelope straight over a fully statted character, and `IsWorthKeeping` could not stop
+  it because the join had just given the sheet a tier. `Campaigns.razor`'s
+  `TheCharacterOnScreenIsThePointers` runs before both acts: **asked only of a sheet with nothing
+  on it**, it re-adopts the pointer's character with `OpenAsync` and says so in the sentence, and
+  refuses only where the read was `Unreachable`. `ApiCharacterStore.LastReadRefusal` is what makes
+  that possible — `NotThere` is a fresh empty slot, where joining with an empty character is the
+  ordinary first move and there is nothing to lose, and it may not arrive as the same null as a
+  dropped connection. **The strict form — "the session's id must equal the pointer's" — was
+  rejected**: an account with no characters yet mints an id for its first save and loads nothing
+  into the session, so it would refuse the first join every new account makes.
 - **An empty sheet is refused on the page with a sentence, and never repaired.** `CharacterSession.
   HasNothingOnIt` is the question, and it is the engine's answer rather than a second opinion: the
   validator reporting `TRAIT_BELOW_MINIMUM` for *every* Ability is what an untouched sheet looks
