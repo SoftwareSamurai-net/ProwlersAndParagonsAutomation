@@ -319,6 +319,22 @@ lives there, and nothing about it is repeated here.
   impossible. The refusal names the tool to use instead, because a refusal that only says no sends a
   model straight back into the same call. Its test *fights* the fight to its end and asserts it
   ended before asserting the refusal.
+- **Each fight carries its own gate, and `take_turn`'s read-modify-write happens under it.** The
+  class's doc comment used to say that `EncounterState` being immutable made two calls in flight
+  safe. It does not: a turn is *read the held state, step it, write the result back*, and two of
+  those overlapping on one encounter both read the same state — the second write discards the first
+  turn while its caller is told `ok: true` and handed a ledger for a page the fight no longer has.
+  Immutability stops the discarded turn corrupting the surviving one; it does not stop the discard.
+  The gate is on `Held` and so is per encounter: two clients running two fights have nothing to
+  serialise. **The guard for it is the reason `PlayTools` has a `midTurn` seam.** The first version
+  fired sixteen turns at once and asserted their indices were 1 to 16 — against a build with the
+  gate taken out it went red *one run in five*, because the window is microseconds wide, so four
+  runs in five it reported green on a server that loses turns. The seam holds the first turn open
+  inside the gate instead, and the second turn either gets in or waits; no clock is involved, and
+  the guard is red every run. Its positive control is a turn on a *second* encounter driven to
+  completion while the first is held — without that, "the second turn never got in" is also what a
+  server that answers one call at a time looks like, and the same second fight is what bounds the
+  race in place of a sleep.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

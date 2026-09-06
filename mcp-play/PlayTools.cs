@@ -35,6 +35,7 @@ public sealed class PlayTools
     private readonly DerivedStatsCalculator _derived;
     private readonly PlayRulesRepository _play;
     private readonly Func<string> _guide;
+    private readonly Action<string>? _midTurn;
 
     /// <summary>
     /// Every encounter this session has started, by id.
@@ -44,9 +45,19 @@ public sealed class PlayTools
     /// wants a lifetime, an eviction rule and somebody's disk. A client that loses the session
     /// starts the fight again from the same seed and gets the same fight.</para>
     ///
-    /// <para>Concurrent because a client may have two calls in flight; each step replaces the
-    /// held state rather than mutating one, which is what <see cref="EncounterState"/> being
-    /// immutable buys.</para>
+    /// <para><b>Concurrent because a client may have two calls in flight — and that on its own was
+    /// not enough.</b> An earlier version of this comment stopped at the sentence above and said the
+    /// immutability of <see cref="EncounterState"/> made it safe. It does not: taking a turn is
+    /// <em>read the held state, step it, write the result back</em>, and two of those overlapping on
+    /// one encounter both read the same state and the second write silently discards the first
+    /// turn. Both callers get an <c>ok: true</c> and a ledger, and one of the two turns simply never
+    /// happened — a fight quietly missing a page of itself is the worst possible failure for a
+    /// server whose whole product is a record you can trust. What immutability buys is that the
+    /// discarded turn cannot corrupt the surviving one; it does not buy the turn.</para>
+    ///
+    /// <para>So each fight carries its own gate and the read-modify-write happens under it. Per
+    /// encounter, not one lock for the server: two clients running two fights have nothing to
+    /// serialise, and a single lock would make the second wait on the first for no reason.</para>
     /// </summary>
     private readonly ConcurrentDictionary<string, Held> _encounters =
         new(StringComparer.Ordinal);
@@ -54,7 +65,15 @@ public sealed class PlayTools
     private int _nextEncounter;
 
     /// <summary>One fight in progress: the engine that is stepping it, and where it has got to.</summary>
-    private sealed record Held(Encounter Engine, EncounterState State, int Seed, int ChallengeLevel);
+    /// <param name="Gate">
+    /// The one-at-a-time lock for this fight's read-modify-write. It is a positional parameter so
+    /// that <c>held with { State = … }</c> carries the <em>same</em> gate forward: a gate rebuilt on
+    /// every step would be a lock nobody else is holding, which is no lock at all. Never disposed,
+    /// deliberately — an encounter lives as long as the session and a disposed gate is a fight that
+    /// throws on its next turn.
+    /// </param>
+    private sealed record Held(
+        Encounter Engine, EncounterState State, int Seed, int ChallengeLevel, SemaphoreSlim Gate);
 
     /// <param name="rules">The character rules, for turning a sheet into a combatant.</param>
     /// <param name="derived">The character engine's Edge, Health, Resolve and effective ranks.</param>
@@ -66,16 +85,34 @@ public sealed class PlayTools
     /// conversation that opens with an empty document — a claim that can only be driven if the
     /// read can be made to fail.
     /// </param>
+    /// <param name="midTurn">
+    /// Called inside a fight's gate, with the encounter's id, once the held state has been read
+    /// and before the step that replaces it is written back — <b>the one seam this class has, and
+    /// it exists because the race it guards cannot otherwise be driven.</b>
+    ///
+    /// <para>The lost update <see cref="_encounters"/> documents lives in the handful of
+    /// microseconds between that read and that write. A test that fires two <c>take_turn</c>s and
+    /// hopes they overlap reproduces it about one run in five — measured, not guessed — which is a
+    /// guard that reports green on a server that has lost a turn. Holding the first turn here
+    /// makes the window as wide as the test wants it, so the second turn either gets in (no gate,
+    /// and both turns write the same page) or waits (gate, and the two turns land in order). No
+    /// clock is involved in either answer.</para>
+    ///
+    /// <para>Null in every host: <see cref="PlayServer.ToolsFor"/> does not pass it and there is
+    /// no argument, environment variable or file that turns it on.</para>
+    /// </param>
     public PlayTools(
         RulesRepository rules,
         DerivedStatsCalculator derived,
         PlayRulesRepository play,
-        Func<string>? guide = null)
+        Func<string>? guide = null,
+        Action<string>? midTurn = null)
     {
         _rules   = rules;
         _derived = derived;
         _play    = play;
         _guide   = guide ?? (() => PlayPolicy.Text);
+        _midTurn = midTurn;
     }
 
     /// <summary>
@@ -176,7 +213,7 @@ public sealed class PlayTools
         }
 
         var id = $"enc_{Interlocked.Increment(ref _nextEncounter)}";
-        _encounters[id] = new Held(engine, state, setup.Seed, setup.ChallengeLevel);
+        _encounters[id] = new Held(engine, state, setup.Seed, setup.ChallengeLevel, new SemaphoreSlim(1, 1));
 
         return Write(new JsonObject
         {
@@ -220,46 +257,80 @@ public sealed class PlayTools
                     : "Running: " + string.Join(", ", _encounters.Keys.Order(StringComparer.Ordinal)))));
         }
 
-        // <b>A fight that is over takes no more turns.</b> `Over` means one side has nobody
-        // standing, and the engine went on stepping past it: defeated combatants kept being rolled
-        // for, the page count kept climbing, and the ledger filled with lines about a fight that had
-        // already been decided. Every one of those lines is a real citation of a real rule, so there
-        // is nothing in the answer to tell a reader they are reading the aftermath — which is the
-        // one thing a ledger exists to make impossible.
-        if (held.State.Over)
-        {
-            return Write(Problem("ENCOUNTER_OVER",
-                $"'{encounterId}' is over: one side has nobody left standing, and the state it "
-                + "answered with last says so in \"over\". Taking another turn would add ledger "
-                + "lines about a fight that is already decided, and they would look exactly like "
-                + "the ones that decided it. Start another fight with start_encounter, or measure "
-                + "the matchup with run_encounters."));
-        }
-
         if (!TryReadIntent(intent, out var read, out var problem)) return Write(problem);
 
-        StepResult step;
+        // <b>Read, step and write back under this fight's own gate.</b> Without it the three are a
+        // classic lost update: two overlapping turns read the same state, both step it, and the
+        // second write discards the first turn while its caller is told `ok: true` and handed a
+        // ledger. A fight quietly missing a page of itself is the worst failure available to a
+        // server whose whole product is a record you can trust. `EncounterState` being immutable
+        // stops the discarded turn corrupting the surviving one; it does not stop the discard.
+        // Held in a local, because the `Held` record is replaced on every step and the gate released
+        // in the `finally` has to be the one that was taken. The `with` below carries the same
+        // instance forward, so a second lookup would find the same gate — the local says that is
+        // relied on rather than hoped for.
+        var gate = held.Gate;
+
+        gate.Wait();
+
         try
         {
-            step = held.Engine.Step(held.State, read);
-        }
-        // The engine throws for a request that names somebody who is not in the fight, or charges
-        // a pool a combatant does not hold. Both are the caller's, both are recoverable, and both
-        // arrive as a protocol error a model cannot act on if they are not caught here.
-        catch (Exception e) when (IsCallersFault(e))
-        {
-            return Write(Problem("INTENT_REFUSED", e.Message));
-        }
+            // Re-read inside the gate: the lookup above happened outside it, and a turn that was
+            // queued ahead of this one has replaced what it found. Indexed rather than tried,
+            // because nothing anywhere removes an encounter — the dictionary only ever grows, so an
+            // id that was present before the wait is present after it. If that ever stops being
+            // true (the eviction rule the field's own comment says a store would want), this is the
+            // line that has to grow a refusal rather than throw.
+            held = _encounters[encounterId];
 
-        _encounters[encounterId] = held with { State = step.State };
+            // The seam, held open by a test so that two turns really do overlap. Null in every
+            // host — see the constructor.
+            _midTurn?.Invoke(encounterId);
 
-        return Write(new JsonObject
+            // <b>A fight that is over takes no more turns.</b> `Over` means one side has nobody
+            // standing, and the engine went on stepping past it: defeated combatants kept being
+            // rolled for, the page count kept climbing, and the ledger filled with lines about a
+            // fight already decided. Every one of those lines is a real citation of a real rule, so
+            // nothing in the answer tells a reader they are looking at the aftermath — which is the
+            // one thing a ledger exists to make impossible. Checked in here, because "is it over"
+            // is a read of the same state the step is about.
+            if (held.State.Over)
+            {
+                return Write(Problem("ENCOUNTER_OVER",
+                    $"'{encounterId}' is over: one side has nobody left standing, and the state it "
+                    + "answered with last says so in \"over\". Taking another turn would add ledger "
+                    + "lines about a fight that is already decided, and they would look exactly like "
+                    + "the ones that decided it. Start another fight with start_encounter, or measure "
+                    + "the matchup with run_encounters."));
+            }
+
+            StepResult step;
+            try
+            {
+                step = held.Engine.Step(held.State, read);
+            }
+            // The engine throws for a request that names somebody who is not in the fight, or charges
+            // a pool a combatant does not hold. Both are the caller's, both are recoverable, and both
+            // arrive as a protocol error a model cannot act on if they are not caught here.
+            catch (Exception e) when (IsCallersFault(e))
+            {
+                return Write(Problem("INTENT_REFUSED", e.Message));
+            }
+
+            _encounters[encounterId] = held with { State = step.State };
+
+            return Write(new JsonObject
+            {
+                ["ok"]           = true,
+                ["encounter_id"] = encounterId,
+                ["added"]        = Lines(step.Added),
+                ["state"]        = PublicState(step.State)
+            });
+        }
+        finally
         {
-            ["ok"]           = true,
-            ["encounter_id"] = encounterId,
-            ["added"]        = Lines(step.Added),
-            ["state"]        = PublicState(step.State)
-        });
+            gate.Release();
+        }
     }
 
     // ── Measuring ─────────────────────────────────────────────────────────

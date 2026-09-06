@@ -43,7 +43,15 @@ public sealed class McpPlayServerTests
     /// protocol — initialize, the capability exchange, JSON-RPC framing — over streams that happen
     /// not to be a console.
     /// </summary>
-    private async Task WithClient(Func<McpClient, Task> body)
+    private Task WithClient(Func<McpClient, Task> body) => WithClient(Tools(), body);
+
+    /// <inheritdoc cref="WithClient(Func{McpClient, Task})"/>
+    /// <param name="tools">
+    /// The tools the server is built over. Taken as an argument for the one test that needs a
+    /// <c>midTurn</c> seam in them — every other test wants the plain ones.
+    /// </param>
+    /// <param name="body">What to drive over the client once it is connected.</param>
+    private static async Task WithClient(PlayTools tools, Func<McpClient, Task> body)
     {
         var toServer = new Pipe();
         var toClient = new Pipe();
@@ -54,7 +62,7 @@ public sealed class McpPlayServerTests
         var transport = new StreamServerTransport(
             toServer.Reader.AsStream(), toClient.Writer.AsStream(), PlayServer.Name);
 
-        var server = McpServer.Create(transport, PlayServer.Options(Tools()));
+        var server = McpServer.Create(transport, PlayServer.Options(tools));
 
         var running = server.RunAsync();
 
@@ -980,6 +988,187 @@ public sealed class McpPlayServerTests
                 Assert.InRange(rate, 0.0, 1.0);
             }
         });
+
+    /// <summary>
+    /// <b>Two turns in flight on one fight land in order, rather than on top of each other.</b>
+    ///
+    /// <para>Taking a turn is <em>read the held state, step it, write the result back</em>, and the
+    /// class's own doc comment used to say that <c>EncounterState</c> being immutable made
+    /// overlapping calls safe. It does not. Two overlapping turns read the same state, both step
+    /// it, and the second write discards the first turn — while its caller is told <c>ok: true</c>
+    /// and handed a ledger for a page the fight no longer has. A record quietly missing a page of
+    /// itself is the worst failure available to a server whose whole product is a record you can
+    /// trust. Immutability stops the discarded turn corrupting the surviving one; it does not stop
+    /// the discard.</para>
+    ///
+    /// <para><b>Driven through the seam rather than by firing turns and hoping.</b> The first
+    /// version of this test fired sixteen <c>take_turn</c>s at once and asserted their turn indices
+    /// were 1 to 16 with no repeats. Run five times against a build with the gate taken out, it went
+    /// red <em>once</em> — the window between the read and the write is a few microseconds wide, so
+    /// four runs in five the sixteen calls simply queued up and the guard reported green on a server
+    /// that loses turns. So <c>midTurn</c> holds the first turn open inside the gate, with the state
+    /// it has just read, until this test lets go: the second turn then either gets in (no gate, and
+    /// both turns write the same page) or waits at the gate (the fix, and the two turns land in
+    /// order). Neither answer involves a clock.</para>
+    ///
+    /// <para><b>The positive control is the second fight.</b> "The second turn never got in" is also
+    /// what a server that handles one call at a time looks like, and against one of those this guard
+    /// would pass without the gate existing at all. So while the first turn is held, a turn on
+    /// <em>another</em> encounter is driven to completion: it proves the server really does run two
+    /// tool calls at once, and it proves the gate is per fight rather than one lock for the server —
+    /// which is the whole reason it lives on <c>Held</c>.</para>
+    ///
+    /// <para>That second fight is also the bound on the race, in place of a sleep: after the second
+    /// turn is sent, whole tool calls are driven to completion on the other encounter. The server
+    /// reads its messages in order, so the second turn was dispatched before any of them, and each
+    /// one that answers is a full round trip the second turn has had to reach the seam in. Under the
+    /// defect it reaches it in microseconds; under the fix it cannot reach it at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task TwoTurnsInFlightOnOneFightLandInOrder()
+    {
+        var inside = 0;
+
+        var firstIsInside = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondGotInside = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var letGo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // Assigned before any turn is taken, and read only by turns on the fight under test — the
+        // other encounter's turns have to run freely, since they are the control.
+        var underTest = "";
+
+        var tools = new PlayTools(_f.Rules, _f.Derived, _play, midTurn: id =>
+        {
+            if (!string.Equals(id, underTest, StringComparison.Ordinal)) return;
+
+            if (Interlocked.Increment(ref inside) == 1)
+            {
+                firstIsInside.SetResult();
+                letGo.Task.Wait();
+            }
+            else
+            {
+                secondGotInside.TrySetResult();
+            }
+        });
+
+        await WithClient(tools, async client =>
+        {
+            try
+            {
+                underTest = await OpenAFight(client);
+                var control = await OpenAFight(client);
+
+                var first = EndTurn(client, underTest);
+
+                await Waited(firstIsInside.Task, "the first turn never reached the gate");
+
+                // The control, and it has to come before the race: a server that answers one call
+                // at a time would satisfy every assertion below with no gate in it anywhere.
+                var elsewhere = await Waited(
+                    EndTurn(client, control),
+                    "a turn on a second fight could not finish while a turn on the first was held — "
+                    + "either this server answers one call at a time, in which case nothing below "
+                    + "means anything, or the gate is one lock for the whole server rather than one "
+                    + "per fight");
+
+                Assert.True(elsewhere["ok"]!.GetValue<bool>(), elsewhere.ToJsonString());
+                Assert.Equal(1, elsewhere["state"]!["turn_index"]!.GetValue<int>());
+
+                var second = EndTurn(client, underTest);
+
+                // Three whole tool calls, answered, after the second turn was sent. Not a delay:
+                // the server reads its messages in the order they arrive, so the second turn was
+                // dispatched first and has had three round trips in which to reach the seam.
+                var roundTrips = Task.Run(async () =>
+                {
+                    for (var i = 0; i < 3; i++) await EndTurn(client, control);
+                });
+
+                await Task.WhenAny(secondGotInside.Task, roundTrips);
+
+                Assert.False(secondGotInside.Task.IsCompleted,
+                    "two turns on one fight were inside the read-modify-write at the same time, so "
+                    + "both read the same state and the second write discards the first turn");
+
+                letGo.SetResult();
+
+                var a = await Waited(first, "the held turn never finished");
+                var b = await Waited(second, "the queued turn never finished");
+
+                // The control for the assertion below: "no two turns claim the same index" is
+                // satisfied perfectly by a run in which one of them was refused.
+                Assert.True(a["ok"]!.GetValue<bool>(), a.ToJsonString());
+                Assert.True(b["ok"]!.GetValue<bool>(), b.ToJsonString());
+                // And the ledger says two turns happened, not one. There are two combatants in
+                // the order, so the *second* end_turn is the one that runs off the end of it and
+                // cites the rule that says when a page ends. Without the gate neither turn ever
+                // reaches the end of the order, so that line is in neither answer.
+                var pageEnded = new[] { a, b }
+                    .SelectMany(turn => turn["added"]!.AsArray())
+                    .Count(line => string.Equals(
+                        line!["rule"]!.GetValue<string>(), "pages_and_turns", StringComparison.Ordinal));
+
+                Assert.Equal(1, pageEnded);
+
+                // Both turns landed, and they landed one after the other. Without the gate both
+                // report 1, because both stepped the same state.
+                Assert.Equal(
+                    [1, 2],
+                    new[] { a, b }.Select(t => t["state"]!["turn_index"]!.GetValue<int>()).Order());
+            }
+            finally
+            {
+                // So that a failed assertion is a red test rather than a held thread and a suite
+                // that never finishes.
+                letGo.TrySetResult();
+            }
+        });
+    }
+
+    private static async Task<string> OpenAFight(McpClient client)
+    {
+        var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+        {
+            ["combatants"] = TwoSides()
+        });
+
+        Assert.True(opened["ok"]!.GetValue<bool>(), opened.ToJsonString());
+
+        return opened["encounter_id"]!.GetValue<string>();
+    }
+
+    /// <summary>
+    /// One <c>end_turn</c>, which is the intent whose effect is countable: it advances the turn
+    /// index by exactly one and nothing else, so two of them that both landed are 1 and 2 and two
+    /// that collided are 1 and 1.
+    /// </summary>
+    private static Task<JsonNode> EndTurn(McpClient client, string encounter) =>
+        Call(client, "take_turn", new Dictionary<string, object?>
+        {
+            ["encounterId"] = encounter,
+            ["intent"] = new JsonObject { ["kind"] = "end_turn", ["actor"] = "hero" }
+        });
+
+    /// <summary>
+    /// How long a step of this test will wait for something that should already have happened.
+    /// <b>It is not part of the reasoning</b> — every answer this test gives is settled by work the
+    /// server completed, never by the clock. This is what turns a wedged server into a named failure
+    /// instead of a suite that hangs, so it is generous.
+    /// </summary>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+
+    private static async Task Waited(Task task, string what)
+    {
+        Assert.True(await Task.WhenAny(task, Task.Delay(Patience)) == task, what);
+        await task;
+    }
+
+    private static async Task<T> Waited<T>(Task<T> task, string what)
+    {
+        Assert.True(await Task.WhenAny(task, Task.Delay(Patience)) == task, what);
+        return await task;
+    }
 
     /// <summary>
     /// <b>A fight that is over takes no more turns.</b>
