@@ -277,6 +277,14 @@ lives there, and nothing about it is repeated here.
   JSON layer stringifies booleans measured the wrong game every time. `gear_limit_rank` is the one
   setting that takes a number rather than a switch, so it is refused the other way round; a check
   that only ever demanded booleans would have broken it.
+- **`ranges` on the public state is a list of pairs, and never the engine's key.**
+  `EncounterState.PairKey` joins two ids with a literal **NUL** — right inside the engine, since it
+  is the one character an id cannot contain, and a catastrophe as a JSON member name: the state
+  shipped `"robot\0soldier"`, which a client splitting on a space reads as one combatant called
+  *robot soldier* and a log or a terminal truncates at the NUL. It is now
+  `[{"a": id, "b": id, "band": …}]`, built from the turn order so the separator is never parsed back
+  out. The test asserts no NUL in any byte of the answer **and** that the pair is there naming both
+  combatants — the first half alone is satisfied by an answer that stopped carrying ranges at all.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

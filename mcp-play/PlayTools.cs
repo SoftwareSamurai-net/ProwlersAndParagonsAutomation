@@ -1151,9 +1151,24 @@ public sealed class PlayTools
                 })
             ]),
 
-            ["ranges"] = new JsonObject(
-                state.Ranges.Select(r =>
-                    new KeyValuePair<string, JsonNode?>(r.Key, JsonValue.Create(Wire(r.Value.ToString())))))
+            // <b>A pair, not a key.</b> `EncounterState.PairKey` joins two ids with a literal NUL —
+            // the right choice inside the engine, because it is the one character an id cannot
+            // contain — and putting it on the wire shipped `"robot soldier"` as a JSON *member
+            // name*. A client that split on a space got one combatant called "robot soldier"; one
+            // that echoed the key into a terminal or a log truncated it at the NUL. Neither is a
+            // failure anybody would look for, and the engine's private spelling of a key is not
+            // something this server has any business publishing. Built from the turn order rather
+            // than from the dictionary's keys, so the separator never has to be parsed back out.
+            ["ranges"] = new JsonArray([
+                .. state.TurnOrder
+                    .SelectMany((a, i) => state.TurnOrder.Skip(i + 1).Select(b => (A: a, B: b)))
+                    .Select(pair => (JsonNode)new JsonObject
+                    {
+                        ["a"]    = pair.A,
+                        ["b"]    = pair.B,
+                        ["band"] = Wire(state.RangeBetween(pair.A, pair.B).ToString())
+                    })
+            ])
         };
     }
 

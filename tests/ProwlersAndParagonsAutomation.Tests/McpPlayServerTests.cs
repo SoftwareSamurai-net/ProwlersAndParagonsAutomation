@@ -501,6 +501,56 @@ public sealed class McpPlayServerTests
     }
 
     /// <summary>
+    /// <b>How far apart two combatants are is a pair on the wire, and no answer carries a NUL.</b>
+    ///
+    /// <para><c>EncounterState.PairKey</c> joins two ids with a literal <c>\0</c> — the right choice
+    /// inside the engine, since it is the one character an id cannot contain, and a catastrophe as a
+    /// JSON member name. The state came back with a key spelling <c>robot\0soldier</c>: a client
+    /// that split it on a space read one combatant named "robot soldier", and one that echoed it
+    /// into a log or a terminal saw it truncated at the NUL. Neither is a failure anybody would go
+    /// looking for.</para>
+    ///
+    /// <para><b>Both halves are asserted, and the second is the control.</b> "No NUL anywhere" is
+    /// satisfied completely by an answer that stopped carrying ranges at all, which is how three of
+    /// this repository's historical guards were wrong — so the pair has to be there, naming both
+    /// combatants, before the absence of the byte means anything.</para>
+    /// </summary>
+    [Fact]
+    public async Task RangesComeBackAsPairsAndNoAnswerCarriesANul() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["openingRange"] = "distant"
+            });
+
+            var turn = await client.CallToolAsync("take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                ["intent"] = new JsonObject { ["kind"] = "hold", ["actor"] = "hero" }
+            });
+
+            var raw = Text(turn);
+
+            Assert.DoesNotContain('\0', raw);
+
+            Assert.Fail("RAW>>>" + raw);
+            var ranges = JsonNode.Parse(raw)!["state"]!["ranges"]!.AsArray();
+
+            var pair = Assert.Single(ranges);
+
+            // The two ids, in their own fields — not spliced into one string a caller has to
+            // take apart, and not the engine's private spelling of a dictionary key.
+            Assert.Equal(["hero", "villain"],
+                new[] { pair!["a"]!.GetValue<string>(), pair["b"]!.GetValue<string>() }
+                    .Order(StringComparer.Ordinal));
+
+            // And the band the fight actually opened in, so this cannot pass on a constant.
+            Assert.Equal("distant", pair["band"]!.GetValue<string>());
+        });
+
+    /// <summary>
     /// <b>An intent this engine does not have is refused by name, and the refusal lists the ones it
     /// does.</b> A model that guessed a verb has to be able to correct itself from the answer, and
     /// "unknown intent" on its own sends it guessing again.
