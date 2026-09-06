@@ -311,6 +311,14 @@ lives there, and nothing about it is repeated here.
   arguments of anything; it catches the failure that shipped, which is the right argument
   mis-spelled. Its control names the ten arguments the section undertakes to print rather than
   counting them, because a parse that had stopped finding spans would otherwise pass in silence.
+- **`take_turn` on a fight that is over is `ENCOUNTER_OVER`.** `Over` means one side has nobody
+  standing, and the server went on stepping past it: defeated combatants kept being rolled for, the
+  page count kept climbing, and the ledger filled with lines about a fight already decided. Every one
+  of those lines carries a real rule id and a real printed page, so nothing in the answer tells a
+  reader they are looking at the aftermath — which is the single thing a ledger exists to make
+  impossible. The refusal names the tool to use instead, because a refusal that only says no sends a
+  model straight back into the same call. Its test *fights* the fight to its end and asserts it
+  ended before asserting the refusal.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

@@ -220,6 +220,22 @@ public sealed class PlayTools
                     : "Running: " + string.Join(", ", _encounters.Keys.Order(StringComparer.Ordinal)))));
         }
 
+        // <b>A fight that is over takes no more turns.</b> `Over` means one side has nobody
+        // standing, and the engine went on stepping past it: defeated combatants kept being rolled
+        // for, the page count kept climbing, and the ledger filled with lines about a fight that had
+        // already been decided. Every one of those lines is a real citation of a real rule, so there
+        // is nothing in the answer to tell a reader they are reading the aftermath — which is the
+        // one thing a ledger exists to make impossible.
+        if (held.State.Over)
+        {
+            return Write(Problem("ENCOUNTER_OVER",
+                $"'{encounterId}' is over: one side has nobody left standing, and the state it "
+                + "answered with last says so in \"over\". Taking another turn would add ledger "
+                + "lines about a fight that is already decided, and they would look exactly like "
+                + "the ones that decided it. Start another fight with start_encounter, or measure "
+                + "the matchup with run_encounters."));
+        }
+
         if (!TryReadIntent(intent, out var read, out var problem)) return Write(problem);
 
         StepResult step;

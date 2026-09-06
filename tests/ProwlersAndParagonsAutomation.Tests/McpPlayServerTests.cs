@@ -982,6 +982,97 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A fight that is over takes no more turns.</b>
+    ///
+    /// <para><c>Over</c> means one side has nobody standing, and the server went on stepping past
+    /// it: defeated combatants kept being rolled for, the page count kept climbing, and the ledger
+    /// filled with lines about a fight that had already been decided. Every one of those lines
+    /// carries a real rule id and a real printed page, so nothing in the answer tells a reader they
+    /// are reading the aftermath — which is the one thing a ledger exists to make impossible.</para>
+    ///
+    /// <para><b>The fight is fought rather than faked, and the control is that it ended.</b> A
+    /// 12d Hero against a single Threat-1 Minion, attacking and turning the page until the state
+    /// says <c>over</c>; if it never does, this fails saying so rather than asserting anything about
+    /// a refusal that was never provoked. Nothing here asserts a die roll — only that the engine
+    /// eventually finishes a fight one side cannot lose slowly.</para>
+    /// </summary>
+    [Fact]
+    public async Task TakeTurnIsRefusedOnceTheFightIsOver() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = new JsonArray(
+                    new JsonObject
+                    {
+                        ["kind"] = "hero",
+                        ["id"] = "soldier",
+                        ["side"] = "heroes",
+                        ["character"] = new JsonObject
+                        {
+                            ["Name"] = "Citizen Soldier",
+                            ["SelectedTierId"] = "standard",
+                            ["AbilityRanks"] = new JsonObject
+                            {
+                                ["might"] = 12, ["toughness"] = 12, ["agility"] = 12
+                            }
+                        }
+                    },
+                    new JsonObject
+                    {
+                        ["kind"] = "minions", ["id"] = "thug", ["name"] = "the last thug",
+                        ["threat_rank"] = 1, ["count"] = 1, ["side"] = "villains"
+                    }),
+                ["seed"] = 7
+            });
+
+            var id = opened["encounter_id"]!.GetValue<string>();
+
+            async Task<JsonNode> Turn(JsonObject intent) =>
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id, ["intent"] = intent
+                });
+
+            var over = false;
+
+            for (var page = 0; page < 40 && !over; page++)
+            {
+                await Turn(new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "soldier",
+                    ["target"] = "thug", ["trait_id"] = "might"
+                });
+
+                var turned = await Turn(new JsonObject { ["kind"] = "end_page", ["actor"] = "soldier" });
+
+                over = turned["state"]!["over"]!.GetValue<bool>();
+            }
+
+            // The positive control: the refusal below is worth nothing if the fight never ended.
+            Assert.True(over,
+                "The fight never reached over: true, so nothing was provoked and the refusal this "
+                + "test is about was never reached.");
+
+            var answer = await Turn(new JsonObject
+            {
+                ["kind"] = "attack", ["actor"] = "soldier",
+                ["target"] = "thug", ["trait_id"] = "might"
+            });
+
+            Assert.False(answer["ok"]!.GetValue<bool>());
+            Assert.Equal("ENCOUNTER_OVER", answer["problem"]!["code"]!.GetValue<string>());
+
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Contains(id, message, StringComparison.Ordinal);
+
+            // And what to do instead, by tool name — a refusal that only says no sends a model
+            // straight back into the same call.
+            Assert.Contains("start_encounter", message, StringComparison.Ordinal);
+        });
+
+    /// <summary>
     /// <b>A fight with one side in it is refused by both tools, not measured.</b>
     ///
     /// <para><c>EncounterState.Over</c> and every policy partition on <c>Combatant.Side</c> and on
