@@ -18,6 +18,10 @@
     <ItemGroup>
         <ProjectReference Include="..\engine\ProwlersAndParagons.Engine.csproj" />
         <ProjectReference Include="..\sheets\ProwlersAndParagons.Sheets.csproj" />
+
+        <!-- Where the rules are, and what the two arguments meant. Shared with mcp-play/ so
+             there is one copy of a refusal this repository has corrected three times. -->
+        <ProjectReference Include="..\mcp-shared\ProwlersAndParagons.McpShared.csproj" />
     </ItemGroup>
 
     <ItemGroup>

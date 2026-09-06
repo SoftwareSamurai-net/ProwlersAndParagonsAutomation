@@ -17,6 +17,8 @@
         <Compile Remove="sheets\**" />
         <Compile Remove="web\**" />
         <Compile Remove="mcp\**" />
+        <Compile Remove="mcp-shared\**" />
+        <Compile Remove="mcp-play\**" />
         <Compile Remove="tests\**" />
         <Compile Remove="tools\**" />
     </ItemGroup>

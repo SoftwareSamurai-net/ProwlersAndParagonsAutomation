@@ -1,6 +1,6 @@
 # The two assisted-creation surfaces
 
-Read before touching `mcp/` or `cli/Headless/`: the question policy, the six tools, the standard-output discipline, and the `build --from` contract.
+Read before touching `mcp/`, `mcp-play/`, `mcp-shared/` or `cli/Headless/`: the question policy, the six tools, the standard-output discipline, the `build --from` contract, and the second server that runs fights.
 
 > Part of the guide set indexed by [`CLAUDE.md`](../../CLAUDE.md). Read that first; it carries the
 > disciplines that apply whatever you are working on. **Open work lives in
@@ -195,3 +195,226 @@ questions about the rules. It does not replace `build --from`; both call the sam
   its own, because rendering components needs one.
 
 
+
+
+## The second server: `mcp-play/`
+
+`mcp-play/` is a **second stdio server**, `prowlers-and-paragons-play`, wrapping the *second*
+engine: it resolves fights out of `data/rules/play/` and decides nothing about cost or validity.
+Read [`play-engine.md`](play-engine.md) before touching it — everything about what a fight *is*
+lives there, and nothing about it is repeated here.
+
+- **It is a second program and not four more tools on the first one.** The two answer different
+  questions from different stores, a client that wants a character builder does not want a
+  simulator in its tool list, and a client that wants to measure a matchup does not want a Hero
+  Point calculator in its. `.mcp.json` registers both, `docs/MCP-SETUP.md` publishes both, and
+  either works without the other.
+- **Everything in the section above about standard output, `dotnet exec`, the approval gate and the
+  published copy applies here unchanged**, one directory over: `mcp-play-server/`, git-ignored the
+  same way, for the same reason — a server holding `mcp-play/bin/Release` is on the build's write
+  path. `McpPlayStdioTests` is `McpStdioTests`' shape against the second binary: the source scan,
+  the runtime scan over both launch paths, and every tool driven so a stray write inside a body has
+  a stream something is reading.
+- **`RulesLocation` and `CommandLine` live in `mcp-shared/`, and the reason is not tidiness.** A
+  `<Compile Include>` of one file into both servers puts
+  `ProwlersAndParagonsAutomation.Mcp.RulesLocation` in two assemblies; the test project references
+  both, and the first unqualified use of the name is **CS0433**. The namespace did not change with
+  the move, so every `using` that named it still resolves and the two files are a rename in the
+  history rather than a rewrite. If you add a third server, share through that project.
+- **There is one environment variable for two stores.** `PROWLERS_RULES_DIR` points at the character
+  rules and `PlayRulesLocation` takes the `play` folder under them — which is where they are in the
+  repository, beside the binary, and in any directory somebody points that variable at. A second
+  variable would double the number of ways a stuck reader can end up on rules that are not the ones
+  they meant, for a directory that has never been anywhere else. A character-rules directory with no
+  `play` under it is a **refusal at startup**, not a candidate that failed.
+- **The startup check reads every file of *both* stores.** Same reason as the character server's,
+  with twice as many files to be missing: both repositories load lazily, so a directory holding one
+  file would otherwise start cleanly and then throw out of most of the tools. `ReadEverything`
+  touches all eleven character files, all five play files and the embedded guide.
+- **The optional JSON arguments are `JsonElement?`, never `JsonElement = default`.** Measured: a
+  `JsonElement` parameter carrying a default value throws `InvalidOperationException` out of
+  `McpServerTool.Create`, and because that call is inside the startup check the failure arrives as
+  *"the rules could not be read"* — a refusal several layers from the cause, on a launch that never
+  reaches a tool. The nullable is the spelling both the SDK and a reader understand as "may be left
+  out".
+- **`combat_guide` is `creation_guide`'s shape, and its rule is the same rule turned round to face a
+  fight: the engine resolves and the model narrates.** `mcp-play/PLAY-POLICY.md` is embedded and
+  served verbatim, so the document the next person reads and the document the assistant is taught
+  are the same bytes. Its list of what is *recognised and not applied* is pinned to
+  `Encounter.EntriesNotYetApplied`, `Encounter.SwitchesNotYetApplied` and the spends that actually
+  refuse — driven through `Step` rather than compared with a list, because a document's account of
+  what the code does is a claim about the code and a claim nothing checks goes stale.
+- **`run_encounters` refuses fewer than 30 runs rather than answering with a caveat**, and prints N,
+  the seeds, the policy's own `Name` and every table switch in the same object as the rates. A
+  caveat beside a number is read by nobody; the number is what gets quoted. **The policy is a guess
+  about how people play and not a rule** — that is `IPolicy`'s own doc comment, and it is why the
+  name is in the report.
+- **Acting and rolling are one tool.** `declare_intent` beside `roll` is the engine's internals
+  rather than the conversation's: an intent is a *request*, and a separate rolling call would let a
+  caller declare an attack, look at the dice, and decide afterwards what was being attempted. It is
+  the same reasoning that makes `check_character` one tool rather than two.
+- **A refused character sheet is an error result naming the reason, never a crash.** The sheet goes
+  through `CharacterSheetJson.Read(strict: true)` exactly as `build --from` and the character server
+  read one, and `CombatantFactory.From` is guarded: a sheet the engine cannot derive a figure from
+  comes back as `COMBATANT_UNBUILDABLE` pointing at the *other* server, because whether a character
+  is legal is not a question this one answers.
+- **A tier the character rules do not have is `NO_SUCH_TIER`, and the opening ledger says which tier
+  each character was built to.** `DerivedStatsCalculator.CalculateResolve` answers **0** for an
+  absent or unresolvable tier — the honest answer for a figure it cannot derive, and a silent lie
+  once that figure is a Hero in a fight, because a Hero at 0 Resolve buys no extra die, no reroll and
+  no stabilise and nothing in the answer says the number was never computed. A misspelled
+  `standrad` and an omitted `SelectedTierId` arrive by different routes and produced the same quiet
+  zero, so both are driven. Whether the character is *legal* at that tier is still the other
+  server's question; this one only refuses a tier it cannot look up. The ledger line cites
+  `starting_resolve` (Ch.5 p.83), which is the entry that measures Resolve down from the Trait Cap —
+  a reader forbidden to quote a number the ledger did not print is exactly the reader who needs that
+  number's input printed.
+- **A known switch with a value that is not a boolean is `BAD_TABLE`, naming the key and the
+  value.** The unknown-*key* refusal was already there; this is the same reasoning one layer in, and
+  it was missing. `"true"`, `1`, `"yes"` and `null` all failed `TryGetValue<bool>` and fell through
+  to `false`, so a table that plainly meant to turn Wound Penalties **on** measured a game without
+  them, the echo printed `false`, and nothing said the value had been thrown away — a client whose
+  JSON layer stringifies booleans measured the wrong game every time. `gear_limit_rank` is the one
+  setting that takes a number rather than a switch, so it is refused the other way round; a check
+  that only ever demanded booleans would have broken it.
+- **`ranges` on the public state is a list of pairs, and never the engine's key.**
+  `EncounterState.PairKey` joins two ids with a literal **NUL** — right inside the engine, since it
+  is the one character an id cannot contain, and a catastrophe as a JSON member name: the state
+  shipped `"robot\0soldier"`, which a client splitting on a space reads as one combatant called
+  *robot soldier* and a log or a terminal truncates at the NUL. It is now
+  `[{"a": id, "b": id, "band": …}]`, built from the turn order so the separator is never parsed back
+  out. The test asserts no NUL in any byte of the answer **and** that the pair is there naming both
+  combatants — the first half alone is satisfied by an answer that stopped carrying ranges at all.
+- **`openingRange` is read by name, never by `Enum.TryParse`.** That method also accepts the
+  *numeral* of a member, and for a plain enum any numeral at all — so `"1"` opened a fight at
+  Distant, a band nobody named, and `"99"` opened one at a `RangeBand` that does not exist, from
+  which the echo printed `99` back and every range comparison downstream ran against an undefined
+  value. `TryReadEnum` already compared wire names for the other five enums on this wire; this one
+  did not, and the fix is to make it the same reader. Any enum added here goes through names.
+- **A fight with fewer than two sides in it is `ONE_SIDED`, from both tools.** `Over` and every
+  policy partition on `Combatant.Side` and on nothing else, so a fight where everybody shares a side
+  is over before it starts and `run_encounters` answered `win_rate: 1.0` — a figure that looks
+  exactly like a real one, quotable, reproducible, printed beside its N, its seeds, its policy and
+  its table, and meaning nothing whatever. That is the worst answer this tool can give, because the
+  whole apparatus around the number is intact. The commonest way to make one is to leave `side` off
+  every entry, since the default is derived from the kind. **What is refused is one *side*, never
+  one *kind*** — two Heroes on two sides is a fight p.73 prints and still measures.
+- **Every argument name `PLAY-POLICY.md` prints in a code span is held to the schema of the running
+  server.** The document told every conversation that `run_encounters` takes `max_pages`; the
+  argument is `maxPages`, and `max_pages` is what comes back in the *answer* — which is exactly why
+  the mistake reads as correct. A model following the document sent an argument the schema has not
+  got, the SDK dropped it, and the run took the default page limit while reporting a `max_pages` the
+  caller never asked for. The check reads the names out of `tools/list` over the transport, so
+  renaming an argument in C# renames what the document is measured against. **A code span counts as
+  being about an argument when it matches one with case and underscores removed** — narrow on
+  purpose, since `hero`, `threat_rank` and `attack_the_weakest` sit in the same bullets and are not
+  arguments of anything; it catches the failure that shipped, which is the right argument
+  mis-spelled. Its control names the ten arguments the section undertakes to print rather than
+  counting them, because a parse that had stopped finding spans would otherwise pass in silence.
+- **`take_turn` on a fight that is over is `ENCOUNTER_OVER`.** `Over` means one side has nobody
+  standing, and the server went on stepping past it: defeated combatants kept being rolled for, the
+  page count kept climbing, and the ledger filled with lines about a fight already decided. Every one
+  of those lines carries a real rule id and a real printed page, so nothing in the answer tells a
+  reader they are looking at the aftermath — which is the single thing a ledger exists to make
+  impossible. The refusal names the tool to use instead, because a refusal that only says no sends a
+  model straight back into the same call. Its test *fights* the fight to its end and asserts it
+  ended before asserting the refusal.
+- **Each fight carries its own gate, and `take_turn`'s read-modify-write happens under it.** The
+  class's doc comment used to say that `EncounterState` being immutable made two calls in flight
+  safe. It does not: a turn is *read the held state, step it, write the result back*, and two of
+  those overlapping on one encounter both read the same state — the second write discards the first
+  turn while its caller is told `ok: true` and handed a ledger for a page the fight no longer has.
+  Immutability stops the discarded turn corrupting the surviving one; it does not stop the discard.
+  The gate is on `Held` and so is per encounter: two clients running two fights have nothing to
+  serialise. **The guard for it is the reason `PlayTools` has a `midTurn` seam.** The first version
+  fired sixteen turns at once and asserted their indices were 1 to 16 — against a build with the
+  gate taken out it went red *one run in five*, because the window is microseconds wide, so four
+  runs in five it reported green on a server that loses turns. The seam holds the first turn open
+  inside the gate instead, and the second turn either gets in or waits; no clock is involved, and
+  the guard is red every run. Its positive control is a turn on a *second* encounter driven to
+  completion while the first is held — without that, "the second turn never got in" is also what a
+  server that answers one call at a time looks like, and the same second fight is what bounds the
+  race in place of a sleep.
+- **Every problem code the encounter server can answer with is driven over the wire, and the list of
+  them is read out of `PlayTools.cs` rather than kept beside it.** Nine of the twenty-nine were
+  driven; twenty were written and never called. A refusal is the whole of what a model has to work
+  with when a call goes wrong, and an untested one is a sentence nobody has read since it was typed
+  on a branch nobody has taken. Each case asserts three separate failures — the payload says
+  `ok: false`, the code is the one the case is filed under, and the message says something — over
+  the fourth the whole file asserts, which is that it arrived as an answer and not as a protocol
+  error. **The control is the point of the exercise**: a table of cases proves only that the cases
+  in it work, so a `[Fact]` scans the source for `Problem("…"` and for the one code that is not a
+  literal — `TryReadEnum` builds `"NO_SUCH_" + field.ToUpperInvariant()`, so its five codes come
+  from the field names it is called with — and requires that set to equal the theory's. Adding a
+  code to `PlayTools` and to nothing else is red. **Two of the codes need a doctored rules set to
+  reach at all**: `ENCOUNTER_WOULD_NOT_OPEN` and `RUN_REFUSED` wrap a throw out of `Begin` and
+  `RunToEnd`, and on the rules this repository ships there is no caller's fault left for either to
+  throw — every one is refused by name before the engine is reached. What still reaches them is a
+  rule the engine cannot apply, so both are driven over a play rules set whose
+  `seize_initiative_gm_alternative` no longer prints the word "doubles" that `GmAlternativeFactor`
+  reads, with the table switch that consults it turned on.
+- **`run_encounters` refuses a seed whose last run would not be a seed, and a Challenge Level below
+  zero is refused rather than clamped.** The runs are consecutive seeds, and `seed + runs - 1` is
+  unchecked int arithmetic: from a first seed near `int.MaxValue` it wrapped, so the report printed
+  a `last` seed *below* its `first` and the runs were taken on seeds that ran off the top and came
+  back round — every one a real fight, none of them the fight asked for, and the answer reproducible
+  only by repeating the overflow. For a tool whose whole product is a number quoted beside its
+  seeds, a seed range that does not reproduce it is the worst shape the answer can take; the check
+  is done in `long` so it cannot be the thing that overflows. The Challenge Level was the same fault
+  in the other direction: `Math.Max(0, …)` read `-3` as `0`, the fight opened with the Adversity a
+  Challenge Level of nothing buys, and the echo said `challenge_level: 0` — accepted, ignored and
+  unannounced. Both guards are driven with the control beside them: the run of runs that fits
+  exactly (last seed `int.MaxValue`) is answered, and a Challenge Level the tools do take is echoed
+  back as itself.
+- **Every `take_turn` state says what the fight reproduces from, and reads the defeat floor off the
+  fight rather than looking the rule up again.** The seed and the Challenge Level were printed once,
+  in the answer to `start_encounter` — and a conversation twenty turns into a fight is a conversation
+  whose opening answer is a long way up, so a client that wanted to replay it had to go back and
+  find it and a model summarising one had nothing in front of it to quote. Both come off `Held`, so
+  they are what the fight is running under and not what this call asked for. In the same object,
+  `defeated` is now computed from `Encounter.DefeatFloor`; `PublicState` used to read
+  `damage.defeated_at_health` for itself, which is the engine's own figure spelled again somewhere
+  the engine cannot see, and `defeated` is the one field a client reads to decide whether the fight
+  is worth another call.
+- **A side made only of Minions reports `mean_health_remaining: null`, not `0.0`.** Ch.4 p.77 gives
+  a group of Minions one characteristic — Threat — and no Health, so the side's total added nothing
+  for them and the report came back as a mean of zero: a side ground down to the last point in every
+  run, which is the opposite of what the measurement may have found and is exactly the figure a
+  balance question is asked about. `by_combatant` already answered null for a Minion group; this is
+  the same honesty one level up. Its two controls are that the other side carries a number in the
+  same answer and the Minions carry a count of the survivors, because "the field is null" is also
+  what a report that lost the field looks like.
+- **The `.mcp.json` launch is tested against a binary that is not older than the code, and it enters
+  a tool body.** Two holes in one guard. It published only when `mcp-play-server/` was *missing*, so
+  a directory published once and never again made it a test of a binary from another week — green
+  while the registration, the tools, either engine or the shared arguments had all moved on
+  underneath it; it now compares the published DLL against every file under `mcp-play/`, `play/`,
+  `engine/` and `mcp-shared/` (all files, not just `*.cs`: the policy document is an embedded
+  resource and the project files decide what is copied beside the binary), publishes when any is
+  newer, and fails naming the file if it is still stale — the usual cause being the running server
+  CLAUDE.md says to stop first. And it drove nothing but `initialize`, which the SDK answers before a
+  line of `PlayTools` is reached: standard output was being judged over a program that had not yet
+  run any of this repository's code, which is precisely the hole the character server shipped a stray
+  write through. It now calls `start_encounter` on that launch — the call that finds both rules
+  directories from the registration's own working directory and environment — and requires a
+  `ledger` in the answer.
+- **`PLAY-POLICY.md` says what a refusal actually is, and the claim is driven.** The document said
+  "an error result with a reason", which is the half a client gets wrong: a refusal comes back as an
+  ordinary *successful* tool result — MCP's `isError` flag is never set by either server — and the
+  refusal is in the payload as `ok: false` with a `problem`. A client waiting for a protocol-level
+  error reads `{"ok": false}` as a fight that started and then takes turns in an encounter that does
+  not exist, and a model does the same thing in prose. The new section says it in the shape the
+  character server's `QUESTION-POLICY.md` already uses, and one test drives both halves at once: a
+  refused call comes back with `IsError` null and `ok: false`, a call that worked comes back the
+  same way (the control — otherwise "the flag was not set" is a server that never sets it), and the
+  document is asserted to carry both claims. Asserting the document alone is how it came to promise
+  an argument the schema has not got.
+- **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
+  shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
+  baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's
+  first call and **1.8 seconds** warm, on a Release build on an M-series Mac, 2026-09-06. Both
+  figures are quoted because the first one is the one a client actually sees: an MCP server is
+  started for the session and the difference is the JIT. Mean 3.4 pages a fight. That is affordable enough that the
+  refusal below 30 runs costs nobody anything. The 5,000-run ceiling exists for the other end: there
+  is no progress and no cancel over this transport, so a typo asking for a hundred thousand is a
+  session that looks broken.

@@ -1786,11 +1786,17 @@ public sealed partial class Encounter
                 + $"on {npc.Name} does not say which purchase that is");
         }
 
+        // <b>It says "not yet implemented" because that is what it is, and because the words are
+        // load-bearing.</b> This branch is reached for a purchase the book allows the GM to buy and
+        // this slice does not run, which is the same thing every other unimplemented spend is — and
+        // the guard that holds `mcp-play/PLAY-POLICY.md` to the engine sorts a spend by whether its
+        // line carries that phrase. Refusing in different words put this case in neither pile, so a
+        // document could claim the GM's pool bought all six and nothing disagreed.
         if (as_ is not (ResolveSpend.ExtraDice or ResolveSpend.Reroll))
         {
-            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
-                $"the GM's pool buys an NPC the two purchases decided after the roll, and {as_} is "
-                + "not one of them in this slice — see docs/guide/play-engine.md");
+            return NotYetImplementedSpend(
+                state, npc.Id, $"{AdversitySpend.AnythingResolveCan} naming {as_}",
+                entry.Id, entry.SourceRef, lines);
         }
 
         lines.Add(new LedgerLine(

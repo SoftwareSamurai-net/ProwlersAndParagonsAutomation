@@ -26,46 +26,16 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// Parses the Pros and Cons a sheet prints for one Power, in the
-    /// <c>kind:id[:variant][#units]</c> form <see cref="PrebuiltHeroes.ProsConsByHero"/> uses.
+    /// Turns a printed sheet into a <see cref="CharacterSheet"/>.
+    ///
+    /// <para><b>It lives in <see cref="PrebuiltHeroSheets"/> rather than here, because a second
+    /// suite needs it.</b> The encounter server's tests put two published Heroes into a fight, and
+    /// the honest way to do that is to build them the way this class does rather than to write two
+    /// more sheets by hand that nobody has checked against the book. A private copy in each place
+    /// would be two transcriptions of one rulebook page.</para>
     /// </summary>
-    private static (List<SelectedProCon> Pros, List<SelectedProCon> Cons) ProsCons(
-        PrebuiltHeroes.Hero hero, string powerId)
-    {
-        var pros = new List<SelectedProCon>();
-        var cons = new List<SelectedProCon>();
-
-        if (!PrebuiltHeroes.ProsConsByHero.TryGetValue($"{hero.Name}|{powerId}", out var entries))
-            return (pros, cons);
-
-        foreach (var raw in entries)
-        {
-            var text  = raw;
-            int? units = null;
-
-            var hash = text.IndexOf('#', StringComparison.Ordinal);
-            if (hash >= 0)
-            {
-                units = int.Parse(text[(hash + 1)..], CultureInfo.InvariantCulture);
-                text  = text[..hash];
-            }
-
-            var parts = text.Split(':');
-            Assert.True(parts.Length is 2 or 3, $"Malformed pro/con '{raw}' on {hero.Name}/{powerId}.");
-
-            var choice = new SelectedProCon(parts[1], parts.Length == 3 ? parts[2] : null) { Units = units };
-            (parts[0] == "pro" ? pros : cons).Add(choice);
-        }
-
-        return (pros, cons);
-    }
-
-    /// <summary>
-    /// Turns a printed sheet into a CharacterSheet. Printed Power ranks are final ranks,
-    /// so a baseline-rank Power's purchased ranks are the difference between the printed
-    /// rank and the baseline its Traits provide.
-    /// </summary>
-    private CharacterSheet Build(PrebuiltHeroes.Hero hero) => Build(hero, PrebuiltHeroes.BuildByHero[hero.Name].Package);
+    private CharacterSheet Build(PrebuiltHeroes.Hero hero) =>
+        PrebuiltHeroSheets.Build(_f.Rules, _f.Derived, hero);
 
     /// <summary>
     /// Overload used only by <see cref="NoOtherPackageLandsAnyOfTheFourUnclosedHeroesOnExactly125"/>
@@ -73,108 +43,8 @@ public sealed class PrebuiltHeroTests
     /// sweep every package rather than trusting the one <see cref="PrebuiltHeroes.BuildByHero"/>
     /// already picked as closest.
     /// </summary>
-    private CharacterSheet Build(PrebuiltHeroes.Hero hero, string packageId)
-    {
-        var sheet = new CharacterSheet
-        {
-            SelectedTierId    = "standard",
-            SelectedPackageId = packageId,
-            AbilityRanks =
-            {
-                ["agility"]    = hero.Agility,
-                ["intellect"]  = hero.Intellect,
-                ["might"]      = hero.Might,
-                ["perception"] = hero.Perception,
-                ["toughness"]  = hero.Toughness,
-                ["willpower"]  = hero.Willpower
-            }
-        };
-
-        foreach (var abilityId in sheet.AbilityRanks.Keys.ToList())
-        {
-            if (!PrebuiltHeroes.AbilityModifiersByHero.TryGetValue($"{hero.Name}|{abilityId}", out var mods))
-                continue;
-
-            sheet.AbilityModifiers[abilityId] =
-                mods.Select(m => new SelectedProCon(m.Split(':')[1])).ToList();
-        }
-
-        // Abilities and Talents the sheet marks with a Source. Absent means the rulebook
-        // default — Innate for an Ability, Trained for a Talent — which no sheet prints.
-        foreach (var (key, traitIds) in PrebuiltHeroes.TraitSourcesByHero)
-        {
-            var parts = key.Split('|');
-            if (parts[0] != hero.Name) continue;
-
-            foreach (var traitId in traitIds)
-            {
-                if (_f.Rules.GetAbility(traitId) is not null) sheet.AbilitySources[traitId] = parts[1];
-                else                                          sheet.TalentSources[traitId]  = parts[1];
-            }
-        }
-
-        var talents = PrebuiltHeroes.TalentsByHero[hero.Name];
-        Assert.Equal(PrebuiltHeroes.TalentIds.Length, talents.Length);
-        for (var i = 0; i < talents.Length; i++)
-            sheet.TalentRanks[PrebuiltHeroes.TalentIds[i]] = talents[i];
-
-        foreach (var perk in PrebuiltHeroes.PerksByHero[hero.Name])
-        {
-            Assert.NotNull(_f.Rules.GetPerk(perk.Id));
-            sheet.Perks.Add(new SelectedPerk(perk.Id, perk.Units));
-        }
-
-        foreach (var p in hero.Powers)
-        {
-            var power = _f.Rules.GetPower(p.Id);
-            Assert.NotNull(power);
-
-            var (pros, cons) = ProsCons(hero, p.Id);
-
-            // Determination records how much Resolve was bought, not a rank.
-            if (p.Id == "determination")
-            {
-                sheet.SelectedPowers.Add(new SelectedPower(p.Id, 0)
-                {
-                    Units    = hero.DeterminationResolve,
-                    SourceId = PrebuiltHeroes.SourceOf(hero.Name, p.Id)
-                });
-                continue;
-            }
-
-            if (power.MaxRank == 0)
-            {
-                sheet.SelectedPowers.Add(new SelectedPower(p.Id, 0, pros, cons)
-                {
-                    BaselineTraitId = p.BaselineTrait,
-                    Units           = p.Units,
-                    CostVariantKey  = p.CostVariant,
-                    SourceId        = PrebuiltHeroes.SourceOf(hero.Name, p.Id)
-                });
-                continue;
-            }
-
-            var probe    = new SelectedPower(p.Id, 0) { BaselineTraitId = p.BaselineTrait };
-            var baseline = _f.Derived.GetBaselineRank(power, sheet, probe);
-            var purchased = Math.Max(0, p.EffectiveRank - baseline);
-
-            sheet.SelectedPowers.Add(new SelectedPower(p.Id, purchased, pros, cons)
-            {
-                BaselineTraitId = p.BaselineTrait,
-                Units           = p.Units,
-                CostVariantKey  = p.CostVariant,
-                SourceId        = PrebuiltHeroes.SourceOf(hero.Name, p.Id)
-            });
-        }
-
-        foreach (var flawId in hero.Flaws)
-        {
-            Assert.NotNull(_f.Rules.GetFlaw(flawId));
-            sheet.Flaws.Add(new SelectedFlaw(flawId));
-        }
-
-        return sheet;
-    }
+    private CharacterSheet Build(PrebuiltHeroes.Hero hero, string packageId) =>
+        PrebuiltHeroSheets.Build(_f.Rules, _f.Derived, hero, packageId);
 
     [Theory]
     [MemberData(nameof(HeroNames))]

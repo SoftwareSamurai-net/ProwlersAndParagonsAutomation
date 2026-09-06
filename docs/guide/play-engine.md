@@ -12,7 +12,7 @@ Read [`play-rules.md`](play-rules.md) too: it is the store this engine reads, an
 
 ## What `play/` is, and what it is not
 
-`play/` is a project beside `engine/`. It references `engine/` and **nothing references it back** — not `engine/`, not `sheets/`, and, until slice (e) lands its hosts, nothing else in the solution but the test project.
+`play/` is a project beside `engine/`. It references `engine/` and **nothing on the character side references it back** — not `engine/`, not `sheets/`, not `cli/`, `web/` or `mcp/`. Exactly two projects do: the test project, and `mcp-play/`, the encounter server that is this engine's one host (see [`mcp-and-headless.md`](mcp-and-headless.md)). `PlayContractTests` holds that list as an allowlist, so a third reference is flagged rather than missed.
 
 | It is | It is not |
 |---|---|
