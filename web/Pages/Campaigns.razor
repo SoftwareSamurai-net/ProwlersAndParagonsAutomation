@@ -801,15 +801,58 @@ else
     };
 
     /// <summary>
-    /// Send the character on screen for approval.
+    /// Send the character this row names for approval.
     ///
     /// <para><b>One slot per character per campaign, and resubmitting overwrites it.</b> There is
     /// no history and no rollback: a decision queue is what this is, and a row per submission would
     /// be a version-control system for characters.</para>
+    ///
+    /// <para><b>The label and the payload come from one place, and that is the whole of this
+    /// method's correctness.</b> It used to send <c>Session.Sheet</c> — the character on screen —
+    /// into a membership keyed on the browser's current-character pointer, and nothing holds those
+    /// two to the same character. <c>SignIn.razor</c> empties the session on both its paths when
+    /// the account's character cannot be read, and <c>Program.cs</c>'s boot restore does the same
+    /// for a read that throws; neither moves the pointer, because the account's character is still
+    /// there. From that state this row still offered Send for approval and sent an empty sheet
+    /// under a real character's name — a GM opened an approved clone and was shown an unnamed
+    /// character with every Trait at 0d, 379 bytes carrying nothing but the tier, campaign id and
+    /// house Trait Cap that <c>CampaignJoin.Apply</c> copies in. So the character is read back by
+    /// the id the membership names, and both halves of the submission are that one read.</para>
+    ///
+    /// <para><b>An empty sheet is refused rather than sent, and never repaired.</b> The refusal is
+    /// a sentence under the button for the reason every other refusal here is one: a control that
+    /// silently does nothing is indistinguishable from one that is not wired up. Nothing is
+    /// written to put a bad row right — the player resubmits, which is the remedy this screen
+    /// already has.</para>
     /// </summary>
     private async Task Submit(MembershipSummary one)
     {
-        _joined = await Memberships.SubmitAsync(one.Id, Session.Sheet, Session.Mode) is null
+        _joined = null;
+
+        // A row with no character id is the GM's view of a membership, and this control is not
+        // drawn on that screen. Belt and braces, and it costs one comparison.
+        if (one.CharacterId is not { Length: > 0 } id)
+        {
+            _joined = "That row does not name a character, so there is nothing to send.";
+            return;
+        }
+
+        // `ReadAsync` rather than `OpenAsync`: sending is not switching to a character, and
+        // opening one would move the pointer on the way past.
+        if (await Characters.ReadAsync(id) is not { } sending)
+        {
+            _joined = "That character could not be read just now. Try again in a moment.";
+            return;
+        }
+
+        if (Session.HasNothingOnIt(sending.Sheet))
+        {
+            _joined = "This character has nothing on it yet, so there is nothing to send. "
+                + "Open it, build it up, and send it when it is ready.";
+            return;
+        }
+
+        _joined = await Memberships.SubmitAsync(one.Id, sending.Sheet, sending.Mode) is null
             ? "That could not be sent just now. Try again in a moment."
             : $"Sent to {one.Label}. Your own copy is unchanged.";
 

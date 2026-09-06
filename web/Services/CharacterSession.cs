@@ -386,6 +386,44 @@ public sealed class CharacterSession
         || sheet.TalentRanks.Count > 0
         || !string.IsNullOrWhiteSpace(sheet.Name);
 
+    /// <summary>
+    /// Whether there is nothing on this sheet for anybody else to look at — <b>the engine's
+    /// answer, not a second opinion</b>.
+    ///
+    /// <para>Every Ability below the rulebook's floor is what an untouched sheet looks like to
+    /// <c>CharacterValidator</c>: Ch.2 states twice that no Ability or Talent can be lower than
+    /// 1d and that every character has all of them, so 0d across all six is the absence of a
+    /// character rather than a weak one. Buying a single rank anywhere clears it, which is why
+    /// this can be asked of a sheet somebody is halfway through without ever refusing their
+    /// work.</para>
+    ///
+    /// <para><b>Why not <see cref="IsWorthKeeping"/>.</b> That predicate answers "would a player
+    /// mind losing this", and a tier alone counts — deliberately, because choosing one is a
+    /// decision. But <c>CampaignJoin.Apply</c> writes a tier onto an empty sheet in the course of
+    /// typing a join code, so the empty submission this exists to refuse passes
+    /// <see cref="IsWorthKeeping"/> by construction. Two questions, two predicates; the one thing
+    /// they may not do is share a spelling and drift.</para>
+    ///
+    /// <para><b>A sheet the engine cannot price is not empty and is not refused here.</b>
+    /// <see cref="TryCost"/> answers null for a variable-cost Power with no variant chosen, which
+    /// is a half-finished character and exactly the work this app exists to keep — and it cannot
+    /// arise on a sheet with no Powers on it anyway. The approval screen already has its own arm
+    /// for a snapshot it cannot price; refusing to send one would be repairing rather than
+    /// reporting.</para>
+    /// </summary>
+    public bool HasNothingOnIt(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var below = Validator.Validate(sheet).Issues
+            .Count(i => i.SubjectKind == ValidationSubject.Ability
+                        && string.Equals(i.Code, "TRAIT_BELOW_MINIMUM", StringComparison.Ordinal));
+
+        // Every one of them, counted against the rules rather than against a literal six — a
+        // rulebook that named a seventh Ability would otherwise quietly stop this firing.
+        return below == Rules.Abilities.Count;
+    }
+
     public int Spent => Costs.TotalCost(Sheet);
 
     /// <summary>
