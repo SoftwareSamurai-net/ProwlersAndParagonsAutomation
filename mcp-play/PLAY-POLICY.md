@@ -73,14 +73,21 @@ Say what was measured, in those terms, or do not say it.
 
 ## The calls
 
-- **`combat_guide`** — this document.
-- **`start_encounter`** — combatants, the table's switches, a Challenge Level and a seed. Answers
+**The names below are the arguments as the schema spells them**, and they are worth reading rather
+than guessing: several are camelCase on the way in and snake_case on the way back out, because the
+answer is JSON of this server's own making and the arguments are the tool's signature.
+
+- **`combat_guide`** — this document. It takes no arguments.
+- **`start_encounter`** — `combatants`, the table's switches in `table`, a `challengeLevel`, a
+  `seed` and an `openingRange`. Answers
   with an encounter id, the turn order with each combatant's Edge, the opening Adversity pool and
   the table echoed back. Encounters are held in memory by id, for this session only.
-- **`take_turn`** — an encounter id and **one** intent. Acting and rolling are one call: there is
+- **`take_turn`** — an `encounterId` and **one** `intent`. Acting and rolling are one call: there is
   no separate "roll" step, because an intent is a request and the engine decides what it produces.
   Answers with the ledger lines that step added and the public state.
-- **`run_encounters`** — the same setup plus `runs`, `policy` and `max_pages`, run headless.
+- **`run_encounters`** — the same setup plus `runs`, `policy` and `maxPages`, run headless. That
+  last one is the sharpest of the camelCase pair above: the answer prints the page limit back in
+  snake_case, and sending it that way sends an argument the schema has not got.
 
 A combatant is either a character sheet — the shape the character server's `creation_guide`
 describes — with a `kind` of `hero`, `villain`, `foe` or `extra` and a `side`, or a group of

@@ -128,6 +128,158 @@ public sealed class McpPlayServerTests
         Assert.NotEqual(Mcp.CharacterServer.Name, PlayServer.Name);
     }
 
+    /// <summary>
+    /// <b>Every argument name the play policy prints in a code span is an argument that tool really
+    /// has, spelled the way the schema spells it.</b>
+    ///
+    /// <para>The document told every conversation this server has that <c>run_encounters</c> takes
+    /// <c>max_pages</c>. The wire argument is <c>maxPages</c> — <c>max_pages</c> is what comes back
+    /// in the <em>answer</em>, which is exactly why the mistake reads as correct. A model following
+    /// the document sent an argument the schema does not have, the SDK dropped it, and the run took
+    /// the default page limit while reporting a `max_pages` the caller never asked for. Nothing
+    /// anywhere said so, which makes it the same "accepted and quietly ignored" the table settings
+    /// are refused for.</para>
+    ///
+    /// <para><b>Against the schemas of the running server, not a list here.</b> The names come out
+    /// of <c>tools/list</c> over the transport, so an argument renamed in C# renames the thing this
+    /// is checked against, and the document is what has to move.</para>
+    ///
+    /// <para><b>How a code span is judged to be about an argument</b>: it is compared to the tool's
+    /// own argument names with case and underscores removed, and a span that matches one that way
+    /// has to match it exactly. That is narrow on purpose — <c>hero</c>, <c>threat_rank</c> and
+    /// <c>attack_the_weakest</c> are in the same bullets and are not arguments of anything, and a
+    /// rule that demanded every code span be an argument would be a rule about prose. It catches
+    /// precisely the failure that shipped: the right argument, mis-spelled.</para>
+    /// </summary>
+    [Fact]
+    public async Task EveryArgumentNameThePolicyPrintsIsSpelledTheWayTheSchemaSpellsIt() =>
+        await WithClient(async client =>
+        {
+            var arguments = (await client.ListToolsAsync()).ToDictionary(
+                tool => tool.Name,
+                tool => tool.ProtocolTool.InputSchema.TryGetProperty("properties", out var properties)
+                    ? properties.EnumerateObject().Select(p => p.Name).ToList()
+                    : [],
+                StringComparer.Ordinal);
+
+            var bullets = CallBullets();
+
+            // Two controls, because this whole check is a parse of prose and a parse that found
+            // nothing would pass in silence. Every tool the server serves has to have been
+            // described, and the parse has to have found code spans to judge.
+            Assert.Equal(
+                arguments.Keys.Order(StringComparer.Ordinal),
+                bullets.Keys.Order(StringComparer.Ordinal));
+
+            var judged = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var (tool, spans) in bullets)
+            {
+                foreach (var span in spans)
+                {
+                    var match = arguments[tool].FirstOrDefault(name =>
+                        string.Equals(Flatten(name), Flatten(span), StringComparison.OrdinalIgnoreCase));
+
+                    if (match is null) continue;
+
+                    judged.Add(match);
+
+                    Assert.True(string.Equals(match, span, StringComparison.Ordinal),
+                        $"mcp-play/PLAY-POLICY.md tells every conversation that {tool} takes "
+                        + $"`{span}`. The schema's argument is `{match}`. An argument the schema "
+                        + "does not have is dropped by the SDK and the call runs on the default, "
+                        + "which is the quietest way this server can be wrong.");
+                }
+            }
+
+            // <b>The control, and it names the arguments rather than counting them.</b> A parse that
+            // had stopped finding code spans would pass every assertion above in silence, which is
+            // how three of this repository's historical guards were wrong. These are the arguments
+            // the document undertakes to name, and `maxPages` is the one the fault was in.
+            foreach (var argument in ArgumentsThePolicyUndertakesToName)
+            {
+                Assert.True(judged.Contains(argument),
+                    $"The play policy's \"The calls\" section no longer names `{argument}`. Either "
+                    + "the document has stopped describing the call, or this parse has stopped "
+                    + "reading it — and in both cases nothing is holding the spellings together.");
+            }
+        });
+
+    /// <summary>
+    /// The arguments the play policy's "The calls" section undertakes to name — the control for the
+    /// check above, which would otherwise pass in silence on a parse that had stopped finding code
+    /// spans at all. <c>maxPages</c> is the one the fault was in.
+    /// </summary>
+    private static readonly string[] ArgumentsThePolicyUndertakesToName =
+    [
+        "combatants", "table", "challengeLevel", "seed", "openingRange",
+        "encounterId", "intent", "runs", "policy", "maxPages"
+    ];
+
+    /// <summary>
+    /// The <c>## The calls</c> section of the play policy, as tool name to the code spans in that
+    /// tool's own bullet. Bounded to that section deliberately: elsewhere the document prints the
+    /// fields of an <em>intent</em> and of an <em>answer</em>, which are not tool arguments and
+    /// would be judged against the wrong list.
+    /// </summary>
+    private static Dictionary<string, List<string>> CallBullets()
+    {
+        var text = PlayPolicy.Text.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        var at = text.IndexOf("\n## The calls\n", StringComparison.Ordinal);
+
+        Assert.True(at >= 0, "mcp-play/PLAY-POLICY.md no longer has a \"## The calls\" section.");
+
+        var end = text.IndexOf("\n## ", at + 1, StringComparison.Ordinal);
+        var section = end < 0 ? text[at..] : text[at..end];
+
+        var bullets = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        string? current = null;
+
+        foreach (var line in section.Split('\n'))
+        {
+            var opener = System.Text.RegularExpressions.Regex.Match(
+                line, @"^- \*\*`([a-z_]+)`\*\*",
+                System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(5));
+
+            if (opener.Success)
+            {
+                current = opener.Groups[1].Value;
+                bullets[current] = [];
+                continue;
+            }
+
+            // A line that is not indented under a bullet has left the list.
+            if (current is null) continue;
+            if (line.Length > 0 && !char.IsWhiteSpace(line[0])) { current = null; continue; }
+
+            foreach (var span in Spans(line)) bullets[current].Add(span);
+        }
+
+        // The opener line's own spans, minus the tool name itself, come back in too.
+        foreach (var (tool, spans) in bullets)
+        {
+            var line = section.Split('\n').First(l =>
+                l.StartsWith($"- **`{tool}`**", StringComparison.Ordinal));
+
+            spans.AddRange(Spans(line).Where(s => !string.Equals(s, tool, StringComparison.Ordinal)));
+        }
+
+        return bullets;
+    }
+
+    private static IEnumerable<string> Spans(string line) =>
+        System.Text.RegularExpressions.Regex
+            .Matches(line, "`([^`]+)`",
+                System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value);
+
+    /// <summary>A name with its case and its underscores taken off, so `max_pages` and `maxPages`
+    /// are the same word said two ways — which is the whole of what this comparison is looking for.
+    /// </summary>
+    private static string Flatten(string name) =>
+        name.Replace("_", "", StringComparison.Ordinal).ToLowerInvariant();
+
     // ── The four tools ────────────────────────────────────────────────────
 
     /// <summary>The guide arrives whole, over the wire, with the rule it exists to carry in it.</summary>

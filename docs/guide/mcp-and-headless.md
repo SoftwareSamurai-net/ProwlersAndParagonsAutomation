@@ -299,6 +299,18 @@ lives there, and nothing about it is repeated here.
   whole apparatus around the number is intact. The commonest way to make one is to leave `side` off
   every entry, since the default is derived from the kind. **What is refused is one *side*, never
   one *kind*** — two Heroes on two sides is a fight p.73 prints and still measures.
+- **Every argument name `PLAY-POLICY.md` prints in a code span is held to the schema of the running
+  server.** The document told every conversation that `run_encounters` takes `max_pages`; the
+  argument is `maxPages`, and `max_pages` is what comes back in the *answer* — which is exactly why
+  the mistake reads as correct. A model following the document sent an argument the schema has not
+  got, the SDK dropped it, and the run took the default page limit while reporting a `max_pages` the
+  caller never asked for. The check reads the names out of `tools/list` over the transport, so
+  renaming an argument in C# renames what the document is measured against. **A code span counts as
+  being about an argument when it matches one with case and underscores removed** — narrow on
+  purpose, since `hero`, `threat_rank` and `attack_the_weakest` sit in the same bullets and are not
+  arguments of anything; it catches the failure that shipped, which is the right argument
+  mis-spelled. Its control names the ten arguments the section undertakes to print rather than
+  counting them, because a parse that had stopped finding spans would otherwise pass in silence.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's
