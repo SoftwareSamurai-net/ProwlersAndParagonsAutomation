@@ -2161,36 +2161,43 @@ public sealed class PlayEngineStepTests
     ///
     /// <para>This is where Chapter 4's four purchases part company with Chapter 5's. p.76's instant
     /// recovery and p.79's Fatal Damage rescue are what a character who has just gone down buys, so
-    /// <c>OutOfTheFight</c> deliberately does not guard them; keeping a hold is something a
-    /// character does while they are still in the fight.</para>
+    /// <c>OutOfTheFight</c> deliberately does not guard them; keeping a hold, knocking somebody
+    /// across the street, luring and leading a team attack are things a character does while they
+    /// are still in the fight, and all four are driven here.</para>
+    ///
+    /// <para>The control is the other refusal: standing up, each of these is refused for want of a
+    /// situation rather than for want of a buyer, so the line below is the defeat and not the same
+    /// refusal twice.</para>
     /// </summary>
-    [Fact]
-    public void ADefeatedBuyerCannotKeepHold()
+    [Theory]
+    [InlineData(ResolveSpend.KeepingHold, "has nobody down under an effect of theirs")]
+    [InlineData(ResolveSpend.Knockback, "no blow of their own on the table")]
+    [InlineData(ResolveSpend.Luring, "nothing has just been aimed at")]
+    [InlineData(ResolveSpend.TeamAttack, "no roll of their own on the table")]
+    public void ADefeatedBuyerIsRefusedEveryChapterFourPurchase(ResolveSpend kind, string standingRefusal)
     {
         var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
-            new Dictionary<string, int>(StringComparer.Ordinal) { ["mind_control"] = 4 },
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["mind_control"] = 4, ["might"] = 6 },
             ["toughness"]);
 
-        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 2,
-            new Dictionary<string, int>(StringComparer.Ordinal) { ["willpower"] = 2 },
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["willpower"] = 2, ["toughness"] = 3 },
             ["willpower"]);
 
         var encounter = new Encounter(_play, new SeededDice(4));
         var state = encounter.Begin([hero, villain]);
 
-        // The control: on their feet, the purchase is refused for want of a target rather than for
-        // want of a buyer — so the second refusal below is the defeat and not the same refusal twice.
-        var standing = encounter.Step(state, new SpendResolve("hero", ResolveSpend.KeepingHold));
+        // The control: on their feet, the purchase is refused for want of a situation.
+        var standing = Assert.Single(encounter.Step(state, new SpendResolve("hero", kind)).Added);
 
-        Assert.Contains(standing.Added, l =>
-            string.Equals(l.Rule, "keeping_hold", StringComparison.Ordinal)
-            && l.Text.Contains("has nobody down under an effect of theirs", StringComparison.Ordinal));
+        Assert.Contains(standingRefusal, standing.Text, StringComparison.OrdinalIgnoreCase);
 
         var down = encounter.Step(
             state.With(hero.WithHealth(encounter.DefeatFloor)),
-            new SpendResolve("hero", ResolveSpend.KeepingHold));
+            new SpendResolve("hero", kind));
 
         var line = Assert.Single(down.Added);
+
         Assert.Equal("damage", line.Rule);
         Assert.Contains("not the buyer of anything", line.Text, StringComparison.Ordinal);
         Assert.Equal(3, down.State["hero"].Resolve);
