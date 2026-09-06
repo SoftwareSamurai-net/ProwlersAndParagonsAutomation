@@ -95,8 +95,8 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — the play chapters, in scope in principle since item 11 was answered
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
 - [ ] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — a test-platform migration, blocked on MTP v2 versus the .NET 10 SDK
-- [ ] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table is 61% of this file's churn; convert its measured cells to pointers. **Last, deliberately** — contention, not a defect
-- [ ] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — 21 dead pointers and ten factual drifts in this file, plus the guard that would stop it recurring
+- [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
+- [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
 - [x] **[24](#24-a-bunit-event-is-dispatched-not-applied-and-three-palette-tests-read-a-render-early)** — three palette tests raced the renderer and went red on CI one at a time; the whole class is swept and a guard fails the build on the next synchronous drive. Verified by the orchestrator 2026-09-06
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
@@ -418,7 +418,7 @@ questions and the ledger is the one that can be resumed.
 | 6, Equipment (p.87) | Gear limits, armour, weapons, **custom gear (p.92)**, gadgets, vehicles, headquarters | Custom gear features: **extracted**. Mundane gear is free and untracked. See below for the one gap |
 | 7, Environment (p.105) | Disasters, falling, lifting, **toxins (p.108)** | No — play. The three toxin Pros/Cons are extracted |
 | 8, Friends and Foes (p.111) | **Three things, not one**: NPC and animal stat blocks (p.111), Extras (p.120), and the twenty pre-built Heroes and Villains (p.126) | Only the last is transcribed, in the test suite where they verify the engine. The other two are GM material — characters the GM fields, not ones a player builds — so they are out of scope rather than missing. Recorded because "Ch.8 is the pre-built characters" was wrong about 15 of its 56 pages |
-| 9, Creating Villains (p.167) | Villain guidance, GM tips | No mechanics to extract — Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only |
+| 9, Superhero Gaming (p.167) | Villain guidance, GM tips | No mechanics to extract — Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only |
 
 **The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
 
@@ -568,7 +568,7 @@ the file stays. Scanning fewer palettes in A11Y is the second lever and costs re
 Raising `timeout-minutes` is not a lever; see `docs/guide/hosting.md`.
 
 **How it works, and every limit of it, is in [`docs/guide/testing.md`](docs/guide/testing.md)** —
-read that before changing it. The account of building it, including four faults the harness found
+read that before changing it. The account of building it, including five faults the harness found
 in itself, is in [the archive](docs/progress/2026-09-02-driving-the-assembled-app.md).
 
 **What that closes and what it leaves open**, against the table this entry was originally built
@@ -1209,7 +1209,7 @@ codebase as optimised as it should be?" — is now audited too; the short versio
   `font-style: italic`. No orphaned font, no duplicated data staged into `wwwroot` beyond what
   item 5 already documents and rules out of scope.
 - **The token side is costed, not implemented — the owner's call, per the task that ran this
-  audit.** `PROGRESS.md` is 5,069 lines / 446,711 characters / 71,769 words — roughly **90–110K
+  audit.** `PROGRESS.md` was 5,069 lines / 446,711 characters / 71,769 words when this was measured, before the archive split; it is 1,863 lines now — then roughly **90–110K
   tokens** to read in full, against **~15K tokens** for `Current state` + `Remaining work` +
   `How to maintain this` alone (60,829 of those characters). `Completed work` is the other
   ~89% of the file: 4,503 lines across 68 entries, prepended newest-first so far — the newest
@@ -1235,7 +1235,7 @@ codebase as optimised as it should be?" — is now audited too; the short versio
 > number and is now taken, so a new item is 26. `ProgressPointerTests` fails the build on the next
 > repeat.
 >
-> **Read this heading note second.** When this entry was written the check covered seven pages;
+> **Read this heading note second.** When this entry was written the check covered seven pages (eight goldens now);
 > four were then dropped because a locally-rendered golden could not agree with CI's Chrome, and
 > the entry below still describes the seven-page version. All seven are back, and the goldens now
 > come from `.github/workflows/visual-goldens.yml` on `ubuntu-latest` — the same Chrome that
@@ -1256,11 +1256,11 @@ existing proof-harness step:
   a ~150-line plain-Node PNG decoder/differ using only `node:zlib` — no image-diff package is
   installed, on purpose: this repository has never had a `package.json`, and adding the first npm
   dependency for a CI convenience is a worse trade than the ~150 lines.
-- **The goldens are Linux-rendered, never from this Windows machine.** On a Linux host (CI) the
+- **The goldens are Linux-rendered, never from a developer machine** (a Windows box when this was written; the Mac is the same story, since the pixel half needs Docker). On a Linux host (CI) the
   script drives the Chrome already on PATH; everywhere else it drives `selenium/standalone-chrome`
   in Docker — real Google Chrome, not a distro-patched Chromium, so a developer's own machine
   produces the same pixels CI would. The goldens committed here were generated exactly that way,
-  from this Windows machine, through that Docker path — verified pixel-identical across two
+  from that Windows machine, through that Docker path — verified pixel-identical across two
   independent runs.
 - **Broken and watched to fail, not just reasoned about.** `--primary` on the Hero-light palette
   was changed from `#1B4F9C` to `#2E8B57` and the screenshot regenerated: the check failed on
@@ -1714,8 +1714,8 @@ that is deliberate rather than overlooked — resolving one means reading an ite
 comment still means it, which is the judgement half of item 23's audit and not something a scan
 settles. What the number guard buys is that none of the 21 can become ambiguous again.
 
-**Not started, and deliberately last.** Nothing is broken; this is contention, and it only bites
-when several branches are open at once. The cheaper half of the answer is a process rule rather
+**Done on 2026-09-06, last as planned** — four rows (Tests, Hosting, Accounts, Static analysis) gave up their figures for pointers, the rest stayed because they are decisions rather than readings, and `ProgressCurrentStateTests` refuses a counted figure, a sha or a pending state in the table with the Tests row's pointer as its positive control; verified by the orchestrator, who watched a restored Qodana count and a restored sha each go red. Nothing was broken; this was contention, and it only bit
+when several branches were open at once. The cheaper half of the answer is a process rule rather
 than a restructure and is already in `CLAUDE.md`: the orchestrator writes this file, not the agents.
 
 ### 23. This file's own claims went stale in sixteen places
@@ -1800,7 +1800,7 @@ not by find-and-replace: repointed where a surviving entry carries the argument 
 account is `docs/progress/2026-09-02-driving-the-assembled-app.md` — and otherwise dropped, so the
 claim stands on its own. The second `### 9.` is now 25.
 
-Not started.
+**Done on 2026-09-06.** `ProgressPointerTests` holds every link and anchor to resolving (GitHub's slug rule written out and pinned against live anchors), every `docs/progress/` link to naming an entry rather than the directory, every backticked `…Tests[.Method]` to existing, every sha to an allow-list, and every item number to being used once; what it cannot see is a claim with no link, and the twenty-one `PROGRESS.md item N` comments in code are judgement rather than a scan and were left. Verified by the orchestrator, who broke an anchor and watched `EveryLinkResolves` name the line.
 
 ### 24. A bUnit event is dispatched, not applied, and three palette tests read a render early
 
