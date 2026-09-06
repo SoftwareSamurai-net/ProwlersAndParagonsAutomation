@@ -1351,6 +1351,71 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A side made only of Minions reports no mean Health, rather than a mean of zero.</b>
+    ///
+    /// <para>Ch.4 p.77 gives a group of Minions one characteristic — Threat — and no Health, so the
+    /// side's total adds nothing for them and the report came back
+    /// <c>mean_health_remaining: 0.0</c>. That reads as a side ground down to the last point in
+    /// every single run, which is the opposite of what the measurement may have found, and it is
+    /// exactly the figure a balance question is asked about. <c>by_combatant</c> already answered
+    /// null for a Minion group; this is the same honesty one level up.</para>
+    ///
+    /// <para>Two controls, because "the field is null" is also what a report that lost the field
+    /// looks like. The Heroes' side has to carry a number in the same answer, and the Minions'
+    /// entry in <c>by_combatant</c> has to carry a count of them still standing — so the run
+    /// happened, the side was measured, and the null is a statement about Minions rather than a
+    /// hole.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASideOfMinionsReportsNoMeanHealthRatherThanZero() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = new JsonArray(
+                    new JsonObject
+                    {
+                        ["kind"] = "hero",
+                        ["id"] = "hero",
+                        ["side"] = "heroes",
+                        ["character"] = new JsonObject
+                        {
+                            ["Name"] = "the Hero",
+                            ["SelectedTierId"] = "standard",
+                            ["AbilityRanks"] = new JsonObject
+                            {
+                                ["might"] = 8, ["toughness"] = 5, ["willpower"] = 4
+                            }
+                        }
+                    },
+                    new JsonObject
+                    {
+                        ["kind"] = "minions", ["id"] = "robots", ["name"] = "the robots",
+                        ["threat_rank"] = 4, ["count"] = 3, ["side"] = "villains"
+                    }),
+                ["runs"] = PlayTools.FewestRuns,
+                ["maxPages"] = 6
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer["problem"]?.ToJsonString());
+
+            var sides = answer["by_side"]!.AsArray()
+                .ToDictionary(s => s!["side"]!.GetValue<string>(), s => s!, StringComparer.Ordinal);
+
+            Assert.Null(sides["villains"]["mean_health_remaining"]);
+
+            // The controls: the other side was measured, and the Minions were counted.
+            Assert.NotNull(sides["heroes"]["mean_health_remaining"]);
+            Assert.InRange(sides["heroes"]["mean_health_remaining"]!.GetValue<double>(), 0.0, double.MaxValue);
+
+            var robots = answer["by_combatant"]!.AsArray()
+                .Single(c => string.Equals(c!["id"]!.GetValue<string>(), "robots", StringComparison.Ordinal))!;
+
+            Assert.NotNull(robots["mean_minions_remaining"]);
+            Assert.Null(robots["mean_health_remaining"]);
+        });
+
+    /// <summary>
     /// <b>Every turn says what the fight reproduces from.</b>
     ///
     /// <para>The seed and the Challenge Level are what a fight is replayed from, and they were

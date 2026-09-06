@@ -376,6 +376,14 @@ lives there, and nothing about it is repeated here.
   `damage.defeated_at_health` for itself, which is the engine's own figure spelled again somewhere
   the engine cannot see, and `defeated` is the one field a client reads to decide whether the fight
   is worth another call.
+- **A side made only of Minions reports `mean_health_remaining: null`, not `0.0`.** Ch.4 p.77 gives
+  a group of Minions one characteristic — Threat — and no Health, so the side's total added nothing
+  for them and the report came back as a mean of zero: a side ground down to the last point in every
+  run, which is the opposite of what the measurement may have found and is exactly the figure a
+  balance question is asked about. `by_combatant` already answered null for a Minion group; this is
+  the same honesty one level up. Its two controls are that the other side carries a number in the
+  same answer and the Minions carry a count of the survivors, because "the field is null" is also
+  what a report that lost the field looks like.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

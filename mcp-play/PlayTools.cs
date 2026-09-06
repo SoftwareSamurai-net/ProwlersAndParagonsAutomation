@@ -518,6 +518,19 @@ public sealed class PlayTools
             .GroupBy(c => c.Side, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Sum(c => (long)c.Resolve), StringComparer.Ordinal);
 
+        // <b>A side with nobody on it who has Health reports no Health, and <c>0.00</c> is not
+        // that.</b> A group of Minions has a count and no Health — Ch.4 p.77 gives them one
+        // characteristic — so the sum above adds nothing for them, and a side made only of Minions
+        // came back with <c>mean_health_remaining: 0.0</c>. That reads as a side wiped out to the
+        // last point in every run, which is the opposite of what the run may have found, and it is
+        // the figure a balance question is asked about. <c>by_combatant</c> already answers null for
+        // the same reason; this is the same honesty one level up.
+        var holdsHealth = sides.ToDictionary(
+            side => side,
+            side => setup.Combatants.Any(c =>
+                string.Equals(c.Side, side, StringComparison.Ordinal) && c.Kind != CombatantKind.MinionGroup),
+            StringComparer.Ordinal);
+
         var bySide = new JsonArray();
 
         foreach (var side in sides)
@@ -526,7 +539,7 @@ public sealed class PlayTools
             {
                 ["side"]                   = side,
                 ["win_rate"]               = Rate(wins[side], runs),
-                ["mean_health_remaining"]  = Mean(healthBySide[side], runs),
+                ["mean_health_remaining"]  = holdsHealth[side] ? Mean(healthBySide[side], runs) : null,
                 ["mean_resolve_spent"]     = Mean(openingBySide[side] * runs - resolveSpentBySide[side], runs)
             });
         }
