@@ -254,6 +254,102 @@ public sealed class McpPlayPolicyTests
     }
 
     /// <summary>
+    /// Both columns of the table under <paramref name="heading"/>, backticked first column to
+    /// trimmed second — the same parse as <see cref="ListedUnder"/>, kept beside it, for the one
+    /// table here whose claim is not "these refuse" but "this one does and that one does not".
+    /// </summary>
+    private static Dictionary<string, string> PairsUnder(string heading)
+    {
+        var at = Text.IndexOf(heading, StringComparison.Ordinal);
+
+        Assert.True(at >= 0, $"mcp-play/PLAY-POLICY.md no longer contains \"{heading}\".");
+
+        var rest = Text[at..];
+        var table = rest.IndexOf("|---|", StringComparison.Ordinal);
+
+        Assert.True(table >= 0, $"no table follows \"{heading}\" in the play policy.");
+
+        var rows = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var line in rest[table..].Split('\n').Skip(1))
+        {
+            if (!line.StartsWith('|')) break;
+
+            var cells = line.Split('|');
+            var first = cells[1].Trim();
+
+            if (first.StartsWith('`') && first.EndsWith('`')) rows[first.Trim('`')] = cells[2].Trim();
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// <b>Every purchase the document says the GM's pool may name, driven, and the answer has to be
+    /// the answer the document claims.</b>
+    ///
+    /// <para>This is the table that was wrong. The document advertised <c>anything_resolve_can</c>
+    /// buying all six of a Hero's purchases; the engine bought two and refused the other four — and
+    /// refused them in words that did not carry <c>not yet implemented</c>, so the guard beside this
+    /// one sorted them into neither pile and nothing disagreed with the claim. A model reading that
+    /// document had no way to tell a purchase that had happened from one that had not, which is the
+    /// single failure this whole server is built to make impossible.</para>
+    ///
+    /// <para><b>Every value of the enum is driven, not only the ones named</b>, so a purchase the
+    /// GM could name and the table has forgotten fails here rather than being found by a caller. And
+    /// both answers have to occur: a table saying "not yet implemented" of everything, or of
+    /// nothing, would satisfy a comparison that only ever checked one of them.</para>
+    /// </summary>
+    [Fact]
+    public void EveryPurchaseTheGmsPoolMayNameAnswersTheWayThePolicySaysItDoes()
+    {
+        var claimed = PairsUnder("**What `anything_resolve_can` may name**");
+
+        Assert.Equal(
+            Enum.GetValues<ResolveSpend>().Select(k => PlayTools.Wire(k.ToString())).Order(StringComparer.Ordinal),
+            claimed.Keys.Order(StringComparer.Ordinal));
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 9,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 5 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 5 },
+            ["toughness"]);
+
+        var answered = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var purchase in Enum.GetValues<ResolveSpend>())
+        {
+            var encounter = new Encounter(_f.Play, new SeededDice(21), TableRules.Book with { FatalDamage = true });
+            var state = encounter.Begin([hero, villain]);
+
+            // An attack first, so the two purchases decided after the roll have a roll to work on.
+            state = encounter.Step(state, new Attack("hero", "villain", "might")).State;
+
+            var step = encounter.Step(state, new SpendAdversity("villain", AdversitySpend.AnythingResolveCan,
+                Points: 1, AsResolve: purchase));
+
+            answered[PlayTools.Wire(purchase.ToString())] =
+                step.Added.Any(l => l.Text.Contains("not yet implemented", StringComparison.Ordinal))
+                    ? "not yet implemented"
+                    : "bought";
+        }
+
+        // The control: both answers have to have occurred, or the comparison below is vacuous.
+        Assert.Contains("bought", answered.Values, StringComparer.Ordinal);
+        Assert.Contains("not yet implemented", answered.Values, StringComparer.Ordinal);
+
+        foreach (var (purchase, says) in claimed.OrderBy(row => row.Key, StringComparer.Ordinal))
+        {
+            Assert.True(string.Equals(says, answered[purchase], StringComparison.Ordinal),
+                $"The play policy says the GM's pool answers '{purchase}' with \"{says}\", and the "
+                + $"engine answers \"{answered[purchase]}\". A document served to every conversation "
+                + "this server has is wrong everywhere at once.");
+        }
+    }
+
+    /// <summary>
     /// <b>The startup check reads the guide as well as the rules.</b> The guide is an embedded
     /// resource, so the way it goes missing is a csproj edit — and the claim <see cref="PlayTools"/>
     /// makes for itself is that such an edit becomes a refusal at startup rather than a conversation

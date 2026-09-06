@@ -47,8 +47,11 @@ their behalf.
 
 **The GM's pool is Adversity**, opened at one point per Hero per issue plus the scene's Challenge
 Level multiplied by the number of Heroes. `spend_adversity` with kind `anything_resolve_can` buys,
-for an NPC, whatever a point of Resolve could have bought — and it has to name *which* purchase,
-because a point spent on nothing in particular is a point spent on nothing.
+for an NPC, whatever a point of Resolve could have bought — and it has to name *which* purchase in
+`as_resolve`, because a point spent on nothing in particular is a point spent on nothing. **This
+slice runs two of them**, `extra_dice` and `reroll`; every other purchase it may name is recognised
+and answered with a `not yet implemented` line. The table at the end of this document says which is
+which, and it is the only place to read that from.
 
 ## Quoting a measurement
 
@@ -148,4 +151,25 @@ recognise, and answer with a `not yet implemented` line:
 
 Everything else a spend can name is resolved: `extra_dice`, `reroll`, `seize_initiative`,
 `instant_recovery`, `avoid_fatal_damage` and `stabilise` for a Hero, and `anything_resolve_can`
-for the GM naming one of those.
+for the GM naming `extra_dice` or `reroll`.
+
+**What `anything_resolve_can` may name** — the six above are a *Hero's* purchases, and the GM's
+pool does not yet buy all six. p.85's first purchase is the Resolve purchases with different money
+behind them, and this slice runs the two that are decided after the roll; the rest are recognised
+and answered with a `not yet implemented` line, exactly like the table above. **The two columns
+disagreeing with the engine is the failure this table exists to prevent** — an earlier version of
+this document advertised all six, four of them refused, and a model reading it had no way to tell
+a purchase that had happened from one that had not:
+
+| `as_resolve` | What the GM's pool does with it |
+|---|---|
+| `extra_dice` | bought |
+| `reroll` | bought |
+| `seize_initiative` | not yet implemented |
+| `instant_recovery` | not yet implemented |
+| `avoid_fatal_damage` | not yet implemented |
+| `stabilise` | not yet implemented |
+| `keeping_hold` | not yet implemented |
+| `knockback` | not yet implemented |
+| `luring` | not yet implemented |
+| `team_attack` | not yet implemented |
