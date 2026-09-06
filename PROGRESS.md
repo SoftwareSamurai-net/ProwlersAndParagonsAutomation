@@ -98,6 +98,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
 - [x] **[24](#24-a-bunit-event-is-dispatched-not-applied-and-three-palette-tests-read-a-render-early)** — three palette tests raced the renderer and went red on CI one at a time; the whole class is swept and a guard fails the build on the next synchronous drive. Verified by the orchestrator 2026-09-06
+- [x] **[26](#26-a-campaign-submission-carried-an-empty-sheet-under-a-real-characters-label)** — the owner found an approved campaign clone that was an empty sheet; the join and the submit now act on the character the row names, an empty sheet is refused and marked, and the autosave never writes one over a stored character. Verified by the orchestrator 2026-09-06
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -1823,6 +1824,41 @@ uses the awaited form, the sensitive reads run under a deliberately busy rendere
 machine on every run, and `PaletteDispatchTests` reads the three files' source and fails the build on
 the next synchronous drive — its doc comment says what a denylist cannot do. Runs `0361de7`,
 `621939f` and the sweep are the history; `docs/guide/testing.md` carries the rule.
+
+### 26. A campaign submission carried an empty sheet under a real character's label
+
+**Found by the owner on the GM's own screen, with screenshots, on 2026-09-06**: opening the approved
+sheet of a player's character showed an unnamed, empty sheet — every Trait 0d, the campaign's tier
+and 10d house cap, Resolve 20 — while the admin panel showed that player holding two fully statted
+characters. The production row confirmed it: the approved clone was 379 bytes, exactly the envelope
+plus what a join copies in, beside two full clones of 2,248 and 3,567.
+
+**The path, reproduced before it was fixed.** Sign-in and the boot restore both empty the session
+with `StartAgain` when the account's character cannot be read, and neither moves the
+current-character pointer — correctly, the character is still there. From that state the campaigns
+page sent `Session.Sheet` under the pointer's character: a join wrote the campaign's tier onto the
+empty sheet, which made it worth keeping, and the autosave then **wrote the empty sheet over the
+stored character**; a submit sent it under the row's label; a later re-join restored the label over
+the emptiness. `pending_version` 1 and the byte count agree with that sequence exactly.
+
+**What holds now.** A campaign act — join or submit — requires the session to hold the character the
+pointer names: an emptied session re-adopts the stored character first, or refuses with a sentence
+naming it, and `CampaignJoin.Apply` never runs on a sheet the session did not load for that id.
+Label and payload come from one read. A sheet with literally nothing on it — no Ability rank, Talent,
+Power, Perk, Flaw, Gear or Name, the tier alone does not count — is refused with a sentence under the
+row's own button, and a character made of Powers alone is sent, because refusing it would be
+repairing. The autosave refuses to write an empty sheet over an id the account holds a priced
+character under, and says so in the save region. The GM's screen and both lists say when a clone or
+a waiting snapshot is empty, and Approve stays the GM's. Twenty-four driven tests in
+`CampaignSubmissionTests`, each through the page under a real store, asserting on what the server
+received. Verified by the orchestrator: the join's re-adopt and the autosave's refusal each went red
+under mutation. **Remedy for the live row**: the player resubmits and the GM approves; nothing in the
+database is edited by hand.
+
+**Left open, recorded rather than hidden**: the root invariant — that the session holds the character
+the pointer names — is still enforced at the campaigns page and not at sign-in, so a stale pointer
+after a failed read is still a state the app can be in; saying so on screen, or re-adopting there, is
+a slice of its own.
 
 ## Completed work
 
