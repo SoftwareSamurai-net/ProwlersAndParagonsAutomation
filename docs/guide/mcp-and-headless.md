@@ -353,6 +353,19 @@ lives there, and nothing about it is repeated here.
   rule the engine cannot apply, so both are driven over a play rules set whose
   `seize_initiative_gm_alternative` no longer prints the word "doubles" that `GmAlternativeFactor`
   reads, with the table switch that consults it turned on.
+- **`run_encounters` refuses a seed whose last run would not be a seed, and a Challenge Level below
+  zero is refused rather than clamped.** The runs are consecutive seeds, and `seed + runs - 1` is
+  unchecked int arithmetic: from a first seed near `int.MaxValue` it wrapped, so the report printed
+  a `last` seed *below* its `first` and the runs were taken on seeds that ran off the top and came
+  back round — every one a real fight, none of them the fight asked for, and the answer reproducible
+  only by repeating the overflow. For a tool whose whole product is a number quoted beside its
+  seeds, a seed range that does not reproduce it is the worst shape the answer can take; the check
+  is done in `long` so it cannot be the thing that overflows. The Challenge Level was the same fault
+  in the other direction: `Math.Max(0, …)` read `-3` as `0`, the fight opened with the Adversity a
+  Challenge Level of nothing buys, and the echo said `challenge_level: 0` — accepted, ignored and
+  unannounced. Both guards are driven with the control beside them: the run of runs that fits
+  exactly (last seed `int.MaxValue`) is answered, and a Challenge Level the tools do take is echoed
+  back as itself.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

@@ -1350,6 +1350,96 @@ public sealed class McpPlayServerTests
                     .Select(s => s!["side"]!.GetValue<string>()).Order(StringComparer.Ordinal));
         });
 
+    /// <summary>
+    /// <b>The last seed of a run of runs is a seed.</b>
+    ///
+    /// <para><c>seed + runs - 1</c> is int arithmetic and it is unchecked. From a first seed near
+    /// <see cref="int.MaxValue"/> it wraps: the report printed a <c>last</c> seed <em>below</em> its
+    /// <c>first</c>, and the runs themselves were taken on seeds that ran off the top and came back
+    /// round — every one a real fight, none of them the fight that was asked for, and the whole
+    /// answer reproducible only by somebody who repeated the overflow. This tool's entire product is
+    /// a number quoted beside the seeds it was measured on, so a seed range that does not reproduce
+    /// it is the worst shape the answer can take.</para>
+    ///
+    /// <para><b>The control is the run that fits exactly.</b> A refusal is easy to get by refusing
+    /// everything, so the same call one seed lower has to be answered — and its report has to print
+    /// the last seed as <see cref="int.MaxValue"/> itself rather than as something negative.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheLastSeedOfARunOfRunsIsStillASeed() =>
+        await WithClient(async client =>
+        {
+            var over = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = int.MaxValue
+            });
+
+            Assert.False(over["ok"]!.GetValue<bool>(), over.ToJsonString());
+            Assert.Equal("SEED_RANGE", over["problem"]!["code"]!.GetValue<string>());
+
+            // The one that fits, to the seed. Nothing is refused that reproduces.
+            var first = int.MaxValue - (PlayTools.FewestRuns - 1);
+
+            var fits = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = first,
+                ["maxPages"] = 4
+            });
+
+            Assert.True(fits["ok"]!.GetValue<bool>(), fits["problem"]?.ToJsonString());
+            Assert.Equal(first, fits["seeds"]!["first"]!.GetValue<long>());
+            Assert.Equal(int.MaxValue, fits["seeds"]!["last"]!.GetValue<long>());
+        });
+
+    /// <summary>
+    /// <b>A Challenge Level below zero is refused by both tools rather than read as zero.</b>
+    ///
+    /// <para><c>Math.Max(0, …)</c> read −3 as 0: the fight opened with the Adversity a Challenge
+    /// Level of nothing buys, and the answer echoed <c>challenge_level: 0</c> — so a scene somebody
+    /// had deliberately set below the baseline was measured as the baseline, and the report said the
+    /// baseline was what they asked for. Accepted, ignored and unannounced, which is the shape this
+    /// server refuses everywhere else.</para>
+    ///
+    /// <para>The control is the second half: a Challenge Level the tools <em>do</em> take comes back
+    /// echoed as itself, so this is a refusal of one value and not a tool that stopped reading the
+    /// argument.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("start_encounter")]
+    [InlineData("run_encounters")]
+    public async Task AChallengeLevelBelowZeroIsRefusedByBothTools(string tool) =>
+        await WithClient(async client =>
+        {
+            var arguments = new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["challengeLevel"] = -3
+            };
+
+            if (string.Equals(tool, "run_encounters", StringComparison.Ordinal))
+            {
+                arguments["runs"] = PlayTools.FewestRuns;
+                arguments["maxPages"] = 4;
+            }
+
+            var answer = await Call(client, tool, arguments);
+
+            Assert.False(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+            Assert.Equal("BAD_CHALLENGE_LEVEL", answer["problem"]!["code"]!.GetValue<string>());
+            Assert.Contains("-3", answer["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
+
+            arguments["challengeLevel"] = 3;
+
+            var taken = await Call(client, tool, arguments);
+
+            Assert.True(taken["ok"]!.GetValue<bool>(), taken["problem"]?.ToJsonString());
+            Assert.Equal(3, taken["challenge_level"]!.GetValue<int>());
+        });
+
     // ── Every refusal this server can give ────────────────────────────────
 
     /// <summary>
@@ -1485,6 +1575,19 @@ public sealed class McpPlayServerTests
                 ["combatants"] = TwoSides(),
                 ["runs"] = PlayTools.FewestRuns,
                 ["policy"] = "everybody_runs_away"
+            })),
+
+            ["SEED_RANGE"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = int.MaxValue
+            })),
+
+            ["BAD_CHALLENGE_LEVEL"] = new(client => Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["challengeLevel"] = -3
             })),
 
             ["RUN_REFUSED"] = new(

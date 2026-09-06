@@ -418,6 +418,24 @@ public sealed class PlayTools
         if (!TryReadSetup(combatants, table, challengeLevel, seed, openingRange, out var setup, out var problem))
             return Write(problem);
 
+        // <b>The runs are consecutive seeds, so the last one has to be a seed.</b> `seed + runs - 1`
+        // is int arithmetic and it is unchecked: a first seed near int.MaxValue wrapped past it, the
+        // report printed a `last` seed *below* its `first`, and the runs themselves were taken on
+        // seeds that ran off the top and came back round — every one of them a real fight, none of
+        // them the fight the caller asked for, and the whole answer reproducible only by somebody
+        // who repeated the overflow. Computed in long here so the check cannot be the thing that
+        // overflows.
+        var last = (long)setup.Seed + n - 1;
+
+        if (last > int.MaxValue)
+        {
+            return Write(Problem("SEED_RANGE",
+                $"{n} runs from the seed {setup.Seed} would end at {last}, which is past the "
+                + $"largest seed there is ({int.MaxValue}). The runs are consecutive seeds and the "
+                + "report prints the last one, so this would answer with a seed range that does not "
+                + "reproduce it. Start lower, or ask for fewer runs."));
+        }
+
         // Typed as the interface deliberately: a policy is a seam, and every report here
         // prints the seam's own Name rather than a class name written down beside it.
         IPolicy chooser = new AttackTheWeakest(_play);
@@ -542,7 +560,7 @@ public sealed class PlayTools
             ["seeds"]           = new JsonObject
             {
                 ["first"] = setup.Seed,
-                ["last"]  = setup.Seed + runs - 1,
+                ["last"]  = (long)setup.Seed + runs - 1,
                 ["note"]  = "one run per seed, consecutively, so this call reproduces exactly"
             },
             ["policy"]          = new JsonObject
@@ -601,6 +619,24 @@ public sealed class PlayTools
 
         if (!TryReadTable(table, out var rules, out problem)) return false;
         if (!TryReadRange(openingRange, out var opening, out problem)) return false;
+
+        // <b>A Challenge Level below zero is refused, not clamped.</b> `Math.Max(0, …)` read −3 as
+        // 0, opened the fight with the Adversity a Challenge Level of nothing buys, and echoed
+        // `challenge_level: 0` back — so a scene somebody had deliberately set below the baseline
+        // was measured as the baseline and the answer said the baseline was what they asked for.
+        // That is the same "accepted and quietly ignored" the unknown table setting and the
+        // non-boolean switch are both refused for; a negative Challenge Level is a typo or a
+        // misunderstanding, and either way it is worth a sentence.
+        if (challengeLevel is { } level && level < 0)
+        {
+            problem = Problem("BAD_CHALLENGE_LEVEL",
+                $"The Challenge Level is {level}. Ch.5 p.85 adds it to the GM's opening Adversity "
+                + "pool, so the smallest one that means anything is 0 — a scene that adds nothing. "
+                + "A negative one used to be read as 0 and echoed back as 0, which is a measurement "
+                + "of a different scene from the one that was asked for.");
+            return false;
+        }
+
         if (!TryReadCombatants(combatants, out var everyone, out var tiers, out problem)) return false;
 
         // <b>A fight needs two sides, and this is refused rather than run.</b> `Over` and every
@@ -623,7 +659,7 @@ public sealed class PlayTools
             return false;
         }
 
-        setup = new Setup(everyone, tiers, rules, Math.Max(0, challengeLevel ?? 0), seed ?? 0, opening);
+        setup = new Setup(everyone, tiers, rules, challengeLevel ?? 0, seed ?? 0, opening);
         return true;
     }
 
