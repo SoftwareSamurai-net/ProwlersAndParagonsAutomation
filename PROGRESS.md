@@ -1129,7 +1129,7 @@ actually wanted; the dashboard was the assumed route to it.
 **What Pages does have**, and it is a live-debugging tool rather than a record:
 
 ```bash
-npx wrangler pages deployment tail --project-name=prowlers-and-paragons --environment production
+npx wrangler pages deployment tail --project-name=prowlers-and-paragons-chargen --environment production
 ```
 
 Useful filters: `--status ok|error|canceled`, `--search <text>` (matches inside `console.log`
