@@ -256,20 +256,25 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// Sixteen of the twenty rebuild to exactly their 125 Hero Point budget. That is the
+    /// Seventeen of the twenty rebuild to exactly their 125 Hero Point budget. That is the
     /// whole engine end to end — ability and talent costs against a starting package,
     /// baseline ranks, every cost type, and both generic and Power-specific Pros and Cons
     /// — landing on a number the authors published.
     ///
-    /// <para>Herald (Airmid) is a seventeenth exact Hero and is deliberately not listed here:
-    /// she has her own test, <see cref="TheHeraldsAirmidCarriesTwoExpertisePowers"/>, which asserts
-    /// the same 125 alongside the transcription fault that produced it. Both counts are read
-    /// off <see cref="PrebuiltHeroes.BuildByHero"/> by
-    /// <see cref="MostHeroesReconcileExactly"/>, which is what holds them together.</para>
+    /// <para><b>Every Hero recorded at a residual of 0 is named here, and nothing may be exact
+    /// in one place and absent from the other.</b> Herald (Airmid) was exact in
+    /// <see cref="PrebuiltHeroes.BuildByHero"/> and missing from this list, so
+    /// <see cref="MostHeroesReconcileExactly"/> counted her while no per-Hero case rebuilt her —
+    /// the list said one thing and the count another, and nothing noticed because neither is
+    /// derived from the other. <see cref="TheExactHeroListNamesEveryHeroRecordedExact"/> is what
+    /// notices now. She still has her own test,
+    /// <see cref="TheHeraldsAirmidCarriesTwoExpertisePowers"/>, which asserts the same 125
+    /// alongside the transcription fault that produced it; a second assertion of a number is
+    /// not a reason to leave the roster short.</para>
     ///
     /// <para>T-Kay joined this list on 2026-09-06, when the owner ruled her
-    /// <c>Limited: only for Telekinesis</c> Con is *somewhat* limited. She is here because of
-    /// the ruling; the ruling is not here because of her total.</para>
+    /// <c>Limited: only for Telekinesis</c> Con is <em>somewhat</em> limited. She is here because
+    /// of the ruling; the ruling is not here because of her total.</para>
     /// </summary>
     [Theory]
     [InlineData("Alabama Slammer")]
@@ -279,6 +284,7 @@ public sealed class PrebuiltHeroTests
     [InlineData("Combustion")]
     [InlineData("Darkwolf")]
     [InlineData("Eidolon")]
+    [InlineData("Herald (Airmid)")]
     [InlineData("Nano")]
     [InlineData("Pandora")]
     [InlineData("Psi Lance")]
@@ -294,6 +300,97 @@ public sealed class PrebuiltHeroTests
 
         Assert.Equal(0, PrebuiltHeroes.BuildByHero[name].Residual);
         Assert.Equal(125, _f.Costs.TotalCost(Build(hero)));
+    }
+
+    /// <summary>
+    /// <b>The hand-written roster on <see cref="HeroRebuildsToExactly125"/> and the residuals in
+    /// <see cref="PrebuiltHeroes.BuildByHero"/> are two statements of the same fact, and this is
+    /// the only thing that makes them agree.</b> They disagreed for real: Airmid was recorded
+    /// exact and left off the roster, so
+    /// <see cref="MostHeroesReconcileExactly"/> asserted seventeen while sixteen Heroes were
+    /// actually rebuilt one by one. A count and a list cannot check each other — the count is
+    /// derived, the list is typed — so a Hero could be closed in the dictionary and never
+    /// rebuilt again, which is the shape of a check that stops running without going red.
+    ///
+    /// <para>The roster is read back off the <see cref="InlineDataAttribute"/>s themselves rather
+    /// than restated here, because a third copy of the list would be a third thing to forget.
+    /// The same reflection makes the residual roster
+    /// (<see cref="HeroRebuildsToItsKnownResidual"/>) answerable, and the two together must
+    /// account for every Hero exactly once.</para>
+    /// </summary>
+    [Fact]
+    public void TheExactHeroListNamesEveryHeroRecordedExact()
+    {
+        var listedExact    = InlineNames(nameof(HeroRebuildsToExactly125));
+        var listedResidual = InlineNames(nameof(HeroRebuildsToItsKnownResidual));
+
+        var recordedExact = PrebuiltHeroes.BuildByHero
+            .Where(kv => kv.Value.Residual == 0)
+            .Select(kv => kv.Key)
+            .Order()
+            .ToList();
+
+        // Positive controls. Reflection that found nothing would make every assertion below
+        // hold on two empty lists — the failure shape CLAUDE.md warns about.
+        Assert.NotEmpty(recordedExact);
+        Assert.NotEmpty(listedExact);
+        Assert.NotEmpty(listedResidual);
+
+        Assert.Equal(recordedExact, listedExact);
+
+        // And the two rosters between them name every published Hero once, so a Hero cannot
+        // fall out of both lists and stop being rebuilt at all.
+        Assert.Equal(
+            PrebuiltHeroes.All.Select(h => h.Name).Order(),
+            listedExact.Concat(listedResidual).Order());
+    }
+
+    /// <summary>
+    /// The names a theory's <see cref="InlineDataAttribute"/>s supply, read through
+    /// <see cref="System.Reflection.CustomAttributeData"/> so this does not depend on the
+    /// runner's own data-discovery API.
+    /// </summary>
+    private static List<string> InlineNames(string methodName) =>
+        typeof(PrebuiltHeroTests).GetMethod(methodName)!
+            .GetCustomAttributesData()
+            .Where(a => a.AttributeType == typeof(InlineDataAttribute))
+            .Select(a => (string)((IReadOnlyList<System.Reflection.CustomAttributeTypedArgument>)
+                                  a.ConstructorArguments[0].Value!)[0].Value!)
+            .Order()
+            .ToList();
+
+    /// <summary>
+    /// <b>Only the mildest of the three Limited grades is visible in T-Kay's total at all, and
+    /// that is a fact about the floor rather than an argument for the grade the owner chose.</b>
+    /// Lightning Reflexes is a flat 3 Hero Point unranked Power: −1 takes it to 2, −2 takes it to
+    /// 1 outright, and −4 would take it to −1, which the 1 HP floor on an unranked Power holds at
+    /// 1. So *significantly* and *severely* limited are indistinguishable in her arithmetic, and
+    /// no total could ever have told the owner which of them her sheet meant.
+    ///
+    /// <para>This is here because <c>docs/RULEBOOK-COVERAGE.md</c> states those three figures as
+    /// measured, and a number in a sentence is not a guard. It also fails if anyone "fixes" the
+    /// unranked floor: the −4 case is the only place in the published Heroes where it bites.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheMildestLimitedGradeShowsInTKaysArithmetic()
+    {
+        static SelectedPower Graded(string? grade) =>
+            new("lightning_reflexes", 0, [],
+                grade is null ? [] : [new SelectedProCon("limited", grade)]);
+
+        // Positive control: the undiscounted Power really is the flat 3 the reasoning above
+        // rests on, so a change to its printed cost fails here rather than shifting all four.
+        Assert.Equal(3, _f.Costs.PowerCost(Graded(null)));
+
+        Assert.Equal(2, _f.Costs.PowerCost(Graded("somewhat_limited")));
+        Assert.Equal(1, _f.Costs.PowerCost(Graded("significantly_limited")));
+        Assert.Equal(1, _f.Costs.PowerCost(Graded("severely_limited")));
+
+        // And the grade recorded against her really is the one the owner ruled, so the figures
+        // above are about her sheet and not about a Power in the abstract.
+        Assert.Equal(
+            "con:limited:somewhat_limited",
+            Assert.Single(PrebuiltHeroes.ProsConsByHero["T-Kay|lightning_reflexes"]));
     }
 
     /// <summary>

@@ -193,8 +193,10 @@ the page character by character:
 **She reconciles now, and nothing in this parse changed to make her.** Her sheet prints
 `Limited: only for Telekinesis` with no grade, and the rulebook prints no rule mapping a
 restriction onto one of its three; the owner ruled it *somewhat limited* (−1) on 2026-09-06,
-which takes her from 124 to exactly 125. The cost breakdown below is left as it was measured,
-with the one line the ruling moves marked.
+which takes her from 124 to exactly 125. **The cost breakdown below is not the pre-ruling one
+with a note attached — it is the post-ruling one, recomputed through `CostCalculator` element by
+element**, so the Lightning Reflexes line, the Powers subtotal and the grand total all moved. The
+transcription either side of it did not: no Power, rank, Pro, Perk or Flaw was touched.
 
 | Printed | In `PrebuiltHeroes` | |
 |---|---|---|
@@ -215,10 +217,12 @@ Cost, element by element: package 50 + abilities 8 + talents 2 + powers 64 + per
 Powers: Determination 10, Flight 8, Force Field 12+2, **Lightning Reflexes 3−1 = 2**,
 Telekinesis 24+2+2+2. Every figure is what the rulebook prints for that element.
 
-That Lightning Reflexes line is the only one the ruling moves, and it is also why the harsher
-readings were indistinguishable: at −2 the Power comes to 1 and at −4 it comes to 1 as well,
-because an unranked Power floors at 1 HP. Only the mildest grade is visible in her total, which
-is a fact about the floor and was never an argument for the grade.
+That Lightning Reflexes line is the only one the ruling moves, and it is also why the two harsher
+readings were indistinguishable. Lightning Reflexes is a flat 3 HP unranked Power, so −2 takes it
+to 1 outright and −4 would take it to −1, which the 1 HP floor on an unranked Power holds at 1 —
+measured through `CostCalculator.PowerCost`, not reasoned about: 2, 1, 1 for the three grades.
+Only the mildest grade is visible in her total at all, which is a fact about the floor and was
+never an argument for the grade.
 
 ### Three gaps this parse found
 
