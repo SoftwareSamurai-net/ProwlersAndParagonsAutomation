@@ -277,8 +277,19 @@ public sealed class PlayPayloadTests
         foreach (var name in PlayFileNames) Assert.DoesNotContain(name, RulesRepository.DataFileNames);
     }
 
-    /// <summary>The five source trees that make up the application, none of which may read a play file.</summary>
+    /// <summary>
+    /// The five source trees that make up the application, none of which may read a play file.
+    ///
+    /// <para><b><c>play/</c> is deliberately not on this list, and that is the change slice (d)
+    /// made.</b> The second engine is the one project that may name these files — that is what it
+    /// is for. What has not changed is which trees may not: the character engine, the renderers and
+    /// all three hosts. A host reaches the play rules by holding a <c>PlayRulesRepository</c>, never
+    /// by naming a file, and until the hosts arrive nothing holds one at all.</para>
+    /// </summary>
     private static readonly string[] ApplicationTrees = ["engine", "sheets", "cli", "web", "mcp"];
+
+    /// <summary>The one tree that may — and, since it is the point of it, must.</summary>
+    private const string SecondEngineTree = "play";
 
     private static readonly string[] SourceExtensions = ["*.cs", "*.razor", "*.csproj", "*.js", "*.json"];
 
@@ -290,12 +301,19 @@ public sealed class PlayPayloadTests
         ];
 
     /// <summary>
-    /// <b><c>docs/guide/play-rules.md</c> says "Nothing reads either of them", and until now nothing
-    /// checked it.</b> That sentence is the whole shape of this slice — the data is verified before
-    /// anything trusts it, and the models and the resolution logic arrive with the simulator — so it
-    /// is the claim most worth a guard and the one an ordinary-looking commit would break: a
-    /// <c>PlayRulesRepository</c> wired into <c>engine/</c> compiles, passes, and quietly makes the
-    /// character engine an authority on resolving an action.
+    /// <b>Nothing in the application names a play rules file — and "the application" no longer
+    /// means "everything".</b> <c>PlayRulesRepository</c> exists now, in <c>play/</c>, and reads all
+    /// five; the claim this guard makes has narrowed from "nothing reads them" to "exactly one
+    /// project does, and it is the second engine". The narrowing is the whole of slice (d), and it
+    /// is why <see cref="TheSecondEngineIsTheOneProjectThatNamesAPlayRulesFile"/> sits beside this
+    /// one: an allowance with nothing behind it would silently permit a whole tree.
+    ///
+    /// <para><b>What has not moved is the thing worth guarding.</b> A <c>PlayRulesRepository</c>
+    /// wired into <c>engine/</c> compiles, passes, and quietly makes the character engine an
+    /// authority on resolving an action — <c>CLAUDE.md</c> settles that it is not one — and a host
+    /// that named a file rather than holding a repository would be a host with a rule of its own.
+    /// So <c>engine/</c>, <c>sheets/</c>, <c>cli/</c>, <c>web/</c> and <c>mcp/</c> are all still
+    /// forbidden, by exactly the scan they always were.</para>
     ///
     /// <para>This is the source-side companion to the payload checks above. Those say a play file
     /// cannot be <em>copied</em> anywhere; this says nothing in the application <em>names</em> one.
@@ -352,6 +370,36 @@ public sealed class PlayPayloadTests
             + "these files name one: " + string.Join(", ", faults)
             + ". Play rules do not go into engine/ or any host — the simulator is a second engine "
             + "beside it, in a project of its own.");
+    }
+
+    /// <summary>
+    /// <b>The allowance has something behind it.</b> <c>play/</c> is excused from the scan above
+    /// because reading these five files is what it is for; an excuse for a tree that has stopped
+    /// reading them — a repository deleted, a file list renamed away — would be a hole in the guard
+    /// wearing the shape of a rule, and every other test here would stay green.
+    ///
+    /// <para>So the second engine is required to name <em>every</em> file, not merely one of them.
+    /// A store where four of five files had quietly stopped being loaded is exactly the state
+    /// <c>RulesFileCoverageTests</c> was written for on the character side.</para>
+    /// </summary>
+    [Fact]
+    public void TheSecondEngineIsTheOneProjectThatNamesAPlayRulesFile()
+    {
+        var sources = SourceFilesUnder(Path.Combine(RepoRoot, SecondEngineTree)).ToList();
+
+        Assert.True(sources.Count >= 5,
+            $"only {sources.Count} source files found under {SecondEngineTree}/, so this control "
+            + "would pass by measuring nothing.");
+
+        var text = string.Concat(sources.Select(f => WithoutComments(File.ReadAllText(f))));
+
+        foreach (var name in PlayFileNames)
+        {
+            Assert.True(text.Contains(name, StringComparison.Ordinal),
+                $"{SecondEngineTree}/ does not name {name} outside a comment. It is excused from "
+                + "the application scan because reading these files is its purpose; an excuse for a "
+                + "project that has stopped reading them permits the tree for nothing.");
+        }
     }
 
     private static IEnumerable<string> SourceFilesUnder(string directory) =>

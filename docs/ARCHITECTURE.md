@@ -23,6 +23,34 @@ data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcript
 
 Each is its own project, which is what makes the arrows above true at compile time. `engine/` and `sheets/` were part of the root executable until the browser front end needed them without Spectre.Console attached.
 
+## The second engine, which is a second stack rather than another layer
+
+```
+data/rules/play/   →   play/   →   (hosts, in a later slice)
+                        ↑
+                     engine/
+```
+
+`play/` resolves an action — a page of combat, a challenge roll, a Resolve spend — where `engine/`
+costs and validates a character. `CLAUDE.md`'s settled list is why they are two things: **the first
+engine is the authority on cost and validity and knows nothing about resolving an action**, so a
+combat simulator is a *second* engine beside it and never a change to it.
+
+**The arrows are one-way in both directions and both are enforced.** `play/` references `engine/`
+for `CharacterSheet`, `IRulesSource` and the derived statistics; `engine/` and `sheets/` never name
+`play/`, and `play/` never names `CostCalculator` or `CharacterValidator` — `PlayContractTests`. It
+inherits the four promises `AccountsContractTests` and `PresentationFlagsTests` already hold the
+first engine to: no account, no filesystem, no network, no presentation flag.
+
+**`data/rules/play/` is a separate store for a reason of payload rather than of taste**: every
+csproj copies `data\rules\*.json` non-recursively, so the play rules reach no browser and no
+published MCP server. See [`guide/play-rules.md`](guide/play-rules.md) and
+[`guide/play-engine.md`](guide/play-engine.md).
+
+| | |
+|---|---|
+| `play/` | `PlayRulesRepository` over the five play files; `IDiceSource` returning raw d6 faces; an immutable `EncounterState` and a pure `Encounter.Step`; a ledger where every line cites the page its rule came from. Nothing references it yet. |
+
 ## The one thing outside those layers: `worker/`
 
 There is a fifth directory, and it is deliberately not on the diagram: `worker/` is the accounts
@@ -121,6 +149,16 @@ ProwlersAndParagonsAutomation/
 │       ├── _redirects            # Cloudflare: every path serves the app, with a 200
 │       ├── data/rules/           # Staged from data/rules/ by the build (gitignored)
 │       └── data/transcripts/     # Staged from data/transcripts/ the same way (gitignored)
+│
+├── play/                         # The second engine — resolving an action, not costing a character
+│   ├── Rules/PlayRulesRepository.cs  # The five data/rules/play files, lazily, through IRulesSource
+│   ├── Rules/Models/             # One record per file, covering every key it carries
+│   ├── Rules/SuccessCounter.cs   # Faces to successes. Holds no literal 2, 4 or 6
+│   ├── Dice/IDiceSource.cs       # Raw d6 faces — SeededDice and ScriptedDice
+│   ├── Encounter/Combatant.cs    # An immutable snapshot; only a Hero can hold Resolve
+│   ├── Encounter/TableRules.cs   # The ten gritty switches and three more, every one naming its entry
+│   ├── Encounter/Encounter*.cs   # Begin, Step, RunToEnd — pure over an immutable state
+│   └── Encounter/AttackTheWeakest.cs # The one policy that ships, named in every report
 │
 ├── mcp/                          # MCP server — the engine, in somebody else's Claude
 │   ├── QUESTION-POLICY.md        # The two or three questions worth asking. Embedded, and served verbatim

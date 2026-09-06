@@ -13,6 +13,7 @@
         <!-- This project sits at the repository root, so the default **/*.cs glob would
              otherwise pull in every sibling project's sources alongside its own. -->
         <Compile Remove="engine\**" />
+        <Compile Remove="play\**" />
         <Compile Remove="sheets\**" />
         <Compile Remove="web\**" />
         <Compile Remove="mcp\**" />

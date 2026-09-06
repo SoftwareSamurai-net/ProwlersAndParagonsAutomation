@@ -183,6 +183,7 @@ The detail lives in its own file per domain, so this page stays something you ca
 |---|---|
 | [**Architecture**](docs/ARCHITECTURE.md) | The four layers and the no-upward-dependency rule, and what every directory in the repository is for |
 | [**The rules engine**](docs/guide/rules-engine.md) | Power costs, rank types, baseline ranks, derived statistics, the Sources, and the JSON conventions the rules data follows |
+| [**The play engine**](docs/guide/play-engine.md) | The second engine, which resolves a fight rather than costing a character: the dice contract, the ledger, and the book's worked examples replayed through it |
 | [**Tests and code quality**](docs/guide/testing.md) | The two test projects, the analyzer contract, what CI actually enforces, and the pixel goldens |
 | [**Hosting**](docs/HOSTING.md) | Where the running site lives — the DNS chain, the Pages project, the D1 database, the mail provider, and why each piece is where it is |
 | [**Deploying the browser front end**](docs/DEPLOYING.md) | Cloudflare Pages, the generated security headers, and the payload |

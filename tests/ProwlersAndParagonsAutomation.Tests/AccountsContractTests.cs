@@ -19,8 +19,17 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// </summary>
 public sealed class AccountsContractTests
 {
-    /// <summary>The projects that decide a cost, a rank, a figure or a verdict.</summary>
-    private static readonly string[] RulesProjects = ["engine", "sheets"];
+    /// <summary>
+    /// The projects that decide a cost, a rank, a figure or a verdict.
+    ///
+    /// <para><c>play/</c> is here from the day it existed rather than after somebody remembered.
+    /// It is the second engine — it resolves an action where the first costs and validates a
+    /// character — and every reason the two promises below are worth guarding applies to it
+    /// unchanged: it answers with numbers, it must not learn who is holding a character, and it
+    /// reaches for the same synchronous <see cref="Engine.IRulesSource"/> and nothing else. It has
+    /// no equivalent of <c>FileSystemRulesSource.cs</c>: a host with a disk hands it that one.</para>
+    /// </summary>
+    private static readonly string[] RulesProjects = ["engine", "sheets", "play"];
 
     /// <summary>
     /// Words that would mean rules code had learned about accounts.

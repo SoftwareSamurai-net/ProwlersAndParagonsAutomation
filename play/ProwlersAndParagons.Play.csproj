@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The second engine: the rules for resolving an action, as opposed to the rules for
+         costing and validating a character.
+
+         It sits beside engine/ rather than inside it because CLAUDE.md settles the question in
+         a line — engine/ is the authority on cost and validity and knows nothing about
+         resolving an action. This project references engine/ for CharacterSheet, IRulesSource
+         and DerivedStatsCalculator; nothing references this one back, and PlayContractTests
+         holds that arrow at the source level as well as at the build level.
+
+         Target framework, nullability and the analyzer contract come from the repository
+         root's Directory.Build.props, shared with every other project.
+
+         It deliberately copies no rules data. data/rules/play/ is not on any csproj's copy
+         glob — the placement is the access control, and PlayPayloadTests proves it — so a host
+         hands the five files over through IRulesSource the way a browser already does for the
+         character rules. -->
+
+    <PropertyGroup>
+        <RootNamespace>ProwlersAndParagonsAutomation.Play</RootNamespace>
+        <AssemblyName>ProwlersAndParagons.Play</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\engine\ProwlersAndParagons.Engine.csproj" />
+    </ItemGroup>
+
+</Project>
