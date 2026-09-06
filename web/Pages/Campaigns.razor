@@ -263,6 +263,27 @@ else
                                         @onclick="() => _leaving = one.Id">Leave</button>
                             }
                         </div>
+
+                        @* **What became of a send, under the button that sent it.** It used to be
+                           printed in the Join box at the bottom of the panel — a different
+                           control, about a different act, with a list between them — so "this
+                           character has nothing on it yet" appeared under a box the reader had
+                           not touched, and `Submit`'s own doc comment claimed it was under the
+                           button. A refusal has to be findable from the control it refuses.
+
+                           **Unlike the sentence about leaving, this one can live in the row**,
+                           and the difference is whether the row survives the act: leaving removes
+                           the row, so a message inside it would be written and thrown away
+                           unrendered — the fault recorded below and on the approval screen —
+                           while sending leaves the row exactly where it was.
+
+                           `role="status"` per row rather than one region for the panel, because
+                           the message is about this membership and a reader who lands on it by
+                           keyboard should meet it where the button is. *@
+                        @if (_sentAbout == one.Id && _sent is { } sent)
+                        {
+                            <p class="small muted spaced" role="status">@sent</p>
+                        }
                     </li>
                 }
             </ul>
@@ -357,8 +378,19 @@ else
     /// <summary>What went wrong with the last save, or null. Cleared at the start of each one.</summary>
     private string? _problem;
 
-    /// <summary>What became of the last join or send. Cleared when the character changes.</summary>
+    /// <summary>What became of the last join. Cleared at the start of the next one.</summary>
     private string? _joined;
+
+    /// <summary>
+    /// What became of the last send, and which row it was about — drawn inside that row, under
+    /// the button that did it.
+    ///
+    /// <para><b>Two fields rather than one, because a message with no row is a message under the
+    /// wrong row.</b> Both are set together and cleared together at the start of every send.</para>
+    /// </summary>
+    private string? _sent;
+
+    private string? _sentAbout;
 
     private string _code = "";
 
@@ -950,13 +982,18 @@ else
     /// </summary>
     private async Task Submit(MembershipSummary one)
     {
-        _joined = null;
+        ArgumentNullException.ThrowIfNull(one);
+
+        // Whatever this says, it says it in this row. Set together with the message so a sentence
+        // can never end up under a membership it is not about.
+        _sent = null;
+        _sentAbout = one.Id;
 
         // A row with no character id is the GM's view of a membership, and this control is not
         // drawn on that screen. Belt and braces, and it costs one comparison.
         if (one.CharacterId is not { Length: > 0 } id)
         {
-            _joined = "That row does not name a character, so there is nothing to send.";
+            _sent = "That row does not name a character, so there is nothing to send.";
             return;
         }
 
@@ -965,7 +1002,7 @@ else
         // state to put right or refuse — never one to act on. See `TheCharacterOnScreenIsThePointers`.
         if (await TheCharacterOnScreenIsThePointers(id) is { } refusal)
         {
-            _joined = refusal;
+            _sent = refusal;
             return;
         }
 
@@ -988,7 +1025,7 @@ else
                 // not, and telling that reader to "try again in a moment" will be believed and
                 // will keep being believed. `CampaignApproval` already tells its own two arms
                 // apart for the same reason.
-                _joined = Characters.LastReadRefusal == ReadRefusal.NotThere
+                _sent = Characters.LastReadRefusal == ReadRefusal.NotThere
                     ? "That character could not be read: it is not on this account any more, or "
                       + "this version of the app cannot open it. Open it in the character manager."
                     : "That character could not be read just now — the connection may have "
@@ -1002,12 +1039,12 @@ else
 
         if (Session.HasNothingOnIt(sending.Value.Sheet))
         {
-            _joined = "This character has nothing on it yet, so there is nothing to send. "
+            _sent = "This character has nothing on it yet, so there is nothing to send. "
                 + "Open it, build it up, and send it when it is ready.";
             return;
         }
 
-        _joined = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
+        _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
             ? "That could not be sent just now. Try again in a moment."
             : $"Sent to {one.Label}. Your own copy is unchanged.{PutBack()}";
 

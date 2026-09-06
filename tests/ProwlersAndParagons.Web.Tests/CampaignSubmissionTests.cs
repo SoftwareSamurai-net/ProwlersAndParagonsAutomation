@@ -399,6 +399,48 @@ public sealed class CampaignSubmissionTests
     }
 
     /// <summary>
+    /// <b>A refusal is printed under the button that was pressed, not in the Join box below the
+    /// list.</b>
+    ///
+    /// <para>Every message about a send went to the panel's Join box — a different control, about
+    /// a different act, with the whole list of games between them. So "this character has nothing
+    /// on it yet" appeared under a box the reader had not touched, while <c>Submit</c>'s own doc
+    /// comment said the refusal was under the button. A refusal has to be findable from the
+    /// control that refused, which is the rule every other refusal on this page follows.</para>
+    ///
+    /// <para>Asserted structurally rather than by looking for the sentence in the markup, because
+    /// the markup contains it either way — which is exactly why nobody noticed.</para>
+    /// </summary>
+    [Fact]
+    public async Task ARefusedSendIsSaidInsideTheRowThatWasSent()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        await ctx.Services.GetRequiredService<SavedCharacters>()
+            .SetCurrentAsync("c_3333333333333333333333");
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+        await Send(page);
+
+        var row = page.FindAll(".campaign-list li")
+            .Single(li => li.TextContent.Contains("Send for approval", StringComparison.Ordinal));
+
+        // In the row, beside the button.
+        Assert.Contains("This character has nothing on it yet", row.TextContent,
+            StringComparison.Ordinal);
+
+        // And announced there, rather than in a region somewhere else on the panel.
+        Assert.Contains(row.QuerySelectorAll("[role=status]"),
+            said => said.TextContent.Contains("nothing on it yet", StringComparison.Ordinal));
+
+        // Not in the Join box, which is about a different act and a different control.
+        Assert.DoesNotContain("nothing on it yet", page.Find(".campaign-join").TextContent,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>A character built out of Powers alone is a character, and it is sent.</b>
     ///
     /// <para>The refusal above asked one question — is every Ability below the rulebook's floor —

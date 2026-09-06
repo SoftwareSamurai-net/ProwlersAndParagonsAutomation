@@ -1351,6 +1351,13 @@ works and nobody can reach.
   version of the app cannot open it — open it in the character manager", and **nothing on it**
   keeps its own. That is the split `CampaignApproval.razor` has made between its unreachable and
   unreadable arms since it shipped, one screen over.
+- **And each of those is printed inside the row that was sent, under its own Send button.** They
+  went to the panel's Join box — a different control, about a different act, with the whole list
+  of games between them — while `Submit`'s own doc comment said the refusal was "under the
+  button". The row carries its own `role="status"`, and the message is stored with the membership
+  id it is about so it can never appear under another row. **The rule the leave message follows
+  is the opposite one and both are right**: leaving removes the row, so a sentence inside it would
+  be written and thrown away unrendered, and sending leaves the row exactly where it was.
 - **The account's write-through will not put an empty sheet over a character its own list says is
   real, and it says so in `.save-status`.** The belt beside the campaigns page's guard, and it is
   needed because the loss does not need that page: *any* edit from the emptied-session state —
