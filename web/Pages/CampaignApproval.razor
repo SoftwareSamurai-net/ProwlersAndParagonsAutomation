@@ -142,6 +142,30 @@ else
                                 }
                                 else if (_showing is Showing.Settled && _approved is { } settled)
                                 {
+                                    @* **An empty clone is said out loud, above the sheet.** A
+                                       campaign can be holding a snapshot with nothing on it —
+                                       the tier, the campaign's id and its house Trait Cap, which
+                                       is all `CampaignJoin.Apply` copies in — and drawn as a
+                                       character that is an unnamed sheet with every Trait at 0d,
+                                       Resolve 20 and no Hero Points spent. That is what the owner
+                                       was shown over a player who holds a fully statted character
+                                       under exactly the id this row names.
+
+                                       **The screen may not render it as the character.** It is
+                                       the same rule the two unreadable arms above follow: a state
+                                       that reads as emptiness is not the same as nothing being
+                                       here, and the reader is owed which one it is. The sheet is
+                                       still drawn beneath, because hiding it would leave a GM
+                                       unable to see what they are being told about — and nothing
+                                       is repaired, because the remedy is the player resubmitting
+                                       and the clone is not this screen's to rewrite. *@
+                                    @if (Session.HasNothingOnIt(settled))
+                                    {
+                                        <p class="small muted" role="status">
+                                            The submission was empty — ask the player to resubmit.
+                                        </p>
+                                    }
+
                                     @* **Drawn rather than put behind a second press.** Nothing is
                                        being decided here, so the sheet is not evidence supporting
                                        a decision — it is the whole of what was asked for. *@
@@ -149,6 +173,19 @@ else
                                 }
                                 else if (_showing is Showing.Changes && _diff is { } diff)
                                 {
+                                    @* The same sentence one slot earlier, and the more useful of
+                                       the two: a GM told this before pressing Approve does not
+                                       make an empty sheet the campaign's clone in the first
+                                       place. Refused nowhere — approving it is still the GM's to
+                                       do, because a decision about somebody's character is not
+                                       this screen's to take. *@
+                                    @if (_pending is { } waiting && Session.HasNothingOnIt(waiting))
+                                    {
+                                        <p class="small muted" role="status">
+                                            The submission was empty — ask the player to resubmit.
+                                        </p>
+                                    }
+
                                     @* **Led by the spend, because that is what a GM decides on** —
                                        and both figures are the engine's answers for the two sheets
                                        rather than anything read out of a payload or worked out

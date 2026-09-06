@@ -166,4 +166,234 @@ public sealed class CampaignSubmissionTests
         Assert.Equal(6, detail.Pending.AbilityRanks["agility"]);
         Assert.Equal(5, detail.Pending.SelectedPowers.Single().PurchasedRanks);
     }
+
+    /// <summary>
+    /// <b>Sending a character with nothing on it is refused on the page, with a sentence.</b>
+    ///
+    /// <para>Reached the way a player reaches it and not by arrangement: joining a game with an
+    /// empty character is the ordinary first move — the join box says so out loud, "its tier is
+    /// filled in if you have not chosen one" — and the autosave that follows writes the sheet
+    /// <c>CampaignJoin.Apply</c> has just put a tier on. So the character behind the row really is
+    /// the 379-byte envelope, stored under a real id, and pressing Send is one click away.</para>
+    ///
+    /// <para><b>Nothing is repaired.</b> The refusal writes nothing, and the row is left exactly
+    /// as it was for the player to send properly.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACharacterWithNothingOnItIsRefusedRatherThanSent()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        // A brand-new slot, empty, and the pointer on it — "start a new character", then join.
+        await ctx.Services.GetRequiredService<SavedCharacters>()
+            .SetCurrentAsync("c_3333333333333333333333");
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        // The control on the fixture: the join really did land, and it really did put the
+        // campaign's tier and cap onto the empty sheet. Without this the refusal below could be
+        // a page that never reached the guard.
+        Assert.Equal("low_level", ctx.Session.Sheet.SelectedTierId);
+        Assert.Equal(10, ctx.Session.Sheet.TraitCapRank);
+
+        await Send(page);
+
+        Assert.Contains("This character has nothing on it yet", page.Markup, StringComparison.Ordinal);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var row = Assert.Single((await memberships.MineAsync())!);
+
+        // Refused means refused: nothing is waiting, and the campaign holds nothing.
+        Assert.False(row.HasPending);
+        Assert.False(row.HasApproved);
+    }
+
+    /// <summary>
+    /// <b>The remedy for the row that is already wrong: the player resubmits.</b>
+    ///
+    /// <para>Starts from the broken state — an empty clone approved into the campaign, labelled
+    /// with the player's real character — and goes through both screens: the player presses Send
+    /// for approval with the pointer on Jetstream, and the GM approves what arrives. Nothing
+    /// anywhere rewrites the bad row; it is replaced by a decision, which is the only way a clone
+    /// has ever changed.</para>
+    /// </summary>
+    [Fact]
+    public async Task ResubmittingReplacesAnEmptyCloneWithTheRealSheet()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        var membership = Assert.Single((await memberships.MineAsync())!).Id;
+
+        // The broken row, put there the way it got there: an empty sheet in the pending slot,
+        // approved by the GM. Written through the wire rather than through the page, because the
+        // page can no longer produce one — which is the fix, and is why this has to be arranged.
+        await AnEmptyCloneIsApproved(ctx, membership);
+
+        ctx.Api.SignedIn = ("u_player", "Billy");
+
+        var broken = await memberships.ReadAsync(membership);
+        Assert.NotNull(broken!.Approved);
+        Assert.Empty(broken.Approved!.AbilityRanks);
+
+        // The player opens the campaigns page and sends again. Nothing else changes.
+        var again = ctx.Render<Campaigns>();
+        await Send(again);
+
+        Assert.Contains("Sent to", again.Markup, StringComparison.Ordinal);
+
+        // The GM approves what is now waiting, through their own screen.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var approval = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.CampaignApproval>(
+            p => p.Add(c => c.Id, CampaignId));
+
+        await approval.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
+
+        await approval.FindAll(".campaign-diff .btn")
+            .First(b => b.TextContent.Contains("Approve", StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        var mended = await memberships.ReadAsync(membership);
+
+        Assert.NotNull(mended!.Approved);
+        Assert.Equal("Jetstream", mended.Approved!.Name);
+        Assert.Equal(6, mended.Approved.AbilityRanks["agility"]);
+        Assert.Equal("Jetstream", mended.Label);
+    }
+
+    /// <summary>
+    /// Puts the reported row into the campaign: the empty payload in the pending slot, approved.
+    ///
+    /// <para>Through the wire, because after the fix no click on either page can produce one —
+    /// and the state has to stay reachable in a test for as long as rows like it exist in the
+    /// deployed database.</para>
+    /// </summary>
+    private static async Task AnEmptyCloneIsApproved(RenderContext ctx, string membership)
+    {
+        var http = ctx.Services.GetRequiredService<HttpClient>();
+
+        ctx.Api.SignedIn = ("u_player", "Billy");
+
+        using var sending = new StringContent(
+            $$"""{"label":"Jetstream","payload":{{System.Text.Json.JsonSerializer.Serialize(TheReportedPayload)}}}""",
+            System.Text.Encoding.UTF8, "application/json");
+
+        Assert.True(
+            (await http.PutAsync($"/api/memberships/{membership}/submission", sending,
+                Xunit.TestContext.Current.CancellationToken)).IsSuccessStatusCode,
+            "the empty snapshot never landed, so nothing under test is reached");
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var version = (await store.ReadAsync(membership))!.PendingVersion;
+
+        Assert.Equal(DecisionOutcome.Done, (await store.ApproveAsync(membership, version)).Outcome);
+    }
+
+    /// <summary>
+    /// <b>The payload out of the owner's database, byte for byte.</b> 379 characters: the envelope,
+    /// and a sheet carrying only the tier, the campaign id and the house Trait Cap that
+    /// <c>CampaignJoin.Apply</c> copies in — every Trait 0d, no Powers, no name.
+    ///
+    /// <para>Written out here rather than built from a <see cref="CharacterSheet"/> so that a
+    /// change to how this app writes a sheet cannot quietly stop this test reproducing the row it
+    /// is about.</para>
+    /// </summary>
+    internal const string TheReportedPayload =
+        """
+        {"Version":1,"Mode":0,"Sheet":{"IsVillain":false,"UnlimitedBudget":false,"SelectedTierId":"low_level","CampaignId":"g_EQVHwU_Bl0VZdFrEssjk0A","TraitCapRank":10,"AbilityRanks":{},"AbilityModifiers":{},"TalentRanks":{},"AbilitySources":{},"TalentSources":{},"SelectedPowers":[],"Perks":[],"Flaws":[],"Name":"","Appearance":"","Motivation":"","Quote":"","Connections":[],"Gear":[]}}
+        """;
+
+    /// <summary>
+    /// <b>The GM's screen says an approved clone is empty rather than drawing it as a
+    /// character.</b>
+    ///
+    /// <para>This is what the owner was shown: an unnamed sheet, Low Level, Trait Cap 10d, every
+    /// Trait 0d, Resolve 20, 0 of 100 Hero Points — rendered as though it were the character the
+    /// row is named after. A blank form is not a character, and a screen that draws one as a
+    /// character is lying to the person deciding about it.</para>
+    ///
+    /// <para>The sheet is still drawn beneath the sentence, deliberately: the GM has to be able to
+    /// see what they are being told about, and nothing here repairs the row.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheApprovalScreenSaysWhenTheCloneIsEmpty()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var membership = Assert.Single((await memberships.MineAsync())!).Id;
+
+        await AnEmptyCloneIsApproved(ctx, membership);
+
+        var approval = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.CampaignApproval>(
+            p => p.Add(c => c.Id, CampaignId));
+
+        // The control: the row is there and it is the one the owner's GM opened.
+        Assert.Contains("Jetstream", approval.Markup, StringComparison.Ordinal);
+
+        await approval.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
+
+        var shown = approval.Find(".campaign-diff").TextContent;
+
+        Assert.Contains("The submission was empty — ask the player to resubmit", shown,
+            StringComparison.Ordinal);
+
+        // The positive control on the arm under test: this is the settled-sheet arm and the sheet
+        // really was drawn, so the sentence is beside a sheet rather than instead of one.
+        Assert.NotEmpty(approval.FindAll(".campaign-diff .sheet"));
+    }
+
+    /// <summary>
+    /// The other half of the sentence above, and the one that keeps it from being printed over
+    /// every sheet on the screen: a real character says nothing of the kind.
+    /// </summary>
+    [Fact]
+    public async Task ARealCloneIsNotCalledEmpty()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+        await Send(page);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var membership = Assert.Single((await memberships.MineAsync())!).Id;
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var version = (await memberships.ReadAsync(membership))!.PendingVersion;
+        Assert.Equal(DecisionOutcome.Done,
+            (await memberships.ApproveAsync(membership, version)).Outcome);
+
+        var approval = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.CampaignApproval>(
+            p => p.Add(c => c.Id, CampaignId));
+
+        await approval.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
+
+        var shown = approval.Find(".campaign-diff").TextContent;
+
+        Assert.DoesNotContain("The submission was empty", shown, StringComparison.Ordinal);
+        Assert.NotEmpty(approval.FindAll(".campaign-diff .sheet"));
+    }
 }
