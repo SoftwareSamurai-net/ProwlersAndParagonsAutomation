@@ -317,6 +317,7 @@ public sealed class PlayPayloadTests
 
         var play = Directory.GetFiles(Path.Combine(beside, "play"), "*.json")
             .Select(Path.GetFileName)
+            .OfType<string>()
             .Order(StringComparer.Ordinal)
             .ToList();
 
