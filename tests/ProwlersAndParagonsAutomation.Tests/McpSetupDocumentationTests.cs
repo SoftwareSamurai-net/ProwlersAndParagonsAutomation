@@ -24,6 +24,13 @@ public sealed class McpSetupDocumentationTests
 
     private static string Guide => File.ReadAllText(Path("docs", "MCP-SETUP.md"));
 
+    /// <summary>
+    /// Every tree an MCP server in this repository is compiled from: the character builder, the
+    /// encounter server, and the project holding what both of them need before they can serve
+    /// anything.
+    /// </summary>
+    private static readonly string[] ServerTrees = ["mcp", "mcp-shared", "mcp-play"];
+
     private static Regex Rx(string pattern, RegexOptions options = RegexOptions.None) =>
         new(pattern, options, TimeSpan.FromSeconds(5));
 
@@ -391,13 +398,16 @@ public sealed class McpSetupDocumentationTests
     [Fact]
     public void NothingInTheServerSendsAReaderToTheReadmeForSetup()
     {
-        var sources = Directory
-            .GetFiles(Path("mcp"), "*.cs", SearchOption.AllDirectories)
+        var sources = ServerTrees
+            .SelectMany(tree => Directory.GetFiles(Path(tree), "*.cs", SearchOption.AllDirectories))
             .Where(p => !p.Contains($"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(p => !p.Contains($"{System.IO.Path.DirectorySeparatorChar}bin{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .ToList();
 
-        Assert.NotEmpty(sources);
+        // All three trees, because the sentence this catches is prose in a source file and the
+        // second server's `--help` is the same text in a second place. A scan of one tree would
+        // report the repository clean while the newer program sent a stuck reader nowhere.
+        Assert.True(sources.Count >= 8, $"Only {sources.Count} server sources were read.");
 
         Assert.All(sources, file => Assert.False(
             Rx(@"\bREADME(\.md)?\b").IsMatch(File.ReadAllText(file)),

@@ -286,7 +286,8 @@ public sealed class PlayPayloadTests
     /// all three hosts. A host reaches the play rules by holding a <c>PlayRulesRepository</c>, never
     /// by naming a file, and until the hosts arrive nothing holds one at all.</para>
     /// </summary>
-    private static readonly string[] ApplicationTrees = ["engine", "sheets", "cli", "web", "mcp"];
+    private static readonly string[] ApplicationTrees =
+        ["engine", "sheets", "cli", "web", "mcp", "mcp-shared"];
 
     /// <summary>The one tree that may — and, since it is the point of it, must.</summary>
     private const string SecondEngineTree = "play";

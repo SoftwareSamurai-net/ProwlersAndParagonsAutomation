@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The second MCP server: a fight, run through the second engine, over stdio.
+
+         **It is a separate server rather than four more tools on the first one**, and the
+         reason is the one CLAUDE.md gives for the two engines being separate. The character
+         server answers "what does this cost and is it legal"; this one answers "these dice,
+         against this threshold, under these rules, therefore this". A client that wants to
+         build a character does not want ten tools, and a client that wants to measure a
+         fight does not want a Hero Point calculator in its tool list.
+
+         It references engine/ (for CharacterSheet and the derived statistics a combatant is
+         built from), play/ (the engine that resolves the fight) and mcp-shared/ (where the
+         rules are, and what the arguments meant). It does **not** reference mcp/: two hosts
+         on the same layer, and an arrow between them would be the first one in this
+         repository. Nothing here computes a success count, a damage figure or an outcome. -->
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>ProwlersAndParagonsAutomation.McpPlay</RootNamespace>
+        <AssemblyName>ProwlersAndParagons.McpPlay</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\engine\ProwlersAndParagons.Engine.csproj" />
+        <ProjectReference Include="..\play\ProwlersAndParagons.Play.csproj" />
+        <ProjectReference Include="..\mcp-shared\ProwlersAndParagons.McpShared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Core rather than the hosting package, and pinned exactly: the same two decisions
+             mcp/ records, for the same two reasons. -->
+        <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The play policy is the payload of the combat_guide tool, embedded so there is one
+             copy of it. The manifest name is built from RootNamespace, which is
+             ProwlersAndParagonsAutomation.McpPlay and not the assembly name — the two differ
+             here exactly as they do in mcp/, and using the wrong one is a resource that is
+             present and unfindable. -->
+        <EmbeddedResource Include="PLAY-POLICY.md" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- **Both stores ship beside the binary, and this is the one project that copies the
+             play rules.** A client launches the published program from a directory of its own
+             choosing, with no repository in sight, and this server cannot answer a single
+             question without both: the character rules to turn a sheet into a combatant, and
+             the play rules to resolve what that combatant does.
+
+             Both globs use a single star, which does not descend — `PlayPayloadTests` holds
+             that, and holds this project to it alongside the three that copy the character
+             rules. The play files go to a `play` subdirectory of the copy, which is where
+             `PlayRulesLocation` looks for them, so the layout beside the binary is the
+             repository's layout. -->
+        <Content Include="..\data\rules\*.json" CopyToOutputDirectory="PreserveNewest" LinkBase="data\rules\" />
+        <Content Include="..\data\rules\play\*.json" CopyToOutputDirectory="PreserveNewest" LinkBase="data\rules\play\" />
+    </ItemGroup>
+
+</Project>
