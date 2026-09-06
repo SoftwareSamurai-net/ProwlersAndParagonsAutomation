@@ -60,8 +60,15 @@ internal static class InProcessMcpServer
     ///
     /// <para>Generous on purpose: this is not a measurement of how fast a shutdown is, it is the
     /// bound that turns a leaked server task into a failing test rather than into a suite that
-    /// never finishes. A correct shutdown takes milliseconds, so no loaded runner is anywhere
+    /// never finishes. A correct shutdown takes milliseconds — measured at 62ms for the first
+    /// <see cref="Drive"/> in a process and under 1ms after it — so no loaded runner is anywhere
     /// near this.</para>
+    ///
+    /// <para><b>It is a bound per call, not per run</b>, and 77 tests across the two classes go
+    /// through here. So a shutdown that stops working everywhere costs about 38 minutes on top of
+    /// a CI job that takes 19, where the unbounded <c>await running</c> this replaced cost the
+    /// whole job. That is the trade, and it is deliberate: a suite that finishes and says what is
+    /// wrong beats one that hangs. Lower this only with a measurement, not a guess.</para>
     /// </summary>
     internal static readonly TimeSpan EndsWithin = TimeSpan.FromSeconds(30);
 
@@ -112,12 +119,16 @@ internal static class InProcessMcpServer
         if (end is not null)
         {
             throw new InvalidOperationException(
-                $"the {serverName} server's run faulted rather than ending on end-of-input", end);
+                $"the {serverName} harness's teardown failed rather than ending the server on "
+                + "end-of-input", end);
         }
 
-        // The positive control, and it is the one that matters: every assertion above is satisfied
-        // by a run that never happened. `end is null` says nothing was thrown; this says the task
-        // really did finish, and finished without faulting.
+        // The positive control is the bounded wait inside ShutDown, not this line. WaitAsync
+        // throws TimeoutException for a run that never ended and rethrows the fault for one that
+        // failed, so `end is null` already means the task finished and finished well — delete
+        // this assertion and the EOF-removal control is still red, at the Assert.Fail above.
+        // It stays as the invariant written where a reader looks for it, and this comment says
+        // what it is rather than claiming a second check the code cannot make it perform.
         Assert.True(
             running.IsCompletedSuccessfully,
             $"the {serverName} server's run did not complete successfully "
@@ -126,8 +137,21 @@ internal static class InProcessMcpServer
 
     /// <summary>
     /// End of input, then the run, then the two things that own the streams — and returns what
-    /// the run did rather than throwing it, so the caller can decide whether it is allowed to
+    /// went wrong rather than throwing it, so the caller can decide whether it is allowed to
     /// speak over the body's own failure.
+    ///
+    /// <para><b>Every step is caught, not only the wait, and that is the correction this method
+    /// exists in its present shape for.</b> This runs inside the caller's <c>finally</c>, so
+    /// anything that leaves here <em>replaces</em> the body's own exception with a complaint
+    /// about the teardown — the exact substitution the caller's gate is written to prevent, and
+    /// one the gate could not see, because only the run's outcome ever came back through it.
+    /// Measured: making <c>client.DisposeAsync()</c> throw turned a test whose body failed with
+    /// its own assertion into one reporting the teardown's exception instead.</para>
+    ///
+    /// <para><b>And no step is skipped because an earlier one failed.</b> Each is attempted and
+    /// the first failure is the one reported: a client that will not dispose must still not stop
+    /// the end-of-input going out, or one broken teardown becomes a
+    /// <see cref="EndsWithin"/>-long one.</para>
     /// </summary>
     private static async Task<Exception?> ShutDown(
         McpClient client,
@@ -136,29 +160,50 @@ internal static class InProcessMcpServer
         McpServer server,
         Task running)
     {
+        // Each step is awaited into a local and only then folded in. `failure ??= await …` would
+        // read the same and be a bug: `??=` does not evaluate its right-hand side once `failure`
+        // is set, so the first thing to go wrong would silently skip every step after it.
+        Exception? failure = null;
+
         // The client first, so nothing is in flight when the server is told there is no more
         // input. This does not close the pipe — see the class comment.
-        await client.DisposeAsync();
+        var clientGone = await Attempt(() => client.DisposeAsync());
+        failure ??= clientGone;
 
         // End of input. The server's read loop reads a null line, breaks, and disconnects with no
         // error, which is the only clean end this SDK has.
-        await toServer.CompleteAsync();
+        var endOfInput = await Attempt(() => toServer.CompleteAsync());
+        failure ??= endOfInput;
 
-        Exception? failure = null;
-        try
-        {
-            await running.WaitAsync(EndsWithin);
-        }
-        catch (Exception ex)
-        {
-            failure = ex;
-        }
+        // The bound, and the thing that actually turns a leaked server task into a red test.
+        var ended = await Attempt(async () => await running.WaitAsync(EndsWithin));
+        failure ??= ended;
 
         // Only now. The read loop has already left the reader, so completing it here cannot be
         // the thing the loop trips over.
-        await transport.DisposeAsync();
-        await server.DisposeAsync();
+        var streamsGone = await Attempt(() => transport.DisposeAsync());
+        failure ??= streamsGone;
+
+        var serverGone = await Attempt(() => server.DisposeAsync());
+        failure ??= serverGone;
 
         return failure;
+    }
+
+    /// <summary>
+    /// Runs one teardown step and hands back what it threw, if anything. Deliberately catches
+    /// everything: see <see cref="ShutDown"/> for why nothing may escape it.
+    /// </summary>
+    private static async Task<Exception?> Attempt(Func<ValueTask> step)
+    {
+        try
+        {
+            await step();
+            return null;
+        }
+        catch (Exception ex)
+        {
+            return ex;
+        }
     }
 }
