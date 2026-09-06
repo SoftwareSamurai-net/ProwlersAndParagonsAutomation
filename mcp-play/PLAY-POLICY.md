@@ -135,7 +135,6 @@ turned one of these table settings on without saying that the numbers do not car
 
 | Entry | What it is |
 |---|---|
-| `knockback` | Ch.4 p.78. Turning a heavy subdual blow into a spectacular flight. |
 | `luring` | Ch.4 p.79. Redirecting a dodged attack into whatever was behind you. |
 | `team_attacks` | Ch.4 p.79. Making a team attack's sixes explode. |
 | `adversity_spend_suppress_flaw` | Ch.5 p.85. Suppressing an NPC's Flaw for a scene. |
@@ -169,7 +168,6 @@ recognise, and answer with a `not yet implemented` line:
 
 | Spend | Tool |
 |---|---|
-| `knockback` | `spend_resolve` |
 | `luring` | `spend_resolve` |
 | `team_attack` | `spend_resolve` |
 | `suppress_flaw` | `spend_adversity` |
@@ -177,8 +175,9 @@ recognise, and answer with a `not yet implemented` line:
 | `villainy` | `spend_adversity` |
 
 Everything else a spend can name is resolved: `extra_dice`, `reroll`, `seize_initiative`,
-`instant_recovery`, `avoid_fatal_damage`, `stabilise` and `keeping_hold` for a Hero, and
-`anything_resolve_can` for the GM naming one of the purchases the last table below marks bought.
+`instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold` and `knockback` for a Hero,
+and `anything_resolve_can` for the GM naming one of the purchases the last table below marks
+bought.
 
 **What `anything_resolve_can` may name** — the six above are a *Hero's* purchases, and the GM's
 pool does not yet buy all six. p.85's first purchase is the Resolve purchases with different money
@@ -198,6 +197,6 @@ a purchase that had happened from one that had not:
 | `avoid_fatal_damage` | not yet implemented |
 | `stabilise` | not yet implemented |
 | `keeping_hold` | bought |
-| `knockback` | not yet implemented |
+| `knockback` | bought |
 | `luring` | not yet implemented |
 | `team_attack` | not yet implemented |

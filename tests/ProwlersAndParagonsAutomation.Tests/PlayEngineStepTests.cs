@@ -2196,6 +2196,174 @@ public sealed class PlayEngineStepTests
         Assert.Equal(3, down.State["hero"].Resolve);
     }
 
+    /// <summary>
+    /// <b>A knockback throws the target exactly as far as p.74's table says and no farther, and
+    /// takes the turn it says it takes.</b>
+    ///
+    /// <para>p.78 prints no worked example, so this is a property: the distance is looked up in the
+    /// shipped <c>throwing_table</c> here rather than typed, and the band the pair end at has to be
+    /// that row's — and, separately, never past it, which is the half a reading that guessed
+    /// generously would fail.</para>
+    ///
+    /// <para><b>Both halves of "losing their next turn to act" are driven</b>, because which turn it
+    /// is depends on where the page has got to. A target who has still to act loses that turn and
+    /// comes out of this page's order; one who has already acted loses the next page's, and the
+    /// order built when the page turns has to be missing them.</para>
+    ///
+    /// <para>The count comes first as always: the blow is required to have scored the successes the
+    /// script pays for and to have done at least the <c>minimum_damage</c> the entry demands, or the
+    /// purchase under test would be a refusal wearing a knockback's name.</para>
+    /// </summary>
+    [Fact]
+    public void AKnockbackThrowsATargetAsFarAsTheThrowingTableSaysAndTakesATurn()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+        var table = _play.GetCombat("throwing_table").ThrowingTable!;
+
+        // The distance the data says, for the 8d Might these fixtures attack with.
+        var row = table.Single(r => 8 >= r.MinRank && (r.MaxRank is null || 8 <= r.MaxRank));
+        var reach = Enum.Parse<RangeBand>(row.Range.Replace(" Range", "", StringComparison.Ordinal));
+
+        // The controls on the data: the row is not the one the fight opens in, so "it moved" below
+        // is the throw and not the opening band, and the purchase costs something.
+        Assert.NotEqual(RangeBand.Close, reach);
+        Assert.True(rule.CostResolve > 0);
+
+        var (pending, villainStillToAct) = Knocked(targetActsFirst: false);
+
+        Assert.Equal(reach, pending.RangeBetween("hero", "villain"));
+        Assert.True((int)pending.RangeBetween("hero", "villain") <= (int)reach,
+            "the throw went farther than the throwing table's own row for that rank");
+
+        // The turn they had not taken is the turn they lose: they are out of this page's order.
+        Assert.Equal(["hero", "villain"], villainStillToAct);
+        Assert.Equal(["hero"], pending.TurnOrder);
+        Assert.Empty(pending.LosesNextTurn);
+
+        // And where they had already acted, it is the next page's order they are missing from.
+        var (turned, _) = Knocked(targetActsFirst: true);
+
+        Assert.Equal(2, turned.Page);
+        Assert.Equal(["hero"], turned.TurnOrder);
+
+        Assert.Contains(turned.Ledger.Lines, l =>
+            string.Equals(l.Rule, "pages_and_turns", StringComparison.Ordinal)
+            && l.Text.Contains("forfeited a turn", StringComparison.Ordinal));
+
+        // The clause this engine cannot apply is named rather than left to be assumed.
+        Assert.Contains(pending.Ledger.Lines, l =>
+            string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+            && l.Text.Contains(rule.DamageOnStrikingASolidObject, StringComparison.Ordinal)
+            && l.Text.Contains("no scenery", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 8d of Might for 6 successes against 2d of Toughness for none — 6 points of subdual damage,
+    /// which is what the entry's <c>minimum_damage</c> asks for — and then the point spent.
+    /// </summary>
+    /// <param name="targetActsFirst">
+    /// Whether the target has already had their turn when the blow lands, which decides which turn
+    /// the knockback takes off them. The page turns in that case, so the order can be read.
+    /// </param>
+    private (EncounterState State, IReadOnlyList<string> OpeningOrder) Knocked(bool targetActsFirst)
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: targetActsFirst ? 11 : 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        var dice = new ScriptedDice(6, 6, 6, 1, 1, 1, 1, 1, 1, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+        var opening = state.TurnOrder;
+
+        if (targetActsFirst)
+        {
+            state = encounter.Step(state, new Hold("villain")).State;
+            state = encounter.Step(state, new EndTurn("villain")).State;
+        }
+
+        var blow = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        state = blow.State;
+
+        // The positive controls: the printed counts, and a blow big enough for the entry's floor.
+        Assert.Contains(blow.Added, l =>
+            l.Text.Contains("might 8d for 6 successes", StringComparison.Ordinal)
+            && l.Text.Contains("toughness 2d for 0", StringComparison.Ordinal));
+
+        Assert.Equal(12 - rule.MinimumDamage, state["villain"].CurrentHealth);
+        Assert.Equal(RangeBand.Close, state.RangeBetween("hero", "villain"));
+
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Knockback)).State;
+
+        Assert.Equal(3 - rule.CostResolve, state["hero"].Resolve);
+
+        if (targetActsFirst)
+        {
+            state = encounter.Step(state, new EndTurn("hero")).State;
+            state = encounter.Step(state, new EndPage("")).State;
+        }
+
+        // The purchase and the page turn roll nothing the page does not.
+        Assert.Equal(0, dice.Remaining);
+
+        return (state, opening);
+    }
+
+    /// <summary>
+    /// <b>Knockback is bought off the damage type the entry names and nothing else.</b> p.78 opens
+    /// on "an attack that inflicts subdual damage"; a killing blow of the same size buys nothing,
+    /// and the refusal says which kind it was.
+    /// </summary>
+    [Fact]
+    public void AKnockbackIsBoughtOffSubdualDamageAndNothingElse()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+
+        // The control on the data: the entry names a damage kind this engine has.
+        Assert.True(Enum.TryParse<DamageKind>(rule.RequiresDamageType, ignoreCase: true, out var required));
+        Assert.Equal(DamageKind.Subdual, required);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // A lethal blow halves the 2d Toughness answering it, so this is one die fewer than the
+        // subdual fixture above rolls.
+        var dice = new ScriptedDice(6, 6, 6, 1, 1, 1, 1, 1, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Lethal, AttackType.Unarmed)).State;
+
+        // The control: the blow is big enough, so the refusal below is about the kind and not the size.
+        Assert.Equal(12 - rule.MinimumDamage, state["villain"].CurrentHealth);
+
+        var refused = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Knockback));
+        var line = Assert.Single(refused.Added);
+
+        Assert.Equal("knockback", line.Rule);
+        Assert.Contains(rule.RequiresDamageType, line.Text, StringComparison.Ordinal);
+        Assert.Contains("that blow was lethal", line.Text, StringComparison.Ordinal);
+
+        // Nothing was spent and nobody moved.
+        Assert.Equal(3, refused.State["hero"].Resolve);
+        Assert.Equal(RangeBand.Close, refused.State.RangeBetween("hero", "villain"));
+        Assert.Equal(0, dice.Remaining);
+    }
+
     // ── Citations ────────────────────────────────────────────────────────────
 
     /// <summary>

@@ -85,6 +85,14 @@ public sealed record DefencePenalty(int UntilPage, bool ActiveOnly);
 /// p.79's dying clock starts on <em>lethal</em> damage, and a rebuilt attack that had forgotten
 /// which kind it was would start it on a knockout blow.
 /// </param>
+/// <param name="AttackRank">
+/// The rank of the Trait that was rolled, before any bonus dice.
+///
+/// <para><b>It is the rank and not the pool, because p.78's knockback is priced off the rank</b> —
+/// "as if they were thrown by someone with a Might rank equal to your attack rank" — and the pool
+/// carries the two dice going all-out lends, the Minions' size bonus and the wound penalty, none of
+/// which is anybody's rank.</para>
+/// </param>
 public sealed record ResolvedAttack(
     string Actor,
     string Target,
@@ -95,7 +103,8 @@ public sealed record ResolvedAttack(
     IReadOnlyList<SpecialEffect> EffectsBefore,
     string? Effect,
     bool Area,
-    DamageKind Damage);
+    DamageKind Damage,
+    int AttackRank);
 
 /// <summary>
 /// The whole of a fight at one instant, immutable.
@@ -198,6 +207,17 @@ public sealed record EncounterState
 
     /// <summary>Everything the engine has done, with its citations.</summary>
     public required Ledger Ledger { get; init; }
+
+    /// <summary>
+    /// Who has forfeited a turn they had not yet taken, and so is left out of the next page's order.
+    ///
+    /// <para><b>p.78's knockback and p.79's luring both take a turn away, and a turn taken away has
+    /// to be missing from the order rather than mentioned on the ledger.</b> Where the character had
+    /// still to act on the page the forfeit was bought, the turn they lose is that one and they come
+    /// straight out of <see cref="TurnOrder"/>; where they had already acted, the turn they lose is
+    /// the next page's and their id waits here until <see cref="Encounter.Step"/> builds it.</para>
+    /// </summary>
+    public required IReadOnlyList<string> LosesNextTurn { get; init; }
 
     /// <summary>Whether the fight is over — one side left standing, or the page limit reached.</summary>
     public required bool Over { get; init; }

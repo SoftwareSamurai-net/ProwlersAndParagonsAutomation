@@ -120,7 +120,7 @@ public sealed partial class Encounter
 
         var resolved = new ResolvedAttack(
             actor.Id, target.Id, pool, attackRoll.Successes, defenceRoll.Successes,
-            target, state.Effects, attack.Effect, attack.Area, attack.Damage);
+            target, state.Effects, attack.Effect, attack.Area, attack.Damage, rank);
 
         after = ApplyAttackOutcome(after, attack, resolved, lines);
 
@@ -1350,6 +1350,7 @@ public sealed partial class Encounter
             ResolveSpend.Stabilise => StabiliseWithResolve(state, actor, lines),
             ResolveSpend.InstantRecovery => InstantRecovery(state, actor, lines),
             ResolveSpend.KeepingHold => KeepHold(state, actor, lines),
+            ResolveSpend.Knockback => Knockback(state, actor, lines),
             _ => Unimplemented(state, actor.Id, spend.Kind, lines)
         };
     }
@@ -1553,6 +1554,167 @@ public sealed partial class Encounter
                 : "")));
 
         return Charge(state, actor, rule.CostResolve, fromAdversity) with { Effects = effects };
+    }
+
+    /// <summary>
+    /// Ch.4 p.78's <c>knockback</c>: a point turns a heavy subdual blow into a flight, and both
+    /// halves of what the page says happens are applied to the state.
+    ///
+    /// <para><b>How far is read off the throwing table, because the entry points at it.</b> The
+    /// target is thrown "as if they were thrown by someone with a Might rank equal to your attack
+    /// rank", and p.74 says what a Might that size throws something: at or below
+    /// <c>throwing_range.table_used_when_might_exceeds</c> it is
+    /// <c>ordinary_people_reach</c>, and above it the <c>throwing_table</c> row the rank falls in.
+    /// That is why the table's own <c>ambiguity</c> — nothing printed below 3d — never bites here:
+    /// the sentence above the table covers every rank up to six.</para>
+    ///
+    /// <para><b>The target's weight rank is the one figure the data cannot supply</b>, and
+    /// <c>docs/guide/play-engine.md</c> records the reading. <c>throwing_range.rank_formula</c>
+    /// subtracts the object's weight rank from the thrower's Might; nothing in Chapters 3–5 gives a
+    /// character a weight rank, so this reads the throwing rank as the attack rank itself, which is
+    /// the longest throw the sentence can mean. The ledger line says so.</para>
+    ///
+    /// <para><b>What is not applied is the object.</b>
+    /// <c>damage_on_striking_a_solid_object</c>, <c>the_object_must_be_tougher_than_the_target</c>
+    /// and <c>a_passive_defense_above_the_objects_structure</c> all need a piece of scenery with a
+    /// Structure, and this engine has no scenery and no Structure — there is nothing to hit and
+    /// nothing to compare a passive defence with. The line names the clause rather than leaving a
+    /// reader to assume the extra damage was rolled.</para>
+    /// </summary>
+    private EncounterState Knockback(
+        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
+    {
+        var entry = _play.GetCombat("knockback");
+        var rule = entry.Knockback!;
+
+        if (OutOfTheFight(state, actor.Id, "buyer", lines)) return state;
+
+        if (state.LastAttack is not { } last
+            || !string.Equals(last.Actor, actor.Id, StringComparison.Ordinal))
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} has no blow of their own on the table to turn into a knockback");
+        }
+
+        if (!Enum.TryParse<DamageKind>(rule.RequiresDamageType, ignoreCase: true, out var required))
+        {
+            throw new InvalidOperationException(
+                $"knockback requires '{rule.RequiresDamageType}' damage, which is none of the kinds "
+                + $"p.75 prints: {string.Join(", ", Enum.GetNames<DamageKind>())}.");
+        }
+
+        if (last.Damage != required)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"knockback is bought off {rule.RequiresDamageType} damage and that blow was "
+                + $"{last.Damage.ToString().ToLowerInvariant()}");
+        }
+
+        var target = state[last.Target];
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        // The damage the blow actually did: an attack carrying a special effect does none, and a
+        // Minion group takes bodies off rather than Health.
+        var inflicted = last.Effect is null && target.Kind != CombatantKind.MinionGroup
+            ? Math.Max(0, last.AttackSuccesses - last.DefenceSuccesses) * rate
+            : 0;
+
+        if (inflicted < rule.MinimumDamage)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"that blow did {inflicted} damage and knockback needs {rule.MinimumDamage}");
+        }
+
+        if (!fromAdversity
+            && CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines))
+        {
+            return state;
+        }
+
+        var (thrown, printed, past) = ThrowReach(last.AttackRank);
+        var here = state.RangeBetween(actor.Id, target.Id);
+
+        // They fly backwards, so the pair cannot end up nearer than they started.
+        var landed = (RangeBand)Math.Max((int)here, (int)thrown);
+
+        var after = state.WithRange(actor.Id, target.Id, landed);
+
+        if (rule.TargetLosesTheirNextTurnToAct) after = ForfeitNextTurn(after, target.Id);
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{(fromAdversity ? $"the GM spends {rule.CostResolve} Adversity on {actor.Name}" : $"{actor.Name} spends {rule.CostResolve} Resolve")}"
+            + $" to knock {target.Name} back off {inflicted} points of "
+            + $"{rule.RequiresDamageType} damage: thrown by {rule.TargetIsThrownAsIfByAMightRankEqualTo} "
+            + $"of {last.AttackRank}, which p.74 reaches {printed}"
+            + (past ? ", further than this engine's outermost range class" : "")
+            + $", leaving them at {landed} Range"
+            + (rule.TargetFallsProne ? ", prone" : "")
+            + (rule.TargetLosesTheirNextTurnToAct ? " and out of their next turn to act" : "")
+            + $". Striking something solid would cost them {rule.DamageOnStrikingASolidObject}, and "
+            + "that is not applied: this engine has no scenery and nothing in it has a Structure to "
+            + "measure a passive defence against"));
+
+        return Charge(after, actor, rule.CostResolve, fromAdversity);
+    }
+
+    /// <summary>
+    /// How far a throw of <paramref name="rank"/> reaches, out of p.74's sentence and p.74's table.
+    ///
+    /// <para>The band is resolved against <c>range_classes</c>'s own rows rather than parsed as an
+    /// enum name, so the ladder the fight uses and the ladder the throw lands on are the same one.
+    /// A row past the outermost class — the table's <c>25</c> and up — is reported as past the
+    /// ladder and clamped to it, because this engine's furthest apart is its outermost class.</para>
+    /// </summary>
+    private (RangeBand Band, string Printed, bool Past) ThrowReach(int rank)
+    {
+        var throwing = _play.GetCombat("throwing_range").Throwing!;
+        var table = _play.GetCombat("throwing_table").ThrowingTable!;
+
+        var printed = rank > throwing.TableUsedWhenMightExceeds
+            ? table.SingleOrDefault(r => rank >= r.MinRank && (r.MaxRank is null || rank <= r.MaxRank))?.Range
+              ?? throw new InvalidOperationException(
+                  $"throwing_table has no row for a throwing rank of {rank}, and p.74 sends every "
+                  + $"rank above {throwing.TableUsedWhenMightExceeds} to it.")
+            : throwing.OrdinaryPeopleReach;
+
+        var classes = _play.GetCombat("range_classes").Ranges!.Select(c => c.Class).ToList();
+        var index = classes.IndexOf(printed.Replace(" Range", "", StringComparison.Ordinal));
+
+        return index >= 0
+            ? ((RangeBand)index, printed, false)
+            : ((RangeBand)(classes.Count - 1), printed, true);
+    }
+
+    /// <summary>
+    /// "Losing their next turn to act" (p.78, and p.79 for the lurer), applied to the order.
+    ///
+    /// <para><b>Which turn it is depends on where the page has got to</b>, and both cases are the
+    /// same sentence: a character who has still to act on this page loses that turn, so they come
+    /// out of the order now; one who has already acted loses the next page's, so their id waits on
+    /// <see cref="EncounterState.LosesNextTurn"/> until the page turns. Removing somebody after the
+    /// current index leaves the index pointing at the same combatant it did.</para>
+    /// </summary>
+    private static EncounterState ForfeitNextTurn(EncounterState state, string id)
+    {
+        var at = -1;
+
+        for (var i = 0; i < state.TurnOrder.Count; i++)
+        {
+            if (!string.Equals(state.TurnOrder[i], id, StringComparison.Ordinal)) continue;
+
+            at = i;
+            break;
+        }
+
+        if (at > state.TurnIndex)
+        {
+            return state with { TurnOrder = [.. state.TurnOrder.Where((_, i) => i != at)] };
+        }
+
+        return state.LosesNextTurn.Contains(id, StringComparer.Ordinal)
+            ? state
+            : state with { LosesNextTurn = [.. state.LosesNextTurn, id] };
     }
 
     private EncounterState SeizeInitiative(EncounterState state, Combatant actor, List<LedgerLine> lines)
@@ -1881,6 +2043,7 @@ public sealed partial class Encounter
             ResolveSpend.ExtraDice => BuyDice(state, npc, spend.Points, lines, fromAdversity: true),
             ResolveSpend.Reroll => BuyReroll(state, npc, lines, fromAdversity: true),
             ResolveSpend.KeepingHold => KeepHold(state, npc, lines, fromAdversity: true),
+            ResolveSpend.Knockback => Knockback(state, npc, lines, fromAdversity: true),
             var other => throw new ArgumentOutOfRangeException(
                 nameof(spend), other,
                 "AdversityBuys names a purchase the GM's pool has no branch for.")
@@ -1903,7 +2066,9 @@ public sealed partial class Encounter
     /// limit and the ledger says so in those words.</para>
     /// </summary>
     private static readonly HashSet<ResolveSpend> AdversityBuys =
-        [ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.KeepingHold];
+    [
+        ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.KeepingHold, ResolveSpend.Knockback
+    ];
 
     // ── Turns and pages ──────────────────────────────────────────────────────
 
@@ -1926,6 +2091,7 @@ public sealed partial class Encounter
         var special = _play.GetCombat("special_effects");
         var holding = _play.GetCombat("holding_an_action");
         var keeping = _play.GetCombat("keeping_hold");
+        var turns = _play.GetCombat("pages_and_turns");
         var page = state.Page + 1;
 
         var effects = new List<SpecialEffect>();
@@ -1968,7 +2134,15 @@ public sealed partial class Encounter
 
         state = TickTheDying(state, page, lines);
 
-        var order = TurnOrder(state.Combatants, state.EffectiveEdge, state.Seized, lines, page);
+        foreach (var forfeited in state.LosesNextTurn)
+        {
+            lines.Add(new LedgerLine(
+                page, forfeited, turns.Id, turns.SourceRef,
+                $"{state[forfeited].Name} forfeited a turn, so this page has none for them"));
+        }
+
+        var order = TurnOrder(
+            state.Combatants, state.EffectiveEdge, state.Seized, state.LosesNextTurn, lines, page);
 
         return state with
         {
@@ -1977,6 +2151,7 @@ public sealed partial class Encounter
             TurnIndex = 0,
             Effects = effects,
             Holds = [],
+            LosesNextTurn = [],
             ActiveDefencesThisPage = new Dictionary<string, int>(StringComparer.Ordinal),
             LastAttack = null,
             Over = OneSideIsDown(state)
@@ -2156,7 +2331,6 @@ public sealed partial class Encounter
     {
         var entry = _play.GetCombat(kind switch
         {
-            ResolveSpend.Knockback => "knockback",
             ResolveSpend.Luring => "luring",
             ResolveSpend.TeamAttack => "team_attacks",
             _ => throw new ArgumentOutOfRangeException(

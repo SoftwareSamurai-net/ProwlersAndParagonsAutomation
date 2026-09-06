@@ -98,7 +98,6 @@ public sealed partial class Encounter
     public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         // Chapter 4's Resolve purchases this slice records and does not resolve.
-        "knockback",
         "luring",
         "team_attacks",
 
@@ -164,7 +163,7 @@ public sealed partial class Encounter
                     : $"table setting {name} is on"));
         }
 
-        var order = TurnOrder(everyone, edges, [], lines, page: 1);
+        var order = TurnOrder(everyone, edges, [], [], lines, page: 1);
 
         return new EncounterState
         {
@@ -183,6 +182,7 @@ public sealed partial class Encounter
             DefencesHalved = new Dictionary<string, DefencePenalty>(StringComparer.Ordinal),
             MoveProgress = new Dictionary<string, int>(StringComparer.Ordinal),
             LastAttack = null,
+            LosesNextTurn = [],
             Table = Table,
             Ledger = new Ledger(lines),
             Over = false
@@ -281,6 +281,7 @@ public sealed partial class Encounter
         IReadOnlyDictionary<string, Combatant> everyone,
         IReadOnlyDictionary<string, int> edges,
         IReadOnlyList<string> seized,
+        IReadOnlyList<string> forfeited,
         List<LedgerLine> lines,
         int page)
     {
@@ -330,7 +331,11 @@ public sealed partial class Encounter
         int Seizing(Combatant c) =>
             !Table.GmAlternativeToSeizingInitiative && seized.Contains(c.Id, StringComparer.Ordinal) ? 0 : 1;
 
+        // p.78's knockback and p.79's luring take a turn away, and the turn is taken away here:
+        // a character who forfeited one is not in the order at all, rather than in it with a line
+        // beside them saying they are not.
         var order = everyone.Values
+            .Where(c => !forfeited.Contains(c.Id, StringComparer.Ordinal))
             .OrderBy(c => minionsLast && c.Kind == CombatantKind.MinionGroup ? 1 : 0)
             .ThenBy(Seizing)
             .ThenByDescending(EffectiveEdge)
