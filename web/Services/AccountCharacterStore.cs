@@ -171,6 +171,21 @@ public sealed class AccountCharacterStore : ICharacterStore
     /// </summary>
     public ReadRefusal LastReadRefusal { get; private set; } = ReadRefusal.None;
 
+    /// <summary>
+    /// Which of the account's characters this browser has open and could not read, or null —
+    /// see <see cref="ApiCharacterStore.UnreadId"/>, which is where it is decided.
+    ///
+    /// <para><b>The account half's answer, passed on rather than copied</b>, the same way the
+    /// refusal event above is. <b>The browser's own store has none</b>, for the reason
+    /// <see cref="LastReadRefusal"/> gives one paragraph up: local storage either holds the
+    /// character or does not, so there is no state there in which a character may be behind the
+    /// pointer and unreadable.</para>
+    ///
+    /// <para>A reader who is not signed in is looking at the browser's store, so nothing on
+    /// screen may weigh this without asking who is here first.</para>
+    /// </summary>
+    public string? UnreadId => _inTheAccount.UnreadId;
+
     /// <summary>Open one of them. Null when it is not there, or not one this build can read.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> OpenAsync(string id)
     {

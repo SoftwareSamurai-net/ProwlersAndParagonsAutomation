@@ -971,6 +971,45 @@ the cost of `JSInterop.Invocations`; `FakeLocalStorage.Calls` is the replacement
 is what several of these tests are about and cannot be read off the end state. Reach for it whenever
 the question is "does pressing this actually reach the store", and leave the default alone for
 everything else.
+
+## The session has to hold the character the pointer names, and when it does not the app says so
+
+**Signing in and the app's own boot both empty the sheet when the account's character cannot be
+read, and neither moves the current-character pointer** — correctly, the character is still on the
+server. What that leaves is a signed-in reader looking at an empty builder the app believes is their
+character, with the next edit autosaving under that character's id. It cost a live row once: see
+`PROGRESS.md` item 26 for the campaigns half, which is where it was first stopped.
+
+- **`ApiCharacterStore.UnreadId` is the fact, and the read records it rather than a caller.** The
+  no-argument `LoadAsync()` is the only read that is about *the open character*, so it is the one
+  that notices; a version of this asking `SignIn.razor` and `Program.cs` to call a method after
+  emptying the session is two places that have to stay in step. Any successful read of that same id
+  clears it — the banner's retry, the manager, the campaigns page's re-adopt — so nothing has to
+  know this exists to put it right.
+- **Only `ReadRefusal.Unreachable` sets it**, which is the line the campaigns page's own guard
+  already draws. `NotThere` is the ordinary state of a slot an account has never written to, and
+  refusing there would refuse the first save of every new character there has ever been.
+  `AFreshSlotThatReadsBackAsNothingIsStillWritten` is that control.
+- **The write-through refuses for as long as the split lasts, and `IsWorthKeeping` cannot do this
+  job.** The earlier guard asks whether the *sheet* is empty, which covers the moment after the
+  failed read and stops covering it the instant somebody types a name — a half-built stranger then
+  lands on a fully statted character. `WouldWriteOverACharacterNothingRead` asks the other question:
+  did this browser ever see what it is about to write over. There is no edit that makes that safe,
+  so there is no state to wait for — what there is instead is a way out, on screen.
+- **The banner says it and offers both ways back**: read it again, or open one from the manager. It
+  is drawn from the store on every render rather than latched from an event, because it is a
+  standing state that begins before `MainLayout` exists — the boot restore is the commonest way in
+  — and ends whenever any read lands. **Only for somebody signed in**: the browser's own store has
+  no unreachable half, so a stale id is not a sentence to show an anonymous reader.
+- **A retry that lands arms no undo.** What is on screen is a sheet the store has been refusing to
+  write, so there is nothing an undo could put back — and an undo restores into the sheet without
+  moving the pointer, which is the shape that writes a second copy into somebody else's slot.
+- **Still open, and worth knowing before you touch the manager**: `StartAnotherAsync` writes the
+  sheet on screen at `CurrentIdAsync()` through the four-argument `SaveAsync`, which is not the
+  autosave and does not take this guard. From the split state, "start a new character" with
+  something already built on screen still lands on the unread character. Closing it is a decision
+  about *where* the kept character should go, not a guard to bolt on.
+
 ## Reading a rendered sheet in a test
 
 **`SheetText.Visible`, never `TextContent`.** Every name on the sheet is a `Term`, so its cell holds
