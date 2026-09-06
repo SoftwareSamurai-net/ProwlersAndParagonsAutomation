@@ -264,6 +264,125 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A tier these rules do not have is refused, not costed at nothing.</b>
+    ///
+    /// <para>The engine's <c>CalculateResolve</c> answers <b>0</b> for a tier it cannot resolve,
+    /// which is the honest answer for a figure it cannot derive and a silent lie once that figure is
+    /// a Hero in a fight: at 0 Resolve they buy no extra die, no reroll and no stabilise, and the
+    /// answer says nothing about it. Both spellings of the fault are driven — a misspelling and an
+    /// omission — because they arrive by different routes and produced the same quiet zero.</para>
+    ///
+    /// <para>The refusal has to name the tier that was asked for <em>and</em> the ones there are: a
+    /// model that mistyped one has to be able to correct itself from the answer.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("standrad", "a misspelling")]
+    [InlineData("nope", "a tier that was never in the book")]
+    [InlineData("", "no tier at all")]
+    public async Task ATierTheseRulesDoNotHaveIsRefused(string tier, string why) =>
+        await WithClient(async client =>
+        {
+            var character = new JsonObject
+            {
+                ["Name"] = "the Hero",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 8, ["toughness"] = 5 }
+            };
+
+            if (tier.Length > 0) character["SelectedTierId"] = tier;
+
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = new JsonArray(
+                    new JsonObject { ["kind"] = "hero", ["side"] = "heroes", ["character"] = character },
+                    new JsonObject
+                    {
+                        ["kind"] = "minions", ["id"] = "thugs", ["name"] = "the thugs",
+                        ["threat_rank"] = 6, ["count"] = 4, ["side"] = "villains"
+                    })
+            });
+
+            Assert.False(answer["ok"]!.GetValue<bool>(), $"{why} was accepted");
+            Assert.Equal("NO_SUCH_TIER", answer["problem"]!["code"]!.GetValue<string>());
+
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            if (tier.Length > 0) Assert.Contains(tier, message, StringComparison.Ordinal);
+
+            // And every tier this repository has, so the correction is in the refusal.
+            foreach (var known in _f.Rules.Tiers)
+                Assert.Contains(known.Id, message, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>And <c>run_encounters</c> refuses it too</b>, which is the call whose whole product is a
+    /// number somebody will quote. A measurement taken over a party built to no tier is the fault
+    /// above multiplied by N.
+    /// </summary>
+    [Fact]
+    public async Task RunEncountersRefusesATierTheseRulesDoNotHave() =>
+        await WithClient(async client =>
+        {
+            var combatants = TwoSides();
+            combatants[0]!["character"]!["SelectedTierId"] = "standrad";
+
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = combatants,
+                ["runs"] = PlayTools.FewestRuns
+            });
+
+            Assert.False(answer["ok"]!.GetValue<bool>());
+            Assert.Equal("NO_SUCH_TIER", answer["problem"]!["code"]!.GetValue<string>());
+        });
+
+    /// <summary>
+    /// <b>The tier a combatant was built to is on the opening ledger, cited.</b>
+    ///
+    /// <para>Refusing the unknown ones is only half of it: two identical sheets at two different
+    /// tiers open a fight with different Resolve, and until this the answer carried no record of
+    /// which was used. A reader forbidden to quote a number the ledger did not print is exactly the
+    /// reader who needs the input to that number printed — so the line cites Ch.5 p.83, which is the
+    /// entry that measures Resolve down from the Trait Cap.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheOpeningLedgerSaysWhichTierEachCharacterWasBuiltTo() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides()
+            });
+
+            Assert.True(opened["ok"]!.GetValue<bool>());
+
+            var ledger = opened["ledger"]!.AsArray();
+
+            var tierLines = ledger
+                .Where(l => l!["text"]!.GetValue<string>()
+                    .Contains("built to the standard tier", StringComparison.Ordinal))
+                .ToList();
+
+            // One per character combatant — a group of Minions has no sheet and so no tier.
+            Assert.Equal(2, tierLines.Count);
+
+            foreach (var line in tierLines)
+            {
+                Assert.Equal("starting_resolve", line!["rule"]!.GetValue<string>());
+                Assert.Contains("p.83", line["source_ref"]!.GetValue<string>(), StringComparison.Ordinal);
+
+                // The Trait Cap is the figure the tier actually buys, so it is in the sentence.
+                Assert.Contains(
+                    $"{_f.Rules.GetTier("standard")!.TraitCapRank}d",
+                    line["text"]!.GetValue<string>(), StringComparison.Ordinal);
+            }
+
+            // Only the Hero holds Resolve, and the two lines have to be able to say so differently —
+            // otherwise this passes on a line that says the same thing about everybody.
+            Assert.Single(tierLines, l =>
+                l!["text"]!.GetValue<string>().Contains("holds no Resolve", StringComparison.Ordinal));
+        });
+
+    /// <summary>
     /// <b>One step of p.81's fight, over the wire, cited.</b>
     ///
     /// <para>The page's own opening exchange: a Hero swings 12d Might into a group of four Threat-6

@@ -258,6 +258,17 @@ lives there, and nothing about it is repeated here.
   read one, and `CombatantFactory.From` is guarded: a sheet the engine cannot derive a figure from
   comes back as `COMBATANT_UNBUILDABLE` pointing at the *other* server, because whether a character
   is legal is not a question this one answers.
+- **A tier the character rules do not have is `NO_SUCH_TIER`, and the opening ledger says which tier
+  each character was built to.** `DerivedStatsCalculator.CalculateResolve` answers **0** for an
+  absent or unresolvable tier — the honest answer for a figure it cannot derive, and a silent lie
+  once that figure is a Hero in a fight, because a Hero at 0 Resolve buys no extra die, no reroll and
+  no stabilise and nothing in the answer says the number was never computed. A misspelled
+  `standrad` and an omitted `SelectedTierId` arrive by different routes and produced the same quiet
+  zero, so both are driven. Whether the character is *legal* at that tier is still the other
+  server's question; this one only refuses a tier it cannot look up. The ledger line cites
+  `starting_resolve` (Ch.5 p.83), which is the entry that measures Resolve down from the Trait Cap —
+  a reader forbidden to quote a number the ledger did not print is exactly the reader who needs that
+  number's input printed.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

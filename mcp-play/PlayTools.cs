@@ -188,7 +188,7 @@ public sealed class PlayTools
             ["adversity"]       = state.Adversity,
             ["turn_order"]      = TurnOrder(state),
             ["table"]           = TableEcho(setup.Table),
-            ["ledger"]          = Lines(state.Ledger.Lines)
+            ["ledger"]          = Lines([.. TierLines(setup), .. state.Ledger.Lines])
         });
     }
 
@@ -484,12 +484,21 @@ public sealed class PlayTools
     // ── Reading a setup ───────────────────────────────────────────────────
 
     /// <summary>Everything a fight needs before it can be opened.</summary>
+    /// <param name="Tiers">
+    /// The tier each character combatant was built to, by combatant id — the input the character
+    /// engine derives Resolve from, kept so that the opening ledger can say which one was used. A
+    /// group of Minions has no sheet and so no entry.
+    /// </param>
     private sealed record Setup(
         IReadOnlyList<Combatant> Combatants,
+        IReadOnlyDictionary<string, string> Tiers,
         TableRules Table,
         int ChallengeLevel,
         int Seed,
         RangeBand Opening);
+
+    private static readonly IReadOnlyDictionary<string, string> NoTiers =
+        new Dictionary<string, string>(StringComparer.Ordinal);
 
     private bool TryReadSetup(
         JsonElement combatants,
@@ -500,21 +509,54 @@ public sealed class PlayTools
         out Setup setup,
         out JsonObject problem)
     {
-        setup = new Setup([], TableRules.Book, 0, 0, RangeBand.Close);
+        setup = new Setup([], NoTiers, TableRules.Book, 0, 0, RangeBand.Close);
         problem = new JsonObject();
 
         if (!TryReadTable(table, out var rules, out problem)) return false;
         if (!TryReadRange(openingRange, out var opening, out problem)) return false;
-        if (!TryReadCombatants(combatants, out var everyone, out problem)) return false;
+        if (!TryReadCombatants(combatants, out var everyone, out var tiers, out problem)) return false;
 
-        setup = new Setup(everyone, rules, Math.Max(0, challengeLevel ?? 0), seed ?? 0, opening);
+        setup = new Setup(everyone, tiers, rules, Math.Max(0, challengeLevel ?? 0), seed ?? 0, opening);
         return true;
     }
 
+    /// <summary>
+    /// Which tier each character in the fight was built to, on the opening ledger, citing the entry
+    /// that says what a tier buys.
+    ///
+    /// <para><b>It is on the ledger because it is an input to a figure nobody can otherwise check.</b>
+    /// Ch.5 p.83 measures a Hero's opening Resolve down from their Trait Cap, and the Trait Cap comes
+    /// from the tier — so two identical sheets at two tiers open a fight with different Resolve and
+    /// nothing in the answer said which was used. A reader who may not quote a number the ledger did
+    /// not print is exactly the reader who needs the tier printed.</para>
+    /// </summary>
+    private IEnumerable<LedgerLine> TierLines(Setup setup)
+    {
+        var entry = _play.GetResolve("starting_resolve");
+
+        foreach (var combatant in setup.Combatants)
+        {
+            if (!setup.Tiers.TryGetValue(combatant.Id, out var tierId)) continue;
+
+            var cap = _rules.GetTier(tierId)!.TraitCapRank;
+
+            yield return new LedgerLine(
+                1, combatant.Id, entry.Id, entry.SourceRef,
+                $"{combatant.Name} is built to the {tierId} tier, whose Trait Cap is {cap}d, and "
+                + (combatant.HoldsResolve
+                    ? $"opens with {combatant.Resolve} Resolve"
+                    : "holds no Resolve — only a Hero does"));
+        }
+    }
+
     private bool TryReadCombatants(
-        JsonElement combatants, out IReadOnlyList<Combatant> everyone, out JsonObject problem)
+        JsonElement combatants,
+        out IReadOnlyList<Combatant> everyone,
+        out IReadOnlyDictionary<string, string> tiers,
+        out JsonObject problem)
     {
         everyone = [];
+        tiers = NoTiers;
         problem = new JsonObject();
 
         var array = AsNode(combatants) as JsonArray;
@@ -528,6 +570,7 @@ public sealed class PlayTools
         }
 
         var built = new List<Combatant>();
+        var byId = new Dictionary<string, string>(StringComparer.Ordinal);
         var ids = new HashSet<string>(StringComparer.Ordinal);
 
         for (var i = 0; i < array.Count; i++)
@@ -538,7 +581,9 @@ public sealed class PlayTools
                 return false;
             }
 
-            if (!TryReadCombatant(entry, i + 1, out var combatant, out problem)) return false;
+            if (!TryReadCombatant(entry, i + 1, out var combatant, out var tier, out problem)) return false;
+
+            if (tier is not null) byId[combatant.Id] = tier;
 
             if (!ids.Add(combatant.Id))
             {
@@ -552,6 +597,7 @@ public sealed class PlayTools
         }
 
         everyone = built;
+        tiers = byId;
         return true;
     }
 
@@ -559,10 +605,11 @@ public sealed class PlayTools
     public static IReadOnlyList<string> Kinds { get; } = ["hero", "villain", "foe", "extra", "minions"];
 
     private bool TryReadCombatant(
-        JsonObject entry, int position, out Combatant combatant, out JsonObject problem)
+        JsonObject entry, int position, out Combatant combatant, out string? tier, out JsonObject problem)
     {
         combatant = Combatant.Extra("placeholder", "placeholder", 0, 1,
             new Dictionary<string, int>(StringComparer.Ordinal), []);
+        tier = null;
         problem = new JsonObject();
 
         var kind = Text(entry, "kind").Trim().ToLowerInvariant();
@@ -592,6 +639,7 @@ public sealed class PlayTools
         }
 
         if (!TryReadSheet(character, position, out var sheet, out problem)) return false;
+        if (!TryReadTier(sheet, position, out tier, out problem)) return false;
 
         var rung = kind switch
         {
@@ -623,6 +671,49 @@ public sealed class PlayTools
                 + "prowlers-and-paragons, check_character.");
             return false;
         }
+    }
+
+    /// <summary>
+    /// The tier the character says it was built to, or a refusal naming it and the ones there are.
+    ///
+    /// <para><b>A tier this repository does not have is refused rather than costed at nothing.</b>
+    /// <c>DerivedStatsCalculator.CalculateResolve</c> answers <b>0</b> for an absent or unresolvable
+    /// tier — the right answer for a figure it cannot derive, and a silent lie once that figure is a
+    /// combatant in a fight. A Hero at 0 Resolve buys no extra die, no reroll and no stabilise, so a
+    /// misspelling (<c>standrad</c>) and an omission both put a quietly weaker character into a
+    /// measurement, and nothing in the answer says so. That is the shape
+    /// <c>docs/guide/mcp-and-headless.md</c> calls the worst of the three behaviours: accepted,
+    /// ignored, and unannounced.</para>
+    ///
+    /// <para>Whether the character is <em>legal</em> at that tier is still the other server's
+    /// question. This one only refuses a tier it cannot look up at all.</para>
+    /// </summary>
+    private bool TryReadTier(
+        CharacterSheet sheet, int position, out string? tier, out JsonObject problem)
+    {
+        tier = null;
+        problem = new JsonObject();
+
+        var wanted = sheet.SelectedTierId?.Trim() ?? "";
+
+        if (wanted.Length > 0 && _rules.GetTier(wanted) is not null)
+        {
+            tier = wanted;
+            return true;
+        }
+
+        var known = string.Join(", ", _rules.Tiers.Select(t => t.Id).Order(StringComparer.Ordinal));
+
+        problem = Problem("NO_SUCH_TIER",
+            (wanted.Length == 0
+                ? $"Combatant {position} names no \"SelectedTierId\"."
+                : $"Combatant {position} names the tier '{wanted}', which these rules do not have.")
+            + " A tier fixes the Trait Cap, and Ch.5 p.83 measures a Hero's opening Resolve down "
+            + "from it — so a tier that cannot be looked up would put a combatant into the fight "
+            + "with 0 Resolve and nothing to say the figure was never computed. The tiers are: "
+            + known + ".");
+
+        return false;
     }
 
     private static bool TryReadMinions(

@@ -86,6 +86,12 @@ nothing derives them**: the Hero/Villain flag on a sheet is presentation, the sa
 Villain in one GM's game and a Foe in another's, and Chapter 4's tie-break ladder is about
 precedence rather than teams — a fight between Heroes is a fight the book prints.
 
+**A sheet has to name a tier these rules have.** The tier fixes the Trait Cap, and Ch.5 p.83
+measures a Hero's opening Resolve down from it — so a tier that cannot be looked up is refused
+rather than treated as none, which would put a Hero into the fight with 0 Resolve and no way to
+tell that from a Hero who really has none. The tier each character was built to is on the opening
+ledger, beside the Resolve it bought.
+
 ## What this engine does not yet model
 
 Everything below is *recognised and not applied*. Each leaves a ledger line saying so by name, so
