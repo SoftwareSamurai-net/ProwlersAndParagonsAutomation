@@ -135,7 +135,6 @@ turned one of these table settings on without saying that the numbers do not car
 
 | Entry | What it is |
 |---|---|
-| `luring` | Ch.4 p.79. Redirecting a dodged attack into whatever was behind you. |
 | `team_attacks` | Ch.4 p.79. Making a team attack's sixes explode. |
 | `adversity_spend_suppress_flaw` | Ch.5 p.85. Suppressing an NPC's Flaw for a scene. |
 | `adversity_spend_misfortune` | Ch.5 p.85. A piece of misfortune that is a challenge. |
@@ -168,16 +167,19 @@ recognise, and answer with a `not yet implemented` line:
 
 | Spend | Tool |
 |---|---|
-| `luring` | `spend_resolve` |
 | `team_attack` | `spend_resolve` |
 | `suppress_flaw` | `spend_adversity` |
 | `misfortune` | `spend_adversity` |
 | `villainy` | `spend_adversity` |
 
 Everything else a spend can name is resolved: `extra_dice`, `reroll`, `seize_initiative`,
-`instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold` and `knockback` for a Hero,
-and `anything_resolve_can` for the GM naming one of the purchases the last table below marks
-bought.
+`instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold`, `knockback` and `luring` for
+a Hero, and `anything_resolve_can` for the GM naming one of the purchases the last table below
+marks bought.
+
+**`luring` is the one spend that takes a `target`**, because p.79 lets a dodged attack be sent into
+a person rather than into the scenery — and a person is the only thing this engine has to send it
+into. A lure naming nobody is refused, with nothing spent: there is no scenery here to strike.
 
 **What `anything_resolve_can` may name** — the six above are a *Hero's* purchases, and the GM's
 pool does not yet buy all six. p.85's first purchase is the Resolve purchases with different money
@@ -198,5 +200,5 @@ a purchase that had happened from one that had not:
 | `stabilise` | not yet implemented |
 | `keeping_hold` | bought |
 | `knockback` | bought |
-| `luring` | not yet implemented |
+| `luring` | bought |
 | `team_attack` | not yet implemented |

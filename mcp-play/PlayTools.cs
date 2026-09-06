@@ -1151,7 +1151,9 @@ public sealed class PlayTools
 
             case "spend_resolve":
                 if (!TryReadEnum<ResolveSpend>(entry, "spend", null, out var spend, out problem)) return false;
-                read = new SpendResolve(actor, spend, Number(entry, "points") ?? 1);
+                read = new SpendResolve(
+                    actor, spend, Number(entry, "points") ?? 1,
+                    Text(entry, "target") is { Length: > 0 } lured ? lured.Trim() : null);
                 return true;
 
             case "spend_adversity":
@@ -1164,7 +1166,9 @@ public sealed class PlayTools
                     asResolve = named;
                 }
 
-                read = new SpendAdversity(actor, gm, Number(entry, "points") ?? 1, asResolve);
+                read = new SpendAdversity(
+                    actor, gm, Number(entry, "points") ?? 1, asResolve,
+                    Text(entry, "target") is { Length: > 0 } onto ? onto.Trim() : null);
                 return true;
 
             case "stabilise":

@@ -85,6 +85,16 @@ public sealed record DefencePenalty(int UntilPage, bool ActiveOnly);
 /// p.79's dying clock starts on <em>lethal</em> damage, and a rebuilt attack that had forgotten
 /// which kind it was would start it on a knockout blow.
 /// </param>
+/// <param name="TraitId">The Trait or Power that was rolled, so a redirected attack is the same attack.</param>
+/// <param name="Type">
+/// Which row of p.75's table the attack came from, which decides what may answer it. p.79's luring
+/// sends the attack at somebody else, and the row is what says which defence <em>they</em> get.
+/// </param>
+/// <param name="DefenceWasActive">
+/// Whether the defence that answered it was an active one. p.79's luring is bought off a dodge —
+/// <c>requires_an_active_defense</c> — so an engine that had not kept this could not tell a lure
+/// from a target who stood there and soaked the blow.
+/// </param>
 /// <param name="AttackRank">
 /// The rank of the Trait that was rolled, before any bonus dice.
 ///
@@ -104,7 +114,10 @@ public sealed record ResolvedAttack(
     string? Effect,
     bool Area,
     DamageKind Damage,
-    int AttackRank);
+    int AttackRank,
+    string TraitId,
+    AttackType Type,
+    bool DefenceWasActive);
 
 /// <summary>
 /// The whole of a fight at one instant, immutable.

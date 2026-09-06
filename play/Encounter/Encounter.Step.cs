@@ -120,7 +120,8 @@ public sealed partial class Encounter
 
         var resolved = new ResolvedAttack(
             actor.Id, target.Id, pool, attackRoll.Successes, defenceRoll.Successes,
-            target, state.Effects, attack.Effect, attack.Area, attack.Damage, rank);
+            target, state.Effects, attack.Effect, attack.Area, attack.Damage, rank,
+            attack.TraitId, attack.Type, defenceIsActive);
 
         after = ApplyAttackOutcome(after, attack, resolved, lines);
 
@@ -1351,6 +1352,7 @@ public sealed partial class Encounter
             ResolveSpend.InstantRecovery => InstantRecovery(state, actor, lines),
             ResolveSpend.KeepingHold => KeepHold(state, actor, lines),
             ResolveSpend.Knockback => Knockback(state, actor, lines),
+            ResolveSpend.Luring => Lure(state, actor, spend.Target, lines),
             _ => Unimplemented(state, actor.Id, spend.Kind, lines)
         };
     }
@@ -1479,7 +1481,7 @@ public sealed partial class Encounter
         EncounterState state, ResolvedAttack resolved, List<LedgerLine> lines)
     {
         var attack = new Attack(
-            resolved.Actor, resolved.Target, "(already rolled)", resolved.Damage,
+            resolved.Actor, resolved.Target, "(already rolled)", resolved.Damage, resolved.Type,
             Effect: resolved.Effect, Area: resolved.Area);
 
         return ApplyAttackOutcome(state, attack, resolved, lines);
@@ -1715,6 +1717,150 @@ public sealed partial class Encounter
         return state.LosesNextTurn.Contains(id, StringComparer.Ordinal)
             ? state
             : state with { LosesNextTurn = [.. state.LosesNextTurn, id] };
+    }
+
+    /// <summary>
+    /// Ch.4 p.79's <c>luring</c>: the attack the buyer has just dodged goes into somebody standing
+    /// behind them instead, and the buyer forgoes their next turn to act for it.
+    ///
+    /// <para><b>Every one of the entry's four conditions is checked against the roll that happened.</b>
+    /// The attack has to have been aimed at the buyer, it has to be one of
+    /// <c>applies_to_attack_types</c>, the defence has to have been an active one
+    /// (<c>requires_an_active_defense</c>), and it has to have beaten the attack by
+    /// <c>defense_must_exceed_the_attack_roll_by</c>. The new target then makes their own defence
+    /// roll — <c>the_new_target_makes_their_own_defense_roll</c> — against the same attack roll,
+    /// and whatever that leaves is applied to them.</para>
+    ///
+    /// <para><b>Two readings, both in the guide.</b> <c>declared_before</c> is "the attacker makes
+    /// their attack roll", and this engine has no point between declaring an attack and resolving
+    /// it: a <see cref="Step"/> is the whole exchange. So the purchase is decided on the roll that
+    /// has just happened, which is where p.79 puts the <em>payment</em> anyway — "if your defense
+    /// roll exceeds their attack roll by 3 or more, you can spend 1 Resolve". And "a physical or
+    /// energy attack" is neither of the words p.75's table prints, so it is read as every row of
+    /// that table but the mental one, derived from the table rather than listed here.</para>
+    ///
+    /// <para><b>A lure into the scenery is refused rather than charged for.</b>
+    /// <c>redirects_to</c> is "whatever lies directly behind you", and this engine has no scenery,
+    /// no Structure and nothing behind anybody — the attack had already missed the buyer, so a
+    /// point taken for it would buy a state change nothing could receive. Naming a person is what
+    /// this engine can do, and the refusal says so.</para>
+    /// </summary>
+    private EncounterState Lure(
+        EncounterState state, Combatant actor, string? onto, List<LedgerLine> lines,
+        bool fromAdversity = false)
+    {
+        var entry = _play.GetCombat("luring");
+        var rule = entry.Luring!;
+
+        if (OutOfTheFight(state, actor.Id, "buyer", lines)) return state;
+
+        if (state.LastAttack is not { } last
+            || !string.Equals(last.Target, actor.Id, StringComparison.Ordinal))
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"nothing has just been aimed at {actor.Name}, and luring is bought off an attack "
+                + "that was");
+        }
+
+        var mental = _play.GetCombat("attack_and_defense_table").AttackDefenseTable!
+            .Single(r => r.Type.Contains("Mental", StringComparison.Ordinal));
+
+        if (string.Equals(PrintedType(last.Type), mental.Type, StringComparison.Ordinal))
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"luring is for {string.Join(" or ", rule.AppliesToAttackTypes)} attacks, and a "
+                + $"{mental.Type} is neither — there is nothing behind you for it to strike");
+        }
+
+        if (rule.RequiresAnActiveDefense && !last.DefenceWasActive)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} answered that attack with a passive defence, and luring is moving out "
+                + "of the way at the last instant");
+        }
+
+        var margin = last.DefenceSuccesses - last.AttackSuccesses;
+
+        if (margin < rule.DefenseMustExceedTheAttackRollBy)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} beat that attack by {margin} and luring asks for "
+                + $"{rule.DefenseMustExceedTheAttackRollBy}");
+        }
+
+        if (onto is not { Length: > 0 })
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"a lure sends the attack into {rule.RedirectsTo}, and this engine has no scenery "
+                + "to send it into — name somebody to lure it onto instead");
+        }
+
+        if (!rule.MayRedirectOntoAPerson)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                "p.79 no longer lets a lure be aimed at a person, and a piece of scenery is not "
+                + "something this engine has");
+        }
+
+        if (string.Equals(onto, actor.Id, StringComparison.Ordinal))
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} cannot lure an attack onto themselves — it is already there");
+        }
+
+        if (OutOfTheFight(state, onto, "new target", lines)) return state;
+
+        if (!rule.RedirectingOntoAPersonCosts.Contains("turn", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"luring's redirecting_onto_a_person_costs now reads "
+                + $"'{rule.RedirectingOntoAPersonCosts}', which is not a turn this engine can take "
+                + "away. See docs/guide/play-engine.md.");
+        }
+
+        if (!fromAdversity
+            && CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines))
+        {
+            return state;
+        }
+
+        var newTarget = state[onto];
+        var attacker = state[last.Actor];
+
+        var redirected = new Attack(
+            last.Actor, newTarget.Id, last.TraitId, last.Damage, last.Type,
+            Effect: last.Effect, Area: last.Area);
+
+        var (trait, pool, active) = rule.TheNewTargetMakesTheirOwnDefenseRoll
+            ? ChooseDefence(state, newTarget, redirected, lines)
+            : ("no defence of their own", 0, false);
+
+        var answered = rule.TheNewTargetMakesTheirOwnDefenseRoll
+            ? _counter.Roll(pool, _dice).Successes
+            : 0;
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{(fromAdversity ? $"the GM spends {rule.CostResolve} Adversity on {actor.Name}" : $"{actor.Name} spends {rule.CostResolve} Resolve")}"
+            + $" to lure {attacker.Name}: their {last.AttackSuccesses} was beaten by {margin}, so "
+            + $"the attack strikes {newTarget.Name} instead, who answers with {trait} {pool}d for "
+            + $"{answered}. It costs {actor.Name} {rule.RedirectingOntoAPersonCosts}"));
+
+        var after = active ? CountActiveDefence(state, newTarget.Id) : state;
+
+        var resolved = last with
+        {
+            Target = newTarget.Id,
+            DefenceSuccesses = answered,
+            TargetBefore = newTarget,
+            EffectsBefore = after.Effects,
+            DefenceWasActive = active
+        };
+
+        after = ApplyAttackOutcome(after, redirected, resolved, lines);
+        after = ForfeitNextTurn(after, actor.Id);
+
+        return Charge(after, actor, rule.CostResolve, fromAdversity) with { LastAttack = resolved };
     }
 
     private EncounterState SeizeInitiative(EncounterState state, Combatant actor, List<LedgerLine> lines)
@@ -2044,6 +2190,7 @@ public sealed partial class Encounter
             ResolveSpend.Reroll => BuyReroll(state, npc, lines, fromAdversity: true),
             ResolveSpend.KeepingHold => KeepHold(state, npc, lines, fromAdversity: true),
             ResolveSpend.Knockback => Knockback(state, npc, lines, fromAdversity: true),
+            ResolveSpend.Luring => Lure(state, npc, spend.Target, lines, fromAdversity: true),
             var other => throw new ArgumentOutOfRangeException(
                 nameof(spend), other,
                 "AdversityBuys names a purchase the GM's pool has no branch for.")
@@ -2067,7 +2214,8 @@ public sealed partial class Encounter
     /// </summary>
     private static readonly HashSet<ResolveSpend> AdversityBuys =
     [
-        ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.KeepingHold, ResolveSpend.Knockback
+        ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.KeepingHold,
+        ResolveSpend.Knockback, ResolveSpend.Luring
     ];
 
     // ── Turns and pages ──────────────────────────────────────────────────────
@@ -2331,7 +2479,6 @@ public sealed partial class Encounter
     {
         var entry = _play.GetCombat(kind switch
         {
-            ResolveSpend.Luring => "luring",
             ResolveSpend.TeamAttack => "team_attacks",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(kind), kind, "That purchase is resolved, so it has no not-yet-implemented entry.")

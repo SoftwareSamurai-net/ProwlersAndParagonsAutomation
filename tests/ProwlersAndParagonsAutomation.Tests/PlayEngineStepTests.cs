@@ -2364,6 +2364,148 @@ public sealed class PlayEngineStepTests
         Assert.Equal(0, dice.Remaining);
     }
 
+    /// <summary>
+    /// <b>A lured attack lands on the person it was lured onto, who rolls their own defence, and the
+    /// lurer loses the turn p.79 charges them.</b>
+    ///
+    /// <para>p.79 prints no worked example, so this is a property with the controls the page itself
+    /// supplies: the attack has to have <em>missed</em> the lurer by at least
+    /// <c>defense_must_exceed_the_attack_roll_by</c> before the purchase is legal at all, so the
+    /// Health the new target loses cannot be damage the lurer had already taken — nothing was taken.
+    /// </para>
+    ///
+    /// <para>The new target answers with their own defence against the <em>same</em> attack roll,
+    /// which is the entry's <c>the_new_target_makes_their_own_defense_roll</c> and is what makes the
+    /// redirect a fresh outcome rather than the old one moved sideways.</para>
+    /// </summary>
+    [Fact]
+    public void ALureSendsTheAttackIntoSomebodyElseAndCostsTheLurerTheirTurn()
+    {
+        var rule = _play.GetCombat("luring").Luring!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        // The controls on the data: the purchase costs something, asks for a margin, and is allowed
+        // to be aimed at a person at all.
+        Assert.True(rule.CostResolve > 0);
+        Assert.True(rule.DefenseMustExceedTheAttackRollBy > 0);
+        Assert.True(rule.MayRedirectOntoAPerson);
+        Assert.True(rule.TheNewTargetMakesTheirOwnDefenseRoll);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 10, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 8, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["agility"] = 8 },
+            ["agility"]);
+
+        var bystander = Combatant.Villain("bystander", "the bystander", edge: 5, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 6d of Might for 1 success, 8d of Agility for 4 — a miss by 3 — and then 2d of the
+        // bystander's Toughness for none against that same 1.
+        var dice = new ScriptedDice(4, 1, 1, 1, 1, 1, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([villain, hero, bystander]);
+
+        Assert.Equal(["villain", "hero", "bystander"], state.TurnOrder);
+
+        var swing = encounter.Step(state, new Attack(
+            "villain", "hero", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        state = swing.State;
+
+        // The positive controls: the printed counts, an active defence, and nothing landed on the
+        // Hero — so the Health the bystander loses below is the redirect and not a transfer.
+        Assert.Contains(swing.Added, l =>
+            l.Text.Contains("might 6d for 1 successes", StringComparison.Ordinal)
+            && l.Text.Contains("agility 8d for 4", StringComparison.Ordinal));
+
+        Assert.True(state.LastAttack!.DefenceWasActive);
+        Assert.Equal(rule.DefenseMustExceedTheAttackRollBy,
+            state.LastAttack.DefenceSuccesses - state.LastAttack.AttackSuccesses);
+        Assert.Equal(10, state["hero"].CurrentHealth);
+        Assert.Equal(10, state["bystander"].CurrentHealth);
+
+        var lured = encounter.Step(state, new SpendResolve(
+            "hero", ResolveSpend.Luring, Target: "bystander"));
+
+        state = lured.State;
+
+        // The attack landed on the bystander: 1 net success against no successes at all.
+        Assert.Equal(10 - rate, state["bystander"].CurrentHealth);
+        Assert.Equal(10, state["hero"].CurrentHealth);
+        Assert.Equal(3 - rule.CostResolve, state["hero"].Resolve);
+
+        Assert.Contains(lured.Added, l =>
+            string.Equals(l.Rule, "luring", StringComparison.Ordinal)
+            && l.Text.Contains("strikes the bystander instead", StringComparison.Ordinal)
+            && l.Text.Contains(rule.RedirectingOntoAPersonCosts, StringComparison.Ordinal));
+
+        // And the turn it costs: the Hero had not acted this page, so this is the turn they lose.
+        Assert.Equal(["villain", "bystander"], state.TurnOrder);
+
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>The three things p.79 asks of a lure, each refused on its own.</b> A passive defence is
+    /// not moving out of the way; a margin below
+    /// <c>defense_must_exceed_the_attack_roll_by</c> is not a lure; and a lure with nobody named has
+    /// only <c>redirects_to</c> to land on, which is scenery this engine has not got. None of the
+    /// three spends a point.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 3, "beat that attack by")]
+    [InlineData(false, 1, "passive defence")]
+    [InlineData(true, 1, "no scenery")]
+    public void ALureIsRefusedWithoutAnActiveDefenceAMarginAndSomebodyToLureItOnto(
+        bool dodges, int attackSuccesses, string why)
+    {
+        var villain = Combatant.Villain("villain", "the Villain", edge: 10, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 },
+            ["toughness"]);
+
+        // The one Trait they have is the one they answer with: p.75's Unarmed row offers Agility and
+        // Toughness to anybody who has them, so a Hero holding both would dodge whatever this row is
+        // about.
+        var hero = Combatant.Hero("hero", "the Hero", edge: 8, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { [dodges ? "agility" : "toughness"] = 8 },
+            [dodges ? "agility" : "toughness"]);
+
+        var bystander = Combatant.Villain("bystander", "the bystander", edge: 5, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        var dice = new ScriptedDice([.. FacesFor(6, attackSuccesses), .. FacesFor(8, 4)]);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([villain, hero, bystander]);
+
+        state = encounter.Step(state, new Attack(
+            "villain", "hero", "might", DamageKind.Subdual, AttackType.Unarmed)).State;
+
+        // The control: the roll really is the one this row is about.
+        Assert.Equal(attackSuccesses, state.LastAttack!.AttackSuccesses);
+        Assert.Equal(4, state.LastAttack.DefenceSuccesses);
+        Assert.Equal(dodges, state.LastAttack.DefenceWasActive);
+
+        var refused = encounter.Step(state, new SpendResolve(
+            "hero", ResolveSpend.Luring,
+            Target: string.Equals(why, "no scenery", StringComparison.Ordinal) ? null : "bystander"));
+
+        var line = Assert.Single(refused.Added);
+
+        Assert.Equal("luring", line.Rule);
+        Assert.Contains(why, line.Text, StringComparison.Ordinal);
+
+        // Nothing was spent, nobody was hit, and nobody lost a turn.
+        Assert.Equal(3, refused.State["hero"].Resolve);
+        Assert.Equal(10, refused.State["bystander"].CurrentHealth);
+        Assert.Equal(["villain", "hero", "bystander"], refused.State.TurnOrder);
+        Assert.Equal(0, dice.Remaining);
+    }
+
     // ── Citations ────────────────────────────────────────────────────────────
 
     /// <summary>

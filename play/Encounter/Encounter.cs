@@ -98,7 +98,6 @@ public sealed partial class Encounter
     public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         // Chapter 4's Resolve purchases this slice records and does not resolve.
-        "luring",
         "team_attacks",
 
         // The GM's four, Ch.5 p.85.

@@ -181,7 +181,18 @@ public sealed record BreakFree(string Actor, string TraitId, int Threshold) : In
 /// <param name="Actor">Who is paying. A throw if they hold no Resolve.</param>
 /// <param name="Kind">Which purchase.</param>
 /// <param name="Points">How many points, for the one purchase that takes more than one.</param>
-public sealed record SpendResolve(string Actor, ResolveSpend Kind, int Points = 1) : Intent(Actor);
+/// <param name="Target">
+/// Somebody the purchase is aimed at, for the one purchase that aims at anybody:
+/// <see cref="ResolveSpend.Luring"/>, whose <c>may_redirect_onto_a_person</c> sends the attack the
+/// buyer dodged into a person rather than into the scenery (p.79).
+///
+/// <para><b>It is optional because no other purchase has anywhere to point.</b> A spend that named
+/// a target everywhere would invite one on the six that do not, and the guide's list of what this
+/// engine cannot reach — p.79's Resolve spent on damage inflicted on somebody else — is a note
+/// about exactly that.</para>
+/// </param>
+public sealed record SpendResolve(
+    string Actor, ResolveSpend Kind, int Points = 1, string? Target = null) : Intent(Actor);
 
 /// <summary>One of the GM's purchases out of the Adversity pool.</summary>
 /// <param name="Actor">The NPC the point is spent on behalf of.</param>
@@ -193,11 +204,17 @@ public sealed record SpendResolve(string Actor, ResolveSpend Kind, int Points = 
 /// any NPC", so the purchase has to be named — a spend that did not say which one would be a point
 /// spent on nothing in particular.
 /// </param>
+/// <param name="Target">
+/// Where the purchase points, for the one purchase that points anywhere — the same field
+/// <see cref="SpendResolve.Target"/> carries, so p.85's "whatever a point of Resolve could have
+/// done" can do the whole of what that purchase does rather than most of it.
+/// </param>
 public sealed record SpendAdversity(
     string Actor,
     AdversitySpend Kind,
     int Points = 1,
-    ResolveSpend? AsResolve = null) : Intent(Actor);
+    ResolveSpend? AsResolve = null,
+    string? Target = null) : Intent(Actor);
 
 /// <summary>
 /// p.79's Fatal Damage rule: spending a turn steadying somebody who is bleeding out, rolling the

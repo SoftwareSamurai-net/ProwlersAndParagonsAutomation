@@ -315,7 +315,6 @@ public sealed class PlayEnginePropertyTests
     /// spend is driven here, so one that started silently no-opping fails.</para>
     /// </summary>
     [Theory]
-    [InlineData(ResolveSpend.Luring)]
     [InlineData(ResolveSpend.TeamAttack)]
     public void AnUnimplementedSpendSaysSoOnTheLedger(ResolveSpend kind)
     {

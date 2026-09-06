@@ -92,7 +92,7 @@ Three properties of it are load-bearing:
 
 ## What is real, and what says `NotYetImplemented`
 
-**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `Stabilise`, `EndTurn`, `EndPage`, eight Resolve spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`, `Stabilise`, `InstantRecovery`, `KeepingHold` and `Knockback` — and `SpendAdversity(AnythingResolveCan)` naming one of the three the GM's pool runs.
+**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `Stabilise`, `EndTurn`, `EndPage`, nine Resolve spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`, `Stabilise`, `InstantRecovery`, `KeepingHold`, `Knockback` and `Luring` — and `SpendAdversity(AnythingResolveCan)` naming one of the three the GM's pool runs.
 
 ### Not applied, and named in the code so the two lists cannot drift
 
@@ -100,7 +100,6 @@ Three properties of it are load-bearing:
 
 | Entry | What it is, and why not |
 |---|---|
-| `luring` | Ch.4 p.79. `SpendResolve(Luring)` refuses by name. |
 | `team_attacks` | Ch.4 p.79. `SpendResolve(TeamAttack)` refuses by name. |
 | `adversity_spend_suppress_flaw` | Ch.5 p.85. |
 | `adversity_spend_misfortune` | Ch.5 p.85. |
@@ -126,6 +125,8 @@ The last three are listed rather than left silent because a reader of a balance 
 The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, and the initiative variant beside them.
 
 **p.85's first Adversity purchase is applied**, and it is the one that is not a rule of its own: "whatever a point of Resolve could have done, on behalf of any NPC" is the Resolve purchases with the GM's money behind them. `SpendAdversity` carries which one — a point spent on nothing in particular would be a point spent on nothing — the pool pays, and the NPC's non-existent Resolve is never touched. `Encounter.AdversityBuys` is the list of the ones it runs, kept as one list so the gate and the dispatch cannot drift; the rest refuse by name, because they still charge the buyer's own pool and an NPC has none. The other three Adversity spends are effects on a scene rather than on a roll, and stay on the list above.
+
+**What a lure cannot hit**: `luring.redirects_to` is "whatever lies directly behind you", and this engine has no scenery, nothing with a Structure and nothing behind anybody. A lure that names nobody is **refused rather than charged for** — the attack had already missed the buyer by three, so a point taken for it would buy a state change nothing could receive, which is the shape of defect this guide's ledger rules exist to prevent. Naming a person is what `SpendResolve.Target` is for.
 
 **What a knockback cannot hit**: `knockback`'s `damage_on_striking_a_solid_object`, `the_object_must_be_tougher_than_the_target` and `a_passive_defense_above_the_objects_structure` all need a piece of scenery with a Structure, and this engine has neither. The throw, the prone target and the forfeited turn are applied; the ledger line names the clause that is not, rather than leaving a reader to assume the extra damage was rolled.
 
@@ -159,6 +160,8 @@ The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPe
 | **The GM's alternative to seizing the initiative is a table setting.** | `seize_initiative_gm_alternative`'s `ambiguity`: no page says whether the GM's preference is fixed for a table, a campaign, or taken per purchase. A setting is the reading that makes a measurement reproducible. |
 | **The GM's alternative multiplies an Edge by two.** The factor is supplied here, not read. | `seize_initiative_gm_alternative`'s effect is a sentence — "doubles the buyer's effective Edge" — and the entry carries no multiplier. The engine requires the word *doubles* to still be there and throws if it is not, rather than defaulting to 2 against a rule that has changed. |
 | **A policy's attack Traits are the table's named attacking Traits plus the combatant's own Powers.** | Nothing says which Traits a character would attack with; p.75's table is the only printed list of attacking Traits, and its "Power" column is the combatant's, so the set is derived from the two rather than typed into the policy. It is a policy's judgement either way, which is why `IPolicy.Name` goes in every report. |
+| **Luring is decided on the roll that has just happened.** `declared_before` is "the attacker makes their attack roll". | A `Step` is the whole exchange — the attack is declared, rolled and applied in one — so there is no point between the declaration and the roll for a declaration to sit in. p.79 puts the *payment* after the roll anyway ("if your defense roll exceeds their attack roll by 3 or more, you can spend 1 Resolve"), and every condition the declaration gates is checked against the roll itself. |
+| **"A physical or energy attack" is every row of p.75's table but the mental one.** | `luring.applies_to_attack_types` prints two words the Attack and Defense table does not use, and Chapter 2 has no physical/energy flag. The mental row is the one the table names, so the set is derived by excluding it rather than by listing the other four here. |
 | **A knocked-back target has no weight rank, so the throwing rank is the attack rank itself.** p.78 throws them "as if by someone with a Might rank equal to your attack rank", and p.74 turns a Might into a distance. | `throwing_range.rank_formula` subtracts the object's weight rank from the thrower's Might, and nothing in Chapters 3–5 gives a character a weight rank — Chapter 6 prices gear, not people. Reading the throwing rank as the attack rank is the longest throw the sentence can mean, and the ledger line says which figure it used. The table's own `ambiguity` about ranks below 3d never arises: `throwing_range.ordinary_people_reach` covers every rank up to `table_used_when_might_exceeds`. |
 | **A knockback moves the pair and no other pair.** | `EncounterState.Ranges` is pairwise because p.73's ranges are: there is no board and no distance from a fixed point, so "flies backwards" can only be expressed as the distance between the two characters involved. Where it lands is the class the throw reaches, and never nearer than they already were. |
 | **A "Travel Power" is one of eight named ids.** | The entry says "a Travel Power" and Ch.2 has no such category flag; the Movement category is the closest thing and holds Powers nobody would call travel. |
