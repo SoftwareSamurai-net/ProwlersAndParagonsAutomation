@@ -960,7 +960,19 @@ else
             // opening one would move the pointer on the way past.
             if (await Characters.ReadAsync(id) is not { } stored)
             {
-                _joined = "That character could not be read just now. Try again in a moment.";
+                // **Two failures, two sentences, and the wrong one of them sends somebody
+                // hunting for a fault that is not theirs.** A dropped connection or a session
+                // that ended while the tab was open is a moment and is worth retrying; a
+                // character that is not on the account, or a payload this build cannot open, is
+                // not, and telling that reader to "try again in a moment" will be believed and
+                // will keep being believed. `CampaignApproval` already tells its own two arms
+                // apart for the same reason.
+                _joined = Characters.LastReadRefusal == ReadRefusal.NotThere
+                    ? "That character could not be read: it is not on this account any more, or "
+                      + "this version of the app cannot open it. Open it in the character manager."
+                    : "That character could not be read just now — the connection may have "
+                      + "dropped, or your sign-in may have ended. Try again, or sign in again.";
+
                 return;
             }
 

@@ -1341,6 +1341,16 @@ works and nobody can reach.
   an empty sheet in the course of typing a code, so the submission this refuses passes it by
   construction. A sheet the engine cannot *price* is not empty and is not refused: that is a
   half-finished character, and refusing it would be repairing rather than reporting.
+- **Three refusals and three sentences, because one sentence covered four failures and two of
+  them never come right by waiting.** "That character could not be read just now. Try again in a
+  moment" was told to a dropped connection, a session that ended while the tab was open, a
+  character no longer on the account, and a payload this build cannot open — so a reader whose
+  character had gone was asked to wait for it. `ReadRefusal` splits them where the answer is
+  known: **unreachable** gets "the connection may have dropped, or your sign-in may have ended —
+  try again, or sign in again", **not there** gets "it is not on this account any more, or this
+  version of the app cannot open it — open it in the character manager", and **nothing on it**
+  keeps its own. That is the split `CampaignApproval.razor` has made between its unreachable and
+  unreadable arms since it shipped, one screen over.
 - **The account's write-through will not put an empty sheet over a character its own list says is
   real, and it says so in `.save-status`.** The belt beside the campaigns page's guard, and it is
   needed because the loss does not need that page: *any* edit from the emptied-session state —

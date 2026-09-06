@@ -1012,11 +1012,61 @@ public sealed class CampaignSubmissionTests
         await Send(page);
 
         Assert.Contains("could not be read just now", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Try again, or sign in again", page.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("nothing on it yet", page.Markup, StringComparison.Ordinal);
+
+        // Not the other refusal: nothing here says the character has gone.
+        Assert.DoesNotContain("not on this account", page.Markup, StringComparison.Ordinal);
 
         ctx.Api.BeforeAnsweringCharacter = null;
 
         Assert.False(Assert.Single((await ctx.Services
             .GetRequiredService<ApiMembershipStore>().MineAsync())!).HasPending);
+    }
+
+    /// <summary>
+    /// <b>A character that is not there is a third sentence, and it is a different instruction.</b>
+    ///
+    /// <para>One sentence covered four failures — a dropped connection, a session that ended while
+    /// the tab was open, a character no longer on the account, and a payload this build cannot
+    /// open — and told all four to try again in a moment. Two of those never come right by
+    /// waiting, so a reader would wait, and go on waiting. <c>CampaignApproval</c> has told its
+    /// own unreachable and unreadable arms apart since it shipped; this is the same split one
+    /// screen over.</para>
+    ///
+    /// <para>Reached the way it happens: a sample is on screen — which is what makes the page take
+    /// the stored read at all — while the row's character has gone from the account.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACharacterThatIsNotThereIsToldApartFromOneThatCannotBeReached()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var disposing = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero, JetstreamId);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        var held = new TaskCompletionSource();
+        ctx.Api.BeforeStoringCharacter = _ => held.Task;
+
+        ctx.Session.LoadSample(SheetMode.Villain);
+
+        await ctx.Services.GetRequiredService<ApiCharacterStore>().DeleteAsync(JetstreamId);
+
+        await Send(page);
+
+        Assert.Contains("not on this account any more", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Open it in the character manager", page.Markup, StringComparison.Ordinal);
+
+        // And not the sentence for a server that could not be reached, which would have this
+        // reader waiting for a character that is gone.
+        Assert.DoesNotContain("Try again, or sign in again", page.Markup, StringComparison.Ordinal);
+
+        Assert.False(Assert.Single((await ctx.Services
+            .GetRequiredService<ApiMembershipStore>().MineAsync())!).HasPending);
+
+        held.SetResult();
     }
 }
