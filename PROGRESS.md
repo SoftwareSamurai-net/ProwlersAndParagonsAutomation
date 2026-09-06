@@ -21,10 +21,10 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and the apply half is now proven rather than assumed.** The first run failed on a file mode rather than the credential everybody was watching; the run after it read the live database, found nothing pending, and shipped — which established D1 *Read* only, because a token holding just Read produces that exact log and then fails on the first migration that actually has to be applied. **`0007_decision_recorded.sql` was that migration.** On the deploy of `a978806` the gate read one pending file, classified it additive, applied it (`0007_decision_recorded.sql ✅`), **and then asked the database again** — `No migrations to apply!`, the script's own positive control, which is what makes this "the schema moved" rather than "wrangler exited 0". So **D1: Edit is granted and the whole mechanism has now run end to end.** See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
-| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. **All seven D1 migrations are applied to the remote database.** `0007_decision_recorded.sql` was the first the deploy ever actually applied — every gate run before it found nothing pending and *skipped* — and it went in on the deploy of `a978806`, which is what proved the D1 **Edit** half of the token; see the Hosting row. **The six before it**, `0006` included — the owner applied it by hand, and the figure here is the deploy's own reading rather than a claim: `wrangler d1 migrations list --remote` answered *“No migrations to apply!”* on the run of 2026-09-01, so `apply-migrations.sh` skipped the apply and the Pages upload went ahead. This row said **0006 is pending** and was right when written; it went stale the moment somebody did the thing the gate exists to automate, which is the ordinary way a measured figure in this file stops being true. The `DB` binding is in place, `/api/me` answers `401` with JSON — checked by the deploy after every upload — and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see [the archive](docs/progress/); until now the admin page said an address "can sign in now" and nothing ever told them so |
-| Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see [the archive](docs/progress/) |
-| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — measured, not assumed, on a clean export of the commit carrying this row. **Two measurements in one day are the reason to go on distrusting the figure.** Against `main` at `9add547` the same scan reported **2**, both `InvalidXmlDocComment` on a single unclosed `<para>` in `WorkflowFilterTests`, which arrived with the executable-bit guard in #114 and was reported by nothing for four days. And on the eight-package NuGet bump it reported **5** — the same 2, plus three `MethodHasAsyncOverload` in `AdminPageTests.cs`, **a file that bump does not touch**: a package upgrade moved an inspection in code nobody edited, which is the case a pull-request-mode scan structurally cannot see. Both are fixed and both are in the entry in [the archive](docs/progress/). Qodana came off pull requests deliberately, so the local `./scripts/qodana-scan.sh` that `CLAUDE.md` requires before one is opened is the *only* thing between a branch and `main` — the answer to both of these is to run it rather than to put the workflow back. Earlier: 2 on the export of `76a4f80` (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), 3 on `master`, 37 across three reconciled slices, 23 in the redesign slice — every one found by somebody re-running it, none by CI. **Do not name this commit's own sha here**: it was tried and an amend orphaned it within the hour, which is a dead pointer of exactly the kind this repository treats as worse than none. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
-| Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see [the archive](docs/progress/), on the two the tool used to refuse |
+| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. **All seven D1 migrations are applied to the remote database.** `0007_decision_recorded.sql` was the first the deploy ever actually applied — every gate run before it found nothing pending and *skipped* — and it went in on the deploy of `a978806`, which is what proved the D1 **Edit** half of the token; see the Hosting row. **The six before it**, `0006` included — the owner applied it by hand, and the figure here is the deploy's own reading rather than a claim: `wrangler d1 migrations list --remote` answered *“No migrations to apply!”* on the run of 2026-09-01, so `apply-migrations.sh` skipped the apply and the Pages upload went ahead. This row said **0006 is pending** and was right when written; it went stale the moment somebody did the thing the gate exists to automate, which is the ordinary way a measured figure in this file stops being true. The `DB` binding is in place, `/api/me` answers `401` with JSON — checked by the deploy after every upload — and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link; until now the admin page said an address "can sign in now" and nothing ever told them so |
+| Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — measured, not assumed, on a clean export of the commit carrying this row. **Two measurements in one day are the reason to go on distrusting the figure.** Against `main` at `9add547` the same scan reported **2**, both `InvalidXmlDocComment` on a single unclosed `<para>` in `WorkflowFilterTests`, which arrived with the executable-bit guard in #114 and was reported by nothing for four days. And on the eight-package NuGet bump it reported **5** — the same 2, plus three `MethodHasAsyncOverload` in `AdminPageTests.cs`, **a file that bump does not touch**: a package upgrade moved an inspection in code nobody edited, which is the case a pull-request-mode scan structurally cannot see. Both are fixed. Qodana came off pull requests deliberately, so the local `./scripts/qodana-scan.sh` that `CLAUDE.md` requires before one is opened is the *only* thing between a branch and `main` — the answer to both of these is to run it rather than to put the workflow back. Earlier: 2 on the export of `76a4f80` (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), 3 on `master`, 37 across three reconciled slices, 23 in the redesign slice — every one found by somebody re-running it, none by CI. **Do not name this commit's own sha here**: it was tried and an amend orphaned it within the hour, which is a dead pointer of exactly the kind this repository treats as worse than none. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
+| Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost, which is what found the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
 The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**. The remaining four each rebuild 1 HP out, for a recorded reason — see [Close the last four Heroes](#1-close-the-last-four-heroes), where the bound is stated exactly: it holds of what is *modelled*, and Shadow's printed Gear box carries a custom feature that would put him at +2.
@@ -122,7 +122,7 @@ Sixteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. T
 
 Nothing left is more than 1 HP out, and the test asserting that bound has been tightened from 6 to 2 and now to 1, so it stays true.
 
-**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — see [the archive](docs/progress/) — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, and four values one point either side of zero pair up by chance. Do not read more into it.
+**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, and four values one point either side of zero pair up by chance. Do not read more into it.
 
 **All four transcriptions have now been read line by line against the printed sheets, and all four are faithful.** Abilities, all twelve Talents, every Power and its rank, the Pros and Cons in each parenthesis, the Perks with their unit counts, the Flaws, and Edge/Health/Resolve — checked against the page for Scáthach (p.135), Shadow (p.140), T-Kay (p.143) and Vigilant (p.146).
 
@@ -178,7 +178,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **One thing the pages did add, and it widens rather than closes.** Shadow's Gear box prints `2 Pistols: 9d Ranged (Silenced)`. Silenced is a Ch.6 custom feature at 1 HP, and the pair is one price under his Two-Fisted — so transcribed, Shadow is **+2**, not +1. The "nothing more than 1 HP out" bound above holds only because gear features are not modelled on these transcriptions. Recorded rather than half-applied, exactly as Vigilant's Upgraded Jo Sticks are.
 
-**What the breakdown did find was two defects, and neither is a Hero Point.** Both made a character printed in the rulebook one this tool refuses — see [the archive](docs/progress/). They were reachable only because nothing had ever asked the validator about the twenty; `EveryPublishedHeroIsALegalCharacter` now does.
+**What the breakdown did find was two defects, and neither is a Hero Point.** Both made a character printed in the rulebook one this tool refuses. They were reachable only because nothing had ever asked the validator about the twenty; `EveryPublishedHeroIsALegalCharacter` now does.
 
 Four rebuilds 1 HP out, each with a recorded reason — and one of them, Shadow, 1 HP further out than that once his printed gear is counted — remains a more honest state than four zeroes.
 
@@ -186,11 +186,11 @@ One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (M
 
 ### 1b. Semantic pro/con constraints are still unenforced
 
-The invented per-Power lists are gone — see [the archive](docs/progress/). What is left is the half of the constraints that cannot be checked against anything the rulebook prints per Power: "Powers that inflict physical or energy damage", "Powers that can be activated and deactivated at will", "attack Powers", "Powers that last or can be maintained". These are shown to the player as a caveat on the option and left to the GM, which is how Ch.2 frames the list.
+The invented per-Power lists are gone. What is left is the half of the constraints that cannot be checked against anything the rulebook prints per Power: "Powers that inflict physical or energy damage", "Powers that can be activated and deactivated at will", "attack Powers", "Powers that last or can be maintained". These are shown to the player as a caveat on the option and left to the GM, which is how Ch.2 frames the list.
 
 Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate was assisted creation, where a model proposing a character benefits from the engine ruling out illegal combinations.
 
-**Assisted creation has now shipped without them, and did not need them** — see [the archive](docs/progress/). A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
+**Assisted creation has now shipped without them, and did not need them.** A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
 
 ### 8. The mail provider is refusing every send — **closed, and the reasoning here was wrong**
 
@@ -238,7 +238,7 @@ and both were watched to fail.
   no reflog and no stash, and the provider will not show a key twice. `PP_DEV_VARS` exists so
   nothing exercising the script has a reason to write where a person keeps a credential.
 
-**A second fault was masking this one and is fixed** — see [the archive](docs/progress/). Every
+**A second fault was masking this one and is fixed.** Every
 attempt was counted before the send, so five refusals spent the hourly allowance and every try
 after that answered the same cheerful `204` a sent link gets. That is why the site said a link
 was on its way, Resend's dashboard showed nothing and Cloudflare showed nothing: by then nothing
@@ -569,7 +569,7 @@ Raising `timeout-minutes` is not a lever; see `docs/guide/hosting.md`.
 
 **How it works, and every limit of it, is in [`docs/guide/testing.md`](docs/guide/testing.md)** —
 read that before changing it. The account of building it, including four faults the harness found
-in itself, is in [the archive](docs/progress/).
+in itself, is in [the archive](docs/progress/2026-09-02-driving-the-assembled-app.md).
 
 **What that closes and what it leaves open**, against the table this entry was originally built
 around:
@@ -701,7 +701,7 @@ their own messages say so.
 **A feature was built, tested, adversarially reviewed by two independent agents and shipped, while
 nothing in the application ever wrote to the store it read from.** The manager's list, the banner's
 switcher, `DiscardedCharacter` and both undo buffers all read `SavedCharacters`'s index; nothing
-ever added a character to it. See [the archive](docs/progress/).
+ever added a character to it.
 
 **That is not the defect class this item was written about, and the difference matters.** Everything
 above argues about *assembly* — markup plus stylesheet plus layout, interop, routing, the real
@@ -846,8 +846,7 @@ a defect that a campaign is the place to fix:
    **Single-user first, no sharing**, because that needs nothing new from the server: a campaign is
    another opaque blob beside the characters.
 
-   **Closed — see [the archive](docs/progress/), which supersedes the paragraph
-   above.** The shape the owner settled on is fork and pull request: a campaign holds a *clone* of a
+   **Closed, and this supersedes the paragraph above.** The shape the owner settled on is fork and pull request: a campaign holds a *clone* of a
    character and the player's edits arrive as an approval request. So **"single-user first, no
    sharing" is no longer the design**, sharing is in, the server did need something new (a clone
    table, an approval slot version-checked against a stale decision, and a join code), and
@@ -972,8 +971,7 @@ tool for running and playing has.**
   resist growing it*: today the palette offers Powers and navigation, and the rulebook is a
   different corpus behind an account gate.
 
-  **The discoverability half is done — see [the archive](docs/progress/).** The
-  banner carries a `Search` button with the chord printed beside it, on every route, with the
+  **The discoverability half is done.** The banner carries a `Search` button with the chord printed beside it, on every route, with the
   modifier chosen at render time from the platform.
 
   **The corpus is behind the control now — see the pull request that closed this item.** Signed
@@ -1013,8 +1011,7 @@ tool for running and playing has.**
     fall back to a system face on one platform only.
   - **A placeholder is not a label** still applies to the field when it arrives: it may carry the
     hint, and it may not be the only place the field is named.
-- **Account and settings move to the right of the banner. — done**, see the completed entry at the
-  top of this file. The bar is two sides with a hairline between them, the tools cluster is one
+- **Account and settings move to the right of the banner. — done.** The bar is two sides with a hairline between them, the tools cluster is one
   idiom rather than three, and the account stopped being a `.banner-link`: an identity was wearing
   navigation's clothes.
 - **The Hero/Villain switch moves into that settings menu — done**, with the light/dark switch
@@ -1034,11 +1031,10 @@ tool for running and playing has.**
 
 #### Two smaller things from the same reading
 
-- **The Hero Point limit does not need a full-width panel for one button. Done — see the completed
-  entry at the top of this file.** Two cards as their own two-option group under a rule, not tiers
-  7 and 8, and the flipping label is gone. The argument is kept in full up there.
-- **`/rules`' "What is here" panel is inert rather than pointless. Done — see the completed entry at
-  the top of this file.** The counts are gone and each row runs a search scoped to that chapter,
+- **The Hero Point limit does not need a full-width panel for one button. Done.** Two cards as
+  their own two-option group under a rule, not tiers 7 and 8, and the flipping label is gone. The
+  argument for it is the rest of this bullet.
+- **`/rules`' "What is here" panel is inert rather than pointless. Done.** The counts are gone and each row runs a search scoped to that chapter,
   through a `chapter=N` parameter on `/api/rulebook/search`. The argument below is kept because it
   is what the change was built to, and because it is the record of why the two easier routes were
   refused.
@@ -1106,10 +1102,10 @@ it by mutation rather than argue it**. They ran 64 mutations and **38 survived**
 rulebook corpus and were fixed at the time; the remaining 33 were grouped into three slices.
 
 **All three are closed** — A1 (the MCP server's twelve), A2 (browser and replay, thirteen) and A3
-(engine and validator, eight), one completed entry each below. **They were worked concurrently on
-three branches and reconciled afterwards**, which is why each entry quotes a test count measured
-against its own branch rather than against this tree; the reconciled figure is the one in the
-table at the top of this file. The merge touched only this file, `CLAUDE.md` and
+(engine and validator, eight). **They were worked concurrently on three branches and reconciled
+afterwards**, which is why the three quoted a test count measured against their own branch rather
+than against this tree; the count is not written down anywhere now — `./scripts/count-tests.sh`
+is the answer. The merge touched only this file, `CLAUDE.md` and
 `docs/HANDOVER.md` (since deleted) — no test and no source file was resolved by hand.
 
 None of the 33 was a bug in the product. Every one was a **test that did not hold what it claimed
@@ -1176,13 +1172,13 @@ that property is worth more than a nicer dashboard. That reasoning is unchanged 
 
 ### 7. The pre-1.0 audit — **closed. Dead code and hot paths measured clean; the token side is costed but not implemented**
 
-The adversarial half has run and been acted on: 126 mutations, 48 survivors, eleven streams. See
-the completed entry, and `docs/notes/` for the mutation tables.
+The adversarial half has run and been acted on: 126 mutations, 48 survivors, eleven streams —
+`docs/notes/` carries the mutation tables.
 
 **The first of the two remaining bullets — "is it snapshotable to a fresh AI agent?" — is closed
-by the split recorded in the entry in [the archive](docs/progress/).** `CLAUDE.md` is 290 lines and indexes ten
-files under `docs/guide/`. The second bullet — "is the codebase as optimised as it should be?" —
-is now audited too. Full writeup in the entry in [the archive](docs/progress/); the short version:
+by the split that produced `docs/guide/`.** `CLAUDE.md` indexes one file per area under
+`docs/guide/`, and `RepositoryGuideTests` holds its line budget. The second bullet — "is the
+codebase as optimised as it should be?" — is now audited too; the short version:
 
 - **Dead code: two exports removed, nothing else found.** `worker/db.js`'s `userByEmail` and
   `worker/search.js`'s `corpusIndex` were `export`ed with no caller outside their own file — both
@@ -1244,8 +1240,8 @@ is now audited too. Full writeup in the entry in [the archive](docs/progress/); 
 > the entry below still describes the seven-page version. All seven are back, and the goldens now
 > come from `.github/workflows/visual-goldens.yml` on `ubuntu-latest` — the same Chrome that
 > compares them. The comparator itself also turned out to be unable to see a uniform whole-page
-> colour shift, which is a hole this entry's confident tone did not anticipate. Both are in the
-> completed entry above.
+> colour shift, which is a hole this entry's confident tone did not anticipate. Both were fixed
+> when they were found.
 
 Nine browser harnesses asserted verdicts — sticky, narrow, motion, theme, shortcut, insets — and
 none of them looked at a pixel, so four palettes and three new screens were judged by eye. Closed
@@ -1394,7 +1390,7 @@ every one of them is the shape of a tool built to cost *a* character meeting a j
 
 None of this needs new rules knowledge — it is all the same engine, called differently.
 
-**The browser half of this finding is closed — see [the archive](docs/progress/).**
+**The browser half of this finding is closed.**
 The same twenty-eight NPCs are what broke the character manager, and a roster page that can be
 filtered, grouped by game and read at a glance is what came of it. **Nothing above is affected**:
 every bullet here is about `cli/` and `sheets/` — one file per `--from`, timestamped export names,
@@ -1717,6 +1713,46 @@ file has gone stale before and will again. `RepositoryGuideTests` already proves
 `CLAUDE.md` names exists — the same shape applied here would hold every file path, every migration
 number and every `docs/progress/` link in this file to resolving. Claims about *behaviour* cannot
 be guarded that way and will still need an audit; say so rather than implying the test covers them.
+
+**The guard is `ProgressPointerTests`, and it is six checks over this file's own text.**
+
+- **Every markdown link resolves** — a path link to a path that is there, an anchor to a heading
+  in this file. GitHub's slug rule is spelled out rather than approximated and pinned against
+  three anchors that work today, because an em dash is dropped like any other punctuation and the
+  spaces either side of it survive: half the anchors here carry a doubled hyphen for that reason,
+  and a slug function that tidied hyphen runs would call every one of them dead.
+- **Every `docs/progress/` link names an entry rather than the directory.** This is the check a
+  path-existence test could never have made, and it is the audit's largest finding: the directory
+  exists, so all sixteen bare links resolved perfectly while pointing at nothing in particular.
+  The one exception is the signpost under `## Completed work`, identified by where it is rather
+  than how it is written, since naming the directory is that pointer's whole job.
+- **Nothing names `the completed entry` without saying which file.** There were six, not five —
+  the sixth was wrapped across two lines, which is why a line-oriented grep had found three.
+- **Every test this file names in backticks exists** in one of the two `dotnet test` projects,
+  with a control on the search itself: a name that has never existed must come back missing.
+- **The file names no commit sha except the ones an allow-list carries**, each with the claim it
+  is for — and every sha on that list must still be in the file, so the list cannot become the
+  next place things rot.
+- **No two entries share an item number**, which is the `### 9.` defect generalised. GitHub's
+  anchors hid it: two headings with different titles make different slugs, so every *link*
+  resolved and only the *number* was ambiguous — and the number is what prose and the 21 code
+  comments citing this file use.
+
+**What it cannot do, which is the half worth reading.** Every check above is about a pointer, so
+**a claim with no link is invisible to all of them.** The ten drifts listed above are exactly that
+shape — seven migrations recorded where there are eight, a chapter named wrong, a page count one
+out, `CLAUDE.md` measured at 290 lines — and not one of them names a file, an anchor or a test.
+No scan of this file's text has an opinion about any of them; they still need somebody to read it
+against the code. What the guard buys is that the *mechanical* half never needs auditing again, so
+the audit that is left is the half that actually needed judgement in the first place.
+`docs/guide/testing.md` carries it, and says why the sha check is an allow-list rather than
+`git cat-file`: CI checks out at depth 1, so a reachability test would fail the build on facts
+that are true.
+
+**Twenty-two dead pointers were fixed rather than twenty-one**, per-site as this entry asked and
+not by find-and-replace: repointed where a surviving entry carries the argument — the e2e harness
+account is `docs/progress/2026-09-02-driving-the-assembled-app.md` — and otherwise dropped, so the
+claim stands on its own. The second `### 9.` is now 25.
 
 Not started.
 

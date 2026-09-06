@@ -160,6 +160,18 @@ So the figures are gone and the script is the answer. Two properties of it are l
 that goes stale, and a test count is not a quality gate — the suites failing is. Comparing two
 commits is `git worktree add` and a second run.
 
+## A guard reads `PROGRESS.md` itself
+
+**Both exist because a stale claim in that file is inherited by every agent at once.** It is the first thing `CLAUDE.md` sends anybody to, and an audit on 2026-09-05 found **21 dead pointers and ten factual drifts** in it — one of which had already sent a reader off to build something that had shipped three days earlier. `CLAUDE.md`'s standing rule is that a dead pointer is worse than no pointer, because it reads as though the reasoning was written down and sends the reader to the one place it is not. These two are that rule applied to the index of open work.
+
+| Guard | What it holds |
+|---|---|
+| `ProgressPointerTests` | every link, anchor, archive reference, named test and item number in `PROGRESS.md` leads somewhere |
+
+**Read its doc comment before changing it, because it says what it cannot do**, per `CLAUDE.md`'s rule. It is about *pointers*, so a claim with no link is invisible to it — "seven D1 migrations are applied" where there are eight, "`CLAUDE.md` is 290 lines" where it is not, a page count one out. Those are the other half of that audit's findings and they still need somebody to read the file against the code.
+
+**The one that keeps needing explaining is why the sha check is an allow-list rather than `git cat-file`.** Reachability is the check anybody reaches for first, and it cannot run where it matters: `build.yml` checks out at `actions/checkout`'s default depth of **1**, so on CI every sha older than the tip is unreachable and a reachability test would fail the build on facts that are perfectly true. Making it conditional on a full clone is worse — it would pass by *not running*, which is the failure this guide's first section is about. So the check that runs everywhere is the list, and its cost is deliberate: naming a new sha means editing a test and saying what the sha is for. Every sha on the list must also still be in the file, so the list cannot quietly become the next place things rot.
+
 ## Two test projects, and the difference between them
 
 - **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written, and `HeadlessBuildTests`, which drives the `build` command end to end, and the three `Mcp*Tests`, which drive the MCP server over a pair of pipes. **The wizard itself still has no harness** — that is the CLI gap, and it is narrower than it was rather than closed.
