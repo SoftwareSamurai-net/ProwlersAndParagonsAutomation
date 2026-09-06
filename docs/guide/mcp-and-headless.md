@@ -269,6 +269,14 @@ lives there, and nothing about it is repeated here.
   `starting_resolve` (Ch.5 p.83), which is the entry that measures Resolve down from the Trait Cap —
   a reader forbidden to quote a number the ledger did not print is exactly the reader who needs that
   number's input printed.
+- **A known switch with a value that is not a boolean is `BAD_TABLE`, naming the key and the
+  value.** The unknown-*key* refusal was already there; this is the same reasoning one layer in, and
+  it was missing. `"true"`, `1`, `"yes"` and `null` all failed `TryGetValue<bool>` and fell through
+  to `false`, so a table that plainly meant to turn Wound Penalties **on** measured a game without
+  them, the echo printed `false`, and nothing said the value had been thrown away — a client whose
+  JSON layer stringifies booleans measured the wrong game every time. `gear_limit_rank` is the one
+  setting that takes a number rather than a switch, so it is refused the other way round; a check
+  that only ever demanded booleans would have broken it.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

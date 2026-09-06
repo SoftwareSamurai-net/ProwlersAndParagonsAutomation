@@ -552,6 +552,86 @@ public sealed class McpPlayServerTests
                 answer["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
         });
 
+    /// <summary>
+    /// <b>A switch this engine has, set to something that is not a boolean, is refused rather than
+    /// read as off.</b>
+    ///
+    /// <para>The four spellings a client actually sends: the string <c>"true"</c>, the number
+    /// <c>1</c>, the word <c>"yes"</c>, and <c>null</c>. Every one of them failed
+    /// <c>TryGetValue&lt;bool&gt;</c> and fell through to <c>false</c> — so a table that plainly
+    /// meant to turn Wound Penalties on measured a game without them, the echo said <c>false</c>,
+    /// and nothing said the value had been thrown away. It is the unknown-key refusal's own
+    /// reasoning one layer in: there, the key was not known; here, the value was not.</para>
+    ///
+    /// <para>The refusal names both the key and the value, because "the table is wrong" sends a
+    /// caller reading their whole object.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("\"true\"", "the boolean as a string")]
+    [InlineData("1", "the boolean as a number")]
+    [InlineData("\"yes\"", "a word that is not JSON's")]
+    [InlineData("null", "a null where a boolean belongs")]
+    public async Task AKnownSwitchWithANonBooleanValueIsRefused(string json, string why) =>
+        await WithClient(async client =>
+        {
+            var table = new JsonObject { ["wound_penalties"] = JsonNode.Parse(json) };
+
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = table
+            });
+
+            Assert.False(answer["ok"]!.GetValue<bool>(), $"{why} was accepted");
+            Assert.Equal("BAD_TABLE", answer["problem"]!["code"]!.GetValue<string>());
+
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Contains("wound_penalties", message, StringComparison.Ordinal);
+            Assert.Contains(json, message, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// And the control for the theory above: the same key with a real boolean is accepted and
+    /// reaches the echo as on. Without this, a refusal of <em>every</em> table would pass all four
+    /// cases while making the tool useless.
+    /// </summary>
+    [Fact]
+    public async Task ASwitchWithARealBooleanIsStillAccepted() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject { ["wound_penalties"] = true, ["gear_limit_rank"] = 8 }
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>());
+            Assert.True(answer["table"]!["wound_penalties"]!.GetValue<bool>());
+            Assert.Equal(8, answer["table"]!["gear_limit_rank"]!.GetValue<int>());
+        });
+
+    /// <summary>
+    /// <c>gear_limit_rank</c> is the one setting that is a number rather than a switch, so a boolean
+    /// there is the same fault the other way round — and a check that only ever demanded booleans
+    /// would have broken it.
+    /// </summary>
+    [Fact]
+    public async Task TheGearLimitRankRefusesABooleanWhereARankBelongs() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject { ["gear_limit_rank"] = true }
+            });
+
+            Assert.False(answer["ok"]!.GetValue<bool>());
+            Assert.Equal("BAD_TABLE", answer["problem"]!["code"]!.GetValue<string>());
+            Assert.Contains("whole number of ranks",
+                answer["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
     // ── Measuring ─────────────────────────────────────────────────────────
 
     /// <summary>

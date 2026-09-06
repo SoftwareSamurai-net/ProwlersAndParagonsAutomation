@@ -853,9 +853,37 @@ public sealed class PlayTools
             return false;
         }
 
+        // <b>A switch whose value is not a boolean is refused, not read as off.</b> `true`, 1, "yes"
+        // and null all failed `TryGetValue<bool>` and fell through to false — so a table that
+        // plainly meant to turn Wound Penalties on measured a game without them, the echo said
+        // `false`, and nothing anywhere said the value had been thrown away. That is the same
+        // "accepted and quietly ignored" the unknown-key refusal above exists to prevent, one layer
+        // in: the key was known and the value was not.
+        var rank = Wire(nameof(TableRules.GearLimitRank));
+
+        foreach (var pair in settings)
+        {
+            var isRank = string.Equals(pair.Key, rank, StringComparison.Ordinal);
+
+            var ok = isRank
+                ? pair.Value is JsonValue number && number.TryGetValue<int>(out _)
+                : pair.Value is JsonValue flag && flag.TryGetValue<bool>(out _);
+
+            if (ok) continue;
+
+            problem = Problem("BAD_TABLE",
+                $"The table sets {pair.Key} to {pair.Value?.ToJsonString() ?? "null"}, and that "
+                + $"setting takes {(isRank ? "a whole number of ranks" : "true or false")}. A value "
+                + "this engine cannot read is refused rather than taken as off: a setting accepted "
+                + "and quietly ignored is the worst of the three possible behaviours, and it is "
+                + "worst of all here, where the answer would go on echoing the switch as off while "
+                + "the caller believed they had turned it on.");
+            return false;
+        }
+
         bool On(string name) => settings[Wire(name)] is JsonValue v && v.TryGetValue<bool>(out var b) && b;
 
-        var gearLimit = Number(settings, Wire(nameof(TableRules.GearLimitRank)));
+        var gearLimit = Number(settings, rank);
 
         rules = new TableRules
         {
