@@ -698,7 +698,7 @@ public sealed class McpPlayServerTests
     /// looking for.</para>
     ///
     /// <para><b>The byte is looked for in both spellings, and that is not fussiness.</b>
-    /// <c>System.Text.Json</c> writes a NUL as the escape <c> </c>, so a search of the answer
+    /// <c>System.Text.Json</c> writes a NUL as the escape <c>\u0000</c>, so a search of the answer
     /// for the character <c>'\0'</c> passes against the defect it was written for — the defect ships
     /// the byte and the serialiser hides it. What a client gets back after parsing is the real byte
     /// either way, which is why both spellings are refused here.</para>
