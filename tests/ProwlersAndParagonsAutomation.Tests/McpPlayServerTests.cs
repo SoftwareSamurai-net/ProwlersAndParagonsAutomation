@@ -1549,6 +1549,61 @@ public sealed class McpPlayServerTests
             Assert.Equal(3, taken["challenge_level"]!.GetValue<int>());
         });
 
+    /// <summary>
+    /// <b>A refusal comes back as a successful tool result with <c>ok: false</c> in it, and the
+    /// policy document says so.</b>
+    ///
+    /// <para>This is the half of the shape a client gets wrong. MCP gives a tool result an
+    /// <c>isError</c> flag, and nothing here ever sets it: a refusal is an ordinary answer whose
+    /// payload says it could not do what was asked. A client waiting for a protocol-level error
+    /// reads <c>{"ok": false}</c> as a fight that started and then takes turns in an encounter that
+    /// does not exist — and a model does the same thing, in prose, which is worse. The document is
+    /// what every conversation is taught from, so the claim has to be in it.</para>
+    ///
+    /// <para><b>Driven and read together, deliberately.</b> Asserting the shape without the document
+    /// leaves every conversation guessing, and asserting the document without the shape is a claim
+    /// about behaviour that nothing checks — which is how this document came to promise an argument
+    /// the schema has not got. The control is the second call: a tool that *did* what was asked has
+    /// to come back the same way, or "isError was not set" is just a server that never sets it
+    /// because it never refuses.</para>
+    /// </summary>
+    [Fact]
+    public async Task ARefusalIsAnAnswerRatherThanAProtocolError() =>
+        await WithClient(async client =>
+        {
+            var refused = await client.CallToolAsync("start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = WithTier("standrad")
+            });
+
+            // Null, not false: the SDK leaves the flag unset, and a server that set it to false
+            // would be making a different claim about the same call.
+            Assert.Null(refused.IsError);
+
+            var payload = JsonNode.Parse(Text(refused))!;
+
+            Assert.False(payload["ok"]!.GetValue<bool>());
+            Assert.Equal("NO_SUCH_TIER", payload["problem"]!["code"]!.GetValue<string>());
+
+            // The control: a call that worked arrives the same way, so the assertion above is about
+            // the refusal and not about a flag this server never touches at all.
+            var opened = await client.CallToolAsync("start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides()
+            });
+
+            Assert.Null(opened.IsError);
+            Assert.True(JsonNode.Parse(Text(opened))!["ok"]!.GetValue<bool>());
+
+            // And the document a conversation is taught from says both halves.
+            var flowed = new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(5))
+                .Replace(PlayPolicy.Text, " ");
+
+            Assert.Contains("\"ok\": false", flowed, StringComparison.Ordinal);
+            Assert.Contains("isError", flowed, StringComparison.Ordinal);
+            Assert.Contains("A refusal is an answer, not a transport error", flowed, StringComparison.Ordinal);
+        });
+
     // ── Every refusal this server can give ────────────────────────────────
 
     /// <summary>

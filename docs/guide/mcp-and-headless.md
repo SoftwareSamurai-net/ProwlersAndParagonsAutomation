@@ -398,6 +398,17 @@ lives there, and nothing about it is repeated here.
   write through. It now calls `start_encounter` on that launch — the call that finds both rules
   directories from the registration's own working directory and environment — and requires a
   `ledger` in the answer.
+- **`PLAY-POLICY.md` says what a refusal actually is, and the claim is driven.** The document said
+  "an error result with a reason", which is the half a client gets wrong: a refusal comes back as an
+  ordinary *successful* tool result — MCP's `isError` flag is never set by either server — and the
+  refusal is in the payload as `ok: false` with a `problem`. A client waiting for a protocol-level
+  error reads `{"ok": false}` as a fight that started and then takes turns in an encounter that does
+  not exist, and a model does the same thing in prose. The new section says it in the shape the
+  character server's `QUESTION-POLICY.md` already uses, and one test drives both halves at once: a
+  refused call comes back with `IsError` null and `ok: false`, a call that worked comes back the
+  same way (the control — otherwise "the flag was not set" is a server that never sets it), and the
+  document is asserted to carry both claims. Asserting the document alone is how it came to promise
+  an argument the schema has not got.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

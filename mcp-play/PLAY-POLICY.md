@@ -38,6 +38,28 @@ Fix the sheet or ask the person; do not invent a legal-looking one to get past t
 not quote a Hero Point cost — costing and validating a character is the *other* server's job
 (`prowlers-and-paragons`), and no tool here decides whether a character is legal.
 
+## Two shapes of answer
+
+Every tool here answers with JSON and there are only two shapes. A call that did what was asked
+answers `{"ok": true, …}`. A call that could not answers:
+
+```jsonc
+{ "ok": false, "problem": { "code": "NO_SUCH_TIER", "message": "…" } }
+```
+
+**A refusal is an answer, not a transport error, and this is the half that is easy to get wrong.**
+It comes back as an ordinary *successful* tool result: the `isError` flag a tool result carries is
+never set by this server, and the refusal is in the payload. So decide on `ok` and never on the
+protocol level — a client waiting for an error will read `{"ok": false}` as a fight that started,
+and then take turns in an encounter that does not exist. The character server (`prowlers-and-
+paragons`) answers the same way, so one reader works for both.
+
+A `problem` is about the **request**: a tier these rules have not got, an intent this engine does
+not take, a side nobody set. It is never a finding about the character — whether a character is
+legal is the other server's question — and it is never a result of the fight. **A refused call
+changed nothing**, so there is no page, no roll and no ledger line behind it, and there is nothing
+in it to narrate: read the message and fix the call.
+
 ## Who holds what
 
 **Only Heroes hold Resolve.** Chapter 2 says so twice and Chapter 5 gives the GM **Adversity**
