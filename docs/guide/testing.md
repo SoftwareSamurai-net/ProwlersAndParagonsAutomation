@@ -739,10 +739,14 @@ after it — so the listener was gone and stayed gone, which is the supervisor p
 exiting or being killed rather than its worker crashing. The two candidates left are an OOM kill
 and wrangler exiting on an error, and they are told apart by exactly the two things that were
 missing: the wrapper's exit status (137 is a signal; the OOM killer leaves that one) and the last
-lines of its log. Nothing about the check that was running is implicated — the server had already
-served the BOOT check, two more full page loads and an axe scan, and the node driver's own drive
-in the same job made about fifteen navigations against an identically-configured server without
-trouble.
+lines of its log. Nothing about the check that was running is implicated, and that is measured
+rather than assumed. The run on `main` minutes earlier passed the same `A11Y` check in 52,775ms
+for the same 560 passing rule instances — about 3.3 seconds a scan — and the failing run reached
+its *second* address 5.4 seconds in, which is that same rate. So the server was answering
+normally right up to the navigation it died on: it had already served the BOOT check, two more
+full page loads and an axe scan, and the node driver's own drive in the same job made about
+fifteen navigations against an identically-configured server without trouble. There is no
+degradation before the death to attribute it to.
 
 **A check that did not run is not a failure, and the figures say so.** Both drivers stop when the
 server stops answering rather than driving the rest into a refused connection each, and print
