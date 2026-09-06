@@ -388,9 +388,6 @@ public sealed class ProgressPointerTests
     /// </summary>
     private static readonly Dictionary<string, string> AllowedShas = new(StringComparer.Ordinal)
     {
-        ["a978806"] = "Current state, Hosting and Accounts: the deploy that first applied a D1 migration",
-        ["9add547"] = "Current state, Static analysis: the main the two-in-one-day Qodana readings were taken against",
-        ["76a4f80"] = "Current state, Static analysis: an earlier export's two findings",
         ["8f2add6"] = "item 10: the driver commit the first CI kill-tree evidence was read against",
         ["f0c77f2"] = "item 10: the commit carrying the kill-tree fix",
         ["1613c95"] = "item 12: the commit the banner's search field landed on",
