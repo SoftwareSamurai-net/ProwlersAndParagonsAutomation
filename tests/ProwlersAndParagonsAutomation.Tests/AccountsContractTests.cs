@@ -1307,14 +1307,8 @@ public sealed class AccountsContractTests
     [Fact]
     public void NoKeyOrTokenIsInTheRepository()
     {
-        var suspicious = new Regex(
-            @"(re_[A-Za-z0-9_]{16,})|(sk_live_[A-Za-z0-9]+)|([A-Za-z0-9_\-]{24,}\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,})",
-            RegexOptions.None, TimeSpan.FromSeconds(5));
-
-        var offenders = ServerFiles()
-            .Concat(Directory.EnumerateFiles(Path.Combine(RulesFixture.RepoRoot, "web"), "*.cs",
-                SearchOption.AllDirectories).Where(NotBuildOutput))
-            .Where(f => suspicious.IsMatch(File.ReadAllText(f)))
+        var offenders = ScannedForSecrets()
+            .Where(f => Suspicious.IsMatch(File.ReadAllText(f)))
             .Select(Path.GetFileName)
             .ToList();
 
@@ -1322,10 +1316,76 @@ public sealed class AccountsContractTests
             "Something that looks like a live credential is committed in: "
             + string.Join(", ", offenders));
 
-        // The positive control: the key is reached for by name, so the scan is over code that
-        // really does handle one.
+        // **The positive control on the scanner, not only on the corpus.** The assertion above is
+        // an absence, and an absence is satisfied completely by a pattern that matches nothing —
+        // the shape this repository has shipped four times. So each alternative is handed a
+        // string it must catch. Delete one alternative from the pattern and this goes red naming
+        // it, rather than the scan quietly passing over a live key.
+        (string Shape, string Planted)[] mustBeCaught =
+        [
+            ("the mail provider's key", "re_ab12CD34ef56GH78ij90"),
+            ("a live card-processor key", "sk_live_ab12CD34ef56GH78"),
+            ("a signed token",
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r"),
+        ];
+
+        foreach (var (shape, planted) in mustBeCaught)
+        {
+            Assert.True(Suspicious.IsMatch(planted),
+                $"the scan no longer recognises {shape}, so the absence asserted above is not "
+                + "evidence that no such credential is committed. Planted: " + planted);
+        }
+
+        // And the corpus really is code that handles a key, so the scan is pointed somewhere a
+        // credential could plausibly have been left.
         Assert.Contains("RESEND_API_KEY", ServerSource(), StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Every file the credential scan reads: the whole account server, and everything under
+    /// <c>web/</c> that is not build output.
+    /// </summary>
+    private static IEnumerable<string> ScannedForSecrets() =>
+        ServerFiles()
+            .Concat(Directory.EnumerateFiles(Path.Combine(RulesFixture.RepoRoot, "web"), "*.cs",
+                SearchOption.AllDirectories).Where(NotBuildOutput));
+
+    /// <summary>
+    /// What a committed credential looks like: the mail provider's key, a live card-processor
+    /// key, and the three dot-separated segments of a signed token.
+    /// </summary>
+    /// <remarks>
+    /// <para><b><c>NonBacktracking</c>, and the match timeout is deliberately infinite.</b> The
+    /// third alternative is three open-ended runs of one character class separated by a literal,
+    /// which under the backtracking engine is <em>quadratic</em> in the length of any unbroken
+    /// run of token characters: measured on this pattern, 16k of such a run costs 108ms, 32k
+    /// costs 473ms and 64k costs 1.9s, on an idle machine. <c>worker/corpus.js</c> is already
+    /// 722KB, and one minified bundle or base64 blob committed under <c>web/</c> would put a
+    /// single file past five seconds on its own.</para>
+    ///
+    /// <para><b>This is not hypothetical — it fired.</b> A full run on a ten-core machine whose
+    /// load average was ~176 lost this test to a <c>RegexMatchTimeoutException</c>. The scan
+    /// needs ~130ms of CPU under the backtracking engine, and a starved thread turned that into
+    /// more than five seconds of wall clock. A CI runner executing suites in parallel is slower
+    /// than that machine was idle.</para>
+    ///
+    /// <para><b>So the timeout had to go rather than get bigger.</b> This test's whole job is to
+    /// say that no credential is committed, and a wall-clock timeout can only ever turn that
+    /// verdict into a flake — which is retried past, and a scan that is retried past is a scan
+    /// that is not run. <c>NonBacktracking</c> makes match time linear in the input, so there is
+    /// no runaway left for a timeout to catch: the whole 1.36MB corpus scans in ~7ms against
+    /// ~130ms before. Nothing can silently reintroduce the blowup either — a pattern edited to
+    /// need a lookaround, a backreference or an atomic group throws at construction here instead
+    /// of quietly going exponential.</para>
+    ///
+    /// <para><b>No cheap pre-filter in front of it, on purpose.</b> A <c>Contains</c> on
+    /// <c>re_</c> or <c>sk_live</c> would skip the token alternative entirely — it has no fixed
+    /// prefix to filter on — so it would buy nothing measurable against 7ms while costing the one
+    /// shape hardest to spot by eye.</para>
+    /// </remarks>
+    private static readonly Regex Suspicious = new(
+        @"(re_[A-Za-z0-9_]{16,})|(sk_live_[A-Za-z0-9]+)|([A-Za-z0-9_\-]{24,}\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,})",
+        RegexOptions.NonBacktracking, Regex.InfiniteMatchTimeout);
 
     /// <summary>
     /// The setup document names every binding and secret the server actually reads.
