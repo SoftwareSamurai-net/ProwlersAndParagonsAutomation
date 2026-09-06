@@ -24,7 +24,20 @@ public sealed class McpStdioTests
 
     public McpStdioTests(RulesFixture f) => _f = f;
 
-    private static string McpDirectory => Path.Combine(RulesFixture.RepoRoot, "mcp");
+    /// <summary>
+    /// Every tree this server's own code is compiled from: <c>mcp/</c> and the shared project it
+    /// takes its rules location and its argument reading from.
+    ///
+    /// <para><b><c>mcp-shared/</c> is on the list because the code moved and the scan did not
+    /// follow it.</b> <c>RulesLocation</c> and <c>CommandLine</c> both write refusals, and both
+    /// used to be in <c>mcp/</c>; a scan that stopped at the directory boundary would have left
+    /// the two files most likely to grow a diagnostic uncovered on the day they moved.</para>
+    /// </summary>
+    private static string[] McpDirectories =>
+    [
+        Path.Combine(RulesFixture.RepoRoot, "mcp"),
+        Path.Combine(RulesFixture.RepoRoot, "mcp-shared")
+    ];
 
     /// <summary>
     /// A directory that is rooted, is not there, and is spelt the way the host spells one.
@@ -41,7 +54,8 @@ public sealed class McpStdioTests
             Path.GetTempPath(), "pp-mcp-nowhere-" + nameof(McpStdioTests), .. parts]));
 
     private static IEnumerable<string> SourceFiles =>
-        Directory.EnumerateFiles(McpDirectory, "*.cs", SearchOption.AllDirectories)
+        McpDirectories
+            .SelectMany(d => Directory.EnumerateFiles(d, "*.cs", SearchOption.AllDirectories))
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
 
@@ -67,9 +81,12 @@ public sealed class McpStdioTests
     public void NothingWritesToStandardOutput()
     {
         var offenders = new List<string>();
+        var scanned = 0;
 
         foreach (var file in SourceFiles)
         {
+            scanned++;
+
             var lines = File.ReadAllLines(file);
 
             for (var i = 0; i < lines.Length; i++)
@@ -104,6 +121,13 @@ public sealed class McpStdioTests
                 }
             }
         }
+
+        // The control, and it earned its place when the two shared files moved out of mcp/: "no
+        // offender was found" is satisfied completely by a scan that read nothing, and a directory
+        // list that has stopped matching looks exactly like a clean server.
+        Assert.True(scanned >= 5,
+            $"Only {scanned} source files were read across {string.Join(", ", McpDirectories)}. "
+            + "The scan has stopped finding the server's sources; fix it rather than the assertion.");
 
         Assert.True(offenders.Count == 0,
             "Standard output carries the protocol and nothing else, so the server may only "

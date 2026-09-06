@@ -28,6 +28,10 @@
              one. -->
         <ProjectReference Include="..\..\mcp\ProwlersAndParagons.Mcp.csproj" />
 
+        <!-- The encounter server, the second one, for the same reason — and this reference is
+             also what builds its binary, which McpPlayStdioTests starts the way a client does. -->
+        <ProjectReference Include="..\..\mcp-play\ProwlersAndParagons.McpPlay.csproj" />
+
         <!-- The corpus generator. Referenced so that the part of it CI can actually run — the
              column geometry, which decides reading order — is driven against synthetic pages.
              Everything else in the tool needs the publisher's PDF, which is gitignored and is

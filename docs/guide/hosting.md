@@ -198,7 +198,8 @@ gh run list --limit 100 --json name,status,createdAt,updatedAt --jq '
   partial upload.
 - **No documentation file is skipped by the build any more.** It was two, then one, then none.
   `PROGRESS.md` came off the list once `ProgressArchiveTests` started opening it, to hold its
-  completed-work section to being a pointer rather than a place entries pile up; `docs/HANDOVER.md`
+  completed-work section to being a pointer rather than a place entries pile up, with
+  `ProgressPointerTests` reading it now too; `docs/HANDOVER.md`
   came off when it was deleted, since a session handover note that no longer exists needs no
   exemption. **"It is only docs" is false here far more often than it looks** — `CLAUDE.md` and
   `docs/guide/*.md` are read by `RepositoryGuideTests`, `docs/ACCOUNTS-SETUP.md` by
