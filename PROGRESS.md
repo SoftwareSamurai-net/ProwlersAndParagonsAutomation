@@ -83,7 +83,7 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[1](#1-close-the-last-four-heroes)** — the last four Heroes, 1 HP out each. **The interaction hypothesis was swept 2026-09-05 and is negative** — see the entry; nothing cheap is left
 - [x] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver, and `kill_tree` proved directly. Verified by the orchestrator 2026-09-05: nine checks green, nine twins red on the kind each declares, both drivers, no process left behind. **CI run 33949251306 then proved the Linux leak for real** — the port holder survived outside the tree — and the cause is recorded in the entry; the fix's Linux verdict was given by run 33960793977: all seven kill-tree checks green on `ubuntu-latest`, the real wrangler tree included, and no "still listening" warning anywhere in the job
 - [x] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement, and the rulebook corpus behind `Ctrl`/`⌘`+`K`. Verified by the orchestrator 2026-09-05; what remains of the search bullet is the banner field, recorded in the entry
-- [ ] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`. **Slices (a) to (e) of six have landed** — Chapters 3, 4 and 5 as verified data under `data/rules/play/`, `play/`, the second engine that resolves a fight out of them, and `mcp-play/`, the second MCP server that runs encounters through it; (f), the first measurement, is what remains; the plan and eight questions for the owner are in the entry
+- [ ] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`. **Slices (a) to (e) of six have landed** — Chapters 3, 4 and 5 as verified data under `data/rules/play/`, `play/`, the second engine that resolves a fight out of them, and `mcp-play/`, the second MCP server that runs encounters through it; **(f), the first measurement, is what remains, and it waits on one decision the owner has not made: which party the twenty-eight Pinnacle City sheets are measured against** — the three Blood & Justice player characters, or the published Heroes as the plan recommends; everything else it needs is built. The engine's own not-yet list is in `docs/guide/play-engine.md`
 - [x] **[15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one)** — a campaign-tighter Trait Cap, and it moves Resolve. Verified by the orchestrator 2026-09-05
 - [x] **[16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster)** — `build` checks a roster in one process and answers cross-sheet questions. Verified by the orchestrator 2026-09-05; the monotonic-ladder question waits on item 21
 - [x] **[19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds)** — a GM sets a player's cap and sees what they hold, on `/admin`. Verified by the orchestrator 2026-09-05
@@ -99,6 +99,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
 - [x] **[24](#24-a-bunit-event-is-dispatched-not-applied-and-three-palette-tests-read-a-render-early)** — three palette tests raced the renderer and went red on CI one at a time; the whole class is swept and a guard fails the build on the next synchronous drive. Verified by the orchestrator 2026-09-06
 - [x] **[26](#26-a-campaign-submission-carried-an-empty-sheet-under-a-real-characters-label)** — the owner found an approved campaign clone that was an empty sheet; the join and the submit now act on the character the row names, an empty sheet is refused and marked, and the autosave never writes one over a stored character. Verified by the orchestrator 2026-09-06
+- [ ] **[27](#27-the-session-must-hold-the-character-the-pointer-names)** — sign-in and boot leave the current-character pointer on a character the session does not hold after a failed read; item 26 closed the campaigns page's use of that state, not the state
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -1859,6 +1860,30 @@ database is edited by hand.
 the pointer names — is still enforced at the campaigns page and not at sign-in, so a stale pointer
 after a failed read is still a state the app can be in; saying so on screen, or re-adopting there, is
 a slice of its own.
+
+### 27. The session must hold the character the pointer names
+
+**Found by the review of item 26, and deliberately left open there.** `SignIn.razor` and `Program.cs`
+both do `if (await Store.LoadAsync() is { } theirs) Session.Open(…); else Session.StartAgain();` —
+so a read that fails (a `404`, a timeout, the site's own `index.html` answering a `200`) empties the
+session **without moving the current-character pointer**. The pointer still names the stored
+character; the session holds nothing. Item 26 stopped the campaigns page acting on that split
+(joining re-adopts or refuses; submitting reads the row's character by id; the autosave will not
+write an empty sheet over a stored full one), which closes the one path that reached somebody
+else's database. The state itself remains: a signed-in reader whose character could not be read is
+looking at an empty builder that the app believes is their character, and the next edit autosaves
+under that id.
+
+**What a slice would do.** Either re-adopt on the next successful read (a retry that lands moves
+the sheet into the session and says so in `.save-status`), or say on screen that the character
+could not be loaded and offer the manager — never leave the two disagreeing in silence. A test
+drives the failed read through `SignIn.razor` (not by calling `StartAgain` directly, which is how
+item 26's first reproduction missed the join), asserts the split, and asserts it is reported or
+healed. `docs/guide/browser.md`'s "Keeping a character while starting another" carries the ordering
+rules the fix has to keep.
+
+**Not a defect a player has hit yet as far as the record shows**; recorded so the next campaign-page
+change does not rediscover the state it stands on.
 
 ## Completed work
 
