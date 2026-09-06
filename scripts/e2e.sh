@@ -556,6 +556,13 @@ start_server() {
 
   server_port="$port"
 
+  # **Recorded so that a failed *drive* can quote this log, and not only a failed start.** The two
+  # arms at the bottom of this function have printed a `redacted_tail` since the day they were
+  # written, because a server that never comes up is obviously a server question. A server that
+  # comes up and then dies mid-drive is the same question and nothing asked it — see
+  # `capture_server_state` in scripts/e2e/process.sh, and CI run 34040527190 for what that cost.
+  server_log="$log"
+
   (
     cd "$root" || exit 1
     CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
@@ -632,6 +639,12 @@ env "${seed_env[@]}" \
   "${timeout_cmd[@]}" -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" 2>&1 \
   | tee "$real_log" || real_status=$?
 
+# **Before `stop_server`, because afterwards the question has no answer.** Killing the tree and
+# releasing the port destroys the only evidence about whether there was still a server to kill —
+# and "the server died mid-drive" and "every check is broken" produce the same eight red lines.
+# See `capture_server_state`'s own comment, and CI run 34040527190, which is what it is for.
+capture_server_state
+
 stop_server
 
 if [ "$real_status" -eq 124 ]; then
@@ -640,6 +653,7 @@ if [ "$real_status" -eq 124 ]; then
   echo "::error::killed. Every wait inside it is bounded, so this is the browser or the server"
   echo "::error::having stopped answering rather than a slow check — read $real_log for how far it"
   echo "::error::got. Reported separately from a failed check because they are different faults."
+  say_server_state "the drive against the real site"
   exit 1
 fi
 
@@ -652,6 +666,7 @@ if [ -z "$ran_line" ]; then
   echo ""
   echo "::error::the driver never printed its summary line, so it did not finish. Nothing below"
   echo "::error::this point can be believed; read $real_log."
+  say_server_state "the drive against the real site"
   exit 1
 fi
 
@@ -661,6 +676,7 @@ passed=$(echo "$ran_line" | sed 's/.*, \([0-9]*\) PASSED$/\1/')
 if [ "$expected" -eq 0 ]; then
   echo "::error::the driver ran zero checks. A list that has stopped matching reads exactly like"
   echo "::error::a suite that passed, which is this repository's oldest failure shape."
+  say_server_state "the drive against the real site"
   exit 1
 fi
 
@@ -669,6 +685,20 @@ if [ "$passed" -ne "$expected" ] || [ "$real_status" -ne 0 ]; then
   echo "::error::$((expected - passed)) of $expected checks failed against the real site. Each"
   echo "::error::failing line above says whether it was the positive control (the work did not"
   echo "::error::happen) or the outcome (it happened and was wrong)."
+
+  # **A check that did not run is neither, and the summary figures deliberately exclude it.** A
+  # driver that gives up when the server stops answering prints `NOT RUN` rather than a verdict,
+  # and `E2E RAN n CHECKS` counts only the ones that ran — so `n` shrinking is the shape of this
+  # failure, and saying so here is what stops a reader adding the two numbers and getting a suite
+  # that is quietly smaller than the one they think passed.
+  not_run=$(grep -c '^E2E CHECK [A-Z][A-Z0-9_]*: NOT RUN' "$real_log" || true)
+
+  if [ "${not_run:-0}" -gt 0 ]; then
+    echo "::error::and $not_run further check(s) never ran at all — the driver stopped:"
+    grep '^E2E CHECK [A-Z][A-Z0-9_]*: NOT RUN' "$real_log" | sed 's/^/::error::  /'
+  fi
+
+  say_server_state "the drive against the real site"
   exit 1
 fi
 
@@ -823,6 +853,12 @@ drive_twin() {
     "${timeout_cmd[@]}" -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" \
     --only "$check" > "$twin_log" 2>&1 || twin_status=$?
 
+  # **Before anything below can stop the server, for the reason the real-site call site gives.**
+  # A twin server dies exactly the way the real one did in CI run 34040527190, and a twin that
+  # reports no verdict because its server went away reads identically to a twin that cannot see
+  # its own defect — the two are told apart by this line and by nothing else.
+  capture_server_state
+
   # **A hung driver stops the run, for the same reason a hung capture stops the visual check.**
   # Nine twins at this deadline is forty-five minutes on top of the real site, well past the
   # 30-minute job cap — and if the driver stopped coming back once, the remaining twins are going
@@ -834,6 +870,7 @@ drive_twin() {
     echo "::error::so $check has no verdict here and this twin proved nothing. Every wait inside the"
     echo "::error::driver is bounded, so read $twin_log for how far it got. Stopping rather than"
     echo "::error::driving the remaining twins through the same browser."
+    say_server_state "the drive of twin '$name'"
     exit 1
   fi
 
@@ -867,6 +904,7 @@ drive_twin() {
         echo "::error::What this twin breaks: $(node "$root/scripts/e2e/defects.mjs" --why "$name")"
         echo "::error::Fix the twin, or change 'expects' in scripts/e2e/defects.mjs — but only"
         echo "::error::after watching it fail for the reason it would then claim."
+        say_server_state "the drive of twin '$name'"
         twin_failures=$((twin_failures + 1))
         ;;
     esac
@@ -874,10 +912,12 @@ drive_twin() {
     echo "::error::twin '$name' reports $check as PASSING. The check cannot see the defect it"
     echo "::error::exists to catch, so its green verdict against the real site means nothing."
     echo "::error::What this twin breaks: $(node "$root/scripts/e2e/defects.mjs" --why "$name")"
+    say_server_state "the drive of twin '$name'"
     twin_failures=$((twin_failures + 1))
   else
     echo "::error::twin '$name' printed no verdict for $check at all, so the harness did not"
     echo "::error::reach it. A missing verdict is not a failure — see $twin_log."
+    say_server_state "the drive of twin '$name'"
     twin_failures=$((twin_failures + 1))
   fi
 }
