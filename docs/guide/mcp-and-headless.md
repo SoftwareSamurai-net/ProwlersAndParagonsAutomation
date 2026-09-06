@@ -335,6 +335,24 @@ lives there, and nothing about it is repeated here.
   completion while the first is held — without that, "the second turn never got in" is also what a
   server that answers one call at a time looks like, and the same second fight is what bounds the
   race in place of a sleep.
+- **Every problem code the encounter server can answer with is driven over the wire, and the list of
+  them is read out of `PlayTools.cs` rather than kept beside it.** Nine of the twenty-nine were
+  driven; twenty were written and never called. A refusal is the whole of what a model has to work
+  with when a call goes wrong, and an untested one is a sentence nobody has read since it was typed
+  on a branch nobody has taken. Each case asserts three separate failures — the payload says
+  `ok: false`, the code is the one the case is filed under, and the message says something — over
+  the fourth the whole file asserts, which is that it arrived as an answer and not as a protocol
+  error. **The control is the point of the exercise**: a table of cases proves only that the cases
+  in it work, so a `[Fact]` scans the source for `Problem("…"` and for the one code that is not a
+  literal — `TryReadEnum` builds `"NO_SUCH_" + field.ToUpperInvariant()`, so its five codes come
+  from the field names it is called with — and requires that set to equal the theory's. Adding a
+  code to `PlayTools` and to nothing else is red. **Two of the codes need a doctored rules set to
+  reach at all**: `ENCOUNTER_WOULD_NOT_OPEN` and `RUN_REFUSED` wrap a throw out of `Begin` and
+  `RunToEnd`, and on the rules this repository ships there is no caller's fault left for either to
+  throw — every one is refused by name before the engine is reached. What still reaches them is a
+  rule the engine cannot apply, so both are driven over a play rules set whose
+  `seize_initiative_gm_alternative` no longer prints the word "doubles" that `GmAlternativeFactor`
+  reads, with the table switch that consults it turned on.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

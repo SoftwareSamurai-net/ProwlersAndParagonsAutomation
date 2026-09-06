@@ -1,4 +1,5 @@
 using System.IO.Pipelines;
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
@@ -1189,64 +1190,16 @@ public sealed class McpPlayServerTests
     public async Task TakeTurnIsRefusedOnceTheFightIsOver() =>
         await WithClient(async client =>
         {
-            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            var id = await AFightThatIsOver(client);
+
+            var answer = await Call(client, "take_turn", new Dictionary<string, object?>
             {
-                ["combatants"] = new JsonArray(
-                    new JsonObject
-                    {
-                        ["kind"] = "hero",
-                        ["id"] = "soldier",
-                        ["side"] = "heroes",
-                        ["character"] = new JsonObject
-                        {
-                            ["Name"] = "Citizen Soldier",
-                            ["SelectedTierId"] = "standard",
-                            ["AbilityRanks"] = new JsonObject
-                            {
-                                ["might"] = 12, ["toughness"] = 12, ["agility"] = 12
-                            }
-                        }
-                    },
-                    new JsonObject
-                    {
-                        ["kind"] = "minions", ["id"] = "thug", ["name"] = "the last thug",
-                        ["threat_rank"] = 1, ["count"] = 1, ["side"] = "villains"
-                    }),
-                ["seed"] = 7
-            });
-
-            var id = opened["encounter_id"]!.GetValue<string>();
-
-            async Task<JsonNode> Turn(JsonObject intent) =>
-                await Call(client, "take_turn", new Dictionary<string, object?>
-                {
-                    ["encounterId"] = id, ["intent"] = intent
-                });
-
-            var over = false;
-
-            for (var page = 0; page < 40 && !over; page++)
-            {
-                await Turn(new JsonObject
+                ["encounterId"] = id,
+                ["intent"] = new JsonObject
                 {
                     ["kind"] = "attack", ["actor"] = "soldier",
                     ["target"] = "thug", ["trait_id"] = "might"
-                });
-
-                var turned = await Turn(new JsonObject { ["kind"] = "end_page", ["actor"] = "soldier" });
-
-                over = turned["state"]!["over"]!.GetValue<bool>();
-            }
-
-            // The positive control: the refusal below is worth nothing if the fight never ended.
-            Assert.True(over,
-                "The fight never reached over: true, so nothing was provoked and the refusal this "
-                + "test is about was never reached.");
-
-            var answer = await Turn(new JsonObject
-            {
-                ["kind"] = "attack", ["actor"] = "soldier",
-                ["target"] = "thug", ["trait_id"] = "might"
+                }
             });
 
             Assert.False(answer["ok"]!.GetValue<bool>());
@@ -1260,6 +1213,73 @@ public sealed class McpPlayServerTests
             // straight back into the same call.
             Assert.Contains("start_encounter", message, StringComparison.Ordinal);
         });
+
+    /// <summary>
+    /// A fight one side cannot lose, fought until the state says it is over, and its id.
+    ///
+    /// <para><b>Fought rather than faked, and the control is in here rather than in the callers:</b>
+    /// if the fight never ends this fails saying so, so no test built on it can go on to assert
+    /// something about a refusal that was never provoked. Nothing here asserts a die roll — only
+    /// that the engine eventually finishes a fight a 12d Hero is having with one Threat-1 Minion.
+    /// </para>
+    /// </summary>
+    private static async Task<string> AFightThatIsOver(McpClient client)
+    {
+        var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+        {
+            ["combatants"] = new JsonArray(
+                new JsonObject
+                {
+                    ["kind"] = "hero",
+                    ["id"] = "soldier",
+                    ["side"] = "heroes",
+                    ["character"] = new JsonObject
+                    {
+                        ["Name"] = "Citizen Soldier",
+                        ["SelectedTierId"] = "standard",
+                        ["AbilityRanks"] = new JsonObject
+                        {
+                            ["might"] = 12, ["toughness"] = 12, ["agility"] = 12
+                        }
+                    }
+                },
+                new JsonObject
+                {
+                    ["kind"] = "minions", ["id"] = "thug", ["name"] = "the last thug",
+                    ["threat_rank"] = 1, ["count"] = 1, ["side"] = "villains"
+                }),
+            ["seed"] = 7
+        });
+
+        var id = opened["encounter_id"]!.GetValue<string>();
+
+        async Task<JsonNode> Act(JsonObject intent) =>
+            await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = id, ["intent"] = intent
+            });
+
+        var over = false;
+
+        for (var page = 0; page < 40 && !over; page++)
+        {
+            await Act(new JsonObject
+            {
+                ["kind"] = "attack", ["actor"] = "soldier",
+                ["target"] = "thug", ["trait_id"] = "might"
+            });
+
+            var turned = await Act(new JsonObject { ["kind"] = "end_page", ["actor"] = "soldier" });
+
+            over = turned["state"]!["over"]!.GetValue<bool>();
+        }
+
+        Assert.True(over,
+            "The fight never reached over: true, so nothing was provoked and the refusal the "
+            + "caller is about was never reached.");
+
+        return id;
+    }
 
     /// <summary>
     /// <b>A fight with one side in it is refused by both tools, not measured.</b>
@@ -1329,6 +1349,372 @@ public sealed class McpPlayServerTests
                 answer["by_side"]!.AsArray()
                     .Select(s => s!["side"]!.GetValue<string>()).Order(StringComparer.Ordinal));
         });
+
+    // ── Every refusal this server can give ────────────────────────────────
+
+    /// <summary>
+    /// One refusal, and the call that provokes it.
+    /// </summary>
+    /// <param name="Drive">What to call. It must come back refused with the code it is filed under.</param>
+    /// <param name="Server">
+    /// The tools to serve while driving it, or null for the ordinary ones. Only the two refusals
+    /// that wrap a throw out of the engine need their own: on the rules this repository ships the
+    /// engine has no caller's fault left to throw — every one of them is refused by name before it
+    /// gets there — so provoking one means handing the engine a rule it cannot apply.
+    /// </param>
+    private sealed record Refusal(
+        Func<McpClient, Task<JsonNode>> Drive,
+        Func<PlayTools>? Server = null);
+
+    /// <summary>
+    /// <b>Every problem code this server can answer with, and a call over the wire that provokes
+    /// it.</b>
+    ///
+    /// <para>Nine of the twenty-nine were driven; the other twenty were written and never called. A
+    /// refusal is the whole of what a model has to work with when a call goes wrong — it is the
+    /// difference between "<c>start_encounter</c> takes a <c>side</c>" and a tool that appears to be
+    /// broken — and an untested one is a sentence nobody has read since it was typed, on a branch
+    /// nobody has taken. All twenty went green first time, which is the honest result and not a
+    /// reason not to have asked: what the list is really for is the next code, and the control
+    /// below is what makes it cost something to add one without a case.</para>
+    ///
+    /// <para>Filed by code rather than by tool, because the code is what the answer carries and
+    /// what <see cref="TheseAreEveryCodeTheServerCanEmit"/> counts.</para>
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, Refusal> Refusals =
+        new Dictionary<string, Refusal>(StringComparer.Ordinal)
+        {
+            // ── Opening a fight ──
+            ["NO_COMBATANTS"] = new(client => Open(client, new JsonArray())),
+
+            ["BAD_COMBATANT"] = new(client => Open(client, new JsonArray(JsonValue.Create(7)))),
+
+            ["NO_SUCH_KIND"] = new(client => Open(client, new JsonArray(
+                new JsonObject { ["kind"] = "wizard", ["side"] = "heroes" }))),
+
+            ["NO_CHARACTER"] = new(client => Open(client, new JsonArray(
+                new JsonObject { ["kind"] = "hero", ["side"] = "heroes" }))),
+
+            ["CHARACTER_UNREADABLE"] = new(client => Open(client, new JsonArray(
+                new JsonObject
+                {
+                    ["kind"] = "hero",
+                    ["side"] = "heroes",
+                    // A rank is a number; "8d" is how the sheet prints it and not how it is written.
+                    ["character"] = new JsonObject
+                    {
+                        ["Name"] = "the Hero",
+                        ["SelectedTierId"] = "standard",
+                        ["AbilityRanks"] = new JsonObject { ["might"] = "8d" }
+                    }
+                }))),
+
+            ["COMBATANT_UNBUILDABLE"] = new(client => Open(client, new JsonArray(
+                new JsonObject
+                {
+                    ["kind"] = "hero",
+                    ["side"] = "heroes",
+                    // A character in the right shape naming a Power these rules have not got: the
+                    // strict reader takes it and the character engine cannot derive a rank for it.
+                    ["character"] = new JsonObject
+                    {
+                        ["Name"] = "the Hero",
+                        ["SelectedTierId"] = "standard",
+                        ["SelectedPowers"] = new JsonArray(new JsonObject
+                        {
+                            ["PowerId"] = "chronokinesis",
+                            ["PurchasedRanks"] = 3,
+                            ["Pros"] = new JsonArray(),
+                            ["Cons"] = new JsonArray()
+                        })
+                    }
+                }))),
+
+            ["NO_SUCH_TIER"] = new(client => Open(client, WithTier("standrad"))),
+
+            ["BAD_MINIONS"] = new(client => Open(client, new JsonArray(
+                new JsonObject
+                {
+                    ["kind"] = "minions", ["name"] = "the robots", ["count"] = 4, ["side"] = "villains"
+                }))),
+
+            ["DUPLICATE_COMBATANT"] = new(client => Open(client, BothCalled("hero"))),
+
+            ["ONE_SIDED"] = new(client => Open(client, AllOnOneSide())),
+
+            ["BAD_TABLE"] = new(client => Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject { ["wound_penalties"] = "yes" }
+            })),
+
+            ["NO_SUCH_TABLE_SETTING"] = new(client => Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject { ["wound_penalty"] = true }
+            })),
+
+            ["NO_SUCH_RANGE"] = new(client => Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["openingRange"] = "sideways"
+            })),
+
+            ["ENCOUNTER_WOULD_NOT_OPEN"] = new(
+                client => Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = TwoSides(),
+                    ["table"] = new JsonObject { ["gm_alternative_to_seizing_initiative"] = true }
+                }),
+                ToolsOverARuleTheEngineCannotApply),
+
+            // ── Measuring ──
+            ["TOO_FEW_RUNS"] = new(client => Measure(client, PlayTools.FewestRuns - 1)),
+
+            ["TOO_MANY_RUNS"] = new(client => Measure(client, PlayTools.MostRuns + 1)),
+
+            ["BAD_PAGE_LIMIT"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["maxPages"] = 0
+            })),
+
+            ["NO_SUCH_POLICY"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["policy"] = "everybody_runs_away"
+            })),
+
+            ["RUN_REFUSED"] = new(
+                client => Call(client, "run_encounters", new Dictionary<string, object?>
+                {
+                    ["combatants"] = TwoSides(),
+                    ["runs"] = PlayTools.FewestRuns,
+                    ["table"] = new JsonObject { ["gm_alternative_to_seizing_initiative"] = true }
+                }),
+                ToolsOverARuleTheEngineCannotApply),
+
+            // ── Taking a turn ──
+            ["NO_SUCH_ENCOUNTER"] = new(client => Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = "enc_no_such_thing",
+                ["intent"] = new JsonObject { ["kind"] = "end_turn", ["actor"] = "hero" }
+            })),
+
+            ["BAD_INTENT"] = new(client => Turn(client, "hold")),
+
+            ["NO_SUCH_INTENT"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "dance", ["actor"] = "hero"
+            })),
+
+            ["NO_SUCH_DAMAGE"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                ["trait_id"] = "might", ["damage"] = "squishy"
+            })),
+
+            ["NO_SUCH_TYPE"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                ["trait_id"] = "might", ["type"] = "wizardry"
+            })),
+
+            ["NO_SUCH_MOVE"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "grapple", ["actor"] = "hero", ["target"] = "villain", ["move"] = "hug"
+            })),
+
+            ["NO_SUCH_SPEND"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "spend_resolve", ["actor"] = "hero", ["spend"] = "everything"
+            })),
+
+            ["NO_SUCH_AS_RESOLVE"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "spend_adversity", ["actor"] = "villain",
+                ["spend"] = "anything_resolve_can", ["as_resolve"] = "a_second_breakfast"
+            })),
+
+            ["INTENT_REFUSED"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "attack", ["actor"] = "nobody_in_this_fight",
+                ["target"] = "villain", ["trait_id"] = "might"
+            })),
+
+            ["ENCOUNTER_OVER"] = new(async client => await Call(client, "take_turn",
+                new Dictionary<string, object?>
+                {
+                    ["encounterId"] = await AFightThatIsOver(client),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "soldier",
+                        ["target"] = "thug", ["trait_id"] = "might"
+                    }
+                }))
+        };
+
+    public static TheoryData<string> EveryProblemCode => [.. Refusals.Keys.Order(StringComparer.Ordinal)];
+
+    /// <summary>
+    /// <b>Every problem code, provoked over the wire, comes back as an answer.</b>
+    ///
+    /// <para>Three things are asserted of each and they are three different failures: the payload
+    /// says <c>ok: false</c> (a refusal that reads as a success is a fight a model will go on
+    /// narrating), the code is the one this case is filed under (a branch that has drifted onto
+    /// another code is a client whose error handling stops matching), and the message says
+    /// something (a code with no sentence behind it is a dead end). <see cref="Call"/> asserts the
+    /// fourth for every call in this file: it did not arrive as a protocol error.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryProblemCode))]
+    public async Task EveryProblemCodeIsDrivenOverTheWire(string code)
+    {
+        var refusal = Refusals[code];
+
+        await WithClient(refusal.Server?.Invoke() ?? Tools(), async client =>
+        {
+            var answer = await refusal.Drive(client);
+
+            Assert.False(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+            Assert.Equal(code, answer["problem"]!["code"]!.GetValue<string>());
+
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            Assert.False(string.IsNullOrWhiteSpace(message), $"{code} refuses without saying why.");
+        });
+    }
+
+    /// <summary>
+    /// <b>The theory above covers every code the server can emit, and the list is read out of the
+    /// source rather than kept beside it.</b>
+    ///
+    /// <para>This is the control the theory is worth nothing without: a table of cases proves only
+    /// that the cases in it work, and the failure it exists to catch is a code added to
+    /// <c>PlayTools</c> and to nothing else — which is how twenty of the twenty-nine got here in
+    /// the first place. Reading the codes out of the file makes the theory's list the thing that
+    /// has to be updated, not a thing somebody might remember to.</para>
+    ///
+    /// <para><b>One code is not a literal.</b> <c>TryReadEnum</c> builds
+    /// <c>"NO_SUCH_" + field.ToUpperInvariant()</c>, so the codes it can answer with are the field
+    /// names it is called with — five of them, all on an intent. The scan reads those calls too,
+    /// and asserts that the concatenation is still in the source: a version of it that had gone
+    /// back to literals would otherwise leave five codes claimed and unscanned.</para>
+    /// </summary>
+    [Fact]
+    public void TheseAreEveryCodeTheServerCanEmit()
+    {
+        var source = File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "mcp-play", "PlayTools.cs"));
+
+        const string Concatenated = @"Problem(""NO_SUCH_"" + field.ToUpperInvariant()";
+
+        // The scan's own controls, before its result is compared with anything: a regex that has
+        // stopped matching agrees with an empty list perfectly.
+        Assert.Contains(Concatenated, source, StringComparison.Ordinal);
+
+        var literals = Regex.Matches(source, @"Problem\(""([A-Z_]+)"",")
+            .Select(m => m.Groups[1].Value)
+            .ToList();
+
+        var built = Regex.Matches(source, @"TryReadEnum<\w+>\(entry, ""(\w+)""")
+            .Select(m => "NO_SUCH_" + m.Groups[1].Value.ToUpperInvariant())
+            .ToList();
+
+        Assert.Contains("ONE_SIDED", literals, StringComparer.Ordinal);
+        Assert.Contains("NO_SUCH_DAMAGE", built, StringComparer.Ordinal);
+
+        var emitted = literals.Concat(built).ToHashSet(StringComparer.Ordinal);
+
+        Assert.Equal(
+            emitted.Order(StringComparer.Ordinal),
+            Refusals.Keys.Order(StringComparer.Ordinal));
+    }
+
+    // ── What the cases above are built from ───────────────────────────────
+
+    private static Task<JsonNode> Open(McpClient client, JsonNode combatants) =>
+        Call(client, "start_encounter", new Dictionary<string, object?> { ["combatants"] = combatants });
+
+    private static Task<JsonNode> Measure(McpClient client, int runs) =>
+        Call(client, "run_encounters", new Dictionary<string, object?>
+        {
+            ["combatants"] = TwoSides(),
+            ["runs"] = runs
+        });
+
+    /// <summary>One intent, on a fight opened for it — the id is never the thing under test here.</summary>
+    private static async Task<JsonNode> Turn(McpClient client, JsonNode intent) =>
+        await Call(client, "take_turn", new Dictionary<string, object?>
+        {
+            ["encounterId"] = await OpenAFight(client),
+            ["intent"] = intent
+        });
+
+    private static JsonArray WithTier(string tier)
+    {
+        var fight = TwoSides();
+        fight[0]!["character"]!["SelectedTierId"] = tier;
+        return fight;
+    }
+
+    private static JsonArray BothCalled(string id)
+    {
+        var fight = TwoSides();
+        fight[0]!["id"] = id;
+        fight[1]!["id"] = id;
+        return fight;
+    }
+
+    private static JsonArray AllOnOneSide()
+    {
+        var fight = TwoSides();
+        fight[0]!["side"] = "heroes";
+        fight[1]!["side"] = "heroes";
+        return fight;
+    }
+
+    /// <summary>
+    /// The tools over a play rules set whose <c>seize_initiative_gm_alternative</c> no longer says
+    /// the printed word the engine reads.
+    ///
+    /// <para><b>This is the only way left to make the engine throw a caller's fault.</b> Every one
+    /// of them — a fight with nobody in it, two combatants sharing an id, a page limit below one —
+    /// is refused by name in <c>PlayTools</c> before <c>Begin</c> or <c>RunToEnd</c> is reached, so
+    /// the two <c>catch</c> blocks that turn an engine throw into a refusal guard a door nothing
+    /// walks through on the rules this repository ships. What still reaches them is a rule the
+    /// engine cannot apply, which is exactly what <c>GmAlternativeFactor</c> exists to say: the
+    /// entry states its effect in prose, the engine reads the printed word "doubles" and supplies
+    /// the factor itself, and a table that turns the switch on against an entry that no longer says
+    /// it gets a refusal rather than a crash across the transport.</para>
+    ///
+    /// <para>The substitution asserts the printed sentence is still there before replacing it, so
+    /// this cannot quietly stop reproducing the fault and start passing for another reason.</para>
+    /// </summary>
+    private static PlayTools ToolsOverARuleTheEngineCannotApply()
+    {
+        const string Printed = "doubles the buyer's effective Edge";
+
+        var files = PlayRulesRepository.DataFileNames.ToDictionary(
+            name => name,
+            name => File.ReadAllText(Path.Combine(PlayFixture.DataPath, name)),
+            StringComparer.Ordinal);
+
+        var combat = files[PlayRulesRepository.CombatFile];
+
+        Assert.Contains(Printed, combat, StringComparison.Ordinal);
+
+        files[PlayRulesRepository.CombatFile] =
+            combat.Replace(Printed, "raises the buyer's effective Edge", StringComparison.Ordinal);
+
+        var rules = RulesRepository.FromBasePath(RulesFixture.RepoRoot);
+
+        return new PlayTools(
+            rules,
+            new DerivedStatsCalculator(rules),
+            new PlayRulesRepository(new InMemoryRulesSource(files)));
+    }
 
     /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
