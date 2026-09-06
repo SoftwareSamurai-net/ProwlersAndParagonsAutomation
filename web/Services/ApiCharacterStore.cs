@@ -99,14 +99,35 @@ public sealed class ApiCharacterStore : ICharacterStore
     /// <see cref="SavedCharacters.IndexFieldsFor"/>.</summary>
     private readonly CostCalculator _costs;
 
+    /// <summary>The two the emptiness question needs — see <see cref="CharacterSession.HasNothingOnIt(CharacterSheet, CharacterValidator, RulesRepository)"/>.</summary>
+    private readonly CharacterValidator _validator;
+
+    private readonly RulesRepository _rules;
+
     public ApiCharacterStore(
-        HttpClient http, SavedCharacters local, CostCalculator costs, CharacterValidator validator)
+        HttpClient http, SavedCharacters local, CostCalculator costs, CharacterValidator validator,
+        RulesRepository rules)
     {
         _http = http;
         _local = local;
         _costs = costs;
+        _validator = validator;
+        _rules = rules;
         _payload = new StoredCharacter(costs, validator);
     }
+
+    /// <summary>
+    /// Raised when a write-through was refused rather than attempted, carrying the sentence to
+    /// put in front of a reader. See <see cref="SaveAsync(CharacterSheet, SheetMode)"/>.
+    ///
+    /// <para><b>An event because a refusal has to be said out loud and this class has nowhere to
+    /// say it.</b> The autosave's own overload implements <c>ICharacterStore</c>, which returns
+    /// nothing and may not throw; a refusal that only returned early would be exactly the silent
+    /// control every refusal in this application is written not to be.
+    /// <c>AccountCharacterStore</c> passes it on and <c>MainLayout</c> prints it in the same
+    /// live region as "Saved".</para>
+    /// </summary>
+    internal event Action<string>? WriteRefused;
 
     /// <summary>The account's characters, and the cap it is held to.</summary>
     public async Task<AccountCharacters> ListAsync()
@@ -259,10 +280,75 @@ public sealed class ApiCharacterStore : ICharacterStore
     /// </summary>
     public async Task SaveAsync(CharacterSheet sheet, SheetMode mode)
     {
+        ArgumentNullException.ThrowIfNull(sheet);
+
         if (!CharacterSession.IsWorthKeeping(sheet)) return;
 
-        _ = await SaveAsync(await CurrentIdAsync(), SavedCharacters.LabelFor(sheet), sheet, mode);
+        var id = await CurrentIdAsync();
+
+        if (await WouldEmptyACharacter(id, sheet) is { } whose)
+        {
+            WriteRefused?.Invoke(
+                $"{whose} was not overwritten: the sheet on screen has nothing on it. "
+                + "Open that character again from your characters.");
+
+            return;
+        }
+
+        _ = await SaveAsync(id, SavedCharacters.LabelFor(sheet), sheet, mode);
     }
+
+    /// <summary>
+    /// Whether writing <paramref name="sheet"/> at <paramref name="id"/> would replace a real
+    /// character with an empty one — and if so, what that character is called.
+    ///
+    /// <para><b>The belt beside the campaigns page's own guard, and it is here because this is
+    /// the last thing that touches the character before the server does.</b> The pointer and the
+    /// sheet on screen are supposed to name the same character and nothing makes them: the
+    /// sign-in page empties the session when the account's character cannot be read and leaves
+    /// the pointer where it was, and the boot restore does the same for a read that throws. Any
+    /// edit at all from that state — a palette switch, a tier, a join — fires this path, and
+    /// before this it wrote the empty sheet over whatever the pointer named.
+    /// <see cref="CharacterSession.IsWorthKeeping"/> cannot stop it, deliberately: a tier alone
+    /// counts there, and a join writes one.</para>
+    ///
+    /// <para><b>It asks the account's own list rather than reading the character</b>, because
+    /// the list is what says a row exists and what it is called without a payload being fetched
+    /// and opened — and the label is the whole of what the sentence needs. A row is a character
+    /// worth protecting when it has been priced or has a name of its own; the empty envelope
+    /// this exists to refuse has neither.</para>
+    ///
+    /// <para><b>A list that could not be read refuses too</b>, which is the direction
+    /// <see cref="AccountCharacters.IsFull"/> already takes and for the same reason: not knowing
+    /// whether there is a character behind the pointer is not the same as knowing there is not,
+    /// and the cost of being wrong is asymmetric — a sentence and a retry against somebody's
+    /// character.</para>
+    ///
+    /// <para><b>Nothing is read on the ordinary path.</b> The list is asked for only once the
+    /// sheet has already answered "nothing on it", which for a character anybody is building is
+    /// false from the first Ability, Power or letter of a name.</para>
+    /// </summary>
+    private async Task<string?> WouldEmptyACharacter(string id, CharacterSheet sheet)
+    {
+        if (!CharacterSession.HasNothingOnIt(sheet, _validator, _rules)) return null;
+
+        var listed = await ListAsync();
+
+        if (listed.Limit is null) return "Your character";
+
+        return listed.Characters.FirstOrDefault(c => c.Id == id) is { } row && WorthProtecting(row)
+            ? row.Label
+            : null;
+    }
+
+    /// <summary>
+    /// Whether an index row describes a character rather than the empty envelope this refuses to
+    /// write. Priced, or named: either is somebody having done something.
+    /// </summary>
+    private static bool WorthProtecting(SavedCharacterSummary row) =>
+        row.Spent is > 0
+        || !(string.IsNullOrWhiteSpace(row.Label)
+             || string.Equals(row.Label, "Unnamed character", StringComparison.Ordinal));
 
     /// <summary>The open character, or null.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync() =>

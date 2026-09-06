@@ -1308,15 +1308,33 @@ works and nobody can reach.
   rejected**: an account with no characters yet mints an id for its first save and loads nothing
   into the session, so it would refuse the first join every new account makes.
 - **An empty sheet is refused on the page with a sentence, and never repaired.** `CharacterSession.
-  HasNothingOnIt` is the question, and it is the engine's answer rather than a second opinion: the
-  validator reporting `TRAIT_BELOW_MINIMUM` for *every* Ability is what an untouched sheet looks
-  like, since Ch.2 says twice that no Ability can be under 1d and that every character has all six.
-  **`IsWorthKeeping` cannot answer this and must not be reused for it** — a tier alone counts there,
-  deliberately, and joining writes a tier onto an empty sheet in the course of typing a code, so the
-  submission this refuses passes it by construction. A sheet the engine cannot *price* is not empty
-  and is not refused: that is a half-finished character, and refusing it would be repairing rather
-  than reporting. Two refusals and two sentences — "nothing on it yet" and "could not be read" —
-  because the wrong one of those is a lie about somebody's character.
+  HasNothingOnIt` is the question, and **"nothing on it" means literally nothing**: no Talent, no
+  Power, no Perk, no Flaw, no Gear, no Name, and every Ability below the rulebook's floor. It
+  asked the Abilities question alone at first, and that was wrong in the direction that costs
+  somebody their work — **a powers-only sheet is a character**, a Talents-only sheet is a
+  character, and both were refused with "this character has nothing on it yet" and captioned
+  "empty" on the GM's screen. The Abilities half is still the engine's answer rather than a count
+  of a dictionary, and that is load-bearing: the editors leave a 0 behind when a Trait is stepped
+  down, so six zeroed entries are an untouched sheet and a dictionary count would call it built.
+  **`Rules.Abilities.Count > 0` is guarded**, because `0 == 0` would otherwise turn a rules file
+  that failed to load into "nobody has a character". **`IsWorthKeeping` cannot answer this and must
+  not be reused for it** — a tier alone counts there, deliberately, and joining writes a tier onto
+  an empty sheet in the course of typing a code, so the submission this refuses passes it by
+  construction. A sheet the engine cannot *price* is not empty and is not refused: that is a
+  half-finished character, and refusing it would be repairing rather than reporting.
+- **The account's write-through will not put an empty sheet over a character its own list says is
+  real, and it says so in `.save-status`.** The belt beside the campaigns page's guard, and it is
+  needed because the loss does not need that page: *any* edit from the emptied-session state —
+  picking a tier, switching palette — fires the autosave, and it lands under the pointer.
+  `ApiCharacterStore.WouldEmptyACharacter` asks the account's index rather than reading the
+  character, because a row says whether there is one and what it is called without a payload being
+  fetched; a row is worth protecting when it is **priced or named**, which the 379-byte envelope is
+  neither. **A list that could not be read refuses too**, the direction `AccountCharacters.IsFull`
+  already takes. **Nothing is read on the ordinary path** — the list is asked for only once the
+  sheet has answered "nothing on it", which is false from the first Power, Ability or letter of a
+  name. **And it is never silent**: `WriteRefused` reaches `MainLayout`, which prints it in the
+  same live region as "Saved" and above it, because a refusal under the word "Saved" would be the
+  app reporting a write it had just declined to make.
 - **The GM's screen says when a campaign is holding an empty submission, on both slots.** A clone
   with nothing on it was drawn as the character the row is named after, which is the same fault the
   two unreadable arms already have their own sentences for: a state that reads as emptiness is not

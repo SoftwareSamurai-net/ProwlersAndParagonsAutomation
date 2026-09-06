@@ -83,7 +83,23 @@ public sealed class AccountCharacterStore : ICharacterStore
         // this tab, and syncing it would mean opening a laptop and having a phone decide what you
         // are looking at.
         _local = local;
+
+        // Passed on rather than reported here: the refusal is the account half's, and this is the
+        // one store the shell holds. See ApiCharacterStore.WriteRefused.
+        _inTheAccount.WriteRefused += why => WriteRefused?.Invoke(why);
     }
+
+    /// <summary>
+    /// Raised when a write-through was refused rather than attempted, carrying the sentence to
+    /// put in front of a reader — see <see cref="ApiCharacterStore.WriteRefused"/>, which is
+    /// where it is decided.
+    ///
+    /// <para><b>The browser's own half raises nothing</b>, and that is not an omission: local
+    /// storage has no index row saying a character is priced, so there is no second opinion
+    /// there to weigh a sheet against. The loss this refuses needs an account's pointer and an
+    /// account's list, which is where it happens.</para>
+    /// </summary>
+    public event Action<string>? WriteRefused;
 
     public async Task SaveAsync(CharacterSheet sheet, SheetMode mode) =>
         await (await ChosenAsync()).SaveAsync(sheet, mode);

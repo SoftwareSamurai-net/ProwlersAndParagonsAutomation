@@ -61,6 +61,36 @@ public sealed class CampaignSubmissionTests
     };
 
     /// <summary>
+    /// A character somebody has started from the Powers step: one Power bought, no Ability rank
+    /// recorded, no name yet. <b>This is a character</b>, and the predicate that called it empty
+    /// is what finding 2 is about.
+    /// </summary>
+    private static CharacterSheet PowersOnly() => new()
+    {
+        SelectedTierId = "low_level",
+        TraitCapRank = 10,
+        SelectedPowers = { new SelectedPower("flight", 4) },
+    };
+
+    /// <summary>
+    /// The other end of the same objection: every Ability bought, all of them at the rulebook's
+    /// own floor of 1d. Nothing is below the minimum, so nothing about it reads as untouched —
+    /// and it is the control that keeps the Abilities half of the question honest.
+    /// </summary>
+    private static CharacterSheet EveryAbilityAtItsFloor(RulesRepository rules)
+    {
+        var sheet = new CharacterSheet
+        {
+            SelectedTierId = "street_level",
+            TraitCapRank = 8,
+        };
+
+        foreach (var ability in rules.Abilities) sheet.AbilityRanks[ability.Id] = 1;
+
+        return sheet;
+    }
+
+    /// <summary>
     /// A game somebody else runs, a player signed in to it, and the player's own two characters
     /// on the server — with this browser's current-character pointer on Jetstream.
     ///
@@ -88,6 +118,39 @@ public sealed class CampaignSubmissionTests
             await account.SaveAsync(JetstreamId, "Jetstream", Jetstream(), SheetMode.Hero));
 
         await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(JetstreamId);
+
+        return (ctx, code);
+    }
+
+    /// <summary>
+    /// A game somebody else runs, and one character of the caller's choosing on the player's
+    /// account with this browser's pointer on it and the sheet on screen.
+    ///
+    /// <para>The sheet is written down and then <em>a second copy of it</em> is put on screen, so
+    /// that what a join does to the character on screen cannot quietly be a change to the bytes
+    /// this fixture stored.</para>
+    /// </summary>
+    private static async Task<(RenderContext Ctx, string Code)> ATableAndThisCharacter(
+        Func<RulesRepository, CharacterSheet> build)
+    {
+        var ctx = new RenderContext(storesForReal: true);
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var code = ctx.Api.Campaign(CampaignId, "Blood & Justice",
+            StoredCampaign.Write(
+                new Campaign(CampaignId, "Blood & Justice", "low_level", 10, false)));
+
+        ctx.Api.SignedIn = ("u_player", "Billy");
+
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+
+        Assert.Equal(SaveOutcome.Saved, await ctx.Services.GetRequiredService<ApiCharacterStore>()
+            .SaveAsync(SubjectId, SavedCharacters.LabelFor(build(rules)), build(rules), SheetMode.Hero));
+
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(SubjectId);
+
+        ctx.Session.Open(build(rules), SheetMode.Hero);
 
         return (ctx, code);
     }
@@ -333,6 +396,210 @@ public sealed class CampaignSubmissionTests
         // Refused means refused: nothing is waiting, and the campaign holds nothing.
         Assert.False(row.HasPending);
         Assert.False(row.HasApproved);
+    }
+
+    /// <summary>
+    /// <b>A character built out of Powers alone is a character, and it is sent.</b>
+    ///
+    /// <para>The refusal above asked one question — is every Ability below the rulebook's floor —
+    /// and answered it of a sheet with four Powers on it and no Ability rank bought yet. That is
+    /// somebody halfway through the Powers step, and it is exactly the work this application
+    /// exists to keep: their send was refused with "this character has nothing on it yet", and
+    /// the GM's screen captioned their clone as empty.</para>
+    ///
+    /// <para>The assertion is on what the server was handed — the Power and its ranks — rather
+    /// than on the absence of the refusal, because a page that had stopped sending anything at
+    /// all would satisfy the absence.</para>
+    /// </summary>
+    [Fact]
+    public async Task APowersOnlyCharacterIsSentRatherThanCalledEmpty()
+    {
+        var (ctx, code) = await ATableAndThisCharacter(_ => PowersOnly());
+        await using var _ = ctx;
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+        await Send(page);
+
+        Assert.DoesNotContain("nothing on it yet", page.Markup, StringComparison.Ordinal);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var row = Assert.Single((await memberships.MineAsync())!);
+
+        Assert.True(row.HasPending, "the powers-only character was not sent");
+
+        var detail = await memberships.ReadAsync(row.Id);
+
+        Assert.NotNull(detail!.Pending);
+        Assert.Equal("flight", detail.Pending!.SelectedPowers.Single().PowerId);
+        Assert.Equal(4, detail.Pending.SelectedPowers.Single().PurchasedRanks);
+    }
+
+    /// <summary>
+    /// <b>Every Ability bought at the rulebook's own floor is a character too</b>, and the
+    /// control on the Abilities half of the question: 1d across the board reports no
+    /// <c>TRAIT_BELOW_MINIMUM</c> at all, so nothing here reads as untouched.
+    /// </summary>
+    [Fact]
+    public async Task ACharacterAtEveryAbilitysFloorIsSent()
+    {
+        var (ctx, code) = await ATableAndThisCharacter(EveryAbilityAtItsFloor);
+        await using var _ = ctx;
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+        await Send(page);
+
+        Assert.DoesNotContain("nothing on it yet", page.Markup, StringComparison.Ordinal);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var row = Assert.Single((await memberships.MineAsync())!);
+        var detail = await memberships.ReadAsync(row.Id);
+
+        Assert.NotNull(detail!.Pending);
+        Assert.All(ctx.Session.Rules.Abilities,
+            a => Assert.Equal(1, detail.Pending!.AbilityRanks[a.Id]));
+    }
+
+    /// <summary>
+    /// <b>The reported envelope is still empty under the wider definition</b>, which is what
+    /// stops the two tests above from having simply turned the refusal off. Read from the owner's
+    /// own bytes rather than from a sheet built here.
+    /// </summary>
+    [Fact]
+    public void TheReportedEnvelopeIsStillNothingOnASheet()
+    {
+        using var ctx = new RenderContext();
+
+        var envelope = new StoredCharacter(
+            ctx.Session.Costs,
+            ctx.Services.GetRequiredService<CharacterValidator>()).Read(TheReportedPayload);
+
+        Assert.NotNull(envelope);
+        Assert.True(ctx.Session.HasNothingOnIt(envelope!.Value.Sheet),
+            "the payload the owner's GM was shown is no longer recognised as empty");
+
+        // The two the definition was widened for, side by side with it.
+        Assert.False(ctx.Session.HasNothingOnIt(PowersOnly()));
+        Assert.False(ctx.Session.HasNothingOnIt(EveryAbilityAtItsFloor(ctx.Session.Rules)));
+    }
+
+    /// <summary>
+    /// <b>A rulebook with no Abilities in it does not make every character in the app empty.</b>
+    ///
+    /// <para>The Abilities half compares a count of below-minimum findings against
+    /// <c>Rules.Abilities.Count</c>, so with no Abilities loaded the comparison is <c>0 == 0</c>
+    /// and every sheet answers "nothing on it" at once — a rules file that failed to load turning
+    /// into "nobody has a character", refusals across the campaigns page and "the submission was
+    /// empty" over every sheet on the GM's screen.</para>
+    /// </summary>
+    [Fact]
+    public void ARulebookWithNoAbilitiesDoesNotCallEveryCharacterEmpty()
+    {
+        using var ctx = new RenderContext();
+
+        var withoutAbilities = new RulesRepository(new InMemoryRulesSource(
+            RulesRepository.DataFileNames.ToDictionary(
+                name => name,
+                name => name == "abilities.json" ? "[]" : RulesFile(name),
+                StringComparer.Ordinal)));
+
+        // The control on the fixture: the repository really is one with no Abilities in it, and
+        // really does still answer for everything else.
+        Assert.Empty(withoutAbilities.Abilities);
+        Assert.NotEmpty(withoutAbilities.Powers);
+
+        var validator = new CharacterValidator(
+            withoutAbilities,
+            new CostCalculator(withoutAbilities),
+            new DerivedStatsCalculator(withoutAbilities));
+
+        Assert.False(
+            CharacterSession.HasNothingOnIt(Jetstream(), validator, withoutAbilities),
+            "a rulebook with no Abilities made a fully statted character read as empty");
+
+        // And the shipped rules still answer the question they are there to answer.
+        Assert.True(ctx.Session.HasNothingOnIt(new CharacterSheet()));
+    }
+
+    /// <summary>One shipped rules file, by name.</summary>
+    private static string RulesFile(string name)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && dir.GetFiles("*.sln").Length == 0) dir = dir.Parent;
+
+        return File.ReadAllText(Path.Combine(dir!.FullName, "data", "rules", name));
+    }
+
+    /// <summary>
+    /// <b>The autosave will not put an empty sheet over the character the pointer names, and it
+    /// says so on screen.</b>
+    ///
+    /// <para><b>The belt beside the campaigns page's own guard, and it is needed because the loss
+    /// does not need the campaigns page.</b> Any edit at all from the emptied-session state fires
+    /// the write-through — here the reader simply picks a tier, which is the first thing anybody
+    /// does. Before this the empty sheet went straight over a fully statted character, and
+    /// <c>IsWorthKeeping</c> could not stop it because a tier is what it counts.</para>
+    ///
+    /// <para><b>Refusing silently is not acceptable and is what the live region is for.</b> A
+    /// reader who is not told goes on typing into a sheet that is not being kept, which is the
+    /// exact state the "Saved" word exists to stop somebody being in.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheAutosaveRefusesToWriteAnEmptySheetOverAStoredCharacter()
+    {
+        var (ctx, _) = await ATableAndTwoCharacters();
+        await using var disposing = ctx;
+
+        var before = await StoredPayload(ctx, JetstreamId);
+
+        await TheSignInReadFailed(ctx);
+
+        var layout = ctx.Render<ProwlersAndParagonsAutomation.Web.Layout.MainLayout>();
+        var tiers = ctx.Render<ChooseTier>();
+
+        var first = ctx.Session.Rules.Tiers[0];
+
+        await tiers.FindAll("button")
+            .First(b => b.TextContent.Contains(first.Name, StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        // The control on the act: the tier really did land on the sheet, so a write really was
+        // attempted. Without this the assertions below hold for a page that does nothing.
+        Assert.Equal(first.Id, ctx.Session.Sheet.SelectedTierId);
+
+        await layout.WaitForAssertionAsync(() => Assert.Contains(
+            "Jetstream was not overwritten", layout.Find(".save-status").TextContent,
+            StringComparison.Ordinal));
+
+        Assert.Equal(before, await StoredPayload(ctx, JetstreamId));
+    }
+
+    /// <summary>
+    /// The other half of the belt, and the one that keeps it from refusing ordinary work: an
+    /// empty sheet at an id nothing is stored under is written exactly as it always was. That is
+    /// the first save of every new character there has ever been.
+    /// </summary>
+    [Fact]
+    public async Task TheAutosaveStillWritesAnEmptySheetToASlotOfItsOwn()
+    {
+        var (ctx, _) = await ATableAndTwoCharacters();
+        await using var disposing = ctx;
+
+        const string fresh = "c_4444444444444444444444";
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(fresh);
+
+        var tiers = ctx.Render<ChooseTier>();
+        var first = ctx.Session.Rules.Tiers[0];
+
+        await tiers.FindAll("button")
+            .First(b => b.TextContent.Contains(first.Name, StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+
+        await tiers.WaitForAssertionAsync(async () =>
+            Assert.NotNull(await account.LoadAsync(fresh)));
     }
 
     /// <summary>

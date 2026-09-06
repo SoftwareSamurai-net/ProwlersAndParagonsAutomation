@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject CharacterSession Session
+@inject AccountCharacterStore Characters
 @inject DiscardedCharacter Discarded
 @inject Theme Theme
 @inject Motion Motion
@@ -131,6 +132,22 @@
             {
                 @DiscardedOffer
                 <button type="button" class="btn small" @onclick="UndoDiscard">Undo</button>
+            }
+            else if (NotWritten is { } refused)
+            {
+                @* **A write the store refused rather than attempted, and it is here because
+                   silence over it is the failure.** The account's write-through will not put an
+                   empty sheet over a character its own list says is priced — see
+                   `ApiCharacterStore.WriteRefused` — and a reader who was not told would go on
+                   typing into a sheet that is not being kept, which is precisely the state the
+                   "Saved" word exists to stop somebody being in.
+
+                   **Under the two undo offers and over "Saved", which is the order of how much
+                   each one is worth right now.** An offer expires on the next edit and is the
+                   only chance to take it; this sentence does not, because the refusal repeats on
+                   every save from the same state. What it may never sit under is "Saved", which
+                   would be the app reporting a write it had just declined to make. *@
+                @refused
             }
             else if (Restored is { } restored)
             {
@@ -475,6 +492,7 @@
     {
         Session.Changed += HandleCharacterChanged;
         Session.Saved += HandleCharacterSaved;
+        Characters.WriteRefused += WriteRefused;
         Accounts.Changed += WhoChanged;
 
         // The two of the palette's bells that say something about this band: whether the palette is
@@ -538,6 +556,35 @@
 
     private string? _restored;
     private int _restoredAtVersion;
+
+    /// <summary>
+    /// What the store refused to write, or null when it has not refused anything since the last
+    /// edit.
+    ///
+    /// <para><b>Version-scoped like <see cref="Restored"/> above, and for the same reason.</b>
+    /// The refusal is about the sheet as it stood when that write started; once the reader has
+    /// changed the character the sentence is about a state they have left, and every other
+    /// message in this region clears the same way. It says nothing itself about whether the next
+    /// write will land — if the sheet is still empty the next save refuses again and says so
+    /// again, which is the honest repetition rather than a latched warning.</para>
+    /// </summary>
+    private string? NotWritten =>
+        _notWritten is not null && Session.Version == _notWrittenAtVersion ? _notWritten : null;
+
+    private string? _notWritten;
+    private int _notWrittenAtVersion;
+
+    /// <summary>
+    /// The store declined a write-through. Held here rather than on the store, because it is a
+    /// thing to say on a screen for as long as this character is unchanged — a fact about this
+    /// band, the way the undo offers are.
+    /// </summary>
+    private void WriteRefused(string why) => _ = InvokeAsync(() =>
+    {
+        _notWritten = why;
+        _notWrittenAtVersion = Session.Version;
+        StateHasChanged();
+    });
 
     private void Undo()
     {
@@ -651,6 +698,7 @@
     {
         Session.Changed -= HandleCharacterChanged;
         Session.Saved -= HandleCharacterSaved;
+        Characters.WriteRefused -= WriteRefused;
         Accounts.Changed -= WhoChanged;
         Commands.Changed -= PaletteMoved;
         Commands.OfferChanged -= PaletteMoved;

@@ -44,7 +44,7 @@ public sealed class AccountTests
         // same SavedCharacters the local store is built on — which of your characters is open is a
         // fact about this tab, not something an account should decide from another device.
         var saved = new SavedCharacters(storage, Costs, Validator, who);
-        var remote = new ApiCharacterStore(http, saved, Costs, Validator);
+        var remote = new ApiCharacterStore(http, saved, Costs, Validator, Rules);
 
         return new Wired(api, storage, who, new AccountCharacterStore(who, local, remote, saved));
     }
