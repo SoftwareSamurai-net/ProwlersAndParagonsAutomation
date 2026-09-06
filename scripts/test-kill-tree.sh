@@ -917,6 +917,31 @@ server_state_case() {
       ;;
   esac
 
+  # **The quiet branch, and it is an assertion rather than a nicety.** Most failures here are a
+  # check going red against a healthy server — a twin's whole purpose — and forty lines of a
+  # request log under each one buries the verdict. So a live server has to be *said* and its log
+  # *named* without being dumped.
+  out="$(say_server_state "the drive" 2>&1)"
+
+  case "$out" in
+    *"the runtime is gone"*)
+      stop_server
+      fail SERVER_STATE "[OUTCOME] say_server_state dumped the server's log while the server was"\
+" still alive, which buries every twin's verdict under a request log: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *ALIVE*"$log"*) ;;
+    *)
+      stop_server
+      fail SERVER_STATE "[OUTCOME] with the server alive it printed neither the state nor the path"\
+" of the log a reader would open: $out"
+      return
+      ;;
+  esac
+
   # **The block's `2>/dev/null` is for bash, not for the fixture.** A shell announces a background
   # job killed by a signal — `84609 Killed: 9  node …` — on its own stderr at the next command it
   # runs, which lands in the middle of this file's verdicts and reads like a failure. Redirecting

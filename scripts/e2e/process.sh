@@ -126,18 +126,34 @@ capture_server_state() {
 # **`redacted_tail` and never `tail`**, for the reason its own comment gives: this is a request log
 # and stage two drives `/signin?t=<raw token>`, so an unredacted tail pasted into a CI run's public
 # output carries the bearer secret with it.
+#
+# **The tail is printed only when the server is not alive, and that is not brevity for its own
+# sake.** Most failures here are a check going red against a perfectly healthy server — a
+# deliberately-broken twin's whole purpose is exactly that — and forty lines of `GET /css/app.css
+# 200 OK` under every one of them buries the verdict that matters. When the server *is* alive the
+# state line says so and names the log, which is the whole of what a reader needs to decide
+# whether to open it.
 say_server_state() {
   local what="$1"
 
   echo "::error::the server was ${server_state:-never asked about, which is a bug in this script}"\
 " when ${what} ended."
 
-  if [ -n "$server_log" ] && [ -s "$server_log" ]; then
-    echo "::error::the last 40 lines of $server_log, with sign-in tokens redacted:"
-    redacted_tail "$server_log" 40
-  else
+  if [ -z "$server_log" ] || [ ! -s "$server_log" ]; then
     echo "::error::there is no server log to quote (${server_log:-none was recorded})."
+    return 0
   fi
+
+  case "$server_state" in
+    *ALIVE*)
+      echo "::error::its log is $server_log, not quoted here: the server outlived the drive, so"\
+" what went wrong is above and not in it."
+      ;;
+    *)
+      echo "::error::the last 40 lines of $server_log, with sign-in tokens redacted:"
+      redacted_tail "$server_log" 40
+      ;;
+  esac
 
   return 0
 }
