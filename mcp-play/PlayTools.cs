@@ -324,7 +324,7 @@ public sealed class PlayTools
                 ["ok"]           = true,
                 ["encounter_id"] = encounterId,
                 ["added"]        = Lines(step.Added),
-                ["state"]        = PublicState(step.State)
+                ["state"]        = PublicState(held, step.State)
             });
         }
         finally
@@ -1247,22 +1247,38 @@ public sealed class PlayTools
     /// <summary>
     /// What a client may see of a fight: who is in it, how they are, whose turn it is, and what
     /// is still running on whom. Nothing here is computed — every figure is read off the state the
-    /// engine returned.
+    /// engine returned, or off the fight it is being stepped by.
+    ///
+    /// <para><b>The Health a combatant is out of the fight at is the engine's own
+    /// <see cref="Encounter.DefeatFloor"/>, not a second lookup of the same entry.</b> This used to
+    /// read <c>damage.defeated_at_health</c> for itself, which is the engine's figure spelled again
+    /// somewhere the engine cannot see — and <c>defeated</c> on this wire is the one field a client
+    /// reads to decide whether the fight is worth another call. Two readings of one rule is one
+    /// reading too many.</para>
+    ///
+    /// <para><b>The seed and the Challenge Level are echoed here as well as on
+    /// <c>start_encounter</c>.</b> They are what the fight reproduces from, and a conversation that
+    /// has taken twenty turns is a conversation whose opening answer is a long way up: a client that
+    /// wants to replay the fight had to go back and find it, and a model summarising one had nothing
+    /// in front of it to quote. They come off <see cref="Held"/>, so they are the values the fight is
+    /// actually running under rather than the arguments of this call.</para>
     /// </summary>
-    private JsonObject PublicState(EncounterState state)
+    private static JsonObject PublicState(Held held, EncounterState state)
     {
-        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+        var floor = held.Engine.DefeatFloor;
 
         return new JsonObject
         {
-            ["page"]       = state.Page,
-            ["turn_index"] = state.TurnIndex,
-            ["current"]    = state.Current?.Id,
-            ["over"]       = state.Over,
-            ["adversity"]  = state.Adversity,
-            ["turn_order"] = TurnOrder(state),
-            ["holds"]      = Strings(state.Holds),
-            ["seized"]     = Strings(state.Seized),
+            ["page"]            = state.Page,
+            ["turn_index"]      = state.TurnIndex,
+            ["seed"]            = held.Seed,
+            ["challenge_level"] = held.ChallengeLevel,
+            ["current"]         = state.Current?.Id,
+            ["over"]            = state.Over,
+            ["adversity"]       = state.Adversity,
+            ["turn_order"]      = TurnOrder(state),
+            ["holds"]           = Strings(state.Holds),
+            ["seized"]          = Strings(state.Seized),
 
             ["combatants"] = new JsonArray([
                 .. state.TurnOrder.Select(id => state[id]).Select(c => (JsonNode)new JsonObject

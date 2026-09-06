@@ -366,6 +366,16 @@ lives there, and nothing about it is repeated here.
   unannounced. Both guards are driven with the control beside them: the run of runs that fits
   exactly (last seed `int.MaxValue`) is answered, and a Challenge Level the tools do take is echoed
   back as itself.
+- **Every `take_turn` state says what the fight reproduces from, and reads the defeat floor off the
+  fight rather than looking the rule up again.** The seed and the Challenge Level were printed once,
+  in the answer to `start_encounter` — and a conversation twenty turns into a fight is a conversation
+  whose opening answer is a long way up, so a client that wanted to replay it had to go back and
+  find it and a model summarising one had nothing in front of it to quote. Both come off `Held`, so
+  they are what the fight is running under and not what this call asked for. In the same object,
+  `defeated` is now computed from `Encounter.DefeatFloor`; `PublicState` used to read
+  `damage.defeated_at_health` for itself, which is the engine's own figure spelled again somewhere
+  the engine cannot see, and `defeated` is the one field a client reads to decide whether the fight
+  is worth another call.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

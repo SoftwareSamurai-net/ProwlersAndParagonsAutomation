@@ -1351,6 +1351,50 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>Every turn says what the fight reproduces from.</b>
+    ///
+    /// <para>The seed and the Challenge Level are what a fight is replayed from, and they were
+    /// printed once — in the answer to <c>start_encounter</c>. A conversation twenty turns into a
+    /// fight is a conversation whose opening answer is a long way up: a client that wanted to run
+    /// the fight again had to go back and find it, and a model summarising one had nothing in front
+    /// of it to quote. They are on every <c>take_turn</c> state now, read off the held fight rather
+    /// than off the arguments of the call that opened it.</para>
+    ///
+    /// <para>Both are set to something that is not the default, because a field that answers 0 is
+    /// indistinguishable from a field that is not there when the default is 0.</para>
+    /// </summary>
+    [Fact]
+    public async Task EveryTurnSaysWhatTheFightReproducesFrom() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 4242,
+                ["challengeLevel"] = 3
+            });
+
+            Assert.True(opened["ok"]!.GetValue<bool>(), opened.ToJsonString());
+
+            var turn = await EndTurn(client, opened["encounter_id"]!.GetValue<string>());
+
+            Assert.True(turn["ok"]!.GetValue<bool>(), turn.ToJsonString());
+
+            var state = turn["state"]!;
+
+            // Named rather than dereferenced, so a state that stopped carrying them fails saying so
+            // instead of throwing a null reference out of the next line.
+            Assert.True(state["seed"] is not null,
+                $"the turn's state does not say what seed the fight is running on: {state.ToJsonString()}");
+
+            Assert.True(state["challenge_level"] is not null,
+                $"the turn's state does not say the scene's Challenge Level: {state.ToJsonString()}");
+
+            Assert.Equal(4242, state["seed"]!.GetValue<int>());
+            Assert.Equal(3, state["challenge_level"]!.GetValue<int>());
+        });
+
+    /// <summary>
     /// <b>The last seed of a run of runs is a seed.</b>
     ///
     /// <para><c>seed + runs - 1</c> is int arithmetic and it is unchecked. From a first seed near
