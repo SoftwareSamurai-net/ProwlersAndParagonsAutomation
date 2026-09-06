@@ -125,7 +125,12 @@ public sealed class PlayContractTests
         var referencing = Directory
             .EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                     // A second checkout parked under `.claude/worktrees/` (the desktop app's own
+                     // isolation) carries every csproj a second time; scanning it doubled the test
+                     // project in this list on a developer machine while CI, which has no such
+                     // directory, stayed green.
+                     && !f.Contains($"{Path.DirectorySeparatorChar}.claude{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(f => !string.Equals(Path.GetFileName(f), $"{PlayAssembly}.csproj", StringComparison.Ordinal))
             .Where(f => File.ReadAllText(f).Contains($"{PlayAssembly}.csproj", StringComparison.Ordinal))
             .Select(f => Path.GetFileName(f))

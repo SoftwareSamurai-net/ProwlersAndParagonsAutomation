@@ -1279,6 +1279,122 @@ works and nobody can reach.
   nothing.** The real race is between the diff being drawn and the button being pressed, which a
   test drives with no seam at all — so the seam was deleted, because one nothing races reads as a
   guarantee and is not one. `FakeApi` records that where the seam used to be.
+- **A submission's label and its payload come from one source: the character the row names, read
+  by id.** `Submit` used to send `Session.Sheet` — the character on screen — into a membership
+  keyed on `AccountCharacterStore.CurrentIdAsync()`, the browser's current-character pointer.
+  **Nothing holds those two to the same character.** `SignIn.razor` calls `Session.StartAgain()` on
+  both its paths whenever `Store.LoadAsync()` answers null — a read that 404s, times out, or comes
+  back as the site's own `index.html` — and `Program.cs`'s boot restore does the same for one that
+  throws; neither moves the pointer, because the account's character is still there and still the
+  one this browser has open. From that state the row for a real character still offered Send for
+  approval, and sent an empty sheet under its name: the owner's GM opened an approved clone and was
+  shown an unnamed character with every Trait at 0d, a 379-byte payload carrying nothing but the
+  tier, campaign id and house Trait Cap that `CampaignJoin.Apply` copies in.
+- **What holds them to one character is said now rather than hoped, so the sheet on screen is sent
+  again — and that is a correction to the first fix, not a return to the fault.** Reading the
+  stored copy back by id made the two halves agree and bought it with a lag: the ordinary autosave
+  is fire-and-forget over HTTP, so a read taken straight after an edit can answer from before that
+  edit landed. A player who raised a Trait and pressed Send in the same breath sent the rank they
+  had a moment ago, under a sentence saying it had been sent. `CharacterSession.HeldId` is the
+  question that was missing — **which stored character the sheet on screen actually is** — set
+  wherever the app puts one up (the manager, the switcher, sign-in, the boot restore, an import
+  landing in its fresh slot) and cleared by `StartAgain`, which is the one method that empties the
+  screen without moving the pointer. `Submit` sends `Session.Sheet` where
+  `HoldsTheCharacterAt(row.CharacterId)`, and the stored read otherwise. **Null means "this
+  session does not know", never "no"**, so a session that was never told falls back to the stored
+  read rather than treating silence as a difference — which is the safe half of the first fix kept
+  exactly as it was. The label follows the payload either way, because `SubmitAsync` takes it off
+  the sheet it is handed — and so does the sentence the page prints afterwards: **"Sent to …"
+  names the sheet that went, never `MembershipSummary.Label`**, which is only what the character
+  was called when it last joined or was submitted, so a player who had renamed theirs was told it
+  had gone under a name nobody has. The stored read is still `ReadAsync` and not `OpenAsync`,
+  because sending is not switching to a character and opening one moves the pointer on the way
+  past.
+- **`FakeApi.BeforeStoringCharacter` is what makes that testable, and it is the twin of
+  `BeforeAnsweringCharacter`.** A write still in the air is a state the real app is in after every
+  edit; a fake that stores synchronously closes the window the fault lives in, and "the stored
+  copy can lag the sheet on screen" becomes unreachable — which is how a lag shipped *inside* a
+  fix in the first place.
+- **A campaign act needs the sheet on screen to be the character the pointer names, and the loss
+  it stops is a character.** Reading the submission back by id fixed what was *sent*; it did not
+  touch what joining *writes*. `CampaignJoin.Apply` puts the campaign's tier onto
+  `Session.Sheet` and rings `NotifyChanged`, and that write-through lands under
+  `AccountCharacterStore.CurrentIdAsync()` — so from the emptied-session state a join wrote the
+  379-byte envelope straight over a fully statted character, and `IsWorthKeeping` could not stop
+  it because the join had just given the sheet a tier. `Campaigns.razor`'s
+  `TheCharacterOnScreenIsThePointers` runs before both acts: **asked only of a sheet with nothing
+  on it**, it re-adopts the pointer's character with `OpenAsync` and says so in the sentence, and
+  refuses only where the read was `Unreachable`. `ApiCharacterStore.LastReadRefusal` is what makes
+  that possible — `NotThere` is a fresh empty slot, where joining with an empty character is the
+  ordinary first move and there is nothing to lose, and it may not arrive as the same null as a
+  dropped connection. **The strict form — "the session's id must equal the pointer's" — was
+  rejected**: an account with no characters yet mints an id for its first save and loads nothing
+  into the session, so it would refuse the first join every new account makes.
+- **An empty sheet is refused on the page with a sentence, and never repaired.** `CharacterSession.
+  HasNothingOnIt` is the question, and **"nothing on it" means literally nothing**: no Talent, no
+  Power, no Perk, no Flaw, no Gear, no Name, and every Ability below the rulebook's floor. It
+  asked the Abilities question alone at first, and that was wrong in the direction that costs
+  somebody their work — **a powers-only sheet is a character**, a Talents-only sheet is a
+  character, and both were refused with "this character has nothing on it yet" and captioned
+  "empty" on the GM's screen. The Abilities half is still the engine's answer rather than a count
+  of a dictionary, and that is load-bearing: the editors leave a 0 behind when a Trait is stepped
+  down, so six zeroed entries are an untouched sheet and a dictionary count would call it built.
+  **`Rules.Abilities.Count > 0` is guarded**, because `0 == 0` would otherwise turn a rules file
+  that failed to load into "nobody has a character". **`IsWorthKeeping` cannot answer this and must
+  not be reused for it** — a tier alone counts there, deliberately, and joining writes a tier onto
+  an empty sheet in the course of typing a code, so the submission this refuses passes it by
+  construction. A sheet the engine cannot *price* is not empty and is not refused: that is a
+  half-finished character, and refusing it would be repairing rather than reporting.
+- **Three refusals and three sentences, because one sentence covered four failures and two of
+  them never come right by waiting.** "That character could not be read just now. Try again in a
+  moment" was told to a dropped connection, a session that ended while the tab was open, a
+  character no longer on the account, and a payload this build cannot open — so a reader whose
+  character had gone was asked to wait for it. `ReadRefusal` splits them where the answer is
+  known: **unreachable** gets "the connection may have dropped, or your sign-in may have ended —
+  try again, or sign in again", **not there** gets "it is not on this account any more, or this
+  version of the app cannot open it — open it in the character manager", and **nothing on it**
+  keeps its own. That is the split `CampaignApproval.razor` has made between its unreachable and
+  unreadable arms since it shipped, one screen over.
+- **And each of those is printed inside the row that was sent, under its own Send button.** They
+  went to the panel's Join box — a different control, about a different act, with the whole list
+  of games between them — while `Submit`'s own doc comment said the refusal was "under the
+  button". The row carries its own `role="status"`, and the message is stored with the membership
+  id it is about so it can never appear under another row. **The rule the leave message follows
+  is the opposite one and both are right**: leaving removes the row, so a sentence inside it would
+  be written and thrown away unrendered, and sending leaves the row exactly where it was.
+- **The account's write-through will not put an empty sheet over a character its own list says is
+  real, and it says so in `.save-status`.** The belt beside the campaigns page's guard, and it is
+  needed because the loss does not need that page: *any* edit from the emptied-session state —
+  picking a tier, switching palette — fires the autosave, and it lands under the pointer.
+  `ApiCharacterStore.WouldEmptyACharacter` asks the account's index rather than reading the
+  character, because a row says whether there is one and what it is called without a payload being
+  fetched; a row is worth protecting when it is **priced or named**, which the 379-byte envelope is
+  neither. **A list that could not be read refuses too**, the direction `AccountCharacters.IsFull`
+  already takes. **Nothing is read on the ordinary path** — the list is asked for only once the
+  sheet has answered "nothing on it", which is false from the first Power, Ability or letter of a
+  name. **And it is never silent**: `WriteRefused` reaches `MainLayout`, which prints it in the
+  same live region as "Saved" and above it, because a refusal under the word "Saved" would be the
+  app reporting a write it had just declined to make.
+- **The GM's screen says when a campaign is holding an empty submission, on both slots.** A clone
+  with nothing on it was drawn as the character the row is named after, which is the same fault the
+  two unreadable arms already have their own sentences for: a state that reads as emptiness is not
+  the same as nothing being there, and the reader is owed which one it is. The sheet is still drawn
+  beneath the sentence — a GM has to see what they are being told about — and Approve is still on
+  the screen, because a decision about somebody's character is theirs to take. **The remedy for a
+  row already like this is the player resubmitting**, which is the only way a clone has ever
+  changed; nothing anywhere rewrites one.
+- **And both lists say it too, because a list is where a reader arrives.** Opening a row has said
+  "the submission was empty" since that slice; the GM's roster and the player's own "Games you are
+  in" said **Approved** beside the character's name over a campaign holding an unnamed sheet with
+  every Trait at 0d — which is the state the owner was shown, and the state nobody scanning a list
+  would have opened. `EmptySubmissions.AmongAsync` answers for both. **It costs a read per row and
+  there is no cheaper answer**: a list row carries the two slot flags and no payload, because the
+  server never parses one, so whether a slot holds a character can only be learned by opening it.
+  Rows that have never had anything sent are skipped, the answer is worked out once per refresh
+  rather than per render — the read-per-letter split again — and **a row that could not be read is
+  left unmarked**, because "empty submission" over a sheet nobody managed to fetch is the false
+  alarm all of this exists to avoid. The slot asked about is the one the screens draw: the waiting
+  snapshot where there is one, the clone otherwise.
 - **The standing answers "which sheet do I print at the table", and it is silent three ways.** The
   standings could not be read; this character is in no campaign; or there is no id to match against.
   In every one of those a printed standing would answer a question nobody asked — and the first is

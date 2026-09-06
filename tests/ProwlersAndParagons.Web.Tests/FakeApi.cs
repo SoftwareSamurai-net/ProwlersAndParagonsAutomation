@@ -422,10 +422,26 @@ public sealed class FakeApi : HttpMessageHandler
     /// </summary>
     public Func<string, Task>? BeforeAnsweringCharacter { get; set; }
 
+    /// <summary>
+    /// Held open before a character is <em>written</em>, the other half of
+    /// <see cref="BeforeAnsweringCharacter"/>.
+    ///
+    /// <para><b>A write still in flight is a state the real app is in constantly</b>, which is
+    /// the bar this class sets for itself: the ordinary autosave is fire-and-forget over HTTP and
+    /// nobody awaits it, so every edit is followed by a window in which the server still holds
+    /// the previous version. Without this the fake stores synchronously and closes that window,
+    /// and "the stored copy can lag the sheet on screen" is unreachable in a test — which is
+    /// exactly the fault the campaigns page shipped inside a fix.</para>
+    /// </summary>
+    public Func<string, Task>? BeforeStoringCharacter { get; set; }
+
     private async Task<HttpResponseMessage> Character(HttpRequestMessage request, string id)
     {
         if (request.Method == HttpMethod.Get && BeforeAnsweringCharacter is { } gate)
             await gate(id);
+
+        if (request.Method == HttpMethod.Put && BeforeStoringCharacter is { } writing)
+            await writing(id);
 
         return await CharacterAnswer(request, id);
     }

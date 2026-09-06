@@ -48,6 +48,32 @@ public sealed class CharacterSession
     public CharacterSheet Sheet { get; private set; } = new();
 
     /// <summary>
+    /// Which stored character <see cref="Sheet"/> was read from, or null when it was not read
+    /// from one this session knows the id of.
+    ///
+    /// <para><b>It exists so that "the character on screen" and "the character at this id" can be
+    /// the same claim rather than two hopes.</b> The browser's current-character pointer says
+    /// which id the next write lands on; nothing until now said which character the sheet
+    /// actually is. <see cref="StartAgain"/> empties the sheet without moving the pointer — which
+    /// is what <c>SignIn.razor</c> does when the account's character cannot be read — and from
+    /// there the two disagreed with nothing able to notice.</para>
+    ///
+    /// <para><b>Null is "this session does not know", never "no", and every reader has to take it
+    /// that way.</b> A caller that has not been given an id leaves it null, so a screen weighing
+    /// it must fall back to whatever it did before rather than treating the answer as a
+    /// difference. That is why <see cref="HoldsTheCharacterAt"/> below is the only way to ask.</para>
+    /// </summary>
+    public string? HeldId { get; private set; }
+
+    /// <summary>
+    /// Whether the sheet on screen is known to be the stored character at <paramref name="id"/>.
+    /// False for an unknown id and false for a session that was never told one — see
+    /// <see cref="HeldId"/> for why those two may not be told apart here.
+    /// </summary>
+    public bool HoldsTheCharacterAt(string? id) =>
+        HeldId is { Length: > 0 } && string.Equals(HeldId, id, StringComparison.Ordinal);
+
+    /// <summary>
     /// Hero or Villain. Changes the palette and nothing else.
     ///
     /// <para><b>It is the character's own answer now, not a field beside it.</b> A sheet for a
@@ -161,9 +187,14 @@ public sealed class CharacterSession
     /// <c>Store.OpenAsync</c> then <c>Session.Open</c>, and "showing is not opening" holds in one
     /// vocabulary on both sides.</para>
     /// </summary>
-    public void Open(CharacterSheet sheet, SheetMode mode)
+    /// <param name="id">
+    /// Which stored character this is, where the caller knows — see <see cref="HeldId"/>. Left
+    /// out by a caller putting up a sheet that is not one of the account's rows, or that is one
+    /// whose id it has not been told.
+    /// </param>
+    public void Open(CharacterSheet sheet, SheetMode mode, string? id = null)
     {
-        RestoreBeforeFirstRender(sheet, mode);
+        RestoreBeforeFirstRender(sheet, mode, id);
         NotifyChanged();
     }
 
@@ -183,11 +214,13 @@ public sealed class CharacterSession
     /// may call this; <see cref="Open"/> is what those want, and
     /// <c>NothingDrawnCallsTheSilentRestore</c> holds the line.</para>
     /// </summary>
-    public void RestoreBeforeFirstRender(CharacterSheet sheet, SheetMode mode)
+    /// <param name="id">Which stored character this is, where the caller knows — see <see cref="HeldId"/>.</param>
+    public void RestoreBeforeFirstRender(CharacterSheet sheet, SheetMode mode, string? id = null)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
         Sheet = sheet;
+        HeldId = id;
 
         // **A one-way migration, and the only reason this still takes a mode.** The palette used
         // to live in the storage envelope beside the character rather than on it. A character
@@ -228,6 +261,12 @@ public sealed class CharacterSession
         var unlimited = Sheet.UnlimitedBudget;
 
         Sheet = new CharacterSheet { IsVillain = villain, UnlimitedBudget = unlimited };
+
+        // **The sheet is no longer any stored character**, and saying so is the whole reason
+        // `HeldId` exists: this is the one method that empties the screen without moving the
+        // pointer, so it is the one place the two can come apart.
+        HeldId = null;
+
         NotifyChanged();
 
         if (offerUndo) Buffer(previous);
@@ -246,6 +285,7 @@ public sealed class CharacterSession
         var previous = Sheet;
         Sheet = mode == SheetMode.Hero ? SampleCharacters.Hero() : SampleCharacters.Villain();
         Sheet.IsVillain = mode == SheetMode.Villain;
+        HeldId = null;
         NotifyChanged();
         Buffer(previous);
     }
@@ -268,10 +308,11 @@ public sealed class CharacterSession
     /// elsewhere were getting it wrong</b>, which is why the two are now told apart by their
     /// names rather than by a remark on one of them.</para>
     /// </summary>
-    public void ReplaceWithUndo(CharacterSheet sheet, SheetMode mode)
+    /// <param name="id">Which stored character this is, where the caller knows — see <see cref="HeldId"/>.</param>
+    public void ReplaceWithUndo(CharacterSheet sheet, SheetMode mode, string? id = null)
     {
         var previous = Sheet;
-        Open(sheet, mode);
+        Open(sheet, mode, id);
         Buffer(previous);
     }
 
@@ -385,6 +426,89 @@ public sealed class CharacterSession
         || sheet.AbilityRanks.Count > 0
         || sheet.TalentRanks.Count > 0
         || !string.IsNullOrWhiteSpace(sheet.Name);
+
+    /// <summary>
+    /// Whether there is nothing on this sheet for anybody else to look at — <b>literally
+    /// nothing</b>.
+    ///
+    /// <para><b>Every kind of thing a character can be made of is asked about, and that is the
+    /// fix rather than a widening.</b> This used to be the Ability question alone: every Ability
+    /// below the rulebook's floor, which is what an untouched sheet looks like to
+    /// <c>CharacterValidator</c>. But a character is not only its Abilities. A sheet with four
+    /// Powers on it and no Ability rank bought yet answered "nothing on it" — so the send was
+    /// refused with "this character has nothing on it yet" over somebody's afternoon, and the
+    /// GM's screen captioned their clone as empty. **A powers-only sheet is a character, a
+    /// Talents-only sheet is a character, and a sheet with nothing but a name is a character**;
+    /// each of them is somebody's half-finished work, and this app exists to keep exactly
+    /// that.</para>
+    ///
+    /// <para><b>The Abilities half is still the engine's answer rather than a count of a
+    /// dictionary</b>, and that is not decoration: the editors leave a 0 behind when a Trait is
+    /// stepped back down, so a sheet with six zeroed Ability entries is untouched and a
+    /// dictionary count would call it built. Ch.2 states twice that no Ability can be lower than
+    /// 1d and that every character has all of them, so <c>TRAIT_BELOW_MINIMUM</c> across every
+    /// one of them is the absence of a character rather than a weak one.</para>
+    ///
+    /// <para><b>Counted against the rules rather than a literal six, and a rulebook with no
+    /// Abilities in it answers "not empty".</b> Without that guard <c>below == 0 == Count</c> and
+    /// every sheet in the app would be called empty at once — a rules file that failed to load
+    /// turning into "nobody has a character", which is the loudest possible way to be wrong about
+    /// the quietest possible cause.</para>
+    ///
+    /// <para><b>Why not <see cref="IsWorthKeeping"/>.</b> That predicate answers "would a player
+    /// mind losing this", and a tier alone counts — deliberately, because choosing one is a
+    /// decision. But <c>CampaignJoin.Apply</c> writes a tier onto an empty sheet in the course of
+    /// typing a join code, so the empty submission this exists to refuse passes
+    /// <see cref="IsWorthKeeping"/> by construction. Two questions, two predicates; the one thing
+    /// they may not do is share a spelling and drift.</para>
+    ///
+    /// <para><b>A sheet the engine cannot price is not empty and is not refused here.</b>
+    /// <see cref="TryCost"/> answers null for a variable-cost Power with no variant chosen, which
+    /// is a half-finished character and exactly the work this app exists to keep — and a sheet
+    /// with a Power on it has already answered false above. The approval screen has its own arm
+    /// for a snapshot it cannot price; refusing to send one would be repairing rather than
+    /// reporting.</para>
+    /// </summary>
+    public bool HasNothingOnIt(CharacterSheet sheet) => HasNothingOnIt(sheet, Validator, Rules);
+
+    /// <summary>
+    /// The same question, for a caller that has no session — <c>ApiCharacterStore</c>'s
+    /// write-through, which only ever has the sheet.
+    ///
+    /// <para><b>Static for the reason <see cref="IsWorthKeeping"/> is static</b>, and it is the
+    /// same bargain: two spellings of "this sheet is empty" is two chances for the belt that
+    /// refuses to write one and the page that refuses to send one to disagree about somebody's
+    /// character. These two have already drifted apart once as separate copies.</para>
+    /// </summary>
+    public static bool HasNothingOnIt(
+        CharacterSheet sheet, CharacterValidator validator, RulesRepository rules)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(validator);
+        ArgumentNullException.ThrowIfNull(rules);
+
+        // Anything at all that somebody chose. A Power, a Talent, a Perk, a Flaw, a piece of
+        // Gear or a name is a character, whatever the Abilities block says.
+        if (sheet.TalentRanks.Count > 0
+            || sheet.SelectedPowers.Count > 0
+            || sheet.Perks.Count > 0
+            || sheet.Flaws.Count > 0
+            || sheet.Gear.Count > 0
+            || !string.IsNullOrWhiteSpace(sheet.Name))
+        {
+            return false;
+        }
+
+        // See the remarks: without this, a rules repository with no Abilities in it would make
+        // every sheet in the app empty at once.
+        if (rules.Abilities.Count == 0) return false;
+
+        var below = validator.Validate(sheet).Issues
+            .Count(i => i.SubjectKind == ValidationSubject.Ability
+                        && string.Equals(i.Code, "TRAIT_BELOW_MINIMUM", StringComparison.Ordinal));
+
+        return below == rules.Abilities.Count;
+    }
 
     public int Spent => Costs.TotalCost(Sheet);
 

@@ -136,7 +136,7 @@
     {
         _open = false;
 
-        if (await Store.OpenAsync(id) is { } opened) Session.Open(opened.Sheet, opened.Mode);
+        if (await Store.OpenAsync(id) is { } opened) Session.Open(opened.Sheet, opened.Mode, id);
 
         await Refresh();
     }

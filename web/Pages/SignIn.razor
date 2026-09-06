@@ -172,7 +172,8 @@ else
                 // left as whatever this browser was holding. A sign-in that left the anonymous
                 // character on screen under an account's name is the shape that gets somebody
                 // else's work saved to your account.
-                if (await Store.LoadAsync() is { } theirs) Session.Open(theirs.Sheet, theirs.Mode);
+                if (await Store.LoadAsync() is { } theirs)
+                    Session.Open(theirs.Sheet, theirs.Mode, await Store.CurrentIdAsync());
                 else Session.StartAgain();
 
                 await OfferToKeepAnythingLeftBehind();
@@ -282,7 +283,8 @@ else
         // rather than kept: the next visitor to open this browser must not inherit it.
         await Store.ClearAnonymousAsync();
 
-        if (await Store.LoadAsync() is { } local) Session.Open(local.Sheet, local.Mode);
+        if (await Store.LoadAsync() is { } local)
+            Session.Open(local.Sheet, local.Mode, await Store.CurrentIdAsync());
         else Session.StartAgain();
 
         SetWho(Identity.Anonymous);
@@ -321,7 +323,8 @@ else
         _kept = await Store.KeepAnonymousCharacterAsync();
         _offerToKeep = false;
 
-        if (_kept && await Store.LoadAsync() is { } now) Session.Open(now.Sheet, now.Mode);
+        if (_kept && await Store.LoadAsync() is { } now)
+            Session.Open(now.Sheet, now.Mode, await Store.CurrentIdAsync());
     }
 
     // Not `async void`: an exception out of one of those is unobservable and takes the renderer

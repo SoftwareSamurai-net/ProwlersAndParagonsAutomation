@@ -221,6 +221,15 @@ else
                             <span class="who">
                                 <b class="nm">@one.Label</b>
                                 <span class="meta">@Standings.Say(one.Standing)</span>
+
+                                @* **The list level said "Approved" over a game holding nothing.**
+                                   Opening the row says so and always has; a reader arrives at the
+                                   list first, and there the standing named a decision about a
+                                   character the campaign is not holding. See `EmptySubmissions`. *@
+                                @if (_empty.Contains(one.Id))
+                                {
+                                    <span class="meta">@EmptySubmissions.Marker</span>
+                                }
                             </span>
 
                             @* Sending is the player's act and it is theirs alone: a snapshot the
@@ -254,6 +263,27 @@ else
                                         @onclick="() => _leaving = one.Id">Leave</button>
                             }
                         </div>
+
+                        @* **What became of a send, under the button that sent it.** It used to be
+                           printed in the Join box at the bottom of the panel — a different
+                           control, about a different act, with a list between them — so "this
+                           character has nothing on it yet" appeared under a box the reader had
+                           not touched, and `Submit`'s own doc comment claimed it was under the
+                           button. A refusal has to be findable from the control it refuses.
+
+                           **Unlike the sentence about leaving, this one can live in the row**,
+                           and the difference is whether the row survives the act: leaving removes
+                           the row, so a message inside it would be written and thrown away
+                           unrendered — the fault recorded below and on the approval screen —
+                           while sending leaves the row exactly where it was.
+
+                           `role="status"` per row rather than one region for the panel, because
+                           the message is about this membership and a reader who lands on it by
+                           keyboard should meet it where the button is. *@
+                        @if (_sentAbout == one.Id && _sent is { } sent)
+                        {
+                            <p class="small muted spaced" role="status">@sent</p>
+                        }
                     </li>
                 }
             </ul>
@@ -318,6 +348,16 @@ else
     /// <summary>Every membership of every campaign this account runs, for the waiting counts.</summary>
     private IReadOnlyList<MembershipSummary>? _inbox = [];
 
+    /// <summary>
+    /// Which of <see cref="_playing"/> are holding a sheet with nothing on it — see
+    /// <see cref="EmptySubmissions"/>, which is also where the cost of knowing is argued.
+    ///
+    /// <para>Worked out once per refresh rather than per render, for the reason the campaign
+    /// resolution is: this page redraws on every change to the character, and a read per row per
+    /// keystroke is the read-per-letter the character manager's own split exists to avoid.</para>
+    /// </summary>
+    private IReadOnlySet<string> _empty = new HashSet<string>(StringComparer.Ordinal);
+
     /// <summary>Which campaign's settings are open, or null.</summary>
     private string? _open;
 
@@ -338,8 +378,19 @@ else
     /// <summary>What went wrong with the last save, or null. Cleared at the start of each one.</summary>
     private string? _problem;
 
-    /// <summary>What became of the last join or send. Cleared when the character changes.</summary>
+    /// <summary>What became of the last join. Cleared at the start of the next one.</summary>
     private string? _joined;
+
+    /// <summary>
+    /// What became of the last send, and which row it was about — drawn inside that row, under
+    /// the button that did it.
+    ///
+    /// <para><b>Two fields rather than one, because a message with no row is a message under the
+    /// wrong row.</b> Both are set together and cleared together at the start of every send.</para>
+    /// </summary>
+    private string? _sent;
+
+    private string? _sentAbout;
 
     private string _code = "";
 
@@ -604,6 +655,7 @@ else
             _campaign = null;
             _resolvedFrom = null;
             _resolved = false;
+            _empty = new HashSet<string>(StringComparer.Ordinal);
             return;
         }
 
@@ -611,6 +663,7 @@ else
         _playing = await Memberships.MineAsync();
         _inbox = await Memberships.InboxAsync();
         _openId = await Characters.CurrentIdAsync();
+        _empty = await EmptySubmissions.AmongAsync(Memberships, Session, _playing);
 
         await ResolveCampaign();
     }
@@ -734,6 +787,16 @@ else
 
         if (_openId is null) return;
 
+        // **Before anything is written, and before the label is read off the sheet.** Joining
+        // writes a tier onto the character on screen and fires the autosave that puts it under
+        // the pointer's id — so a sheet that is not the pointer's character would be written over
+        // one that is, under a label taken from the wrong sheet. See `TheCharacterOnScreenIsThePointers`.
+        if (await TheCharacterOnScreenIsThePointers(_openId) is { } refusal)
+        {
+            _joined = refusal;
+            return;
+        }
+
         var joined = await Memberships.JoinAsync(_code, _openId, Session.Sheet.Name);
 
         if (joined is not { } got)
@@ -761,9 +824,9 @@ else
         _joined = result.Outcome switch
         {
             CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined =>
-                $"Joined {got.Campaign.Name}.{Took(result, got.Campaign)}",
+                $"Joined {got.Campaign.Name}.{Took(result, got.Campaign)}{PutBack()}",
             CampaignJoinOutcome.TierDisagrees =>
-                $"{got.Campaign.Name} is played at a different tier. Nothing was changed.",
+                $"{got.Campaign.Name} is played at a different tier. Nothing was changed.{PutBack()}",
             _ => "That game is not here.",
         };
 
@@ -801,17 +864,196 @@ else
     };
 
     /// <summary>
-    /// Send the character on screen for approval.
+    /// The character this page just put back on screen, or null when it did not have to.
+    /// Cleared at the start of every act, so it can only ever describe the one being reported.
+    /// </summary>
+    private string? _readopted;
+
+    /// <summary>What the re-adoption above is owed in the sentence, or nothing.</summary>
+    private string PutBack() =>
+        _readopted is { Length: > 0 } name ? $" {name} was put back on screen first." : "";
+
+    /// <summary>
+    /// Make sure the sheet a campaign act is about really is the character the pointer names —
+    /// putting it back on screen where it can be, and refusing where it cannot.
+    ///
+    /// <para><b>This is the guard the reported row needed and did not have, and the loss it stops
+    /// is a character.</b> Joining writes a tier onto <see cref="CharacterSession.Sheet"/> and
+    /// rings <see cref="CharacterSession.NotifyChanged"/>, which fires the write-through — and
+    /// that write lands under <c>AccountCharacterStore.CurrentIdAsync()</c>, the pointer. Nothing
+    /// holds the sheet and the pointer to the same character: <c>SignIn.razor</c> calls
+    /// <c>Session.StartAgain()</c> on both its paths when the account's character cannot be read,
+    /// and <c>Program.cs</c>'s boot restore does the same for a read that throws, and neither
+    /// moves the pointer, because the account's character is still there. From that state a join
+    /// put an empty sheet — now carrying a tier, so <see cref="CharacterSession.IsWorthKeeping"/>
+    /// no longer stops it — straight over a fully statted character, and labelled the membership
+    /// from the same empty sheet.</para>
+    ///
+    /// <para><b>Only ever asked of a sheet with nothing on it, and that is what keeps it from
+    /// refusing ordinary work.</b> A sheet somebody has built is the character on screen whatever
+    /// the pointer says, and there is nothing here to correct.</para>
+    ///
+    /// <para><b>Re-adopting is preferred to refusing, and reading is what tells the two states
+    /// apart.</b> Joining a game with a brand-new empty character is the ordinary first move —
+    /// the box below says so out loud — and in that state the pointer names a slot nothing has
+    /// ever been written to, which answers <see cref="ReadRefusal.NotThere"/>. A read that
+    /// answers a character puts it back on screen and the act goes ahead on it. Only
+    /// <see cref="ReadRefusal.Unreachable"/> is refused: there the pointer may well name a
+    /// character and this browser cannot tell, so writing would be a guess with somebody's work
+    /// on the other side of it.</para>
+    ///
+    /// <para><b>Not "the session's id must equal the pointer's", which was the other shape
+    /// available and is wrong.</b> An account with no characters yet mints an id for its first
+    /// save and never loads anything into the session, so a strict comparison would refuse the
+    /// first join every new account makes — a real flow, broken to close a failure it is not in.
+    /// The question this asks is the one that actually distinguishes them: is there a character
+    /// behind the pointer that this act would write over.</para>
+    /// </summary>
+    /// <returns>The sentence to print instead of acting, or null when the act may go ahead.</returns>
+    private async Task<string?> TheCharacterOnScreenIsThePointers(string id)
+    {
+        _readopted = null;
+
+        if (!Session.HasNothingOnIt(Session.Sheet)) return null;
+
+        // `OpenAsync` rather than `ReadAsync`, because this really is switching to a character:
+        // the app is about to act on it and the reader is about to be shown it. The pointer is
+        // already on this id, so the move it makes on the way past is a move to where it is.
+        if (await Characters.OpenAsync(id) is { } behind)
+        {
+            Session.Open(behind.Sheet, behind.Mode, id);
+            _readopted = SavedCharacters.LabelFor(behind.Sheet);
+            return null;
+        }
+
+        if (Characters.LastReadRefusal == ReadRefusal.NotThere) return null;
+
+        // Named from the account's own list, which is a second read and is worth it: this is the
+        // rare path, and "your character" is not the sentence somebody needs when the whole point
+        // is which character was not written over.
+        var named = (await Characters.ListAsync()).Characters
+            .FirstOrDefault(c => c.Id == id)?.Label;
+
+        return (named is { Length: > 0 } ? $"{named} is the character" : "The character")
+            + " this browser has open, and it could not be read just now — so nothing was written"
+            + " and nothing was sent. Open it in the character manager and try again.";
+    }
+
+    /// <summary>
+    /// Send the character this row names for approval.
     ///
     /// <para><b>One slot per character per campaign, and resubmitting overwrites it.</b> There is
     /// no history and no rollback: a decision queue is what this is, and a row per submission would
     /// be a version-control system for characters.</para>
+    ///
+    /// <para><b>The label and the payload come from one place, and that is the whole of this
+    /// method's correctness.</b> It used to send <c>Session.Sheet</c> — the character on screen —
+    /// into a membership keyed on the browser's current-character pointer, and nothing held those
+    /// two to the same character. <c>SignIn.razor</c> empties the session on both its paths when
+    /// the account's character cannot be read, and <c>Program.cs</c>'s boot restore does the same
+    /// for a read that throws; neither moves the pointer, because the account's character is still
+    /// there. From that state this row still offered Send for approval and sent an empty sheet
+    /// under a real character's name — a GM opened an approved clone and was shown an unnamed
+    /// character with every Trait at 0d, 379 bytes carrying nothing but the tier, campaign id and
+    /// house Trait Cap that <c>CampaignJoin.Apply</c> copies in.</para>
+    ///
+    /// <para><b>What holds them to one character is now said rather than hoped, so the sheet on
+    /// screen is sent again — and this is a correction to the first fix rather than a return to
+    /// the fault.</b> Reading the stored copy back by id made the two halves agree, and bought
+    /// that with a lag: the ordinary autosave is fire-and-forget over HTTP, so a read taken
+    /// straight after an edit can answer from before that edit landed. A player who raised a
+    /// Trait and pressed Send in the same breath sent the rank they had a moment ago — silently,
+    /// with a sentence saying it had been sent, and the GM deciding about a character nobody was
+    /// looking at. <see cref="CharacterSession.HoldsTheCharacterAt"/> is the question that was
+    /// missing: where the session is holding <em>this</em> row's character, the sheet on screen is
+    /// the newest copy there is and it is what goes. Where it is not — or where this session was
+    /// never told which character it holds — the stored copy is still the answer, which is the
+    /// safe half of the original fix kept exactly as it was.</para>
+    ///
+    /// <para><b>The label follows the payload either way</b>, because
+    /// <c>ApiMembershipStore.SubmitAsync</c> takes it off the sheet it is given. There is no
+    /// second source left to disagree.</para>
+    ///
+    /// <para><b>An empty sheet is refused rather than sent, and never repaired.</b> The refusal is
+    /// a sentence under the row's own Send button for the reason every other refusal here is one:
+    /// a control that silently does nothing is indistinguishable from one that is not wired up.
+    /// Nothing is written to put a bad row right — the player resubmits, which is the remedy this
+    /// screen already has.</para>
     /// </summary>
     private async Task Submit(MembershipSummary one)
     {
-        _joined = await Memberships.SubmitAsync(one.Id, Session.Sheet, Session.Mode) is null
+        ArgumentNullException.ThrowIfNull(one);
+
+        // Whatever this says, it says it in this row. Set together with the message so a sentence
+        // can never end up under a membership it is not about.
+        _sent = null;
+        _sentAbout = one.Id;
+
+        // A row with no character id is the GM's view of a membership, and this control is not
+        // drawn on that screen. Belt and braces, and it costs one comparison.
+        if (one.CharacterId is not { Length: > 0 } id)
+        {
+            _sent = "That row does not name a character, so there is nothing to send.";
+            return;
+        }
+
+        // The same guard the join takes, and for the same reason: this row is only drawn against
+        // the pointer's own character, so an empty sheet on screen beside a real stored one is a
+        // state to put right or refuse — never one to act on. See `TheCharacterOnScreenIsThePointers`.
+        if (await TheCharacterOnScreenIsThePointers(id) is { } refusal)
+        {
+            _sent = refusal;
+            return;
+        }
+
+        // The sheet on screen where the session is holding this very character — the newest copy
+        // there is, and the one the player is looking at. See the remarks.
+        var sending = Session.HoldsTheCharacterAt(id)
+            ? (Sheet: Session.Sheet, Mode: Session.Mode)
+            : null as (CharacterSheet Sheet, SheetMode Mode)?;
+
+        if (sending is null)
+        {
+            // `ReadAsync` rather than `OpenAsync`: sending is not switching to a character, and
+            // opening one would move the pointer on the way past.
+            if (await Characters.ReadAsync(id) is not { } stored)
+            {
+                // **Two failures, two sentences, and the wrong one of them sends somebody
+                // hunting for a fault that is not theirs.** A dropped connection or a session
+                // that ended while the tab was open is a moment and is worth retrying; a
+                // character that is not on the account, or a payload this build cannot open, is
+                // not, and telling that reader to "try again in a moment" will be believed and
+                // will keep being believed. `CampaignApproval` already tells its own two arms
+                // apart for the same reason.
+                _sent = Characters.LastReadRefusal == ReadRefusal.NotThere
+                    ? "That character could not be read: it is not on this account any more, or "
+                      + "this version of the app cannot open it. Open it in the character manager."
+                    : "That character could not be read just now — the connection may have "
+                      + "dropped, or your sign-in may have ended. Try again, or sign in again.";
+
+                return;
+            }
+
+            sending = stored;
+        }
+
+        if (Session.HasNothingOnIt(sending.Value.Sheet))
+        {
+            _sent = "This character has nothing on it yet, so there is nothing to send. "
+                + "Open it, build it up, and send it when it is ready.";
+            return;
+        }
+
+        _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
             ? "That could not be sent just now. Try again in a moment."
-            : $"Sent to {one.Label}. Your own copy is unchanged.";
+            // **The name on the sheet that was actually sent, not the label the row was carrying.**
+            // A membership's label is whatever the character was called when it last joined or
+            // was submitted, so a player who renamed their character and pressed Send was told it
+            // had gone under the old name — a message about a character nobody has, which is the
+            // shape that teaches somebody to distrust the ones that are true. It is also the same
+            // string the server was handed: `SubmitAsync` takes the label off this sheet.
+            : $"Sent to {SavedCharacters.LabelFor(sending.Value.Sheet)}."
+              + $" Your own copy is unchanged.{PutBack()}";
 
         await Refresh();
     }
