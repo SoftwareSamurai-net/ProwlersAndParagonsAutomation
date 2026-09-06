@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -134,6 +135,34 @@ public sealed class SessionHoldsThePointerTests
     /// <summary>Types a name into the finishing step, the way a reader does.</summary>
     private static async Task Name(IRenderedComponent<Finishing> page, string name) =>
         await page.Find("#ft-name").InputAsync(new ChangeEventArgs { Value = name });
+
+    /// <summary>
+    /// The manager, as the tier page draws it. That page shows the controls and a count rather
+    /// than the rows — the rows belong to the roster, which is what
+    /// <see cref="OpeningAnotherCharacterEndsTheSplitAndTheBannerWithIt"/> renders instead.
+    /// </summary>
+    private static IRenderedComponent<ChooseTier> ManagerIn(RenderContext ctx) => ctx.Render<ChooseTier>();
+
+    private static async Task Press(IRenderedComponent<IComponent> page, string label) =>
+        await page.FindAll("button")
+            .First(b => b.TextContent.Contains(label, StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+    /// <summary>
+    /// Builds something worth keeping on the sheet, through the renderer's dispatcher — the same
+    /// step <c>StartAnotherTests</c> takes, and for the reason it records: raising the session's
+    /// change event off-dispatcher throws rather than redrawing.
+    /// </summary>
+    private static async Task Build(IRenderedComponent<IComponent> page, RenderContext ctx, string name) =>
+        await page.InvokeAsync(() =>
+        {
+            ctx.Session.Sheet.SelectedTierId = "standard";
+            ctx.Session.Sheet.Name = name;
+            ctx.Session.NotifyChanged();
+        });
+
+    private static AccountCharacterStore StoreIn(RenderContext ctx) =>
+        ctx.Services.GetRequiredService<AccountCharacterStore>();
 
     /// <summary>
     /// <b>The split is said on screen, and it says what to do about it.</b>
@@ -385,5 +414,354 @@ public sealed class SessionHoldsThePointerTests
 
         Assert.DoesNotContain(
             "could not be loaded", layout.Find(".save-status").TextContent, StringComparison.Ordinal);
+    }
+
+    // ── The other write at the pointer, and the two ways this fact can be stale ─────────────
+
+    /// <summary>
+    /// <b>"Start a new character" is the write at the pointer that is not the autosave, and it
+    /// went straight through the guard.</b>
+    ///
+    /// <para><c>StartAnotherAsync</c> keeps what is on screen by writing it down at
+    /// <c>CurrentIdAsync()</c> through the four-argument <c>SaveAsync</c> — deliberately, because
+    /// the fire-and-forget autosave is nobody's guarantee — so the write-through's own refusal
+    /// never sees it. From the split state that is the same loss through another button: the
+    /// stranger on screen lands on the character nothing in this browser has read.</para>
+    ///
+    /// <para><b>Asserted on what the store received</b>, not on what the page says about it: the
+    /// bytes the account holds for Jetstream are the bytes it held before the click.</para>
+    /// </summary>
+    [Fact]
+    public async Task StartingAnotherIsRefusedWhileTheCharacterBehindThePointerIsUnread()
+    {
+        await using var ctx = await AnAccountHoldingJetstream();
+
+        var before = await StoredPayload(ctx, JetstreamId);
+
+        await TheSignInReadFailed(ctx);
+
+        var page = ManagerIn(ctx);
+
+        // Something on screen worth keeping, which is what makes this the dangerous case: the
+        // empty-sheet guard stopped answering for this sheet the moment it was named.
+        await Build(page, ctx, "A new character");
+
+        Assert.True(CharacterSession.IsWorthKeeping(ctx.Session.Sheet));
+
+        await Press(page, "Start a new character");
+
+        // Said under the button, because a keep that does nothing reads as a broken control.
+        await page.WaitForAssertionAsync(() => Assert.Contains(
+            "could not be loaded into this browser", page.Markup, StringComparison.Ordinal));
+
+        // And it does not say the two things that would be lies here: that the character was
+        // saved, or that waiting will help.
+        Assert.DoesNotContain("Your character is saved", page.Markup, StringComparison.Ordinal);
+
+        // The whole of the claim: the account's bytes for Jetstream are untouched.
+        Assert.Equal(before, await StoredPayload(ctx, JetstreamId));
+
+        // Refused whole rather than half — the pointer did not move either, so the sheet on
+        // screen has not been quietly re-homed into a slot nothing wrote it to.
+        Assert.Equal(JetstreamId, await StoreIn(ctx).CurrentIdAsync());
+        Assert.Equal("A new character", ctx.Session.Sheet.Name);
+    }
+
+    /// <summary>
+    /// <b>An untouched sheet goes through, into a slot of its own rather than the unread one.</b>
+    ///
+    /// <para>This is the commonest press of that button from this state — the session was emptied
+    /// a moment ago by the failed read — and there is nothing to write down, so nothing can be
+    /// lost. What may not happen is the ordinary reuse of the slot: it is not empty, it holds a
+    /// character this browser has not got, so building into it would leave every save refused.</para>
+    /// </summary>
+    [Fact]
+    public async Task StartingAnotherFromAnEmptySheetOpensAFreshSlotRatherThanReusingTheUnreadOne()
+    {
+        await using var ctx = await AnAccountHoldingJetstream();
+
+        var before = await StoredPayload(ctx, JetstreamId);
+
+        await TheSignInReadFailed(ctx);
+
+        // The control on the arrangement: the slot about to be reused is Jetstream's own.
+        Assert.Equal(JetstreamId, await StoreIn(ctx).CurrentIdAsync());
+
+        var page = ManagerIn(ctx);
+
+        await Press(page, "Start a new character");
+
+        var fresh = await StoreIn(ctx).CurrentIdAsync();
+
+        Assert.NotEqual(JetstreamId, fresh);
+        Assert.Null(StoreIn(ctx).UnreadId);
+        Assert.DoesNotContain(
+            "could not be loaded into this browser", page.Markup, StringComparison.Ordinal);
+
+        // And the reader can actually work in it: what they build lands at the fresh id, and
+        // Jetstream is where it was.
+        var finishing = ctx.Render<Finishing>();
+        await Name(finishing, "Somebody new");
+
+        await finishing.WaitForAssertionAsync(async () => Assert.Contains(
+            "Somebody new", await StoredPayload(ctx, fresh), StringComparison.Ordinal));
+
+        Assert.Equal(before, await StoredPayload(ctx, JetstreamId));
+    }
+
+    /// <summary>
+    /// <b>Opening another character ends the split, and the banner has to stop saying it.</b>
+    ///
+    /// <para><c>UnreadId</c> is a fact about the <em>pointer</em> — "the character it names could
+    /// not be read into this browser" — and the banner read it without asking where the pointer
+    /// is. So a reader who took the way out the banner itself offers, and opened one of their
+    /// characters from the manager, went on being told that their character could not be loaded
+    /// while looking straight at a character that had loaded perfectly — beside a "Try again"
+    /// that would have switched them away from it.</para>
+    /// </summary>
+    [Fact]
+    public async Task OpeningAnotherCharacterEndsTheSplitAndTheBannerWithIt()
+    {
+        await using var ctx = await AnAccountHoldingJetstream();
+
+        const string bulwarkId = "c_3333333333333333333333";
+
+        Assert.Equal(
+            SaveOutcome.Saved,
+            await ctx.Services.GetRequiredService<ApiCharacterStore>().SaveAsync(
+                bulwarkId, "Bulwark",
+                new CharacterSheet { SelectedTierId = "low_level", Name = "Bulwark" },
+                SheetMode.Hero));
+
+        await TheSignInReadFailed(ctx);
+
+        var layout = ctx.Render<MainLayout>();
+
+        // The control: the sentence really is up before the reader does anything about it.
+        await layout.WaitForAssertionAsync(() => Assert.Contains(
+            "could not be loaded", layout.Find(".save-status").TextContent, StringComparison.Ordinal));
+
+        // The way out, taken through the page: the manager's rows are the buttons that open them,
+        // and the character that is open is not one of them. The roster, because the tier page
+        // draws a count and a link where the rows are.
+        var page = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.Roster>();
+
+        await page.WaitForAssertionAsync(() => Assert.Contains(
+            page.FindAll("button.open-target"),
+            b => b.TextContent.Contains("Bulwark", StringComparison.Ordinal)));
+
+        await page.FindAll("button.open-target")
+            .Single(b => b.TextContent.Contains("Bulwark", StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        Assert.Equal("Bulwark", ctx.Session.Sheet.Name);
+        Assert.Equal(bulwarkId, await StoreIn(ctx).CurrentIdAsync());
+
+        // The fact is gone, and so is the sentence.
+        Assert.Null(StoreIn(ctx).UnreadId);
+
+        await layout.WaitForAssertionAsync(() => Assert.DoesNotContain(
+            "could not be loaded", layout.Find(".save-status").TextContent, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>An id this browser minted is not a character it could not get.</b>
+    ///
+    /// <para><c>AdoptAnIdAsync</c> mints when the account's list comes back with nothing in it —
+    /// <em>including</em> when it comes back with nothing because the server could not be asked.
+    /// So a new account signing in during an outage minted an id, failed to read it, and had that
+    /// counted as a split: the first thing that account was told, before it had a character at
+    /// all, was that its character could not be loaded and that what is on screen is not being
+    /// kept.</para>
+    ///
+    /// <para><b>What the mutation on <c>_minted</c> actually costs, measured rather than
+    /// assumed</b>: the banner and the store's own answer, not the write. Removing the exception
+    /// leaves both wrong and the save still lands, because
+    /// <c>WouldWriteOverACharacterNothingRead</c> ends the split itself once a list read succeeds
+    /// and finds nothing worth protecting behind the pointer — so the write is refused only while
+    /// the list is unreachable too, which is a moment in which no write could land anyway. The
+    /// last two assertions here are the control that the account can still work, and the two
+    /// above them are the guard.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnIdThisBrowserMintedIsNotACharacterItCouldNotRead()
+    {
+        await using var ctx = new RenderContext(storesForReal: true);
+
+        ctx.Api.SignedIn = ("u_newcomer", "Newcomer");
+
+        // Asked once and remembered, so the outage below is about the character routes rather
+        // than about identity — which is a different failure with a different answer.
+        Assert.True((await ctx.Services.GetRequiredService<IIdentitySource>().CurrentAsync()).IsSignedIn);
+
+        ctx.Api.Unreachable = true;
+
+        // The boot read, on an account with nothing stored and a server that cannot be asked.
+        Assert.Null(await ctx.Services.GetRequiredService<ICharacterStore>().LoadAsync());
+
+        var minted = await StoreIn(ctx).CurrentIdAsync();
+
+        // The control on the arrangement: an id really was minted, so the read that failed was of
+        // a slot this browser made up rather than of the pointer's own default.
+        Assert.NotEqual(SavedCharacters.LegacyId, minted);
+
+        Assert.Null(StoreIn(ctx).UnreadId);
+
+        var layout = ctx.Render<MainLayout>();
+
+        Assert.DoesNotContain(
+            "could not be loaded", layout.Find(".save-status").TextContent, StringComparison.Ordinal);
+
+        // And the first character this account ever builds is written rather than refused.
+        ctx.Api.Unreachable = false;
+
+        var finishing = ctx.Render<Finishing>();
+        await Name(finishing, "Newcomers first");
+
+        await finishing.WaitForAssertionAsync(async () => Assert.Contains(
+            "Newcomers first", await StoredPayload(ctx, minted), StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>Signing out takes the sentence with it, and the store's answer is deliberately still
+    /// there while it does.</b>
+    ///
+    /// <para><c>NothingIsSaidToAnAnonymousReader</c> is a control on the whole feature and not on
+    /// this check: it renders an app in which nothing has ever failed to read, so
+    /// <c>UnreadId</c> is null and the banner would stay quiet with the identity check taken
+    /// out. The account's own answer outlives a sign-out — nothing clears it, and nothing should,
+    /// since signing back in finds the same character behind the same pointer — so the one thing
+    /// keeping it off an anonymous reader's screen is <c>MainLayout.Split</c> asking who is here.
+    /// This is the test of that.</para>
+    /// </summary>
+    [Fact]
+    public async Task SigningOutTakesTheSplitNoticeWithIt()
+    {
+        await using var ctx = await AnAccountHoldingJetstream();
+
+        await TheSignInReadFailed(ctx);
+
+        var layout = ctx.Render<MainLayout>();
+
+        await layout.WaitForAssertionAsync(() => Assert.Contains(
+            "could not be loaded", layout.Find(".save-status").TextContent, StringComparison.Ordinal));
+
+        // Out through the button that does it. The address is cleared of the spent token first,
+        // so this renders the signed-in page rather than spending a link again.
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("signin");
+
+        var signIn = ctx.Render<SignIn>();
+
+        await signIn.FindAll("button")
+            .Single(b => b.TextContent.Trim() == "Sign out")
+            .ClickAsync(new MouseEventArgs());
+
+        // The fact itself is untouched — which is what makes this a test of the check on screen
+        // rather than of the store having quietly forgotten.
+        Assert.Equal(JetstreamId, StoreIn(ctx).UnreadId);
+
+        await layout.WaitForAssertionAsync(() => Assert.DoesNotContain(
+            "could not be loaded", layout.Find(".save-status").TextContent, StringComparison.Ordinal));
+    }
+
+    // ── The fixture that hand-copies the app's boot ────────────────────────────────────────
+
+    /// <summary>
+    /// <b><see cref="TheBootRestoreFailed"/> is three lines copied out of <c>web/Program.cs</c>,
+    /// and a copy nothing checks is a fixture that goes on testing a boot the app has stopped
+    /// having.</b>
+    ///
+    /// <para>bUnit cannot run the host's startup, so the mirror is the honest thing available —
+    /// but the moment the real restore stops reading through <c>ICharacterStore.LoadAsync()</c>,
+    /// or starts doing something about a read that answered null, every test above it goes on
+    /// passing against a path nobody takes. This is what turns that into a red test in the same
+    /// minute.</para>
+    ///
+    /// <para><b>What it cannot do</b>, said plainly because <c>CLAUDE.md</c> requires it: this is
+    /// a scan for three spellings, and it has no opinion about what the lines between them do. A
+    /// boot that kept all three and added a fourth line moving the pointer would walk straight
+    /// through it. It is the cheap catch on the mirror drifting, not a proof that the mirror is
+    /// the boot.</para>
+    /// </summary>
+    [Fact]
+    public void TheBootThisFileMirrorsIsStillTheBootTheAppHas()
+    {
+        var program = File.ReadAllText(Path.Combine(RepoRoot(), "web", "Program.cs"));
+
+        foreach (var (what, pattern) in BootLines)
+        {
+            Assert.True(pattern.IsMatch(program),
+                $"`web/Program.cs` no longer {what}, so `TheBootRestoreFailed` is mirroring a boot "
+                + "the app has stopped having and every test driven through it is passing against "
+                + $"a path nobody takes. Pattern: {pattern}");
+        }
+    }
+
+    /// <summary>
+    /// The positive control on the scan above, and it is not ceremony: a pattern that has stopped
+    /// matching anything at all would fail loudly, but one that has been loosened until it matches
+    /// a boot that does something else entirely would not. Each is asserted to reject the edit it
+    /// exists to catch.
+    /// </summary>
+    [Fact]
+    public void TheBootScanRejectsABootThatDoesSomethingElse()
+    {
+        var (readsThrough, branchesOnIt, putsItOnScreen) =
+            (BootLines[0].Pattern, BootLines[1].Pattern, BootLines[2].Pattern);
+
+        // Reading one character by id is not reading "the open character", and it is the read
+        // that does not record the split.
+        Assert.DoesNotMatch(readsThrough, "    saved = await store.LoadAsync(theirId);");
+
+        // A boot that acted on the read without checking it came back is the defect itself.
+        Assert.DoesNotMatch(branchesOnIt, "    if (saved is not null || restored)");
+
+        // And restoring something other than what the read answered is the shape that puts a
+        // sheet on screen the app never fetched.
+        Assert.DoesNotMatch(
+            putsItOnScreen,
+            "        session.RestoreBeforeFirstRender(\n            new CharacterSheet(), SheetMode.Hero,");
+
+        // ...while each still matches the line it is about, so "rejects everything" cannot pass
+        // for "rejects the edit".
+        Assert.Matches(readsThrough, "    saved = await store.LoadAsync();");
+        Assert.Matches(branchesOnIt, "    if (saved is { } restored)");
+        Assert.Matches(
+            putsItOnScreen,
+            "        session.RestoreBeforeFirstRender(\n            restored.Sheet, restored.Mode,");
+    }
+
+    /// <summary>
+    /// The three lines of <c>web/Program.cs</c> that <see cref="TheBootRestoreFailed"/> stands in
+    /// for: the open character is read through <c>ICharacterStore</c>'s no-argument
+    /// <c>LoadAsync</c>, a character is put on screen only if one came back, and it is put there
+    /// with <c>RestoreBeforeFirstRender</c> carrying the sheet and mode that read answered.
+    /// </summary>
+    private static readonly (string What, Regex Pattern)[] BootLines =
+    [
+        ("reads the open character through `ICharacterStore.LoadAsync()`",
+            new Regex(@"saved\s*=\s*await\s+store\.LoadAsync\(\s*\)\s*;", RegexOptions.None,
+                TimeSpan.FromSeconds(5))),
+
+        ("puts a character on screen only when the read answered one",
+            new Regex(@"if\s*\(\s*saved\s+is\s*\{\s*\}\s*restored\s*\)", RegexOptions.None,
+                TimeSpan.FromSeconds(5))),
+
+        ("restores what that read answered, with `RestoreBeforeFirstRender`",
+            new Regex(@"session\.RestoreBeforeFirstRender\(\s*restored\.Sheet,\s*restored\.Mode,",
+                RegexOptions.None, TimeSpan.FromSeconds(5))),
+    ];
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException(
+            $"Could not locate the repository root (no .sln found above {AppContext.BaseDirectory}).");
     }
 }

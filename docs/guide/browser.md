@@ -942,10 +942,20 @@ whatever the current-character pointer was aimed at. Both now go through
   counts as no room, the same direction `AccountCharacters.IsFull` takes.
 - **A refusal is said out loud, under the button.** A control that keeps rather than overwrites does
   *nothing* when it cannot proceed, and doing nothing is indistinguishable from a control that is
-  not wired up. This is the same rule `DiscardedCharacter`'s refusal follows. There are three
-  refusals and they are three sentences, not one: kept-but-no-room, kept-but-the-cap-is-unreadable,
-  and not-kept-at-all. "Your character could not be saved" over a character that *was* saved is the
-  false alarm that teaches somebody to distrust every message the app gives them.
+  not wired up. This is the same rule `DiscardedCharacter`'s refusal follows. There are four
+  refusals and they are four sentences, not one: kept-but-no-room, kept-but-the-cap-is-unreadable,
+  not-kept-at-all, and nothing-was-read. "Your character could not be saved" over a character that
+  *was* saved is the false alarm that teaches somebody to distrust every message the app gives them.
+- **The fourth is the split, and it is the one where "try again in a moment" would be wrong.** This
+  path writes the sheet on screen at `CurrentIdAsync()` through the four-argument `SaveAsync`, which
+  is not the autosave and so does not take the write-through's own refusal — so from the state the
+  next section is about, "Start a new character" and "Import" landed the stranger on screen straight
+  over the character nothing here had read. It asks `WouldWriteOverACharacterNothingRead`, the same
+  question the autosave asks, and refuses the act whole. Waiting does not end it; a read does, so
+  the sentence says to open one from the list. **An untouched sheet is the exception and goes
+  through**: there is nothing to write down, so the only thing the split costs it is the slot it was
+  going to reuse — and reusing *that* slot is what would leave a reader building into an id every
+  write is refused at. A fresh id is minted instead and the unread character is left where it is.
 - **Whether a write landed is a thing the store has to answer, not something a caller can infer.**
   `SavedCharacters.SaveAsync` returns `(Id, Stored)`. It used to return the id alone, and both
   callers weighing it compared that against the id they had just passed in — the same string either
@@ -1004,11 +1014,26 @@ character, with the next edit autosaving under that character's id. It cost a li
 - **A retry that lands arms no undo.** What is on screen is a sheet the store has been refusing to
   write, so there is nothing an undo could put back — and an undo restores into the sheet without
   moving the pointer, which is the shape that writes a second copy into somebody else's slot.
-- **Still open, and worth knowing before you touch the manager**: `StartAnotherAsync` writes the
-  sheet on screen at `CurrentIdAsync()` through the four-argument `SaveAsync`, which is not the
-  autosave and does not take this guard. From the split state, "start a new character" with
-  something already built on screen still lands on the unread character. Closing it is a decision
-  about *where* the kept character should go, not a guard to bolt on.
+- **The pointer moving ends it, and that is the other end of the same sentence.** `UnreadId` says
+  the character *the pointer names* could not be read, so opening another one in the manager — or
+  deleting the unread row, which drops the pointer back to the legacy slot from inside
+  `SavedCharacters` — ends the split as surely as reading it does. Read without that check, the
+  banner told a reader looking at a perfectly loaded character that their character could not be
+  loaded, beside a "Try again" that would have switched them away from it. Every pointer move in
+  `AccountCharacterStore` goes through `PointAtAsync` so the second half cannot be forgotten at one
+  of them; the delete is the one it cannot cover and says so where it is.
+- **An id this browser minted is not a character it failed to get.** `AdoptAnIdAsync` mints when the
+  account's list comes back with nothing in it — *including* when it comes back with nothing because
+  the server could not be asked — so an account signing in during an outage minted an id, failed to
+  read it, and called that a split: the first thing that account was told, before it had a character
+  at all, was that its character could not be loaded. The write survives it — the write-through's
+  own guard ends the split as soon as a list read finds nothing worth protecting behind the pointer,
+  so saves are refused only while the list is unreachable too — and the sentence is the whole of the
+  damage, which is enough. Minted ids are remembered
+  for the visit, which is the honest span: within it the sheet on screen *is* whatever this browser
+  wrote at that id, and a later visit reads the pointer back with none of this.
+- **`StartAnotherAsync` is closed too**, and the bullet in the section above says how — it is the
+  one write at the pointer that is not the autosave.
 
 ## Reading a rendered sheet in a test
 
