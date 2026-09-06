@@ -260,8 +260,10 @@ lives there, and nothing about it is repeated here.
   is legal is not a question this one answers.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
-  baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire*, on a Release
-  build on an M-series Mac, 2026-09-06. Mean 3.4 pages a fight. That is affordable enough that the
+  baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's
+  first call and **1.8 seconds** warm, on a Release build on an M-series Mac, 2026-09-06. Both
+  figures are quoted because the first one is the one a client actually sees: an MCP server is
+  started for the session and the difference is the JIT. Mean 3.4 pages a fight. That is affordable enough that the
   refusal below 30 runs costs nobody anything. The 5,000-run ceiling exists for the other end: there
   is no progress and no cancel over this transport, so a typo asking for a hundred thousand is a
   session that looks broken.
