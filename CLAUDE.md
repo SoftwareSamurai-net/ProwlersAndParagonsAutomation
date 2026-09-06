@@ -82,7 +82,7 @@ went wrong once.
 | `web/` — any component or page, `app.css`, `theme.css` | [`docs/guide/browser.md`](docs/guide/browser.md) |
 | the print stylesheet, `SheetView`, `SampleCharacters` | [`docs/guide/printed-sheet.md`](docs/guide/printed-sheet.md) |
 | `data/transcripts/`, `TranscriptLibrary`, `ReplayLoader` | [`docs/guide/replay.md`](docs/guide/replay.md) |
-| `mcp/`, `cli/Headless/`, the character-building skill | [`docs/guide/mcp-and-headless.md`](docs/guide/mcp-and-headless.md) |
+| `mcp/`, `mcp-play/`, `mcp-shared/`, `cli/Headless/`, the character-building skill | [`docs/guide/mcp-and-headless.md`](docs/guide/mcp-and-headless.md) |
 | `worker/`, `functions/`, sign-in, invitations, the error log | [`docs/guide/accounts-server.md`](docs/guide/accounts-server.md) |
 | `data/rulebook/`, `tools/RulebookExtractor/` | [`docs/guide/rulebook-corpus.md`](docs/guide/rulebook-corpus.md) |
 | any test, any guard, Qodana, the pixel goldens | [`docs/guide/testing.md`](docs/guide/testing.md) |
@@ -113,10 +113,11 @@ dotnet run -- build --from character.json --no-export
 # Run the browser front end
 dotnet run --project web/ProwlersAndParagons.Web.csproj
 
-# Publish the MCP server. This is also what .mcp.json launches, so run it after a clone and
+# Publish the two MCP servers. This is also what .mcp.json launches, so run both after a clone and
 # after a pull — and stop any running server first, since that one command is the only one a
 # running server blocks (see docs/guide/mcp-and-headless.md)
 dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server
+dotnet publish mcp-play/ProwlersAndParagons.McpPlay.csproj -c Release -o mcp-play-server
 
 # Publish the browser front end as a static site
 dotnet publish web/ProwlersAndParagons.Web.csproj --configuration Release
@@ -284,7 +285,9 @@ data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcript
 - **`cli/`** — Terminal presentation. Uses Spectre.Console for all rendering. Each wizard step implements `IWizardStep` and receives `CharacterSheet`, `RulesRepository`, `CostCalculator`, and `DerivedStatsCalculator` via `Execute()`.
 - **`web/`** — Browser presentation. Blazor WebAssembly; see [`docs/guide/browser.md`](docs/guide/browser.md).
 - **`mcp/`** — Protocol presentation. An MCP server over stdio; see [`docs/guide/mcp-and-headless.md`](docs/guide/mcp-and-headless.md).
-- **`play/`** — **The second engine**, and the one arrow that is not on the diagram: `data/rules/play/` → `play/` → (hosts, in a later slice). It resolves an action where `engine/` costs and validates a character, references `engine/` and is referenced by nothing; see [`docs/guide/play-engine.md`](docs/guide/play-engine.md).
+- **`play/`** — **The second engine**, and the one arrow that is not on the diagram: `data/rules/play/` → `play/` → `mcp-play/`. It resolves an action where `engine/` costs and validates a character, references `engine/`, and is referenced only by the encounter server; see [`docs/guide/play-engine.md`](docs/guide/play-engine.md).
+- **`mcp-play/`** — The second engine's one host: a second stdio MCP server, `prowlers-and-paragons-play`, published separately and registered separately. It decides nothing about cost or validity and holds no rule of its own; see [`docs/guide/mcp-and-headless.md`](docs/guide/mcp-and-headless.md).
+- **`mcp-shared/`** — Where the rules are and what the two command-line arguments meant, for both servers. It references nothing, so sharing does not invert an arrow.
 
 **These are separate projects on purpose, and splitting them was the point of the Blazor slice.** `engine/` and `sheets/` used to be compiled into the root executable, which a WebAssembly project cannot reference without dragging Spectre.Console in with it. Now the arrows above hold at compile time: `web/` has no calculator of its own and no reference that could reach one. Do not merge them back.
 

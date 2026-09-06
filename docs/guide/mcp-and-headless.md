@@ -1,6 +1,6 @@
 # The two assisted-creation surfaces
 
-Read before touching `mcp/` or `cli/Headless/`: the question policy, the six tools, the standard-output discipline, and the `build --from` contract.
+Read before touching `mcp/`, `mcp-play/`, `mcp-shared/` or `cli/Headless/`: the question policy, the six tools, the standard-output discipline, the `build --from` contract, and the second server that runs fights.
 
 > Part of the guide set indexed by [`CLAUDE.md`](../../CLAUDE.md). Read that first; it carries the
 > disciplines that apply whatever you are working on. **Open work lives in
@@ -195,3 +195,73 @@ questions about the rules. It does not replace `build --from`; both call the sam
   its own, because rendering components needs one.
 
 
+
+
+## The second server: `mcp-play/`
+
+`mcp-play/` is a **second stdio server**, `prowlers-and-paragons-play`, wrapping the *second*
+engine: it resolves fights out of `data/rules/play/` and decides nothing about cost or validity.
+Read [`play-engine.md`](play-engine.md) before touching it — everything about what a fight *is*
+lives there, and nothing about it is repeated here.
+
+- **It is a second program and not four more tools on the first one.** The two answer different
+  questions from different stores, a client that wants a character builder does not want a
+  simulator in its tool list, and a client that wants to measure a matchup does not want a Hero
+  Point calculator in its. `.mcp.json` registers both, `docs/MCP-SETUP.md` publishes both, and
+  either works without the other.
+- **Everything in the section above about standard output, `dotnet exec`, the approval gate and the
+  published copy applies here unchanged**, one directory over: `mcp-play-server/`, git-ignored the
+  same way, for the same reason — a server holding `mcp-play/bin/Release` is on the build's write
+  path. `McpPlayStdioTests` is `McpStdioTests`' shape against the second binary: the source scan,
+  the runtime scan over both launch paths, and every tool driven so a stray write inside a body has
+  a stream something is reading.
+- **`RulesLocation` and `CommandLine` live in `mcp-shared/`, and the reason is not tidiness.** A
+  `<Compile Include>` of one file into both servers puts
+  `ProwlersAndParagonsAutomation.Mcp.RulesLocation` in two assemblies; the test project references
+  both, and the first unqualified use of the name is **CS0433**. The namespace did not change with
+  the move, so every `using` that named it still resolves and the two files are a rename in the
+  history rather than a rewrite. If you add a third server, share through that project.
+- **There is one environment variable for two stores.** `PROWLERS_RULES_DIR` points at the character
+  rules and `PlayRulesLocation` takes the `play` folder under them — which is where they are in the
+  repository, beside the binary, and in any directory somebody points that variable at. A second
+  variable would double the number of ways a stuck reader can end up on rules that are not the ones
+  they meant, for a directory that has never been anywhere else. A character-rules directory with no
+  `play` under it is a **refusal at startup**, not a candidate that failed.
+- **The startup check reads every file of *both* stores.** Same reason as the character server's,
+  with twice as many files to be missing: both repositories load lazily, so a directory holding one
+  file would otherwise start cleanly and then throw out of most of the tools. `ReadEverything`
+  touches all eleven character files, all five play files and the embedded guide.
+- **The optional JSON arguments are `JsonElement?`, never `JsonElement = default`.** Measured: a
+  `JsonElement` parameter carrying a default value throws `InvalidOperationException` out of
+  `McpServerTool.Create`, and because that call is inside the startup check the failure arrives as
+  *"the rules could not be read"* — a refusal several layers from the cause, on a launch that never
+  reaches a tool. The nullable is the spelling both the SDK and a reader understand as "may be left
+  out".
+- **`combat_guide` is `creation_guide`'s shape, and its rule is the same rule turned round to face a
+  fight: the engine resolves and the model narrates.** `mcp-play/PLAY-POLICY.md` is embedded and
+  served verbatim, so the document the next person reads and the document the assistant is taught
+  are the same bytes. Its list of what is *recognised and not applied* is pinned to
+  `Encounter.EntriesNotYetApplied`, `Encounter.SwitchesNotYetApplied` and the spends that actually
+  refuse — driven through `Step` rather than compared with a list, because a document's account of
+  what the code does is a claim about the code and a claim nothing checks goes stale.
+- **`run_encounters` refuses fewer than 30 runs rather than answering with a caveat**, and prints N,
+  the seeds, the policy's own `Name` and every table switch in the same object as the rates. A
+  caveat beside a number is read by nobody; the number is what gets quoted. **The policy is a guess
+  about how people play and not a rule** — that is `IPolicy`'s own doc comment, and it is why the
+  name is in the report.
+- **Acting and rolling are one tool.** `declare_intent` beside `roll` is the engine's internals
+  rather than the conversation's: an intent is a *request*, and a separate rolling call would let a
+  caller declare an attack, look at the dice, and decide afterwards what was being attempted. It is
+  the same reasoning that makes `check_character` one tool rather than two.
+- **A refused character sheet is an error result naming the reason, never a crash.** The sheet goes
+  through `CharacterSheetJson.Read(strict: true)` exactly as `build --from` and the character server
+  read one, and `CombatantFactory.From` is guarded: a sheet the engine cannot derive a figure from
+  comes back as `COMBATANT_UNBUILDABLE` pointing at the *other* server, because whether a character
+  is legal is not a question this one answers.
+- **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
+  shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
+  baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire*, on a Release
+  build on an M-series Mac, 2026-09-06. Mean 3.4 pages a fight. That is affordable enough that the
+  refusal below 30 runs costs nobody anything. The 5,000-run ceiling exists for the other end: there
+  is no progress and no cancel over this transport, so a typo asking for a hundred thousand is a
+  session that looks broken.

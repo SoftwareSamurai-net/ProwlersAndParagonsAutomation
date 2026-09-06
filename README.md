@@ -55,6 +55,11 @@ your own Claude can ask you the two or three questions a description leaves open
 costed, checked character. It handles no credentials and holds no key. →
 [Setting it up](docs/MCP-SETUP.md)
 
+**Run the fight through the engine too.** A second MCP server, `prowlers-and-paragons-play`, resolves
+an encounter a turn at a time out of Chapters 3–5 — or the same matchup over a few hundred seeded
+runs — and every answer names the rule it applied and the page it is printed on. The engine
+resolves; the model narrates. → [Setting it up](docs/MCP-SETUP.md)
+
 **And if you have no Claude of your own**, four real conversations are recorded and play back at
 `/admin/portfolio/replay`. The words are a recording and say so; **the numbers are not** — every
 Hero Point figure and every finding is worked out in your browser as you reveal it, from the
