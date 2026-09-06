@@ -1,9 +1,7 @@
-using System.IO.Pipelines;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
-using ModelContextProtocol.Server;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Engine.Models;
 using ProwlersAndParagonsAutomation.Mcp;
@@ -33,41 +31,12 @@ public sealed class McpServerTests
     // ── Over a real transport ─────────────────────────────────────────────
 
     /// <summary>
-    /// A client and a server on either end of a pair of pipes, in this process. It is the
-    /// real protocol — initialize, the capability exchange, JSON-RPC framing — over streams
-    /// that happen not to be a console.
+    /// A client and a server on either end of a pair of pipes, in this process — see
+    /// <see cref="InProcessMcpServer"/>, which the encounter server's tests share, and whose
+    /// comment says why the shutdown order there is the only one that ends cleanly.
     /// </summary>
-    private async Task WithClient(Func<McpClient, Task> body)
-    {
-        var toServer = new Pipe();
-        var toClient = new Pipe();
-
-        // Disposed by hand rather than with `await using`, and in this order. The server's
-        // RunAsync only returns once the transport is gone, so the two have to be closed
-        // before that task is awaited — a `using` would dispose them after, and the wait for
-        // a run that cannot finish would hang the suite rather than fail it.
-        var transport = new StreamServerTransport(
-            toServer.Reader.AsStream(), toClient.Writer.AsStream(), CharacterServer.Name);
-
-        var server = McpServer.Create(transport, CharacterServer.Options(Tools()));
-
-        var running = server.RunAsync();
-
-        var client = await McpClient.CreateAsync(
-            new StreamClientTransport(toServer.Writer.AsStream(), toClient.Reader.AsStream()));
-
-        try
-        {
-            await body(client);
-        }
-        finally
-        {
-            await client.DisposeAsync();
-            await transport.DisposeAsync();
-            await server.DisposeAsync();
-            try { await running; } catch (OperationCanceledException) { }
-        }
-    }
+    private Task WithClient(Func<McpClient, Task> body) =>
+        InProcessMcpServer.Drive(CharacterServer.Name, CharacterServer.Options(Tools()), body);
 
     private static async Task<JsonNode> Call(
         McpClient client, string tool, IReadOnlyDictionary<string, object?>? arguments = null)
