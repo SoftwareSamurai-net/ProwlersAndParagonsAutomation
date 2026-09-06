@@ -913,9 +913,17 @@ public sealed class PlayTools
 
         if (string.IsNullOrWhiteSpace(wanted)) return true;
 
-        if (Enum.TryParse(wanted.Trim(), ignoreCase: true, out RangeBand parsed))
+        // <b>By name, exactly as <see cref="TryReadEnum{T}"/> reads every other enum on this wire.</b>
+        // `Enum.TryParse` also accepts the *numeral* of a member, and for a plain enum it accepts any
+        // numeral at all — so "1" opened a fight at Distant, which is a band nobody named, and "99"
+        // opened one at a RangeBand that does not exist, from which `Wire(band.ToString())` echoed
+        // back "99" and every range comparison downstream was against an undefined value. There are
+        // three range classes on p.73 and none of them is spelled with a digit.
+        foreach (var name in Enum.GetNames<RangeBand>())
         {
-            band = parsed;
+            if (!string.Equals(Wire(name), wanted.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+
+            band = Enum.Parse<RangeBand>(name);
             return true;
         }
 

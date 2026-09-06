@@ -501,6 +501,62 @@ public sealed class McpPlayServerTests
     }
 
     /// <summary>
+    /// <b>A range class is named, never numbered.</b>
+    ///
+    /// <para><c>Enum.TryParse</c> accepts the numeral of a member — and for a plain enum it accepts
+    /// <em>any</em> numeral, defined or not. So <c>"1"</c> opened the fight at Distant, which is a
+    /// band nobody named, and <c>"99"</c> opened it at a <c>RangeBand</c> that does not exist: the
+    /// echo printed <c>99</c> back and every range comparison downstream ran against an undefined
+    /// value. Both are refused, because p.73 prints three range classes and none is spelled with a
+    /// digit.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("1", "the numeral of a real band")]
+    [InlineData("99", "a numeral of no band at all")]
+    [InlineData("point blank", "a class the book does not print")]
+    public async Task ARangeClassIsNamedRatherThanNumbered(string wanted, string why) =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["openingRange"] = wanted
+            });
+
+            Assert.False(answer["ok"]!.GetValue<bool>(), $"{why} was accepted");
+            Assert.Equal("NO_SUCH_RANGE", answer["problem"]!["code"]!.GetValue<string>());
+
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Contains(wanted, message, StringComparison.Ordinal);
+
+            foreach (var band in Enum.GetNames<RangeBand>())
+                Assert.Contains(PlayTools.Wire(band), message, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// The control for the theory above: the three names still open a fight, and the opening band
+    /// comes back as the one that was asked for. A reader that refused everything would satisfy all
+    /// three cases.
+    /// </summary>
+    [Theory]
+    [InlineData("close")]
+    [InlineData("Distant")]
+    [InlineData("  extreme ")]
+    public async Task TheThreeRangeClassesAreStillAccepted(string wanted) =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["openingRange"] = wanted
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>());
+            Assert.Equal(wanted.Trim().ToLowerInvariant(), answer["opening_range"]!.GetValue<string>());
+        });
+
+    /// <summary>
     /// <b>How far apart two combatants are is a pair on the wire, and no answer carries a NUL.</b>
     ///
     /// <para><c>EncounterState.PairKey</c> joins two ids with a literal <c>\0</c> — the right choice
@@ -509,6 +565,12 @@ public sealed class McpPlayServerTests
     /// that split it on a space read one combatant named "robot soldier", and one that echoed it
     /// into a log or a terminal saw it truncated at the NUL. Neither is a failure anybody would go
     /// looking for.</para>
+    ///
+    /// <para><b>The byte is looked for in both spellings, and that is not fussiness.</b>
+    /// <c>System.Text.Json</c> writes a NUL as the escape <c> </c>, so a search of the answer
+    /// for the character <c>'\0'</c> passes against the defect it was written for — the defect ships
+    /// the byte and the serialiser hides it. What a client gets back after parsing is the real byte
+    /// either way, which is why both spellings are refused here.</para>
     ///
     /// <para><b>Both halves are asserted, and the second is the control.</b> "No NUL anywhere" is
     /// satisfied completely by an answer that stopped carrying ranges at all, which is how three of
@@ -534,8 +596,8 @@ public sealed class McpPlayServerTests
             var raw = Text(turn);
 
             Assert.DoesNotContain('\0', raw);
+            Assert.DoesNotContain("\\u0000", raw, StringComparison.OrdinalIgnoreCase);
 
-            Assert.Fail("RAW>>>" + raw);
             var ranges = JsonNode.Parse(raw)!["state"]!["ranges"]!.AsArray();
 
             var pair = Assert.Single(ranges);
