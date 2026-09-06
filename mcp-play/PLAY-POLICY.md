@@ -7,7 +7,7 @@ bytes.
 
 ---
 
-## The one rule: the engine resolves, you narrate
+## The one rule: the engine resolves and you narrate
 
 **The engine rolls, counts and decides; you say what it looked like.** Never the other way round.
 
