@@ -291,6 +291,14 @@ lives there, and nothing about it is repeated here.
   which the echo printed `99` back and every range comparison downstream ran against an undefined
   value. `TryReadEnum` already compared wire names for the other five enums on this wire; this one
   did not, and the fix is to make it the same reader. Any enum added here goes through names.
+- **A fight with fewer than two sides in it is `ONE_SIDED`, from both tools.** `Over` and every
+  policy partition on `Combatant.Side` and on nothing else, so a fight where everybody shares a side
+  is over before it starts and `run_encounters` answered `win_rate: 1.0` — a figure that looks
+  exactly like a real one, quotable, reproducible, printed beside its N, its seeds, its policy and
+  its table, and meaning nothing whatever. That is the worst answer this tool can give, because the
+  whole apparatus around the number is intact. The commonest way to make one is to leave `side` off
+  every entry, since the default is derived from the kind. **What is refused is one *side*, never
+  one *kind*** — two Heroes on two sides is a fight p.73 prints and still measures.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's

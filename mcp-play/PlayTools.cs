@@ -516,6 +516,26 @@ public sealed class PlayTools
         if (!TryReadRange(openingRange, out var opening, out problem)) return false;
         if (!TryReadCombatants(combatants, out var everyone, out var tiers, out problem)) return false;
 
+        // <b>A fight needs two sides, and this is refused rather than run.</b> `Over` and every
+        // policy partition on `Combatant.Side` alone, so a fight in which everybody shares one
+        // answers `win_rate: 1` for that side from the first page — a figure that looks exactly like
+        // a real one, is quotable, reproducible, printed beside its N, its seeds, its policy and its
+        // table, and means nothing whatever. The commonest way to produce one is to leave `side` off
+        // every entry, since the default is derived from the kind: a fight between Heroes is a fight
+        // p.73 prints, and it is a fight nobody can win until somebody says who is against whom.
+        var sides = everyone.Select(c => c.Side).Distinct(StringComparer.Ordinal).ToList();
+
+        if (sides.Count < 2)
+        {
+            problem = Problem("ONE_SIDED",
+                $"Every combatant is on the side '{sides[0]}', so nobody can lose: the fight is over "
+                + "before it starts and a rate off it would be 1.000 for that side with the N, the "
+                + "seeds, the policy and the table printed beside it. Give the two halves different "
+                + "\"side\" values — the side is yours to say and nothing derives it, so a fight "
+                + "between two Heroes is fine and a fight in which everyone shares a side is not.");
+            return false;
+        }
+
         setup = new Setup(everyone, tiers, rules, Math.Max(0, challengeLevel ?? 0), seed ?? 0, opening);
         return true;
     }

@@ -830,6 +830,75 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A fight with one side in it is refused by both tools, not measured.</b>
+    ///
+    /// <para><c>EncounterState.Over</c> and every policy partition on <c>Combatant.Side</c> and on
+    /// nothing else, so a fight in which everybody shares a side is over before it starts and
+    /// <c>run_encounters</c> answered <c>win_rate: 1.0</c> for that side — a figure that looks
+    /// exactly like a real one, quotable and reproducible, printed beside its N, its seeds, its
+    /// policy and its table, and meaning nothing whatever. It is the worst possible answer for this
+    /// tool to give, because the whole apparatus around the number is intact.</para>
+    ///
+    /// <para>Both tools, because a caller who opens such a fight is one <c>take_turn</c> away from
+    /// the same nonsense, and because refusing it in one place only would send them to the other.
+    /// The commonest way to make one is to leave <c>side</c> off every entry: the default is derived
+    /// from the kind, so two Heroes land on the same side without anybody typing it.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("start_encounter")]
+    [InlineData("run_encounters")]
+    public async Task AFightWithOneSideIsRefusedByBothTools(string tool) =>
+        await WithClient(async client =>
+        {
+            var oneSided = TwoSides();
+            oneSided[1]!["side"] = "heroes";
+            oneSided[1]!["kind"] = "hero";
+
+            var arguments = new Dictionary<string, object?> { ["combatants"] = oneSided };
+
+            if (string.Equals(tool, "run_encounters", StringComparison.Ordinal))
+                arguments["runs"] = PlayTools.FewestRuns;
+
+            var answer = await Call(client, tool, arguments);
+
+            Assert.False(answer["ok"]!.GetValue<bool>());
+            Assert.Equal("ONE_SIDED", answer["problem"]!["code"]!.GetValue<string>());
+
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            // The side everybody is on, by name, and what to do about it.
+            Assert.Contains("heroes", message, StringComparison.Ordinal);
+            Assert.Contains("side", message, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// And the same two combatants on two sides still run, which is what keeps the refusal above
+    /// from being a tool that never answers. It also pins the fact the refusal turns on: two Heroes
+    /// are a fight the book prints, so what is refused is one *side*, never one *kind*.
+    /// </summary>
+    [Fact]
+    public async Task TwoHeroesOnTwoSidesStillMeasure() =>
+        await WithClient(async client =>
+        {
+            var heroes = TwoSides();
+            heroes[1]!["kind"] = "hero";
+
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = heroes,
+                ["runs"] = PlayTools.FewestRuns,
+                ["maxPages"] = 8
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>());
+
+            Assert.Equal(
+                ["heroes", "villains"],
+                answer["by_side"]!.AsArray()
+                    .Select(s => s!["side"]!.GetValue<string>()).Order(StringComparer.Ordinal));
+        });
+
+    /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
     /// reader — enough to open a fight for the tests that are about something else.
     /// </summary>
