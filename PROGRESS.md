@@ -1230,9 +1230,16 @@ is now audited too. Full writeup in the entry in [the archive](docs/progress/); 
   this remains costed and not done: it is a slice of its own, as the previous note said, and
   still the owner's call rather than something to do as a side effect of an audit.
 
-### 9. Visual regression testing — **closed, and then closed properly**
+### 25. Visual regression testing — **closed, and then closed properly**
 
-> **Read this heading note first.** When this entry was written the check covered seven pages;
+> **This entry was numbered 9 and is renumbered, because 9 was used twice.** The other 9 is
+> durable telemetry, above. Two headings with one number is an ambiguous pointer in a file whose
+> code comments cite items by number, and it is the concrete defect item 22 recorded. The number
+> moved rather than the older entry's because nothing anywhere cites item 9; 25 is the next free
+> number and is now taken, so a new item is 26. `ProgressPointerTests` fails the build on the next
+> repeat.
+>
+> **Read this heading note second.** When this entry was written the check covered seven pages;
 > four were then dropped because a locally-rendered golden could not agree with CI's Chrome, and
 > the entry below still describes the seven-page version. All seven are back, and the goldens now
 > come from `.github/workflows/visual-goldens.yml` on `ubuntu-latest` — the same Chrome that
