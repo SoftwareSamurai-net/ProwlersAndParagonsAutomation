@@ -25,6 +25,37 @@ public sealed class McpPlayStdioTests
                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
 
     /// <summary>
+    /// The four trees the published binary is built out of: its own sources, both engines, and the
+    /// arguments the two servers share. A change in any of them is a change in what
+    /// <c>mcp-play-server/</c> should contain.
+    /// </summary>
+    private static readonly string[] BuiltFrom = ["mcp-play", "play", "engine", "mcp-shared"];
+
+    /// <summary>
+    /// The first file under <see cref="BuiltFrom"/> that is newer than <paramref name="binary"/>, or
+    /// null if the binary is at least as new as all of them — and the binary not existing counts as
+    /// out of date, so one answer covers both cases.
+    ///
+    /// <para>Every file rather than <c>*.cs</c>: the policy document is an embedded resource, the
+    /// project files decide what is copied beside the binary, and both are sources of what gets
+    /// published. <c>bin</c> and <c>obj</c> are skipped, since build output is newer than the build
+    /// by definition and would make this permanently stale.</para>
+    /// </summary>
+    private static string? NewerThanTheBinary(string binary)
+    {
+        if (!File.Exists(binary)) return "nothing — it is not there at all";
+
+        var built = File.GetLastWriteTimeUtc(binary);
+
+        return BuiltFrom
+            .SelectMany(tree => Directory.EnumerateFiles(
+                Path.Combine(RulesFixture.RepoRoot, tree), "*", SearchOption.AllDirectories))
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .FirstOrDefault(f => File.GetLastWriteTimeUtc(f) > built);
+    }
+
+    /// <summary>
     /// <b>Nothing in this server writes to standard output.</b> Everything it says to a human goes
     /// to standard error, which every client collects into a log.
     ///
@@ -494,7 +525,16 @@ public sealed class McpPlayStdioTests
     ///
     /// <para><b>Positive control first.</b> "No line was bad" is satisfied by a stream with no lines
     /// at all, and a launch that never ran is how three of this repository's historical guards were
-    /// wrong. So the <c>initialize</c> reply has to arrive before anything is judged.</para>
+    /// wrong. So the <c>initialize</c> reply has to arrive before anything is judged, and a tool
+    /// body is entered before it is finished: a session that only handshakes never runs a line of
+    /// this repository's code, and the stray write this whole area exists for was inside a tool.
+    /// </para>
+    ///
+    /// <para><b>And it publishes when the binary is older than the code, not only when it is
+    /// missing.</b> The check used to be <c>File.Exists</c>, so a <c>mcp-play-server/</c> published
+    /// once and never again made this a test of a binary from another week — green while the
+    /// registration, the tools, either engine or the shared arguments had all moved on underneath
+    /// it. The four trees the binary is built out of are compared against it by timestamp.</para>
     /// </summary>
     [Fact]
     public async Task TheCheckedInRegistrationSpeaksNothingButTheProtocol()
@@ -513,12 +553,12 @@ public sealed class McpPlayStdioTests
         // <b>The registration never builds, so something has to have published.</b> CI publishes
         // nothing, and a developer running the suite may have no `mcp-play-server/` at all; the
         // honest answer is to produce it rather than to skip. Not asserted on its exit code: with a
-        // server already running out of that directory the copy fails while leaving a perfectly good
-        // binary in place. What matters is the file.
+        // server already running out of that directory the copy fails while leaving a binary in
+        // place. What matters is the file, and that it is not older than the code it was built from.
         var published = Path.Combine(
             RulesFixture.RepoRoot, "mcp-play-server", "ProwlersAndParagons.McpPlay.dll");
 
-        if (!File.Exists(published))
+        if (NewerThanTheBinary(published) is not null)
         {
             using var publish = Process.Start(new ProcessStartInfo("dotnet")
             {
@@ -538,6 +578,18 @@ public sealed class McpPlayStdioTests
             $"'{published}' is not there, and .mcp.json's launch never builds, so nothing will "
             + "produce it. Run: dotnet publish mcp-play/ProwlersAndParagons.McpPlay.csproj "
             + "-c Release -o mcp-play-server");
+
+        // The publish above is allowed to fail, so this is where a stale binary is caught. The
+        // commonest reason it fails is the one CLAUDE.md names: a server running out of that
+        // directory holds the file, and that is the sentence to print rather than a timestamp.
+        var stale = NewerThanTheBinary(published);
+
+        Assert.True(stale is null,
+            $"'{published}' is older than '{stale}', so this would test a binary built before the "
+            + "code it is supposed to be checking. Publishing it here did not fix that, and the "
+            + "usual reason is a running server holding the file: stop it, then run "
+            + "dotnet publish mcp-play/ProwlersAndParagons.McpPlay.csproj -c Release "
+            + "-o mcp-play-server");
 
         var start = new ProcessStartInfo(server["command"]!.GetValue<string>())
         {
@@ -578,6 +630,39 @@ public sealed class McpPlayStdioTests
             Assert.True(lines.Count > 0,
                 "The registration in .mcp.json produced no reply to initialize at all. The launch "
                 + "itself is broken, which is worse than the stray-line case this guards.");
+
+            // <b>And a tool body is entered on this path too.</b> A handshake runs none of this
+            // repository's code: the SDK answers `initialize` before a line of `PlayTools` is
+            // reached, so a session that stops there judges standard output over a program that has
+            // done nothing yet — which is exactly the hole the character server shipped a stray
+            // write through. `start_encounter` is the call that goes furthest: it finds both rules
+            // directories from the registration's own working directory and environment, builds
+            // combatants through both engines and writes a ledger. The marker is `ledger`, which
+            // only the opening answer produces.
+            await Say(launched,
+                """{"jsonrpc":"2.0","method":"notifications/initialized"}""", giveUp.Token);
+
+            await Say(launched, Request(2, "tools/call", new JsonObject
+            {
+                ["name"] = PlayServer.StartEncounterTool,
+                ["arguments"] = new JsonObject { ["combatants"] = Fight(), ["seed"] = 81 }
+            }), giveUp.Token);
+
+            string? opened = null;
+
+            while (opened is null && await launched.StandardOutput.ReadLineAsync(giveUp.Token) is { } line)
+            {
+                lines.Add(line);
+                if (line.Contains("\"id\":2", StringComparison.Ordinal)) opened = line;
+            }
+
+            Assert.True(opened is not null,
+                "The registration's server never answered a tools/call, so nothing but the SDK's "
+                + "own handshake ran and standard output was judged over a program that had not yet "
+                + "reached a tool.");
+
+            Assert.Null(JsonNode.Parse(opened!)!["error"]);
+            Assert.Contains("ledger", opened!, StringComparison.Ordinal);
 
             Assert.All(lines, line => Assert.True(
                 JsonNode.Parse(line) is not null,

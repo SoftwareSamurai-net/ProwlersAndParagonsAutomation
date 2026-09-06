@@ -384,6 +384,20 @@ lives there, and nothing about it is repeated here.
   the same honesty one level up. Its two controls are that the other side carries a number in the
   same answer and the Minions carry a count of the survivors, because "the field is null" is also
   what a report that lost the field looks like.
+- **The `.mcp.json` launch is tested against a binary that is not older than the code, and it enters
+  a tool body.** Two holes in one guard. It published only when `mcp-play-server/` was *missing*, so
+  a directory published once and never again made it a test of a binary from another week — green
+  while the registration, the tools, either engine or the shared arguments had all moved on
+  underneath it; it now compares the published DLL against every file under `mcp-play/`, `play/`,
+  `engine/` and `mcp-shared/` (all files, not just `*.cs`: the policy document is an embedded
+  resource and the project files decide what is copied beside the binary), publishes when any is
+  newer, and fails naming the file if it is still stale — the usual cause being the running server
+  CLAUDE.md says to stop first. And it drove nothing but `initialize`, which the SDK answers before a
+  line of `PlayTools` is reached: standard output was being judged over a program that had not yet
+  run any of this repository's code, which is precisely the hole the character server shipped a stray
+  write through. It now calls `start_encounter` on that launch — the call that finds both rules
+  directories from the registration's own working directory and environment — and requires a
+  `ledger` in the answer.
 - **Timing, so nobody has to guess whether a measurement is affordable.** 1,000 runs of a fight
   shaped like p.81's — a 12d Villain, two Heroes and a group of four Threat-6 Minions, book
   baseline, a 20-page limit — took **2.9 seconds** of wall clock *through the wire* as a process's
