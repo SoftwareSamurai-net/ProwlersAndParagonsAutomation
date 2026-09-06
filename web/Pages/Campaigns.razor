@@ -221,6 +221,15 @@ else
                             <span class="who">
                                 <b class="nm">@one.Label</b>
                                 <span class="meta">@Standings.Say(one.Standing)</span>
+
+                                @* **The list level said "Approved" over a game holding nothing.**
+                                   Opening the row says so and always has; a reader arrives at the
+                                   list first, and there the standing named a decision about a
+                                   character the campaign is not holding. See `EmptySubmissions`. *@
+                                @if (_empty.Contains(one.Id))
+                                {
+                                    <span class="meta">@EmptySubmissions.Marker</span>
+                                }
                             </span>
 
                             @* Sending is the player's act and it is theirs alone: a snapshot the
@@ -317,6 +326,16 @@ else
 
     /// <summary>Every membership of every campaign this account runs, for the waiting counts.</summary>
     private IReadOnlyList<MembershipSummary>? _inbox = [];
+
+    /// <summary>
+    /// Which of <see cref="_playing"/> are holding a sheet with nothing on it — see
+    /// <see cref="EmptySubmissions"/>, which is also where the cost of knowing is argued.
+    ///
+    /// <para>Worked out once per refresh rather than per render, for the reason the campaign
+    /// resolution is: this page redraws on every change to the character, and a read per row per
+    /// keystroke is the read-per-letter the character manager's own split exists to avoid.</para>
+    /// </summary>
+    private IReadOnlySet<string> _empty = new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>Which campaign's settings are open, or null.</summary>
     private string? _open;
@@ -604,6 +623,7 @@ else
             _campaign = null;
             _resolvedFrom = null;
             _resolved = false;
+            _empty = new HashSet<string>(StringComparer.Ordinal);
             return;
         }
 
@@ -611,6 +631,7 @@ else
         _playing = await Memberships.MineAsync();
         _inbox = await Memberships.InboxAsync();
         _openId = await Characters.CurrentIdAsync();
+        _empty = await EmptySubmissions.AmongAsync(Memberships, Session, _playing);
 
         await ResolveCampaign();
     }

@@ -913,6 +913,114 @@ public sealed class CampaignSubmissionTests
     }
 
     /// <summary>
+    /// <b>The roster says it too, and that is the level a reader arrives at.</b>
+    ///
+    /// <para>Opening the row has said "The submission was empty" since the slice that added it.
+    /// The list did not: it said <em>Approved</em> beside the character's name, over a campaign
+    /// holding an unnamed sheet with every Trait at 0d — which is the state the owner was shown,
+    /// and the state nobody scanning a roster would have opened.</para>
+    ///
+    /// <para>Both lists, because both lie the same way: the GM's roster here, and the player's
+    /// own "Games you are in" below.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheGmsRosterMarksAMembershipHoldingAnEmptySubmission()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero, JetstreamId);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var membership = Assert.Single((await memberships.MineAsync())!).Id;
+
+        await AnEmptyCloneIsApproved(ctx, membership);
+
+        var approval = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.CampaignApproval>(
+            p => p.Add(c => c.Id, CampaignId));
+
+        var row = approval.Find(".campaign-list .campaign-row");
+
+        // The control: this really is the row for the character, drawn with its standing — so the
+        // marker is beside the label rather than instead of a row that failed to draw.
+        Assert.Contains("Jetstream", row.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Approved", row.TextContent, StringComparison.Ordinal);
+
+        Assert.Contains("empty submission", row.TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The same marker on the player's own list, where "Approved" is the reassurance that their
+    /// character is the one at the table.
+    /// </summary>
+    [Fact]
+    public async Task ThePlayersOwnListMarksAMembershipHoldingAnEmptySubmission()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero, JetstreamId);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var membership = Assert.Single((await memberships.MineAsync())!).Id;
+
+        await AnEmptyCloneIsApproved(ctx, membership);
+
+        ctx.Api.SignedIn = ("u_player", "Billy");
+
+        var mine = ctx.Render<Campaigns>();
+        var row = mine.Find(".campaign-list .campaign-row");
+
+        Assert.Contains("Jetstream", row.TextContent, StringComparison.Ordinal);
+        Assert.Contains("empty submission", row.TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The control that keeps the marker off every row on both screens: a real character's row
+    /// says nothing of the kind, on either list.
+    /// </summary>
+    [Fact]
+    public async Task ARealSubmissionIsNotMarkedEmptyOnEitherList()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero, JetstreamId);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+        await Send(page);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var membership = Assert.Single((await memberships.MineAsync())!).Id;
+
+        // The player's own list, with a real snapshot waiting.
+        var mine = ctx.Render<Campaigns>();
+        Assert.Contains("Jetstream", mine.Find(".campaign-list .campaign-row").TextContent,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("empty submission", mine.Markup, StringComparison.Ordinal);
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var version = (await memberships.ReadAsync(membership))!.PendingVersion;
+        Assert.Equal(DecisionOutcome.Done,
+            (await memberships.ApproveAsync(membership, version)).Outcome);
+
+        var approval = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.CampaignApproval>(
+            p => p.Add(c => c.Id, CampaignId));
+
+        Assert.Contains("Jetstream", approval.Find(".campaign-list .campaign-row").TextContent,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("empty submission", approval.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The other half of the sentence above, and the one that keeps it from being printed over
     /// every sheet on the screen: a real character says nothing of the kind.
     /// </summary>

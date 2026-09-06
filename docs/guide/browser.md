@@ -1372,6 +1372,18 @@ works and nobody can reach.
   the screen, because a decision about somebody's character is theirs to take. **The remedy for a
   row already like this is the player resubmitting**, which is the only way a clone has ever
   changed; nothing anywhere rewrites one.
+- **And both lists say it too, because a list is where a reader arrives.** Opening a row has said
+  "the submission was empty" since that slice; the GM's roster and the player's own "Games you are
+  in" said **Approved** beside the character's name over a campaign holding an unnamed sheet with
+  every Trait at 0d — which is the state the owner was shown, and the state nobody scanning a list
+  would have opened. `EmptySubmissions.AmongAsync` answers for both. **It costs a read per row and
+  there is no cheaper answer**: a list row carries the two slot flags and no payload, because the
+  server never parses one, so whether a slot holds a character can only be learned by opening it.
+  Rows that have never had anything sent are skipped, the answer is worked out once per refresh
+  rather than per render — the read-per-letter split again — and **a row that could not be read is
+  left unmarked**, because "empty submission" over a sheet nobody managed to fetch is the false
+  alarm all of this exists to avoid. The slot asked about is the one the screens draw: the waiting
+  snapshot where there is one, the clone otherwise.
 - **The standing answers "which sheet do I print at the table", and it is silent three ways.** The
   standings could not be read; this character is in no campaign; or there is no id to match against.
   In every one of those a printed standing would answer a question nobody asked — and the first is

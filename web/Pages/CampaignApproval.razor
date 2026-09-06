@@ -68,6 +68,17 @@ else
                             <span class="who">
                                 <b class="nm">@one.Label</b>
                                 <span class="meta">@Standings.Say(one.Standing)</span>
+
+                                @* **The same sentence one level out, where a GM reads first.**
+                                   Opening the row has said this since the slice that added it —
+                                   but the roster said "Approved" beside the character's name over
+                                   a game holding an unnamed sheet with every Trait at 0d, which
+                                   is the state the owner was shown and the state nobody scanning
+                                   a list would open. See `EmptySubmissions`. *@
+                                @if (_empty.Contains(one.Id))
+                                {
+                                    <span class="meta">@EmptySubmissions.Marker</span>
+                                }
                             </span>
 
                             @* **One control, and its word says which of the two things pressing
@@ -354,6 +365,13 @@ else
     private string? _label;
     private IReadOnlyList<MembershipSummary> _waiting = [];
 
+    /// <summary>
+    /// Which of <see cref="_waiting"/> are holding a sheet with nothing on it — see
+    /// <see cref="EmptySubmissions"/>, which is where the cost of knowing is argued. Read once
+    /// per refresh, beside the roster it describes.
+    /// </summary>
+    private IReadOnlySet<string> _empty = new HashSet<string>(StringComparer.Ordinal);
+
     /// <summary>Which membership's changes are open, or null.</summary>
     private string? _reading;
 
@@ -494,6 +512,7 @@ else
         if (inbox is not null)
         {
             _waiting = [.. inbox.Where(m => m.CampaignId == Id)];
+            _empty = await EmptySubmissions.AmongAsync(Memberships, Session, _waiting);
         }
 
         _state = Reading.Read;
