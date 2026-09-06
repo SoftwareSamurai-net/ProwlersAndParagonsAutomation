@@ -70,15 +70,6 @@ public sealed partial class Encounter
         return true;
     }
 
-    /// <summary>One of the Resolve purchases this slice records but does not resolve.</summary>
-    private EncounterState Unimplemented(
-        EncounterState state, string actor, ResolveSpend kind, List<LedgerLine> lines)
-    {
-        var (id, sourceRef) = UnimplementedSpendEntry(kind);
-
-        return NotYetImplementedSpend(state, actor, kind.ToString(), id, sourceRef, lines);
-    }
-
     // ── Attacks ──────────────────────────────────────────────────────────────
 
     private EncounterState ResolveAttack(EncounterState state, Attack attack, List<LedgerLine> lines)
@@ -101,6 +92,7 @@ public sealed partial class Encounter
         }
 
         if (attack.Charge && ChargeRefused(state, actor, attack, lines) is { } refused) return refused;
+        if (attack.Team && TeamAttackRefused(state, actor, target, lines) is { } spent) return spent;
 
         var pool = rank + AttackModifiers(state, actor, attack, lines);
         var attackRoll = _counter.Roll(pool, _dice);
@@ -121,7 +113,9 @@ public sealed partial class Encounter
         var resolved = new ResolvedAttack(
             actor.Id, target.Id, pool, attackRoll.Successes, defenceRoll.Successes,
             target, state.Effects, attack.Effect, attack.Area, attack.Damage, rank,
-            attack.TraitId, attack.Type, defenceIsActive);
+            attackRoll.Faces, attack.Team, attack.TraitId, attack.Type, defenceIsActive);
+
+        if (attack.Team) after = after with { TeamAttacked = [.. after.TeamAttacked, target.Id] };
 
         after = ApplyAttackOutcome(after, attack, resolved, lines);
 
@@ -161,6 +155,30 @@ public sealed partial class Encounter
             $"{actor.Name} cannot charge with {attack.TraitId}: p.78 allows "
             + $"{string.Join(", ", entry.Charge!.AttackTraits)}, which for this engine is "
             + $"{string.Join(", ", allowed.Order(StringComparer.Ordinal))}");
+    }
+
+    /// <summary>
+    /// p.79's one-a-battle limit on being team-attacked, refused on the ledger where it bites.
+    ///
+    /// <para><b>The two ways out of it are a person's decision and are quoted rather than
+    /// applied</b> — <c>the_limit_may_be_lifted_by</c> is "the Heroes being clever about it, or the
+    /// GM ruling otherwise", and this engine has nobody to ask. A caller who has been told the GM
+    /// ruled otherwise attacks without the flag.</para>
+    /// </summary>
+    private EncounterState? TeamAttackRefused(
+        EncounterState state, Combatant actor, Combatant target, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("team_attacks");
+        var rule = entry.TeamAttack!;
+
+        var already = state.TeamAttacked.Count(id => string.Equals(id, target.Id, StringComparison.Ordinal));
+
+        if (already < rule.LimitPerTargetPerBattle) return null;
+
+        return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+            $"{target.Name} has already been the target of {already} team attack this battle, and "
+            + $"p.79 allows {rule.LimitPerTargetPerBattle} — the limit is lifted by "
+            + $"{rule.TheLimitMayBeLiftedBy}, neither of which is this engine's to decide");
     }
 
     /// <summary>Every Trait id a charge may be rolled with, out of the entry and out of p.75's table.</summary>
@@ -293,6 +311,23 @@ public sealed partial class Encounter
                 state.Page, actor.Id, charge.Id, charge.SourceRef,
                 $"{actor.Name} charges: +{charge.Charge.AttackBonusDice}d, and their active defences "
                 + "are halved until after their next turn"));
+        }
+
+        if (attack.Team)
+        {
+            var team = _play.GetCombat("team_attacks");
+            var rule = team.TeamAttack!;
+
+            modifier += rule.AttackBonusDice;
+
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, team.Id, team.SourceRef,
+                $"{actor.Name} attacks as part of a team attack: +{rule.AttackBonusDice}d, and "
+                + $"{rule.CostResolveToMakeSixesExplode} Resolve afterwards would make the sixes "
+                + $"explode. That the participants {rule.ParticipantsActAt} and "
+                + $"{(rule.AllParticipantsMustTargetTheSameEnemy ? "all target the same enemy" : "need not agree a target")} "
+                + "is not applied: a step here is one character's action, and this engine has no "
+                + "intent that binds several"));
         }
 
         if (actor.Kind == CombatantKind.MinionGroup)
@@ -1353,7 +1388,11 @@ public sealed partial class Encounter
             ResolveSpend.KeepingHold => KeepHold(state, actor, lines),
             ResolveSpend.Knockback => Knockback(state, actor, lines),
             ResolveSpend.Luring => Lure(state, actor, spend.Target, lines),
-            _ => Unimplemented(state, actor.Id, spend.Kind, lines)
+            ResolveSpend.TeamAttack => ExplodeTheSixes(state, actor, lines),
+            var other => throw new ArgumentOutOfRangeException(
+                nameof(spend), other,
+                "Every Resolve purchase Chapters 4 and 5 print is resolved, so a member of the enum "
+                + "with no branch here is a purchase nobody has written.")
         };
     }
 
@@ -1863,6 +1902,104 @@ public sealed partial class Encounter
         return Charge(after, actor, rule.CostResolve, fromAdversity) with { LastAttack = resolved };
     }
 
+    /// <summary>
+    /// Ch.4 p.79's <c>cost_resolve_to_make_sixes_explode</c>: the sixes on a team attack's roll are
+    /// thrown again, and again for as long as they keep coming.
+    ///
+    /// <para><b>This is the purchase the dice contract exists for.</b> <see cref="IDiceSource"/>
+    /// answers in faces rather than in successes precisely so that a rule which rerolls a
+    /// <em>face</em> can be applied at all: an engine handed a count could not say which dice were
+    /// sixes. The face is <see cref="SuccessCounter.HighestFace"/>, which is the map's own top key
+    /// rather than a literal, and the recursion is the entry's
+    /// <c>explosion_recurses_while_sixes_keep_coming</c> rather than an assumption.</para>
+    ///
+    /// <para><b>A six that has been rerolled is gone from the roll.</b> The faces are rewritten as
+    /// the explosion goes, so a second point buys the sixes that came up in the reroll and never the
+    /// ones that have already been spent — and a roll with none left is refused rather than charged
+    /// for.</para>
+    ///
+    /// <para>The successes are added to the roll on the table and the outcome recomputed against the
+    /// target as they were, which is the same path <see cref="BuyDice"/> takes and the reason
+    /// <see cref="EncounterState.LastAttack"/> keeps that snapshot.</para>
+    /// </summary>
+    private EncounterState ExplodeTheSixes(
+        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
+    {
+        var entry = _play.GetCombat("team_attacks");
+        var rule = entry.TeamAttack!;
+
+        if (OutOfTheFight(state, actor.Id, "buyer", lines)) return state;
+
+        if (state.LastAttack is not { } last
+            || !string.Equals(last.Actor, actor.Id, StringComparison.Ordinal))
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} has no roll of their own on the table to explode");
+        }
+
+        if (!last.Team)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name}'s last attack was not a team attack, and p.79 sells the exploding "
+                + "sixes as part of one");
+        }
+
+        var face = _counter.HighestFace;
+
+        if (!last.AttackFaces.Contains(face))
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"there is no {face} left on that roll to explode");
+        }
+
+        if (!fromAdversity
+            && CannotAfford(
+                state, actor, rule.CostResolveToMakeSixesExplode, entry.Id, entry.SourceRef, lines))
+        {
+            return state;
+        }
+
+        var faces = last.AttackFaces.ToList();
+        var gained = 0;
+        var thrown = 0;
+        var rounds = 0;
+
+        while (true)
+        {
+            var exploding = faces.Count(f => f == face);
+            if (exploding == 0) break;
+
+            faces = [.. faces.Where(f => f != face)];
+
+            var roll = _counter.Roll(exploding, _dice);
+
+            gained += roll.Successes;
+            thrown += exploding;
+            rounds++;
+            faces.AddRange(roll.Faces);
+
+            if (!rule.ExplosionRecursesWhileSixesKeepComing) break;
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{(fromAdversity ? $"the GM spends {rule.CostResolveToMakeSixesExplode} Adversity on {actor.Name}" : $"{actor.Name} spends {rule.CostResolveToMakeSixesExplode} Resolve")}"
+            + $" to explode the team attack's {face}s: {thrown} thrown again over {rounds} "
+            + $"round{(rounds == 1 ? "" : "s")} for {gained} more, so {last.AttackSuccesses} becomes "
+            + $"{last.AttackSuccesses + gained}"));
+
+        var improved = last with
+        {
+            AttackSuccesses = last.AttackSuccesses + gained,
+            AttackFaces = faces
+        };
+
+        var after = Charge(state, actor, rule.CostResolveToMakeSixesExplode, fromAdversity);
+        after = ReapplyLastAttack(after, improved, lines);
+
+        return after with { LastAttack = improved };
+    }
+
     private EncounterState SeizeInitiative(EncounterState state, Combatant actor, List<LedgerLine> lines)
     {
         var entry = _play.GetCombat("seizing_initiative");
@@ -2191,6 +2328,7 @@ public sealed partial class Encounter
             ResolveSpend.KeepingHold => KeepHold(state, npc, lines, fromAdversity: true),
             ResolveSpend.Knockback => Knockback(state, npc, lines, fromAdversity: true),
             ResolveSpend.Luring => Lure(state, npc, spend.Target, lines, fromAdversity: true),
+            ResolveSpend.TeamAttack => ExplodeTheSixes(state, npc, lines, fromAdversity: true),
             var other => throw new ArgumentOutOfRangeException(
                 nameof(spend), other,
                 "AdversityBuys names a purchase the GM's pool has no branch for.")
@@ -2215,7 +2353,7 @@ public sealed partial class Encounter
     private static readonly HashSet<ResolveSpend> AdversityBuys =
     [
         ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.KeepingHold,
-        ResolveSpend.Knockback, ResolveSpend.Luring
+        ResolveSpend.Knockback, ResolveSpend.Luring, ResolveSpend.TeamAttack
     ];
 
     // ── Turns and pages ──────────────────────────────────────────────────────
@@ -2469,22 +2607,6 @@ public sealed partial class Encounter
             + "docs/guide/play-engine.md for the list"));
 
         return state;
-    }
-
-    /// <summary>
-    /// The entry behind each Resolve purchase this slice does not resolve, so its refusal can cite a
-    /// page. Chapter 4 prints four of the five and Chapter 5 the other.
-    /// </summary>
-    private (string Id, string SourceRef) UnimplementedSpendEntry(ResolveSpend kind)
-    {
-        var entry = _play.GetCombat(kind switch
-        {
-            ResolveSpend.TeamAttack => "team_attacks",
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(kind), kind, "That purchase is resolved, so it has no not-yet-implemented entry.")
-        });
-
-        return (entry.Id, entry.SourceRef);
     }
 
     /// <summary>Half, in the direction the entry's own reading names.</summary>

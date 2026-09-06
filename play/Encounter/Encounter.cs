@@ -97,10 +97,7 @@ public sealed partial class Encounter
     /// </summary>
     public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        // Chapter 4's Resolve purchases this slice records and does not resolve.
-        "team_attacks",
-
-        // The GM's four, Ch.5 p.85.
+        // The GM's three, Ch.5 p.85.
         "adversity_spend_suppress_flaw",
         "adversity_spend_misfortune",
         "adversity_spend_villainy",
@@ -182,6 +179,7 @@ public sealed partial class Encounter
             MoveProgress = new Dictionary<string, int>(StringComparer.Ordinal),
             LastAttack = null,
             LosesNextTurn = [],
+            TeamAttacked = [],
             Table = Table,
             Ledger = new Ledger(lines),
             Over = false

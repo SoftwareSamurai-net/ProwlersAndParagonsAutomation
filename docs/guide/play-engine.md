@@ -92,7 +92,7 @@ Three properties of it are load-bearing:
 
 ## What is real, and what says `NotYetImplemented`
 
-**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `Stabilise`, `EndTurn`, `EndPage`, nine Resolve spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`, `Stabilise`, `InstantRecovery`, `KeepingHold`, `Knockback` and `Luring` — and `SpendAdversity(AnythingResolveCan)` naming one of the three the GM's pool runs.
+**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge, area and team), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `Stabilise`, `EndTurn`, `EndPage`, **every Resolve purchase Chapters 4 and 5 print** — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`, `Stabilise`, `InstantRecovery`, `KeepingHold`, `Knockback`, `Luring` and `TeamAttack` — and `SpendAdversity(AnythingResolveCan)` naming one of the purchases on `Encounter.AdversityBuys`. `SpendResolve` has no `default` branch any more: a member of the enum with no branch is a compile-time hole rather than a silent refusal.
 
 ### Not applied, and named in the code so the two lists cannot drift
 
@@ -100,7 +100,6 @@ Three properties of it are load-bearing:
 
 | Entry | What it is, and why not |
 |---|---|
-| `team_attacks` | Ch.4 p.79. `SpendResolve(TeamAttack)` refuses by name. |
 | `adversity_spend_suppress_flaw` | Ch.5 p.85. |
 | `adversity_spend_misfortune` | Ch.5 p.85. |
 | `adversity_spend_villainy` | Ch.5 p.85. |
@@ -108,7 +107,7 @@ Three properties of it are load-bearing:
 | `modifier_size` | p.75. Nothing says how big anybody is. |
 | `modifier_visibility` | p.75. Nothing says what the light is like. |
 
-The last three are listed rather than left silent because a reader of a balance run needs to know the figure was measured in clear air, in the open, against somebody the same size.
+The last three are listed rather than left silent because a reader of a balance run needs to know the figure was measured in clear air, in the open, against somebody the same size. **Chapter 4's four Resolve purchases used to head this table and no longer do**: `keeping_hold`, `knockback`, `luring` and `team_attacks` are applied, and what each of them cannot reach is recorded below rather than as a whole entry nothing runs.
 
 **`Encounter.SwitchesNotYetApplied`** — table settings a run may turn on, announced on page one of every run that does, saying that the numbers do not carry them:
 
@@ -125,6 +124,8 @@ The last three are listed rather than left silent because a reader of a balance 
 The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, and the initiative variant beside them.
 
 **p.85's first Adversity purchase is applied**, and it is the one that is not a rule of its own: "whatever a point of Resolve could have done, on behalf of any NPC" is the Resolve purchases with the GM's money behind them. `SpendAdversity` carries which one — a point spent on nothing in particular would be a point spent on nothing — the pool pays, and the NPC's non-existent Resolve is never touched. `Encounter.AdversityBuys` is the list of the ones it runs, kept as one list so the gate and the dispatch cannot drift; the rest refuse by name, because they still charge the buyer's own pool and an NPC has none. The other three Adversity spends are effects on a scene rather than on a roll, and stay on the list above.
+
+**What a team attack cannot coordinate**: `team_attacks`'s `participants_act_at` — "the end of the page" — and `all_participants_must_target_the_same_enemy` both describe several characters acting as one, and a `Step` is one character's action. The `attack_bonus_dice`, the per-target-per-battle limit and the exploding sixes are applied; the ledger line beside the bonus names the two clauses that are not. `the_limit_may_be_lifted_by` is "the Heroes being clever about it, or the GM ruling otherwise", which is a person's decision: the refusal quotes it, and a caller who has been told the GM ruled otherwise attacks without the flag.
 
 **What a lure cannot hit**: `luring.redirects_to` is "whatever lies directly behind you", and this engine has no scenery, nothing with a Structure and nothing behind anybody. A lure that names nobody is **refused rather than charged for** — the attack had already missed the buyer by three, so a point taken for it would buy a state change nothing could receive, which is the shape of defect this guide's ledger rules exist to prevent. Naming a person is what `SpendResolve.Target` is for.
 

@@ -27,6 +27,11 @@ internal sealed class RandomPolicy : IPolicy
     private readonly IDiceSource _dice;
     private int _next;
 
+    // <b>A counter of its own, because the two cycles are independent.</b> Sharing one with the
+    // intent kinds above made every AfterRoll advance it, so Choose stopped round-robining and
+    // three seeds quietly lost an intent kind — which the control below caught.
+    private int _nextPurchase;
+
     public RandomPolicy(IDiceSource dice) => _dice = dice;
 
     /// <inheritdoc/>
@@ -51,35 +56,54 @@ internal sealed class RandomPolicy : IPolicy
         var trait = actor.TraitRanks.Keys.Order(StringComparer.Ordinal).ToList();
         var rolled = trait.Count == 0 ? "might" : trait[Pick(trait.Count)];
 
-        Intent intent = Cycle(9) switch
+        Intent intent = Cycle(10) switch
         {
             0 => new Attack(actor.Id, target, rolled, Damage(), Row(), AllOut: Coin(), Area: Coin()),
             1 => new Attack(actor.Id, target, rolled, Damage(), Row(), Effect: "Ensnare"),
             2 => new Attack(actor.Id, target, rolled, Damage(), Row(), Charge: true),
-            3 => new Move(actor.Id, target, Closer: Coin()),
-            4 => new Hold(actor.Id),
-            5 => new GrappleIntent(actor.Id, target, (GrappleMove)Pick(3)),
-            6 => new BreakFree(actor.Id, rolled, Threshold: Pick(4)),
-            7 => new Stabilise(actor.Id, target),
-            _ => new SpendAdversity(actor.Id, (AdversitySpend)Pick(4), Points: 1 + Pick(2))
+            3 => new Attack(actor.Id, target, rolled, Damage(), Row(), Team: true),
+            4 => new Move(actor.Id, target, Closer: Coin()),
+            5 => new Hold(actor.Id),
+            6 => new GrappleIntent(actor.Id, target, (GrappleMove)Pick(3)),
+            7 => new BreakFree(actor.Id, rolled, Threshold: Pick(4)),
+            8 => new Stabilise(actor.Id, target),
+            _ => new SpendAdversity(
+                actor.Id, (AdversitySpend)Pick(4), Points: 1 + Pick(2), Target: target)
         };
 
         Emitted.Add(intent.GetType().Name);
         return intent;
     }
 
+    /// <summary>Every Resolve purchase this policy has emitted, for a fixture's positive control.</summary>
+    public HashSet<ResolveSpend> Purchases { get; } = [];
+
     /// <inheritdoc/>
     public Intent? AfterRoll(EncounterState state, Combatant actor)
     {
+        ArgumentNullException.ThrowIfNull(state);
         ArgumentNullException.ThrowIfNull(actor);
 
-        // Every Resolve purchase, including the ones the actor cannot afford and the ones that make
-        // no sense where they are: a refusal is a branch of Step like any other, and the property is
-        // about all of them.
-        var spend = new SpendResolve(actor.Id, (ResolveSpend)Pick(Enum.GetValues<ResolveSpend>().Length),
-            Points: 1 + Pick(2));
+        // <b>Every Resolve purchase, cycled rather than rolled</b>, for the reason the kinds above
+        // are cycled: a purchase chosen off a die is one some seed will not reach, and ten of them
+        // over sixty turns leaves the coverage a probability instead of a fact. The ones the actor
+        // cannot afford and the ones that make no sense where they are are the point — a refusal is
+        // a branch of Step like any other, and the property is about all of them.
+        var kind = (ResolveSpend)(_nextPurchase++ % Enum.GetValues<ResolveSpend>().Length);
+
+        var other = state.Combatants.Keys
+            .Where(id => !string.Equals(id, actor.Id, StringComparison.Ordinal))
+            .Order(StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        // p.79's luring is the one purchase that points at somebody, so half of them do and half of
+        // them do not: both branches are Step's.
+        var spend = new SpendResolve(
+            actor.Id, kind, Points: 1 + Pick(2), Target: Coin() ? other : null);
 
         Emitted.Add(nameof(SpendResolve));
+        Purchases.Add(kind);
+
         return spend;
     }
 

@@ -143,6 +143,15 @@ public abstract record Intent(string Actor);
 /// <param name="AllOut">p.78: two dice on, every defence halved until after the attacker's next turn.</param>
 /// <param name="Charge">p.78: two dice on, own active defences halved, and the impact comes back.</param>
 /// <param name="Area">p.77–78: covers everyone in the area, and doubles the rate against Minions.</param>
+/// <param name="Team">
+/// p.79: part of a team attack — two dice on, once per target per battle, and the sixes may be made
+/// to explode for a point of Resolve afterwards.
+///
+/// <para><b>What this engine cannot express is the coordination.</b> A <see cref="Encounter.Step"/>
+/// is one character's action, so "you and your allies have to wait until the end of the page" and
+/// "you all have to target the same enemy" are clauses the ledger names rather than rules it
+/// applies — see <c>docs/guide/play-engine.md</c>.</para>
+/// </param>
 public sealed record Attack(
     string Actor,
     string Target,
@@ -152,7 +161,8 @@ public sealed record Attack(
     string? Effect = null,
     bool AllOut = false,
     bool Charge = false,
-    bool Area = false) : Intent(Actor);
+    bool Area = false,
+    bool Team = false) : Intent(Actor);
 
 /// <summary>
 /// Closing with or opening from one other combatant (p.74).

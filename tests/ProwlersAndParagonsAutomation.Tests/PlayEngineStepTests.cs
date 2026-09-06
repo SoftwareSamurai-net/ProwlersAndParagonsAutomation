@@ -2506,6 +2506,142 @@ public sealed class PlayEngineStepTests
         Assert.Equal(0, dice.Remaining);
     }
 
+    /// <summary>
+    /// <b>A team attack's sixes are thrown again, and again while they keep coming.</b>
+    ///
+    /// <para>This is the purchase <c>IDiceSource</c>'s shape exists for: p.79 rerolls a <em>face</em>,
+    /// so a source answering in successes could not say which dice were sixes. The script is chosen
+    /// so that the reroll itself produces one — two sixes go back in, one of them comes up a six
+    /// again, and that one goes back in a third time — and
+    /// <see cref="ScriptedDice.Remaining"/> at zero is what proves the recursion happened rather
+    /// than the engine stopping after one round: a single round would leave the last scripted face
+    /// unasked for.</para>
+    ///
+    /// <para>The counts come first. The pool has to have carried the entry's own
+    /// <c>attack_bonus_dice</c>, and the roll has to have scored what the script pays for, before
+    /// the purchase is asked to add anything to it.</para>
+    /// </summary>
+    [Fact]
+    public void ATeamAttacksSixesExplodeAndKeepExplodingWhileTheyComeUp()
+    {
+        var rule = _play.GetCombat("team_attacks").TeamAttack!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        // The controls on the data: there is a bonus, the purchase costs something, and the
+        // explosion is meant to recurse — the last is what the third scripted throw is about.
+        Assert.True(rule.AttackBonusDice > 0);
+        Assert.True(rule.CostResolveToMakeSixesExplode > 0);
+        Assert.True(rule.ExplosionRecursesWhileSixesKeepComing);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 10d — 8d of Might and the entry's two — showing two sixes for 4 successes; 2d of Toughness
+        // for none; then the two sixes thrown again as a 6 and a 4, and that 6 thrown again as a 1.
+        var dice = new ScriptedDice(6, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 6, 4, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        var blow = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true));
+
+        state = blow.State;
+
+        // The positive controls: the bonus is in the pool, the roll scored what it should, and the
+        // outcome landed once already — so the Health below moves because of the explosion.
+        Assert.Contains(blow.Added, l =>
+            l.Text.Contains($"might {8 + rule.AttackBonusDice}d for 4 successes", StringComparison.Ordinal)
+            && l.Text.Contains("toughness 2d for 0", StringComparison.Ordinal));
+
+        Assert.Equal(12 - (4 * rate), state["villain"].CurrentHealth);
+        Assert.Equal(["villain"], state.TeamAttacked);
+
+        var exploded = encounter.Step(state, new SpendResolve("hero", ResolveSpend.TeamAttack));
+
+        state = exploded.State;
+
+        // Two sixes are worth 2 successes apiece and a four is worth one, so the reroll adds 3:
+        // 4 successes become 7, and the outcome is recomputed against the target as they were.
+        Assert.Equal(7, state.LastAttack!.AttackSuccesses);
+        Assert.Equal(12 - (7 * rate), state["villain"].CurrentHealth);
+        Assert.Equal(3 - rule.CostResolveToMakeSixesExplode, state["hero"].Resolve);
+
+        Assert.Contains(exploded.Added, l =>
+            string.Equals(l.Rule, "team_attacks", StringComparison.Ordinal)
+            && l.Text.Contains("over 2 rounds", StringComparison.Ordinal));
+
+        // Every scripted face was asked for, which is only true if the reroll's own six was thrown
+        // again — and no six is left on the roll for a second point to buy.
+        Assert.Equal(0, dice.Remaining);
+
+        var again = encounter.Step(state, new SpendResolve("hero", ResolveSpend.TeamAttack));
+
+        Assert.Contains("left on that roll to explode", Assert.Single(again.Added).Text,
+            StringComparison.Ordinal);
+        Assert.Equal(3 - rule.CostResolveToMakeSixesExplode, again.State["hero"].Resolve);
+    }
+
+    /// <summary>
+    /// <b>p.79's one team attack per target per battle, and the two ways out of it quoted rather
+    /// than taken.</b> The limit is per battle, so a page turn does not clear it — which is why the
+    /// second attack here is made on the following page.
+    /// </summary>
+    [Fact]
+    public void ATargetIsTeamAttackedOnceABattleAndThePageTurnDoesNotResetIt()
+    {
+        var rule = _play.GetCombat("team_attacks").TeamAttack!;
+
+        Assert.Equal(1, rule.LimitPerTargetPerBattle);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 40,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(12));
+        var state = encounter.Begin([hero, villain]);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true)).State;
+
+        // The control: the first one went through and is on the record.
+        Assert.Equal(["villain"], state.TeamAttacked);
+
+        state = encounter.Step(state, new EndTurn("hero")).State;
+        state = encounter.Step(state, new EndTurn("villain")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+
+        Assert.Equal(2, state.Page);
+
+        var second = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true));
+
+        var line = Assert.Single(second.Added);
+
+        Assert.Equal("team_attacks", line.Rule);
+        Assert.Contains(rule.TheLimitMayBeLiftedBy, line.Text, StringComparison.Ordinal);
+
+        // Nothing was rolled and nobody was hit: the refusal came before the dice.
+        Assert.Equal(state["villain"].CurrentHealth, second.State["villain"].CurrentHealth);
+        Assert.Equal(["villain"], second.State.TeamAttacked);
+
+        // And without the flag the attack is an ordinary one, which is the way p.79's own exception
+        // is taken: the GM ruling otherwise is not this engine's decision.
+        var ordinary = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        Assert.Contains(ordinary.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+    }
+
     // ── Citations ────────────────────────────────────────────────────────────
 
     /// <summary>

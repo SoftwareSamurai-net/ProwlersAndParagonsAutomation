@@ -85,6 +85,15 @@ public sealed record DefencePenalty(int UntilPage, bool ActiveOnly);
 /// p.79's dying clock starts on <em>lethal</em> damage, and a rebuilt attack that had forgotten
 /// which kind it was would start it on a knockout blow.
 /// </param>
+/// <param name="AttackFaces">
+/// The faces the attack pool actually came up with.
+///
+/// <para><b>p.79's team attack rerolls a face, which is why <c>IDiceSource</c> answers in faces at
+/// all.</b> A source that had handed back a count of successes could not tell an engine which dice
+/// were sixes, and "have your 6s explode" would be unimplementable. The list is rewritten as the
+/// explosion goes, so the sixes that have already been rerolled cannot be rerolled again.</para>
+/// </param>
+/// <param name="Team">Whether it was a team attack, which is what the exploding sixes are bought off.</param>
 /// <param name="TraitId">The Trait or Power that was rolled, so a redirected attack is the same attack.</param>
 /// <param name="Type">
 /// Which row of p.75's table the attack came from, which decides what may answer it. p.79's luring
@@ -115,6 +124,8 @@ public sealed record ResolvedAttack(
     bool Area,
     DamageKind Damage,
     int AttackRank,
+    IReadOnlyList<int> AttackFaces,
+    bool Team,
     string TraitId,
     AttackType Type,
     bool DefenceWasActive);
@@ -231,6 +242,17 @@ public sealed record EncounterState
     /// the next page's and their id waits here until <see cref="Encounter.Step"/> builds it.</para>
     /// </summary>
     public required IReadOnlyList<string> LosesNextTurn { get; init; }
+
+    /// <summary>
+    /// Everyone who has already been on the receiving end of a team attack this fight.
+    ///
+    /// <para>p.79: "no character can be subject to more than one team attack per battle", which is a
+    /// limit per <em>target</em> and for the whole battle rather than the page — so it is a list on
+    /// the encounter and not something the page turn clears. The sentence beside it names the two
+    /// ways it is lifted, both of which are a person's decision, so the refusal quotes them rather
+    /// than applying them.</para>
+    /// </summary>
+    public required IReadOnlyList<string> TeamAttacked { get; init; }
 
     /// <summary>Whether the fight is over — one side left standing, or the page limit reached.</summary>
     public required bool Over { get; init; }

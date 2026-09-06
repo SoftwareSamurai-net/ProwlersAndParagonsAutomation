@@ -148,13 +148,17 @@ public sealed class PlayEnginePropertyTests
 
         Assert.True(moved, "no step changed the state at all, so the comparison proved nothing.");
 
-        // The second control: the generator really did reach every kind of intent it claims to.
+        // The second control: the generator really did reach every kind of intent it claims to —
+        // and every Resolve purchase, which is what makes this a statement about Chapter 4's four
+        // as well as Chapter 5's six.
         Assert.Equal(
             [
                 nameof(Attack), nameof(BreakFree), nameof(GrappleIntent), nameof(Hold),
                 nameof(Move), nameof(SpendAdversity), nameof(SpendResolve), nameof(Stabilise)
             ],
             policy.Emitted.Order(StringComparer.Ordinal));
+
+        Assert.Equal(Enum.GetValues<ResolveSpend>().Order(), policy.Purchases.Order());
     }
 
     private static EncounterState StepAndCheck(
@@ -305,41 +309,6 @@ public sealed class PlayEnginePropertyTests
 
         Assert.Equal(state.Adversity, result.State.Adversity);
         Assert.Contains(result.Added, l => l.Text.Contains("holds no Resolve", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// <b>An intent this slice does not resolve says so, by name, and changes nothing.</b>
-    ///
-    /// <para>The alternative — dropping it quietly — is indistinguishable from a rule that ran and
-    /// had no effect, and a balance measurement turns on exactly that difference. Every unimplemented
-    /// spend is driven here, so one that started silently no-opping fails.</para>
-    /// </summary>
-    [Theory]
-    [InlineData(ResolveSpend.TeamAttack)]
-    public void AnUnimplementedSpendSaysSoOnTheLedger(ResolveSpend kind)
-    {
-        var hero = Combatant.Hero(
-            "hero", "the Hero", edge: 8, health: 8, resolve: 3,
-            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 },
-            ["toughness"]);
-
-        var villain = Combatant.Villain(
-            "villain", "the Villain", edge: 7, health: 12,
-            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 9 },
-            ["toughness"]);
-
-        var encounter = new Encounter(_play, new SeededDice(5));
-        var state = encounter.Begin([hero, villain]);
-
-        var result = encounter.Step(state, new SpendResolve("hero", kind));
-
-        var line = Assert.Single(result.Added);
-        Assert.Contains("not yet implemented", line.Text, StringComparison.Ordinal);
-        Assert.Contains(kind.ToString(), line.Text, StringComparison.Ordinal);
-
-        // Nothing was spent and nothing moved.
-        Assert.Equal(3, result.State["hero"].Resolve);
-        Assert.Equal(state.Adversity, result.State.Adversity);
     }
 
     /// <summary>Three Heroes against a Villain, a Foe and a group of Minions.</summary>

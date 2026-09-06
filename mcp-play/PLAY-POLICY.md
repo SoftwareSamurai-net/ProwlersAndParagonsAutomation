@@ -135,7 +135,6 @@ turned one of these table settings on without saying that the numbers do not car
 
 | Entry | What it is |
 |---|---|
-| `team_attacks` | Ch.4 p.79. Making a team attack's sixes explode. |
 | `adversity_spend_suppress_flaw` | Ch.5 p.85. Suppressing an NPC's Flaw for a scene. |
 | `adversity_spend_misfortune` | Ch.5 p.85. A piece of misfortune that is a challenge. |
 | `adversity_spend_villainy` | Ch.5 p.85. An act of villainy the Heroes cannot simply prevent. |
@@ -163,19 +162,20 @@ The other five — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefen
 initiative variant beside them — are applied.
 
 **Spends that refuse by name** — the `kind` values `spend_resolve` and `spend_adversity` accept,
-recognise, and answer with a `not yet implemented` line:
+recognise, and answer with a `not yet implemented` line. Every one of a Hero's own purchases is
+resolved; what is left here is three of the GM's four, which are effects on a scene rather than on
+a roll:
 
 | Spend | Tool |
 |---|---|
-| `team_attack` | `spend_resolve` |
 | `suppress_flaw` | `spend_adversity` |
 | `misfortune` | `spend_adversity` |
 | `villainy` | `spend_adversity` |
 
 Everything else a spend can name is resolved: `extra_dice`, `reroll`, `seize_initiative`,
-`instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold`, `knockback` and `luring` for
-a Hero, and `anything_resolve_can` for the GM naming one of the purchases the last table below
-marks bought.
+`instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold`, `knockback`, `luring` and
+`team_attack` for a Hero, and `anything_resolve_can` for the GM naming one of the purchases the
+last table below marks bought.
 
 **`luring` is the one spend that takes a `target`**, because p.79 lets a dodged attack be sent into
 a person rather than into the scenery — and a person is the only thing this engine has to send it
@@ -201,4 +201,4 @@ a purchase that had happened from one that had not:
 | `keeping_hold` | bought |
 | `knockback` | bought |
 | `luring` | bought |
-| `team_attack` | not yet implemented |
+| `team_attack` | bought |
