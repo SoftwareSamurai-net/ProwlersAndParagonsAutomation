@@ -1304,8 +1304,12 @@ works and nobody can reach.
   session does not know", never "no"**, so a session that was never told falls back to the stored
   read rather than treating silence as a difference — which is the safe half of the first fix kept
   exactly as it was. The label follows the payload either way, because `SubmitAsync` takes it off
-  the sheet it is handed. The stored read is still `ReadAsync` and not `OpenAsync`, because
-  sending is not switching to a character and opening one moves the pointer on the way past.
+  the sheet it is handed — and so does the sentence the page prints afterwards: **"Sent to …"
+  names the sheet that went, never `MembershipSummary.Label`**, which is only what the character
+  was called when it last joined or was submitted, so a player who had renamed theirs was told it
+  had gone under a name nobody has. The stored read is still `ReadAsync` and not `OpenAsync`,
+  because sending is not switching to a character and opening one moves the pointer on the way
+  past.
 - **`FakeApi.BeforeStoringCharacter` is what makes that testable, and it is the twin of
   `BeforeAnsweringCharacter`.** A write still in the air is a state the real app is in after every
   edit; a fake that stores synchronously closes the window the fault lives in, and "the stored

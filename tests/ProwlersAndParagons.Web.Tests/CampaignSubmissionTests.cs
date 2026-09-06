@@ -399,6 +399,45 @@ public sealed class CampaignSubmissionTests
     }
 
     /// <summary>
+    /// <b>"Sent to …" names the character that was sent, not the label the row was carrying.</b>
+    ///
+    /// <para>A membership's label is whatever the character was called when it last joined or was
+    /// submitted. A player who renames their character and presses Send was told it had gone
+    /// under the old name — a message about a character nobody has, and the same string the row
+    /// beside it is about to stop showing. The name comes off the sheet that was actually sent,
+    /// which is also the string the server was handed.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheSentMessageNamesTheCharacterThatWasSent()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero, JetstreamId);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+
+        // The row is now labelled "Jetstream". The player renames the character on the finishing
+        // step, through its own field.
+        var finishing = ctx.Render<Finishing>();
+        finishing.Find("#ft-name").Input("Jetstream Prime");
+
+        Assert.Equal("Jetstream Prime", ctx.Session.Sheet.Name);
+
+        await Send(page);
+
+        Assert.Contains("Sent to Jetstream Prime", page.Markup, StringComparison.Ordinal);
+
+        // And the payload agrees with the sentence, which is the whole point of taking both off
+        // one sheet.
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var row = Assert.Single((await memberships.MineAsync())!);
+
+        Assert.Equal("Jetstream Prime", (await memberships.ReadAsync(row.Id))!.Pending!.Name);
+    }
+
+    /// <summary>
     /// <b>A refusal is printed under the button that was pressed, not in the Join box below the
     /// list.</b>
     ///

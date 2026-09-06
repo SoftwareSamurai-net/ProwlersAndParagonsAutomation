@@ -1046,7 +1046,14 @@ else
 
         _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
             ? "That could not be sent just now. Try again in a moment."
-            : $"Sent to {one.Label}. Your own copy is unchanged.{PutBack()}";
+            // **The name on the sheet that was actually sent, not the label the row was carrying.**
+            // A membership's label is whatever the character was called when it last joined or
+            // was submitted, so a player who renamed their character and pressed Send was told it
+            // had gone under the old name — a message about a character nobody has, which is the
+            // shape that teaches somebody to distrust the ones that are true. It is also the same
+            // string the server was handed: `SubmitAsync` takes the label off this sheet.
+            : $"Sent to {SavedCharacters.LabelFor(sending.Value.Sheet)}."
+              + $" Your own copy is unchanged.{PutBack()}";
 
         await Refresh();
     }
