@@ -38,7 +38,7 @@ public sealed class PrebuiltHeroTests
         PrebuiltHeroSheets.Build(_f.Rules, _f.Derived, hero);
 
     /// <summary>
-    /// Overload used only by <see cref="NoOtherPackageLandsAnyOfTheFourUnclosedHeroesOnExactly125"/>
+    /// Overload used only by <see cref="NoOtherPackageLandsAnyOfTheThreeUnclosedHeroesOnExactly125"/>
     /// to rebuild a Hero under a package other than the one recorded against them, so that test can
     /// sweep every package rather than trusting the one <see cref="PrebuiltHeroes.BuildByHero"/>
     /// already picked as closest.
@@ -256,10 +256,20 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// Fifteen of the twenty rebuild to exactly their 125 Hero Point budget. That is the
+    /// Sixteen of the twenty rebuild to exactly their 125 Hero Point budget. That is the
     /// whole engine end to end — ability and talent costs against a starting package,
     /// baseline ranks, every cost type, and both generic and Power-specific Pros and Cons
     /// — landing on a number the authors published.
+    ///
+    /// <para>Herald (Airmid) is a seventeenth exact Hero and is deliberately not listed here:
+    /// she has her own test, <see cref="TheHeraldsAirmidCarriesTwoExpertisePowers"/>, which asserts
+    /// the same 125 alongside the transcription fault that produced it. Both counts are read
+    /// off <see cref="PrebuiltHeroes.BuildByHero"/> by
+    /// <see cref="MostHeroesReconcileExactly"/>, which is what holds them together.</para>
+    ///
+    /// <para>T-Kay joined this list on 2026-09-06, when the owner ruled her
+    /// <c>Limited: only for Telekinesis</c> Con is *somewhat* limited. She is here because of
+    /// the ruling; the ruling is not here because of her total.</para>
     /// </summary>
     [Theory]
     [InlineData("Alabama Slammer")]
@@ -275,6 +285,7 @@ public sealed class PrebuiltHeroTests
     [InlineData("Psidearm")]
     [InlineData("Siren")]
     [InlineData("Stronghold")]
+    [InlineData("T-Kay")]
     [InlineData("Talon")]
     [InlineData("Vector")]
     public void HeroRebuildsToExactly125(string name)
@@ -286,18 +297,23 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// The other four, held at the residual they currently show so a change that moves one
+    /// The other three, held at the residual they currently show so a change that moves one
     /// is noticed. Each residual has a reason recorded in
-    /// <see cref="PrebuiltHeroes.BuildByHero"/>. All four are 1 Hero Point out.
+    /// <see cref="PrebuiltHeroes.BuildByHero"/>. All three are 1 Hero Point out.
     ///
     /// <para>Herald (Airmid) used to be here at +2, the worst of them. She is exact now: her sheet
     /// prints two Expertise Powers and only one was transcribed, and the missing one is worth
     /// exactly the 5 Hero Points her wrongly-attributed package was absorbing.</para>
+    ///
+    /// <para>T-Kay was the fourth until 2026-09-06, when the owner ruled her
+    /// <c>Limited: only for Telekinesis</c> Con is <em>somewhat</em> limited rather than
+    /// significantly limited. That is a reading of the Con, decided by the owner; it closes her
+    /// at 125 as a consequence, and she is asserted by
+    /// <see cref="HeroRebuildsToExactly125"/> now.</para>
     /// </summary>
     [Theory]
     [InlineData("Herald (Scathach)")]
     [InlineData("Shadow")]
-    [InlineData("T-Kay")]
     [InlineData("Vigilant")]
     public void HeroRebuildsToItsKnownResidual(string name)
     {
@@ -311,21 +327,24 @@ public sealed class PrebuiltHeroTests
     /// <summary>
     /// A per-element breakdown instrument built independently of this file (a scratch console
     /// project against the same engine, in the session that added this test) recomputed every
-    /// Ability, Talent, Power, Perk and package line for these four by hand from
+    /// Ability, Talent, Power, Perk and package line for these Heroes by hand from
     /// <c>data/rules</c> and found no mispriced element — the same negative result
     /// <c>PROGRESS.md</c> already recorded. One question that instrument could answer cheaply
     /// and that nothing before it had checked directly: does <em>any</em> package other than the
     /// one <see cref="PrebuiltHeroes.BuildByHero"/> already records as "closest" land the Hero on
-    /// exactly 125? It does not, for any of the four, for any package whose granted ranks the
+    /// exactly 125? It does not, for any of the three, for any package whose granted ranks the
     /// Hero's printed Traits do not fall below. This pins that answer so the "closest package"
     /// inference is not re-litigated by hand again.
+    ///
+    /// <para>The sweep covered T-Kay too while she was unclosed, and answered no for her as
+    /// well. She left this set on 2026-09-06 on the owner's ruling about her <c>Limited</c>
+    /// grade — not because a package was found for her.</para>
     /// </summary>
     [Theory]
     [InlineData("Herald (Scathach)")]
     [InlineData("Shadow")]
-    [InlineData("T-Kay")]
     [InlineData("Vigilant")]
-    public void NoOtherPackageLandsAnyOfTheFourUnclosedHeroesOnExactly125(string name)
+    public void NoOtherPackageLandsAnyOfTheThreeUnclosedHeroesOnExactly125(string name)
     {
         var hero     = PrebuiltHeroes.All.Single(h => h.Name == name);
         var recorded = PrebuiltHeroes.BuildByHero[name].Package;
@@ -353,7 +372,7 @@ public sealed class PrebuiltHeroTests
     public void MostHeroesReconcileExactly()
     {
         var exact = PrebuiltHeroes.BuildByHero.Count(kv => kv.Value.Residual == 0);
-        Assert.Equal(16, exact);
+        Assert.Equal(17, exact);
 
         // Nothing is more than 1 Hero Point out. Airmid was the only 2, and closing her tightened
         // this from 2 — the bound has only ever moved down: 6, then 2, now 1.
@@ -639,7 +658,7 @@ public sealed class PrebuiltHeroTests
 
     /// <summary>
     /// Every published Hero is a legal character, and the only error the validator may
-    /// raise about one is the Hero Point budget of the four that do not reconcile.
+    /// raise about one is the Hero Point budget of the three that do not reconcile.
     ///
     /// <para><b>Nothing asked this before, and two rules were wrong because of it.</b> The
     /// other tests here ask what a Hero <em>costs</em> and what their derived stats come to;

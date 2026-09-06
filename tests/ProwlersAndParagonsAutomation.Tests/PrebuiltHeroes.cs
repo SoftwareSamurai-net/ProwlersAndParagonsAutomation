@@ -210,7 +210,14 @@ public static class PrebuiltHeroes
 
             // T-Kay
             ["T-Kay|force_field"]        = ["pro:zone_nova:zone_ranged"],
-            ["T-Kay|lightning_reflexes"] = ["con:limited:significantly_limited"],
+            // Her sheet prints "Lightning Reflexes (Limited: only for Telekinesis)" and no
+            // grade. The rulebook's Limited entry (Ch.2) offers three — somewhat (-1),
+            // significantly (-2), severely (-4) — and states no rule mapping a restriction
+            // onto one of them, so which applies here is a judgement and not a transcription.
+            // The owner ruled it *somewhat limited* on 2026-09-06: Telekinesis is her 12d
+            // signature Power and she uses it constantly, so a restriction to it rarely bites.
+            // Do not re-litigate this from her total. Read the ruling, not the arithmetic.
+            ["T-Kay|lightning_reflexes"] = ["con:limited:somewhat_limited"],
             ["T-Kay|telekinesis"]        = ["pro:area_burst:area", "pro:overload",
                                             "pro:zone_nova:zone_ranged"],
 
@@ -240,8 +247,8 @@ public static class PrebuiltHeroes
     /// from their 125 Hero Point budget.
     ///
     /// <para>The sheets do not print which package was taken, so it is inferred: for the
-    /// sixteen Heroes with a residual of 0 the inference is certain, because exactly one
-    /// package makes the total land on 125 to the point. For the other four no package
+    /// seventeen Heroes with a residual of 0 the inference is certain, because exactly one
+    /// package makes the total land on 125 to the point. For the other three no package
     /// gets there, so the one recorded is simply the closest, and the residual is the part
     /// still unexplained.</para>
     /// </summary>
@@ -264,21 +271,17 @@ public static class PrebuiltHeroes
             ["Stronghold"]        = ("superhero_package", 0),
             ["Talon"]             = ("superhero_package", 0),
             ["Vector"]            = ("hero_package", 0),
+            // Exact since the owner ruled her Limited grade on 2026-09-06; see the Con recorded
+            // against her Lightning Reflexes above. Her total is a *consequence* of that ruling
+            // and not the reason for it — the ruling is about what "only for Telekinesis" means.
+            ["T-Kay"]             = ("superhero_package", 0),
+            ["Herald (Airmid)"]   = ("hero_package", 0),
 
             // Not exact. Closest package, with what is left over. None of these is explained by
             // gear: Ch.6 makes mundane gear free, so that earlier guess was wrong.
             ["Herald (Scathach)"] = ("hero_package", 1),        // Strike carries four Pros/Cons at once
             ["Shadow"]            = ("superhero_package", 1),   // unexplained
-            // Recorded at "significantly limited" on breadth: the +6 Edge applies to one Power
-            // out of five, and her sheet prints "Edge 8/14" to show it. Only the *mildest*
-            // grade closes her — measured: -1 gives 125, -2 gives 124, and -4 gives 124 too,
-            // because an unranked Power floors at 1 HP. She is 1 under, so every harsher
-            // reading moves away or not at all. Either the authors read it as barely limiting
-            // or their total is 1 out; the grade chosen here is the one with an argument
-            // behind it rather than the one that makes the number come out.
-            ["T-Kay"]             = ("superhero_package", -1),
-            ["Vigilant"]          = ("superhero_package", -1),  // Jo Sticks are Upgraded, a custom feature not modelled
-            ["Herald (Airmid)"]   = ("hero_package", 0)
+            ["Vigilant"]          = ("superhero_package", -1)   // Jo Sticks are Upgraded, a custom feature not modelled
         };
 
     /// <summary>One Source heading on a printed sheet, and the Powers listed beneath it.</summary>
