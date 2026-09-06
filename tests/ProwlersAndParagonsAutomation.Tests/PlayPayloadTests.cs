@@ -7,8 +7,8 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// <b><c>data/rules/play/</c> is a subdirectory as an access-control decision, and this is the
 /// proof rather than the claim.</b>
 ///
-/// <para>Three csproj files copy the rules data and every one of them globs
-/// <c>data\rules\*.json</c> with a single star, which does not descend. The third of them stages
+/// <para>Four csproj files copy the rules data and every one of them globs
+/// <c>data\rules\*.json</c> with a single star, which does not descend. One of them stages
 /// into <c>wwwroot</c>, and <b>a file under <c>wwwroot</c> is a public URL</b> — the same reasoning
 /// that keeps the rulebook corpus out of the payload, where the placement is likewise the whole
 /// of the access control. Play rules are not secret; they are a store no visitor's browser has any
@@ -26,11 +26,21 @@ public sealed class PlayPayloadTests
     private static string RulesDirectory => Path.Combine(RepoRoot, "data", "rules");
     private static string PlayDirectory => Path.Combine(RulesDirectory, "play");
 
-    /// <summary>The three projects that copy the rules data, and the file each does it in.</summary>
+    /// <summary>
+    /// The four projects that copy the rules data, and the file each does it in.
+    ///
+    /// <para><b><c>mcp-play/</c> is on this list because it copies the rules too, not because it is
+    /// forbidden the play ones.</b> It is the one project that carries them deliberately — a client
+    /// launches the published encounter server from a directory of its own choosing, and it cannot
+    /// resolve a single action without them. What the scan below still holds it to is the property
+    /// that matters: <b>a single star, which does not descend</b>. A project left off this list is
+    /// a project free to write <c>**</c>, and that is a two-character edit.</para>
+    /// </summary>
     private static readonly string[] ProjectFiles =
     [
         Path.Combine(RepoRoot, "ProwlersAndParagonsAutomation.csproj"),
         Path.Combine(RepoRoot, "mcp", "ProwlersAndParagons.Mcp.csproj"),
+        Path.Combine(RepoRoot, "mcp-play", "ProwlersAndParagons.McpPlay.csproj"),
         Path.Combine(RepoRoot, "web", "ProwlersAndParagons.Web.csproj")
     ];
 
@@ -80,14 +90,14 @@ public sealed class PlayPayloadTests
         // reordered, a path spelled with forward slashes — would find no globs at all and satisfy
         // every assertion below without reading a line of any project file.
         Assert.True(
-            includes.Count >= 4,
-            $"Found only {includes.Count} rules-data Include globs across the three projects that "
+            includes.Count >= 5,
+            $"Found only {includes.Count} rules-data Include globs across the four projects that "
             + "copy them. The extraction has stopped matching; fix it rather than the assertion. "
             + $"Found: {string.Join(" | ", includes.Select(i => $"{i.Project}: {i.Include}"))}");
 
-        // And all three projects have to be represented, or one could quietly go recursive while
-        // the count above is satisfied by the other two.
-        Assert.Equal(3, includes.Select(i => i.Project).Distinct(StringComparer.Ordinal).Count());
+        // And all four projects have to be represented, or one could quietly go recursive while
+        // the count above is satisfied by the others.
+        Assert.Equal(4, includes.Select(i => i.Project).Distinct(StringComparer.Ordinal).Count());
 
         var recursive = includes.Where(i => i.Include.Contains("**", StringComparison.Ordinal)).ToList();
 
@@ -212,10 +222,20 @@ public sealed class PlayPayloadTests
     /// answer is not to skip: when the directory is absent the expectation is built from the
     /// csproj's own glob instead, which is what MSBuild would have staged, and the assertion says
     /// which of the two it read. A check that reports "run a build" is a check nobody runs.</para>
+    ///
+    /// <para><b>It used to read this test project's own output directory, as a stand-in for the
+    /// character server's identical <c>Content</c> item — and the stand-in stopped standing in the
+    /// moment a second server was referenced here.</b> <c>mcp-play/</c> copies the play rules
+    /// deliberately, MSBuild flows a referenced project's content into the referencing one, and so
+    /// this assembly's neighbouring <c>data/rules/play</c> is now correct rather than a fault. The
+    /// two directories that are actually launched are read instead, which is what the stand-in was
+    /// standing in for; <see cref="TheEncounterServerIsTheOneCopyThatCarriesThePlayRules"/> is the
+    /// other half, so the allowance has something behind it.</para>
     /// </summary>
     [Theory]
     [InlineData("web")]
-    [InlineData("test-host")]
+    [InlineData("cli")]
+    [InlineData("mcp")]
     public void NoPlayFileReachesACopiedRulesDirectory(string which)
     {
         var directory = which switch
@@ -223,9 +243,11 @@ public sealed class PlayPayloadTests
             // What web/'s StageRulesDataInWwwroot target writes, and what the publish uploads.
             "web" => Path.Combine(RepoRoot, "web", "wwwroot", "data", "rules"),
 
-            // The CLI's own copy, which this test project inherits by referencing it. Stands in
-            // for the MCP server's, which is the identical Content item.
-            _ => Path.Combine(AppContext.BaseDirectory, "data", "rules")
+            // The terminal wizard's own copy.
+            "cli" => Path.Combine(Built(RepoRoot), "data", "rules"),
+
+            // The character server's, which is what a client launches.
+            _ => Path.Combine(Built(Path.Combine(RepoRoot, "mcp")), "data", "rules")
         };
 
         if (which == "web" && !Directory.Exists(directory))
@@ -235,9 +257,9 @@ public sealed class PlayPayloadTests
         }
 
         // Positive control before the absence assertion: an empty or missing directory satisfies
-        // "contains no play file" completely while proving nothing at all. Only the CLI's copy
-        // reaches here unconditionally — this test project references it, so a build that produced
-        // this assembly produced that directory too.
+        // "contains no play file" completely while proving nothing at all. The CLI's copy and the
+        // character server's both reach here unconditionally — this test project references both,
+        // so a build that produced this assembly produced those directories too.
         Assert.True(
             Directory.Exists(directory),
             $"{directory} does not exist, so this check would pass without looking at anything. "
@@ -260,6 +282,56 @@ public sealed class PlayPayloadTests
             $"Play rules reached {directory}: {string.Join(", ", play)}. For web/ that directory "
             + "is served publicly. Delete the copy — a stale wwwroot/data is not swept by a build; "
             + "see the comment in web/ProwlersAndParagons.Web.csproj.");
+    }
+
+
+    /// <summary>
+    /// <b>The allowance has something behind it: the encounter server's copy holds both stores.</b>
+    ///
+    /// <para>Every other test here says where a play file may not go. An allowance with nothing
+    /// behind it would silently permit a whole project — a <c>Content</c> item deleted, a
+    /// <c>LinkBase</c> mistyped — and the copy would go on looking clean while the published server
+    /// refused to start on every machine that installed it. So the one project excused from the
+    /// rule is required to carry <em>every</em> file of <em>both</em> stores, which is exactly the
+    /// pairing <see cref="TheSecondEngineIsTheOneProjectThatNamesAPlayRulesFile"/> makes on the
+    /// source side.</para>
+    ///
+    /// <para>Read off the build output rather than off the csproj, because "the glob says so" and
+    /// "the copy contains it" are different claims and only the second is the one a client depends
+    /// on.</para>
+    /// </summary>
+    [Fact]
+    public void TheEncounterServerIsTheOneCopyThatCarriesThePlayRules()
+    {
+        var beside = Path.Combine(Built(Path.Combine(RepoRoot, "mcp-play")), "data", "rules");
+
+        Assert.True(Directory.Exists(beside),
+            $"{beside} does not exist, so this check would pass without looking at anything. It is "
+            + "written by a build; run one.");
+
+        // The character rules, which the encounter server needs to turn a sheet into a combatant.
+        Assert.True(
+            Directory.GetFiles(beside, "*.json").Length >= 11,
+            $"{beside} holds fewer character rules files than the engine loads. The encounter "
+            + "server builds combatants out of them and cannot start without them.");
+
+        var play = Directory.GetFiles(Path.Combine(beside, "play"), "*.json")
+            .Select(Path.GetFileName)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(PlayFileNames.Order(StringComparer.Ordinal).ToList(), play);
+    }
+
+    /// <summary>
+    /// A sibling project's build output for this run's own configuration and framework, so a check
+    /// cannot end up reading a stale directory left by some earlier build.
+    /// </summary>
+    private static string Built(string projectDirectory)
+    {
+        var here = new DirectoryInfo(AppContext.BaseDirectory);   // …/bin/<cfg>/<tfm>/
+
+        return Path.Combine(projectDirectory, "bin", here.Parent!.Name, here.Name);
     }
 
     /// <summary>
