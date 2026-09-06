@@ -357,7 +357,10 @@ public sealed class PlayPayloadTests
     /// made.</b> The second engine is the one project that may name these files — that is what it
     /// is for. What has not changed is which trees may not: the character engine, the renderers and
     /// all three hosts. A host reaches the play rules by holding a <c>PlayRulesRepository</c>, never
-    /// by naming a file, and until the hosts arrive nothing holds one at all.</para>
+    /// by naming a file — <c>mcp-play/</c>, the one host there is, holds one and never names a play
+    /// file in its own C#. Its <em>csproj</em> does, because a published server has to carry the
+    /// data; that is what <see cref="TheEncounterServerIsTheOneCopyThatCarriesThePlayRules"/>
+    /// pins.</para>
     /// </summary>
     private static readonly string[] ApplicationTrees =
         ["engine", "sheets", "cli", "web", "mcp", "mcp-shared"];

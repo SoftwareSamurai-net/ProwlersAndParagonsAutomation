@@ -102,13 +102,25 @@ public sealed class PlayContractTests
     }
 
     /// <summary>
-    /// <b>Exactly one project in the solution references <c>play/</c>, and it is the test project.</b>
-    /// The hosts arrive in a later slice; until they do, "nothing references it" is a fact worth
-    /// keeping true, because the first host to reach for it should have to come past this test and
-    /// its message rather than past nobody.
+    /// <b>Exactly two projects in the solution reference <c>play/</c>: the test project and the
+    /// encounter server.</b>
+    ///
+    /// <para><b>This used to say "one, and it is the test project", and the host it was waiting for
+    /// has arrived.</b> The sentence it was protecting was never "nothing references it" for its own
+    /// sake — it was that the first host to reach for the second engine should have to come past
+    /// this test and its message rather than past nobody. It did: <c>mcp-play/</c> is that host, and
+    /// it is a server of its own precisely so that the arrow lands somewhere that answers no
+    /// question about cost or validity.</para>
+    ///
+    /// <para><b>What has not changed is which projects may not.</b> <c>engine/</c>, <c>sheets/</c>,
+    /// <c>cli/</c>, <c>web/</c> and <c>mcp/</c> are all still forbidden, by exactly this list — a
+    /// character server that referenced the second engine would be one program answering both
+    /// questions, which is the arrangement CLAUDE.md settles against in a line. An allowlist rather
+    /// than a denylist, so a third host added under a name nobody anticipated is flagged rather than
+    /// missed.</para>
     /// </summary>
     [Fact]
-    public void OnlyTheTestProjectReferencesTheSecondEngineSoFar()
+    public void OnlyTheTestProjectAndTheEncounterServerReferenceTheSecondEngine()
     {
         var referencing = Directory
             .EnumerateFiles(RepoRoot, "*.csproj", SearchOption.AllDirectories)
@@ -120,7 +132,9 @@ public sealed class PlayContractTests
             .Order(StringComparer.Ordinal)
             .ToList();
 
-        Assert.Equal(["ProwlersAndParagonsAutomation.Tests.csproj"], referencing);
+        Assert.Equal(
+            ["ProwlersAndParagons.McpPlay.csproj", "ProwlersAndParagonsAutomation.Tests.csproj"],
+            referencing);
     }
 
     /// <summary>

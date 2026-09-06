@@ -6,7 +6,9 @@
          It sits beside engine/ rather than inside it because CLAUDE.md settles the question in
          a line — engine/ is the authority on cost and validity and knows nothing about
          resolving an action. This project references engine/ for CharacterSheet, IRulesSource
-         and DerivedStatsCalculator; nothing references this one back, and PlayContractTests
+         and DerivedStatsCalculator. Nothing in engine/ or in any character-side host references
+         this one back — mcp-play/, the encounter server, is the one project that does, and
+         PlayContractTests
          holds that arrow at the source level as well as at the build level.
 
          Target framework, nullability and the analyzer contract come from the repository
