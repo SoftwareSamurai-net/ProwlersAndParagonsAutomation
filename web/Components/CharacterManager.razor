@@ -789,6 +789,14 @@
             StartAnotherOutcome.NotStarted =>
                 "Your character is saved. Nothing new could be started just now — try again in a moment.",
 
+            // Nothing was written and nothing can be, until the character behind the pointer is
+            // read: what is on screen is not it, and keeping it here would put it over them. So
+            // this sentence must not say "try again in a moment" the way the two around it do —
+            // waiting changes nothing, and the way out is a read.
+            StartAnotherOutcome.NothingRead =>
+                "Your character could not be loaded into this browser, so what is on screen was not "
+                + "saved and nothing new was started. Open one from the list above first.",
+
             _ => "Your character could not be saved just now, so nothing new was started. "
                  + "Try again in a moment.",
         };

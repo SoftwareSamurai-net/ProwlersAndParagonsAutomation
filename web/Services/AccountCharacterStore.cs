@@ -38,6 +38,24 @@ public enum StartAnotherOutcome
     /// alarm that teaches somebody to distrust every message the app gives them.</para>
     /// </summary>
     NotStarted,
+
+    /// <summary>
+    /// Nothing was started, because the character the pointer names could not be read into this
+    /// browser — so what is on screen is not it, and writing it down under that id would put a
+    /// stranger over somebody's character. See <see cref="ApiCharacterStore.UnreadId"/>.
+    ///
+    /// <para><b>It is a fourth sentence rather than <see cref="NotKept"/>, because the reason and
+    /// the way out are both different.</b> "Your character could not be saved" is about a write
+    /// that was attempted and failed, and it invites trying again in a moment; this write was
+    /// never attempted and trying again changes nothing. What ends it is reading the character —
+    /// the banner's retry, or opening one from the list — which is what the sentence has to
+    /// say.</para>
+    ///
+    /// <para><b>Only when there is something on screen to keep.</b> An untouched sheet has nothing
+    /// to write down, so the split costs it only the slot it was going to reuse: a fresh id is
+    /// minted instead and the act goes through, leaving the unread character where it is.</para>
+    /// </summary>
+    NothingRead,
 }
 
 /// <summary>
@@ -171,6 +189,26 @@ public sealed class AccountCharacterStore : ICharacterStore
     /// </summary>
     public ReadRefusal LastReadRefusal { get; private set; } = ReadRefusal.None;
 
+    /// <summary>
+    /// Which of the account's characters this browser has open and could not read, or null —
+    /// see <see cref="ApiCharacterStore.UnreadId"/>, which is where it is decided.
+    ///
+    /// <para><b>The account half's answer, passed on rather than copied</b>, the same way the
+    /// refusal event above is. <b>The browser's own store has none</b>, for the reason
+    /// <see cref="LastReadRefusal"/> gives one paragraph up: local storage either holds the
+    /// character or does not, so there is no state there in which a character may be behind the
+    /// pointer and unreadable.</para>
+    ///
+    /// <para>A reader who is not signed in is looking at the browser's store, so nothing on
+    /// screen may weigh this without asking who is here first.</para>
+    ///
+    /// <para><b>It is about the pointer as it stands, not about a character that once failed to
+    /// load</b>: every move of the pointer from this class goes through
+    /// <see cref="PointAtAsync"/>, which ends it. A reader who opened another character in the
+    /// manager is not in this state, whatever happened before they did.</para>
+    /// </summary>
+    public string? UnreadId => _inTheAccount.UnreadId;
+
     /// <summary>Open one of them. Null when it is not there, or not one this build can read.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> OpenAsync(string id)
     {
@@ -185,7 +223,7 @@ public sealed class AccountCharacterStore : ICharacterStore
         // The pointer moves only if there was something to move to. Switching to a character that
         // could not be read would leave the app pointed at nothing, and the next autosave would
         // write the character on screen over an id the visitor did not choose.
-        if (opened is not null) await _local.SetCurrentAsync(id);
+        if (opened is not null) await PointAtAsync(id);
 
         // A signed-in reader opening one of their account's characters is now what this browser is
         // holding, so it goes into the anonymous side — but into `AccountCopyId` and never over
@@ -197,6 +235,24 @@ public sealed class AccountCharacterStore : ICharacterStore
             await CopyDownAsync(opened.Value.Sheet, opened.Value.Mode);
 
         return opened;
+    }
+
+    /// <summary>
+    /// Moves the current-character pointer, and tells the account's store that it moved.
+    ///
+    /// <para><b>The one place the pointer is written here, so the second half cannot be
+    /// forgotten at one of them.</b> <see cref="ApiCharacterStore.UnreadId"/> is a fact about the
+    /// pointer — "the character it names is one this browser could not read" — so it stops being
+    /// true the moment the pointer names something else. It was read by the banner without that
+    /// check first, which left a reader who had opened another character in the manager looking
+    /// at a sentence saying their character could not be loaded, over a character that had loaded
+    /// perfectly, beside a "Try again" that would have switched them away from it.</para>
+    /// </summary>
+    private async Task PointAtAsync(string id)
+    {
+        await _local.SetCurrentAsync(id);
+
+        _inTheAccount.PointerMovedTo(id);
     }
 
     /// <summary>
@@ -291,6 +347,11 @@ public sealed class AccountCharacterStore : ICharacterStore
         // id from before they signed in, and leaving it would resurrect the character on the next
         // visit while they were signed out.
         await _local.DeleteAsync(id);
+
+        // Deleting the row that is open moves the pointer back to the legacy slot from inside
+        // `SavedCharacters`, so this is the one pointer move `PointAtAsync` cannot cover. Asked
+        // rather than assumed, because it only moves when the deleted row was the open one.
+        _inTheAccount.PointerMovedTo(await _local.CurrentIdAsync());
     }
 
     /// <summary>
@@ -352,12 +413,43 @@ public sealed class AccountCharacterStore : ICharacterStore
 
         var who = await _who.CurrentAsync();
 
+        // **The pointer may name a character this browser never read, and this path writes at the
+        // pointer.** It goes through the four-argument `SaveAsync` rather than the autosave, so
+        // the write-through's own refusal does not cover it — from the split state, "start a new
+        // character" and "import" put the sheet on screen straight over the unread character. The
+        // question is the autosave's, asked once and here: see
+        // `ApiCharacterStore.WouldWriteOverACharacterNothingRead`.
+        //
+        // `UnreadId` is read first only to keep the ordinary press free of work: it is null every
+        // time nothing has failed to read, and resolving the pointer can cost a list read.
+        var unread = who.IsSignedIn && _inTheAccount.UnreadId is { Length: > 0 }
+            ? await _inTheAccount.WouldWriteOverACharacterNothingRead(
+                await _inTheAccount.CurrentIdAsync())
+            : null;
+
         if (!CharacterSession.IsWorthKeeping(sheet))
         {
             // Nothing to keep, so nothing to move away from. Reusing the slot rather than minting
             // one keeps a reader who pressed this twice from collecting empty ids.
+            //
+            // **Unless the slot is not this browser's to reuse.** From the split state the slot is
+            // not empty — it holds a character nothing here has read — so reusing it would leave
+            // the reader building into an id every write is refused at. A fresh one costs nothing
+            // and leaves that character exactly where it is.
+            if (unread is not null)
+            {
+                var fresh = SavedCharacters.NewId();
+
+                _inTheAccount.MintedHere(fresh);
+                await PointAtAsync(fresh);
+            }
+
             return StartAnotherOutcome.Started;
         }
+
+        // Something on screen, and nowhere safe to put it: the id the keep would write at holds a
+        // character this browser has not got. Refused whole rather than half — see `NothingRead`.
+        if (unread is not null) return StartAnotherOutcome.NothingRead;
 
         if (who.IsSignedIn)
         {
@@ -403,7 +495,13 @@ public sealed class AccountCharacterStore : ICharacterStore
                 return StartAnotherOutcome.NotKept;
         }
 
-        await _local.SetCurrentAsync(SavedCharacters.NewId());
+        var opened = SavedCharacters.NewId();
+
+        // Nothing is behind a slot this browser just made up, so a read of it that cannot reach
+        // the server is not a character it failed to get — see `ApiCharacterStore.UnreadId`.
+        if (who.IsSignedIn) _inTheAccount.MintedHere(opened);
+
+        await PointAtAsync(opened);
 
         return StartAnotherOutcome.Started;
     }

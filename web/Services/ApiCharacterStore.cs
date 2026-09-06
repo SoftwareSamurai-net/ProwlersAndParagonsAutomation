@@ -166,6 +166,95 @@ public sealed class ApiCharacterStore : ICharacterStore
     /// </summary>
     public ReadRefusal LastReadRefusal { get; private set; } = ReadRefusal.None;
 
+    /// <summary>
+    /// The character this browser has open that could not be read into it — or null when the
+    /// pointer and the app agree, which is every ordinary moment.
+    ///
+    /// <para><b>It is the split <c>CharacterSession.HeldId</c> names, recorded where the damage
+    /// would be done rather than where it is noticed.</b> <c>SignIn.razor</c> empties the session
+    /// when the account's character cannot be read and <c>Program.cs</c>'s boot restore does the
+    /// same, and neither moves the current-character pointer, because the account's character is
+    /// still there. From that state the pointer names a character nothing in this browser has
+    /// ever seen, and the next write-through lands on it.</para>
+    ///
+    /// <para><b>Recorded by the read itself, so no caller has to remember to say it.</b> Both
+    /// paths above go through <see cref="LoadAsync()"/> — the only read that is about
+    /// <em>the open character</em> — and a version of this that asked two pages to call a method
+    /// after emptying the session would be two places that have to stay in step, which is how
+    /// this repository has lost things before.</para>
+    ///
+    /// <para><b>Only <see cref="ReadRefusal.Unreachable"/> sets it, and that is the same line
+    /// the campaigns page's own guard draws.</b> <see cref="ReadRefusal.NotThere"/> is the
+    /// ordinary state of a fresh slot an account has never written to — refusing there would
+    /// refuse the first save of every new character there has ever been.</para>
+    ///
+    /// <para>Cleared by a successful read of the same id, wherever it comes from: the retry in
+    /// the banner, opening it in the character manager, and the campaigns page's re-adopt all
+    /// go through <see cref="LoadAsync(string)"/> and so all put this right for free.</para>
+    ///
+    /// <para><b>And cleared by the pointer moving off it</b>, which is the other end of the same
+    /// sentence — see <see cref="PointerMovedTo"/>. This says the character <em>the pointer
+    /// names</em> could not be read, so opening a different one, or deleting this one, ends it as
+    /// surely as reading it does. Read without that check it made the banner tell a reader
+    /// looking at a perfectly loaded character that their character could not be loaded.</para>
+    ///
+    /// <para><b>Never an id this browser minted</b> — see <see cref="_minted"/>, which is the
+    /// difference between a character on a server that cannot be reached and a slot nothing has
+    /// ever been written to.</para>
+    /// </summary>
+    internal string? UnreadId { get; private set; }
+
+    /// <summary>
+    /// The ids this browser made up itself, which name no character anywhere until it writes one.
+    ///
+    /// <para><b>A read of one of these failing is not a split, and treating it as one refused
+    /// every write a brand-new account could make.</b> <see cref="AdoptAnIdAsync"/> mints when the
+    /// account's list comes back with nothing in it — <em>including</em> when it comes back with
+    /// nothing because the server could not be asked — so an account signing in during an outage
+    /// minted an id, failed to read it, and set <see cref="UnreadId"/> to a slot that has never
+    /// held anything — so the first thing that account was told, before it had a character at
+    /// all, was that its character could not be loaded and that what is on screen is not being
+    /// kept. The write survives it, and only just:
+    /// <see cref="WouldWriteOverACharacterNothingRead"/> ends the split itself as soon as a list
+    /// read succeeds and finds nothing worth protecting behind the pointer, so saves are refused
+    /// only while the list is unreachable too. The sentence is the whole of the damage, which is
+    /// enough — it is the app's first word to a new account and it is false.</para>
+    ///
+    /// <para>It is per-store and so per-visit, which is the honest span: within this visit the
+    /// sheet on screen <em>is</em> whatever this browser has written at that id, so there is
+    /// nothing behind it this browser has not seen. A later visit reads the pointer back from
+    /// storage with none of this, and a failed read there really is a character it cannot get.</para>
+    /// </summary>
+    private readonly HashSet<string> _minted = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The current-character pointer now names <paramref name="id"/>, so the split — if there was
+    /// one — is over unless the pointer has landed back on the very character it named.
+    ///
+    /// <para><b><see cref="UnreadId"/> is a fact about the pointer and not about a character</b>,
+    /// so anything that moves the pointer ends it. Without this, opening another character in the
+    /// manager left the banner saying the character on screen could not be loaded while the reader
+    /// looked straight at a character that had loaded perfectly, and "Try again" would have
+    /// switched them away from it. Deleting the unread row is the same shape: the pointer falls
+    /// back to the legacy slot and there is nothing left to read.</para>
+    ///
+    /// <para>Called from <c>AccountCharacterStore</c>, which is where the pointer is written —
+    /// this store reads it and never moves it, except through <see cref="AdoptAnIdAsync"/>, which
+    /// records the mint below instead.</para>
+    /// </summary>
+    internal void PointerMovedTo(string id)
+    {
+        if (!string.Equals(UnreadId, id, StringComparison.Ordinal)) UnreadId = null;
+    }
+
+    /// <summary>
+    /// This browser made <paramref name="id"/> up, so nothing is behind it — see
+    /// <see cref="_minted"/>. Told rather than inferred, because the other minting happens in
+    /// <c>AccountCharacterStore.StartAnotherAsync</c>, which opens a fresh slot beside a kept
+    /// character.
+    /// </summary>
+    internal void MintedHere(string id) => _minted.Add(id);
+
     /// <summary>One character by id, or null if there is none this build can trust.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync(string id)
     {
@@ -197,6 +286,13 @@ public sealed class ApiCharacterStore : ICharacterStore
             // A payload this build cannot open is `NotThere` and not `Unreachable`: the server
             // answered, and asking it again will produce the same bytes.
             LastReadRefusal = read is null ? ReadRefusal.NotThere : ReadRefusal.None;
+
+            // The character behind the pointer has arrived after all, so the split above is over.
+            // Done here rather than at the six call sites that read a character, so that every
+            // route back into that character — the banner's retry, the manager, the campaigns
+            // page's re-adopt — puts it right without knowing this exists.
+            if (read is not null && string.Equals(UnreadId, id, StringComparison.Ordinal))
+                UnreadId = null;
 
             return read;
         }
@@ -295,6 +391,15 @@ public sealed class ApiCharacterStore : ICharacterStore
             return;
         }
 
+        if (await WouldWriteOverACharacterNothingRead(id) is { } unread)
+        {
+            WriteRefused?.Invoke(
+                $"{unread} was not overwritten: it could not be read into this browser, so what "
+                + "is on screen is not it. Open it again from your characters.");
+
+            return;
+        }
+
         _ = await SaveAsync(id, SavedCharacters.LabelFor(sheet), sheet, mode);
     }
 
@@ -342,6 +447,49 @@ public sealed class ApiCharacterStore : ICharacterStore
     }
 
     /// <summary>
+    /// Whether writing at <paramref name="id"/> would replace a character this browser could not
+    /// read — and if so, what that character is called.
+    ///
+    /// <para><b>The other half of <see cref="WouldEmptyACharacter"/>, and the half that covers
+    /// the reader who carries on working.</b> That one asks whether the sheet is empty, which
+    /// catches the moment straight after a failed read and stops catching the instant somebody
+    /// types a name: from there a half-built character sailed through it and landed on top of a
+    /// fully statted one. The question here is not what the sheet holds but whether this browser
+    /// ever saw the character it is about to write over.</para>
+    ///
+    /// <para><b>It refuses for as long as the split lasts, deliberately.</b> There is no edit
+    /// that makes writing over an unread character safe, so there is no state to wait for — what
+    /// there is instead is a way out, said on screen: retry the read, or open the character in
+    /// the manager. Both clear <see cref="UnreadId"/> through the read itself.</para>
+    ///
+    /// <para><b>A list that could not be read refuses too</b>, for the reason
+    /// <see cref="WouldEmptyACharacter"/> gives; and a list that answers with nothing worth
+    /// protecting behind the pointer ends the split rather than leaving every later save to ask
+    /// the same question again.</para>
+    ///
+    /// <para><b>Internal because the autosave is not the only write that lands on the pointer.</b>
+    /// <c>AccountCharacterStore.StartAnotherAsync</c> writes the character on screen down at this
+    /// same id through the four-argument <see cref="SaveAsync(string, string, CharacterSheet,
+    /// SheetMode)"/> — deliberately, since it must not be left to a fire-and-forget autosave — and
+    /// so it has to ask the same question rather than carry a second copy of it.</para>
+    /// </summary>
+    internal async Task<string?> WouldWriteOverACharacterNothingRead(string id)
+    {
+        if (!string.Equals(UnreadId, id, StringComparison.Ordinal)) return null;
+
+        var listed = await ListAsync();
+
+        if (listed.Limit is null) return "Your character";
+
+        if (listed.Characters.FirstOrDefault(c => c.Id == id) is { } row && WorthProtecting(row))
+            return row.Label;
+
+        UnreadId = null;
+
+        return null;
+    }
+
+    /// <summary>
     /// Whether an index row describes a character rather than the empty envelope this refuses to
     /// write. Priced, or named: either is somebody having done something.
     /// </summary>
@@ -350,9 +498,26 @@ public sealed class ApiCharacterStore : ICharacterStore
         || !(string.IsNullOrWhiteSpace(row.Label)
              || string.Equals(row.Label, "Unnamed character", StringComparison.Ordinal));
 
-    /// <summary>The open character, or null.</summary>
-    public async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync() =>
-        await LoadAsync(await CurrentIdAsync());
+    /// <summary>
+    /// The open character, or null.
+    ///
+    /// <para><b>This is the read that can leave the app pointed at a character it has not
+    /// got</b>, so it is the one that records the fact — see <see cref="UnreadId"/>. Both callers
+    /// answer a null here by emptying the session and leaving the pointer where it is, correctly:
+    /// the character is still on the server. What was missing is anything that then knew the two
+    /// had come apart.</para>
+    /// </summary>
+    public async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync()
+    {
+        var id = await CurrentIdAsync();
+        var read = await LoadAsync(id);
+
+        // An id this browser minted is not a character it failed to get — see `_minted`.
+        if (read is null && LastReadRefusal == ReadRefusal.Unreachable && !_minted.Contains(id))
+            UnreadId = id;
+
+        return read;
+    }
 
     /// <summary>Throws the open character away.</summary>
     public async Task ClearAsync() => await DeleteAsync(await CurrentIdAsync());
@@ -418,6 +583,11 @@ public sealed class ApiCharacterStore : ICharacterStore
         var adopted = listed.Characters.Count > 0
             ? listed.Characters[0].Id
             : SavedCharacters.NewId();
+
+        // A minted id names nothing until this browser writes at it, and a list that could not be
+        // read mints one too — so without this an account signing in during an outage read its own
+        // fresh slot, failed, and called that a character it could not get. See `_minted`.
+        if (listed.Characters.Count == 0) MintedHere(adopted);
 
         await _local.SetCurrentAsync(adopted);
 
