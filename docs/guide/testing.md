@@ -408,7 +408,12 @@ and it is what a reader debugging a failed sign-in needs. And `start_server`'s f
 `/signin?t=<raw token>`, so the tail pasted into a CI log, an issue or a chat window carried the
 secret with it. `scripts/test-kill-tree.sh` drives the redactor, positive control first — an
 ordinary line survives, and the fixture really did carry a token — because "no token in the output"
-is satisfied perfectly by a redactor that printed nothing.
+is satisfied perfectly by a redactor that printed nothing. **The drivers obey the same rule, and did
+not until run 34040527190 printed three raw tokens into a public CI log**: Playwright's own
+`ERR_CONNECTION_REFUSED at http://…/signin?t=<token>` went straight into a verdict, because only
+the shell half of this harness had ever thought about it. Every `FAIL` message from either driver
+now goes through the same `[?&]t=` substitution — and is flattened to one line, because `e2e.sh`
+reads verdicts with `grep ^E2E CHECK` and Playwright appends a multi-line `Call log:`.
 
 **The seed lives in the shell, not in a driver, and the reasons are arithmetic.** Writing a row
 needs the pinned wrangler version, the database id out of `d1/wrangler.toml`, the `--persist-to`
@@ -565,8 +570,9 @@ against a pre-built site.
 ### Proving `kill_tree`, and why a green run was never evidence about it
 
 ```bash
-./scripts/test-kill-tree.sh                  # seven checks: the parses, three trees, the
-                                             # orphan backstop, the log redactor; ~11s
+./scripts/test-kill-tree.sh                  # eight checks: the parses, three trees, the orphan
+                                             # backstop, the log redactor, the server-state
+                                             # reading; ~11s
 ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic ones only. NOT a full run
 ```
 
@@ -692,6 +698,57 @@ could act on; `::error::` and `::warning::` both carry the holder's pid and cmdl
 that fails this way is diagnostic on its own. **What would disprove the fix is a `WRANGLER_TREE` or
 `ORPHANED_LISTENER: FAIL` naming a surviving pid — not another green run**, for the reason this
 whole section opens with.
+
+### What a failed run prints, and the one thing it used to leave out
+
+A failing drive prints, in this order: every verdict the driver reached; an `::error::` naming how
+many of how many checks failed; the names of any checks that **did not run**; one `::error::` line
+saying whether the server was **still alive, already dead (with its exit status), or gone** when
+the drive ended, and whether anything was still listening on its port; and the last forty lines of
+that server's own log, with `[?&]t=` values redacted.
+
+**The last two were missing, and CI run `34040527190` is what that cost.** `wrangler pages dev`
+died four seconds into a nine-check drive. `A11Y` reported a 45-second wait on `/build`, the seven
+checks after it each reported `net::ERR_CONNECTION_REFUSED` as if it were their own finding, and
+the script printed the verdicts, called `stop_server`, and said nothing about the server — so the
+run's whole evidence for a dead server was eight red lines that look identical to eight broken
+checks.
+
+**The ordering is the fix, not the printing.** `capture_server_state` runs *before* `stop_server`,
+at the moment the drive returns and whatever the verdicts were, because afterwards there is
+nothing left to ask: the tree is killed and the port released. `say_server_state` then prints it on
+every failure arm — the 300-second timeout, a missing summary line, zero checks, a failed check,
+and each of the four ways a twin can fail. The asymmetry it removes is that `start_server`'s two
+arms have quoted a `redacted_tail` since the day they were written, because a server that never
+comes up is obviously a server question; a server that comes up and then dies is the same question
+and nothing asked it.
+
+**Both halves are driven by `scripts/test-kill-tree.sh`'s `SERVER_STATE` case**, positive control
+first: a live, bound fixture has to read as alive before a `SIGKILL`ed one is allowed to read as
+`ALREADY DEAD … exit status 137`, and the two readings have to differ — which a constant cannot
+do. Watched red four ways: reporting alive unconditionally, dropping the exit status, swapping
+`redacted_tail` for `tail` (the fixture log carries a token), and printing no log at all.
+
+**What the shape of that failure already rules out, so the next reader does not start from
+nothing.** A `workerd` that has died under a live wrangler does **not** produce refused
+connections: wrangler keeps the port and answers by hanging for ever (which is why readiness is
+the served body — see below), and miniflare respawns a crashed `workerd` and rebinds the same port
+within a second, measured here from run `33949251306`. Run 34040527190 got a document for
+`/build`, then nothing, then a connection *refused* within 18ms on the next check and on every one
+after it — so the listener was gone and stayed gone, which is the supervisor process itself
+exiting or being killed rather than its worker crashing. The two candidates left are an OOM kill
+and wrangler exiting on an error, and they are told apart by exactly the two things that were
+missing: the wrapper's exit status (137 is a signal; the OOM killer leaves that one) and the last
+lines of its log. Nothing about the check that was running is implicated — the server had already
+served the BOOT check, two more full page loads and an axe scan, and the node driver's own drive
+in the same job made about fifteen navigations against an identically-configured server without
+trouble.
+
+**A check that did not run is not a failure, and the figures say so.** Both drivers stop when the
+server stops answering rather than driving the rest into a refused connection each, and print
+`E2E CHECK <NAME>: NOT RUN` for what is left. `E2E RAN n CHECKS, m PASSED` counts only the ones
+that ran, so `n` shrinking is the shape of this failure; `e2e.sh` prints the `NOT RUN` names beside
+its own count so the two figures cannot be added into a suite that is quietly smaller.
 
 ### Three things about the server, each of which cost a debugging round
 
