@@ -24,6 +24,13 @@ public sealed class McpSetupDocumentationTests
 
     private static string Guide => File.ReadAllText(Path("docs", "MCP-SETUP.md"));
 
+    /// <summary>
+    /// Every tree an MCP server in this repository is compiled from: the character builder, the
+    /// encounter server, and the project holding what both of them need before they can serve
+    /// anything.
+    /// </summary>
+    private static readonly string[] ServerTrees = ["mcp", "mcp-shared", "mcp-play"];
+
     private static Regex Rx(string pattern, RegexOptions options = RegexOptions.None) =>
         new(pattern, options, TimeSpan.FromSeconds(5));
 
@@ -391,13 +398,16 @@ public sealed class McpSetupDocumentationTests
     [Fact]
     public void NothingInTheServerSendsAReaderToTheReadmeForSetup()
     {
-        var sources = Directory
-            .GetFiles(Path("mcp"), "*.cs", SearchOption.AllDirectories)
+        var sources = ServerTrees
+            .SelectMany(tree => Directory.GetFiles(Path(tree), "*.cs", SearchOption.AllDirectories))
             .Where(p => !p.Contains($"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(p => !p.Contains($"{System.IO.Path.DirectorySeparatorChar}bin{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .ToList();
 
-        Assert.NotEmpty(sources);
+        // All three trees, because the sentence this catches is prose in a source file and the
+        // second server's `--help` is the same text in a second place. A scan of one tree would
+        // report the repository clean while the newer program sent a stuck reader nowhere.
+        Assert.True(sources.Count >= 8, $"Only {sources.Count} server sources were read.");
 
         Assert.All(sources, file => Assert.False(
             Rx(@"\bREADME(\.md)?\b").IsMatch(File.ReadAllText(file)),
@@ -471,11 +481,14 @@ public sealed class McpSetupDocumentationTests
     /// the word is a one-token edit that leaves a working server and breaks the never-published
     /// case in exactly the way this repository has spent three corrections on.</para>
     /// </summary>
-    [Fact]
-    public void TheCheckedInRegistrationRunsWhatSectionZeroPublishes()
+    /// <param name="name">The wire name of the server entry, as a client sees it.</param>
+    [Theory]
+    [InlineData("prowlers-and-paragons")]
+    [InlineData("prowlers-and-paragons-play")]
+    public void TheCheckedInRegistrationRunsWhatSectionZeroPublishes(string name)
     {
         var registration = JsonNode.Parse(File.ReadAllText(Path(".mcp.json")))!;
-        var server = registration["mcpServers"]?["prowlers-and-paragons"];
+        var server = registration["mcpServers"]?[name];
 
         Assert.NotNull(server);
         Assert.Equal("dotnet", server!["command"]?.GetValue<string>());
@@ -517,16 +530,66 @@ public sealed class McpSetupDocumentationTests
         }
     }
 
+
+    /// <summary>
+    /// <b>The two registrations are two programs, not one entry copied twice.</b>
+    ///
+    /// <para>Both are published from different projects to different directories, and the failure
+    /// worth guarding is the one that looks right in every other test here: a copy-and-paste that
+    /// leaves both entries running the same assembly. A client would then register two servers,
+    /// connect both, and get the character builder's six tools under two names — with nothing
+    /// anywhere saying why the encounter tools never appeared.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoRegistrationsRunTwoDifferentPrograms()
+    {
+        var servers = JsonNode.Parse(File.ReadAllText(Path(".mcp.json")))!["mcpServers"]!.AsObject();
+
+        Assert.Equal(2, servers.Count);
+
+        var assemblies = servers
+            .Select(entry => entry.Value!["args"]!.AsArray()[^1]!.GetValue<string>())
+            .ToList();
+
+        Assert.Equal(assemblies.Count, assemblies.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+
+        // And they are published to different directories, so one publish cannot overwrite the
+        // other's binary — which is what a shared output directory would silently do.
+        var directories = assemblies
+            .Select(a => Slashes(a)[..Slashes(a).LastIndexOf('/')])
+            .ToList();
+
+        Assert.Equal(directories.Count, directories.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    /// <summary>
+    /// <b>Section 0 publishes both servers.</b> A guide that publishes one and registers two leaves
+    /// a reader with half a working checkout and a `CONNECTION_CLOSED` for the other half — the
+    /// failure item 18 in <c>PROGRESS.md</c> records, in a second spelling.
+    /// </summary>
+    [Fact]
+    public void SectionZeroPublishesBothServers()
+    {
+        var published = Rx(@"dotnet publish (\S+\.csproj) -c Release -o (\S+)").Matches(Guide)
+            .Select(m => Slashes(m.Groups[2].Value.Trim('"')).TrimEnd('/'))
+            .ToList();
+
+        foreach (var directory in new[] { "mcp-server", "mcp-play-server" })
+            Assert.Contains(directory, published, StringComparer.Ordinal);
+    }
+
     /// <summary>
     /// <b>The registration is relative, so a clone, a worktree and another machine are all
     /// already right.</b> An absolute path is correct on exactly one computer, and the guide used
     /// to say — wrongly — that this was a reason not to check a registration in at all.
     /// </summary>
-    [Fact]
-    public void TheProjectRegistrationIsRelativeToTheCheckout()
+    [Theory]
+    [InlineData("prowlers-and-paragons")]
+    [InlineData("prowlers-and-paragons-play")]
+    public void TheProjectRegistrationIsRelativeToTheCheckout(string name)
     {
         var registration = JsonNode.Parse(File.ReadAllText(Path(".mcp.json")))!;
-        var arguments = registration["mcpServers"]!["prowlers-and-paragons"]!["args"]!
+        var arguments = registration["mcpServers"]![name]!["args"]!
             .AsArray().Select(a => a!.GetValue<string>());
 
         Assert.All(arguments, argument => Assert.False(

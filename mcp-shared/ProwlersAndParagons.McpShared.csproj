@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The two things every MCP server in this repository needs before it can serve
+         anything: where the rules files are, and what its two command-line arguments meant.
+
+         **It is a project rather than a <Compile Include> of the same file from two places,
+         and the reason is measurable rather than aesthetic.** Compiling `RulesLocation.cs`
+         into both servers puts `ProwlersAndParagonsAutomation.Mcp.RulesLocation` in two
+         assemblies; the test project references both, and the first unqualified use of the
+         name is CS0433. A project has one copy, one assembly and one set of tests, and costs
+         a csproj.
+
+         **The namespace is deliberately unchanged.** These files kept
+         `ProwlersAndParagonsAutomation.Mcp`, so moving them moved nothing else: every
+         `using` that already named that namespace still resolves, and the git history of the
+         two files is a rename rather than a rewrite.
+
+         It references nothing. Both servers reference it; it references neither, so the one
+         dependency rule this architecture has is not inverted by sharing. -->
+
+    <PropertyGroup>
+        <RootNamespace>ProwlersAndParagonsAutomation.Mcp</RootNamespace>
+        <AssemblyName>ProwlersAndParagons.McpShared</AssemblyName>
+    </PropertyGroup>
+
+</Project>

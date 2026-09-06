@@ -12,6 +12,19 @@
         "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
         "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1"
       }
+    },
+    "prowlers-and-paragons-play": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "exec",
+        "mcp-play-server/ProwlersAndParagons.McpPlay.dll"
+      ],
+      "env": {
+        "DOTNET_NOLOGO": "1",
+        "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+        "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1"
+      }
     }
   }
 }

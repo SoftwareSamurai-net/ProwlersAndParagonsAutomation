@@ -1,9 +1,19 @@
 # Connecting the rules engine to your own Claude
 
-This repository ships an **MCP server**: a small local program that answers questions about the
-Prowlers & Paragons rules. Connect it to a Claude client and you can describe a character in
-ordinary words — *"a washed-up boxer who punches through time"* — and get a legal, costed one
-back, with Claude asking you the two or three questions your description genuinely leaves open.
+This repository ships **two MCP servers**: small local programs that answer questions about the
+Prowlers & Paragons rules.
+
+- **`prowlers-and-paragons`** builds characters. Connect it to a Claude client and you can describe
+  one in ordinary words — *"a washed-up boxer who punches through time"* — and get a legal, costed
+  one back, with Claude asking you the two or three questions your description genuinely leaves
+  open.
+- **`prowlers-and-paragons-play`** runs fights. Hand it combatants and it resolves an encounter a
+  turn at a time out of Chapters 3–5, or runs the same matchup a few hundred times and reports the
+  rates. See [the encounter server](#the-encounter-server) below.
+
+**They are two programs, published separately and registered separately**, because they are two
+engines: one is the authority on what a character costs and whether it is legal, the other on what
+these dice against this threshold under these rules produce. Register either without the other.
 
 **It handles no credentials and holds no API key.** The server knows about the rulebook and
 nothing else; the conversation happens in the Claude client you already use, on your own
@@ -31,12 +41,18 @@ none to keep up to date**. It wants one command first:
 
 ```bash
 dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server
+dotnet publish mcp-play/ProwlersAndParagons.McpPlay.csproj -c Release -o mcp-play-server
 ```
 
-**Run that after cloning, and again after a `git pull` that moves the engine or the rules** — the
-registration runs the published copy and never builds, so nothing else will bring it up to date. A
-checkout that has not published gets exit 129, an **empty standard output** and one line on standard
-error naming the file that is missing: a server that is not there, with a log saying so.
+**Two commands and two directories, because they are two programs.** `.mcp.json` registers both,
+each out of its own published copy, and a publish of one must not overwrite the other's binary.
+Skip the second and you have the character builder and no encounter server, with a log line saying
+which file is missing.
+
+**Run those after cloning, and again after a `git pull` that moves either engine or the rules** —
+the registration runs the published copy and never builds, so nothing else will bring it up to
+date. A checkout that has not published gets exit 129, an **empty standard output** and one line on
+standard error naming the file that is missing: a server that is not there, with a log saying so.
 
 **It runs a published copy rather than `mcp/bin/Release` because a running server blocks a Release
 build of this repository, and that was measured rather than reasoned about.** A server holding
@@ -71,7 +87,7 @@ checkout.** That is a deliberate gate on running a program a clone handed you. A
 
 ```json
 {
-  "enabledMcpjsonServers": ["prowlers-and-paragons"]
+  "enabledMcpjsonServers": ["prowlers-and-paragons", "prowlers-and-paragons-play"]
 }
 ```
 
@@ -214,6 +230,62 @@ You will be asked about two or three things and told about the rest: the tier, w
 
 The hard part of this front end is not the transport — it is deciding which questions are worth asking. That reasoning lives in [`mcp/QUESTION-POLICY.md`](../mcp/QUESTION-POLICY.md), which *is* what `creation_guide` returns, so there is one copy of it and it cannot drift from what the tool teaches.
 
+## The encounter server
+
+`prowlers-and-paragons-play` is the second program. It resolves fights through
+[the second engine](guide/play-engine.md) — Chapters 3–5 of the rulebook, read out of
+`data/rules/play/` — and it holds no opinion at all about whether a character is legal. That is the
+other server's question, and neither one answers the other's.
+
+### The four tools
+
+| | |
+|---|---|
+| `combat_guide` | The play policy: that the engine resolves and you narrate, what may never be stated without a ledger line behind it, who holds Resolve and who holds Adversity, what a measurement has to be quoted with, and what the engine does not yet model |
+| `start_encounter` | Opens a fight and holds it by id: combatants, the table's switches, a Challenge Level and a seed. Answers with the order of action, the GM's Adversity pool and the table echoed back |
+| `take_turn` | One intent, resolved. Acting and rolling are the same call. Answers with the ledger lines that step added and the state afterwards |
+| `run_encounters` | The same fight on N consecutive seeds, with the rates — and N, the seeds, the policy and the table settings in the same object |
+
+**Acting and rolling are one tool on purpose.** An intent is a *request*, and the whole discipline
+of the second engine is that the engine decides what a request produces; a separate rolling call
+would be an invitation to declare an attack, look at the dice, and decide afterwards what was being
+attempted.
+
+**Every answer carries ledger lines, and each names the rule it applied and the page it is printed
+on.** That is what makes a figure off this server worth acting on. The policy behind it — including
+the list of what is recognised and *not applied* — is in
+[`mcp-play/PLAY-POLICY.md`](../mcp-play/PLAY-POLICY.md), which *is* what `combat_guide` returns, so
+there is one copy of it and it cannot drift from what the tool teaches.
+
+**`run_encounters` refuses fewer than 30 runs**, and says why: it answers with rates, and a rate off
+five fights is noise wearing a percentage sign.
+
+### Installing it outside a checkout
+
+Section 0 covers a client working *in* this repository. For one that is not, publish it somewhere
+that will keep existing and register it by absolute path, exactly as sections 1 and 2 do for the
+character builder — the same three shells, with `mcp-play/ProwlersAndParagons.McpPlay.csproj` as
+the project and `ProwlersAndParagons.McpPlay` as the binary. On macOS or Linux:
+
+```bash
+dotnet publish mcp-play/ProwlersAndParagons.McpPlay.csproj -c Release -o "$HOME/.local/share/prowlers-and-paragons-play"
+```
+
+```bash
+claude mcp add --scope user prowlers-and-paragons-play -- "$HOME/.local/share/prowlers-and-paragons-play/ProwlersAndParagons.McpPlay"
+```
+
+On Windows the path is `$env:LOCALAPPDATA\ProwlersAndParagons\mcp-play-server` and the binary
+gains a `.exe`, as in section 1. **Claude Desktop takes a second entry in the same
+`claude_desktop_config.json` object** — keyed `prowlers-and-paragons-play`, with `command` set to
+the absolute path of `ProwlersAndParagons.McpPlay` (plus `.exe` on Windows), shaped exactly like the
+two blocks in section 2.
+
+**Both stores ship beside this binary**, the character rules and the play rules under them, so it
+needs no repository checked out. `PROWLERS_RULES_DIR` points at the character rules and the play
+rules are the `play` folder under *that* — there is no second variable, and a directory with no
+`play` under it is refused at startup rather than guessed past.
+
 ## Troubleshooting
 
 - **The tools are not there and nothing is wrong with the server.** It is the approval gate in
@@ -229,5 +301,13 @@ The hard part of this front end is not the transport — it is deciding which qu
 - **It answers with rules you have edited since.** The published binary carries its own copy. Re-publish over the same path, or point `PROWLERS_RULES_DIR` at your checkout's `data/rules` while you are changing them.
 - **"The rules files could not be found."** You are running the binary somewhere without its `data/rules/` folder beside it. Either publish again with `-o`, or set `PROWLERS_RULES_DIR` to a directory holding `tiers.json` and the rest.
 - **The session drops immediately.** Something is writing to standard output. Point the client at the published binary, not at `dotnet run`.
+- **The character tools are there and the encounter tools are not.** They are two programs and
+  two publishes; section 0 has both commands, and the approval list in `.claude/settings.local.json`
+  has to name both servers. The one-line `claude -p` check works for the second one too — ask about
+  `mcp__prowlers-and-paragons-play__combat_guide`.
+- **"The play rules could not be found."** The encounter server has the character rules and no
+  `play` folder under them. There is no second environment variable: point `PROWLERS_RULES_DIR` at a
+  `data/rules` that has `data/rules/play` under it, or publish again with `-o` so both stores land
+  beside the binary.
 - **A Release build fails with `MSB3027` and a file in `mcp/bin/`.** A server is running out of that directory, which is the failure section 0 exists to prevent — an older registration, or a client started before this one landed. The message names the holding process; stop it, and re-read section 0.
 

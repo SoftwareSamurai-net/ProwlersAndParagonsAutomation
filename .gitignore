@@ -24,6 +24,11 @@ publish/
 # It must stay ignored: it is build output, and a committed copy would go stale in silence.
 mcp-server/
 
+# The published encounter server, the same way and for the same reasons. Two directories rather
+# than one because they are two programs: a client may register either without the other, and a
+# publish of one must not overwrite the other's binary.
+mcp-play-server/
+
 # Source PDFs — obtain separately; never tracked in version control. The rulebook is
 # copyright LakeSide Games and must not be redistributed with this tool, so this is
 # deliberately broad rather than scoped to docs/. CI fails the build if one is tracked.

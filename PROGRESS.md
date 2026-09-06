@@ -17,14 +17,14 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **A sixth thing drives the assembled application and is deliberately not one of the five**: `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the deploy pins, and drives real Chrome — five checks with a positive control each and a deliberately-broken twin of the whole site each, and a sixth — the axe-core accessibility check — on the `--driver dotnet` half alone (`node` is the default and is the hand-rolled client, which cannot run axe). It reports verdicts rather than a test count, so `count-tests.sh` does not know about it; see [item 10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) for what it does and does not reach. |
+| Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **A sixth thing drives the assembled application and is deliberately not one of the five**: `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the deploy pins, and drives real Chrome. **How many checks it runs, what each is worth without its positive control, and which of them a given driver can reach are not written down here either** — run it, and read [`docs/guide/testing.md`](docs/guide/testing.md), which is where that account is kept up. This cell has already recorded that figure wrong once. It reports verdicts rather than a test count, so `count-tests.sh` does not know about it; see [item 10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) for what it does and does not reach. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
-| Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and the apply half is now proven rather than assumed.** The first run failed on a file mode rather than the credential everybody was watching; the run after it read the live database, found nothing pending, and shipped — which established D1 *Read* only, because a token holding just Read produces that exact log and then fails on the first migration that actually has to be applied. **`0007_decision_recorded.sql` was that migration.** On the deploy of `a978806` the gate read one pending file, classified it additive, applied it (`0007_decision_recorded.sql ✅`), **and then asked the database again** — `No migrations to apply!`, the script's own positive control, which is what makes this "the schema moved" rather than "wrangler exited 0". So **D1: Edit is granted and the whole mechanism has now run end to end.** See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
-| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. **All seven D1 migrations are applied to the remote database.** `0007_decision_recorded.sql` was the first the deploy ever actually applied — every gate run before it found nothing pending and *skipped* — and it went in on the deploy of `a978806`, which is what proved the D1 **Edit** half of the token; see the Hosting row. **The six before it**, `0006` included — the owner applied it by hand, and the figure here is the deploy's own reading rather than a claim: `wrangler d1 migrations list --remote` answered *“No migrations to apply!”* on the run of 2026-09-01, so `apply-migrations.sh` skipped the apply and the Pages upload went ahead. This row said **0006 is pending** and was right when written; it went stale the moment somebody did the thing the gate exists to automate, which is the ordinary way a measured figure in this file stops being true. The `DB` binding is in place, `/api/me` answers `401` with JSON — checked by the deploy after every upload — and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see [the archive](docs/progress/); until now the admin page said an address "can sign in now" and nothing ever told them so |
-| Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see [the archive](docs/progress/) |
-| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — measured, not assumed, on a clean export of the commit carrying this row. **Two measurements in one day are the reason to go on distrusting the figure.** Against `main` at `9add547` the same scan reported **2**, both `InvalidXmlDocComment` on a single unclosed `<para>` in `WorkflowFilterTests`, which arrived with the executable-bit guard in #114 and was reported by nothing for four days. And on the eight-package NuGet bump it reported **5** — the same 2, plus three `MethodHasAsyncOverload` in `AdminPageTests.cs`, **a file that bump does not touch**: a package upgrade moved an inspection in code nobody edited, which is the case a pull-request-mode scan structurally cannot see. Both are fixed and both are in the entry in [the archive](docs/progress/). Qodana came off pull requests deliberately, so the local `./scripts/qodana-scan.sh` that `CLAUDE.md` requires before one is opened is the *only* thing between a branch and `main` — the answer to both of these is to run it rather than to put the workflow back. Earlier: 2 on the export of `76a4f80` (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), 3 on `master`, 37 across three reconciled slices, 23 in the redesign slice — every one found by somebody re-running it, none by CI. **Do not name this commit's own sha here**: it was tried and an amend orphaned it within the hour, which is a dead pointer of exactly the kind this repository treats as worse than none. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
-| Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see [the archive](docs/progress/), on the two the tool used to refuse |
+| Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions, which applies pending D1 migrations before the Pages upload and refuses rather than guesses. **What the deploy last did is not written down here** — it moves when somebody deploys rather than when somebody edits this file, which is how this cell went stale while nobody was looking at it. The workflow's own runs are the record. [`docs/guide/hosting.md`](docs/guide/hosting.md) carries the mechanism, the two failures that built it and what each token permission was proved by; `./scripts/test-deploy-gate.sh` drives the decision it makes |
+| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. **Which migrations exist, and which of them the remote database has, are not written down here**: `ls d1/migrations/` answers the first, `wrangler d1 migrations list prowlers-and-paragons --remote` answers the second, and the deploy asks that same question before every upload. This cell used to carry both figures and was wrong about each in turn — it named a migration as still to be applied and was right when it was written, then went stale the moment somebody did the thing the gate exists to automate, which is the ordinary way a measured figure in this file stops being true. The `DB` binding is in place, `/api/me` answers `401` with JSON — checked by the deploy after every upload — and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link; until now the admin page said an address "can sign in now" and nothing ever told them so |
+| Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper |
+| Static analysis | Zero warnings at CI strictness, which the build enforces rather than records. **The whole-tree Qodana figure is not written down here** — run `./scripts/qodana-scan.sh`. Since Qodana came off pull requests deliberately, that local run is the *only* thing between a branch and `main`, so the answer to a doubt about the figure is always to run it rather than to put the workflow back. **Every reading this cell ever carried was produced by somebody re-running the scan and none by CI**, and two of them landed in code the change under review had not touched — a package upgrade moving an inspection, which is the case a pull-request-mode scan structurally cannot see. [`docs/guide/testing.md`](docs/guide/testing.md) keeps that history, and the three traps that make a by-hand scan report clean when it inspected nothing. **Do not name a commit's sha here**: it was tried and an amend orphaned it within the hour, which is a dead pointer of exactly the kind this repository treats as worse than none |
+| Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost, which is what found the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
 The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**. The remaining four each rebuild 1 HP out, for a recorded reason — see [Close the last four Heroes](#1-close-the-last-four-heroes), where the bound is stated exactly: it holds of what is *modelled*, and Shadow's printed Gear box carries a custom feature that would put him at +2.
@@ -83,7 +83,7 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[1](#1-close-the-last-four-heroes)** — the last four Heroes, 1 HP out each. **The interaction hypothesis was swept 2026-09-05 and is negative** — see the entry; nothing cheap is left
 - [x] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver, and `kill_tree` proved directly. Verified by the orchestrator 2026-09-05: nine checks green, nine twins red on the kind each declares, both drivers, no process left behind. **CI run 33949251306 then proved the Linux leak for real** — the port holder survived outside the tree — and the cause is recorded in the entry; the fix's Linux verdict was given by run 33960793977: all seven kill-tree checks green on `ubuntu-latest`, the real wrangler tree included, and no "still listening" warning anywhere in the job
 - [x] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement, and the rulebook corpus behind `Ctrl`/`⌘`+`K`. Verified by the orchestrator 2026-09-05; what remains of the search bullet is the banner field, recorded in the entry
-- [ ] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`. **Slices (a) to (d) of six have landed** — Chapters 3, 4 and 5 as verified data under `data/rules/play/`, and `play/`, the second engine that resolves a fight out of them; the plan and eight questions for the owner are in the entry
+- [ ] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`. **Slices (a) to (e) of six have landed** — Chapters 3, 4 and 5 as verified data under `data/rules/play/`, `play/`, the second engine that resolves a fight out of them, and `mcp-play/`, the second MCP server that runs encounters through it; (f), the first measurement, is what remains; the plan and eight questions for the owner are in the entry
 - [x] **[15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one)** — a campaign-tighter Trait Cap, and it moves Resolve. Verified by the orchestrator 2026-09-05
 - [x] **[16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster)** — `build` checks a roster in one process and answers cross-sheet questions. Verified by the orchestrator 2026-09-05; the monotonic-ladder question waits on item 21
 - [x] **[19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds)** — a GM sets a player's cap and sees what they hold, on `/admin`. Verified by the orchestrator 2026-09-05
@@ -95,8 +95,8 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — the play chapters, in scope in principle since item 11 was answered
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
 - [ ] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — a test-platform migration, blocked on MTP v2 versus the .NET 10 SDK
-- [ ] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table is 61% of this file's churn; convert its measured cells to pointers. **Last, deliberately** — contention, not a defect
-- [ ] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — 21 dead pointers and ten factual drifts in this file, plus the guard that would stop it recurring
+- [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
+- [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
 - [x] **[24](#24-a-bunit-event-is-dispatched-not-applied-and-three-palette-tests-read-a-render-early)** — three palette tests raced the renderer and went red on CI one at a time; the whole class is swept and a guard fails the build on the next synchronous drive. Verified by the orchestrator 2026-09-06
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
@@ -122,7 +122,7 @@ Sixteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. T
 
 Nothing left is more than 1 HP out, and the test asserting that bound has been tightened from 6 to 2 and now to 1, so it stays true.
 
-**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — see [the archive](docs/progress/) — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, and four values one point either side of zero pair up by chance. Do not read more into it.
+**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, and four values one point either side of zero pair up by chance. Do not read more into it.
 
 **All four transcriptions have now been read line by line against the printed sheets, and all four are faithful.** Abilities, all twelve Talents, every Power and its rank, the Pros and Cons in each parenthesis, the Perks with their unit counts, the Flaws, and Edge/Health/Resolve — checked against the page for Scáthach (p.135), Shadow (p.140), T-Kay (p.143) and Vigilant (p.146).
 
@@ -178,7 +178,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **One thing the pages did add, and it widens rather than closes.** Shadow's Gear box prints `2 Pistols: 9d Ranged (Silenced)`. Silenced is a Ch.6 custom feature at 1 HP, and the pair is one price under his Two-Fisted — so transcribed, Shadow is **+2**, not +1. The "nothing more than 1 HP out" bound above holds only because gear features are not modelled on these transcriptions. Recorded rather than half-applied, exactly as Vigilant's Upgraded Jo Sticks are.
 
-**What the breakdown did find was two defects, and neither is a Hero Point.** Both made a character printed in the rulebook one this tool refuses — see [the archive](docs/progress/). They were reachable only because nothing had ever asked the validator about the twenty; `EveryPublishedHeroIsALegalCharacter` now does.
+**What the breakdown did find was two defects, and neither is a Hero Point.** Both made a character printed in the rulebook one this tool refuses. They were reachable only because nothing had ever asked the validator about the twenty; `EveryPublishedHeroIsALegalCharacter` now does.
 
 Four rebuilds 1 HP out, each with a recorded reason — and one of them, Shadow, 1 HP further out than that once his printed gear is counted — remains a more honest state than four zeroes.
 
@@ -186,11 +186,11 @@ One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (M
 
 ### 1b. Semantic pro/con constraints are still unenforced
 
-The invented per-Power lists are gone — see [the archive](docs/progress/). What is left is the half of the constraints that cannot be checked against anything the rulebook prints per Power: "Powers that inflict physical or energy damage", "Powers that can be activated and deactivated at will", "attack Powers", "Powers that last or can be maintained". These are shown to the player as a caveat on the option and left to the GM, which is how Ch.2 frames the list.
+The invented per-Power lists are gone. What is left is the half of the constraints that cannot be checked against anything the rulebook prints per Power: "Powers that inflict physical or energy damage", "Powers that can be activated and deactivated at will", "attack Powers", "Powers that last or can be maintained". These are shown to the player as a caveat on the option and left to the GM, which is how Ch.2 frames the list.
 
 Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate was assisted creation, where a model proposing a character benefits from the engine ruling out illegal combinations.
 
-**Assisted creation has now shipped without them, and did not need them** — see [the archive](docs/progress/). A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
+**Assisted creation has now shipped without them, and did not need them.** A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
 
 ### 8. The mail provider is refusing every send — **closed, and the reasoning here was wrong**
 
@@ -238,7 +238,7 @@ and both were watched to fail.
   no reflog and no stash, and the provider will not show a key twice. `PP_DEV_VARS` exists so
   nothing exercising the script has a reason to write where a person keeps a credential.
 
-**A second fault was masking this one and is fixed** — see [the archive](docs/progress/). Every
+**A second fault was masking this one and is fixed.** Every
 attempt was counted before the send, so five refusals spent the hourly allowance and every try
 after that answered the same cheerful `204` a sent link gets. That is why the site said a link
 was on its way, Resend's dashboard showed nothing and Cloudflare showed nothing: by then nothing
@@ -418,7 +418,7 @@ questions and the ledger is the one that can be resumed.
 | 6, Equipment (p.87) | Gear limits, armour, weapons, **custom gear (p.92)**, gadgets, vehicles, headquarters | Custom gear features: **extracted**. Mundane gear is free and untracked. See below for the one gap |
 | 7, Environment (p.105) | Disasters, falling, lifting, **toxins (p.108)** | No — play. The three toxin Pros/Cons are extracted |
 | 8, Friends and Foes (p.111) | **Three things, not one**: NPC and animal stat blocks (p.111), Extras (p.120), and the twenty pre-built Heroes and Villains (p.126) | Only the last is transcribed, in the test suite where they verify the engine. The other two are GM material — characters the GM fields, not ones a player builds — so they are out of scope rather than missing. Recorded because "Ch.8 is the pre-built characters" was wrong about 15 of its 56 pages |
-| 9, Creating Villains (p.167) | Villain guidance, GM tips | No mechanics to extract — Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only |
+| 9, Superhero Gaming (p.167) | Villain guidance, GM tips | No mechanics to extract — Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only |
 
 **The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
 
@@ -568,8 +568,8 @@ the file stays. Scanning fewer palettes in A11Y is the second lever and costs re
 Raising `timeout-minutes` is not a lever; see `docs/guide/hosting.md`.
 
 **How it works, and every limit of it, is in [`docs/guide/testing.md`](docs/guide/testing.md)** —
-read that before changing it. The account of building it, including four faults the harness found
-in itself, is in [the archive](docs/progress/).
+read that before changing it. The account of building it, including five faults the harness found
+in itself, is in [the archive](docs/progress/2026-09-02-driving-the-assembled-app.md).
 
 **What that closes and what it leaves open**, against the table this entry was originally built
 around:
@@ -701,7 +701,7 @@ their own messages say so.
 **A feature was built, tested, adversarially reviewed by two independent agents and shipped, while
 nothing in the application ever wrote to the store it read from.** The manager's list, the banner's
 switcher, `DiscardedCharacter` and both undo buffers all read `SavedCharacters`'s index; nothing
-ever added a character to it. See [the archive](docs/progress/).
+ever added a character to it.
 
 **That is not the defect class this item was written about, and the difference matters.** Everything
 above argues about *assembly* — markup plus stylesheet plus layout, interop, routing, the real
@@ -846,8 +846,7 @@ a defect that a campaign is the place to fix:
    **Single-user first, no sharing**, because that needs nothing new from the server: a campaign is
    another opaque blob beside the characters.
 
-   **Closed — see [the archive](docs/progress/), which supersedes the paragraph
-   above.** The shape the owner settled on is fork and pull request: a campaign holds a *clone* of a
+   **Closed, and this supersedes the paragraph above.** The shape the owner settled on is fork and pull request: a campaign holds a *clone* of a
    character and the player's edits arrive as an approval request. So **"single-user first, no
    sharing" is no longer the design**, sharing is in, the server did need something new (a clone
    table, an approval slot version-checked against a stale decision, and a join code), and
@@ -972,8 +971,7 @@ tool for running and playing has.**
   resist growing it*: today the palette offers Powers and navigation, and the rulebook is a
   different corpus behind an account gate.
 
-  **The discoverability half is done — see [the archive](docs/progress/).** The
-  banner carries a `Search` button with the chord printed beside it, on every route, with the
+  **The discoverability half is done.** The banner carries a `Search` button with the chord printed beside it, on every route, with the
   modifier chosen at render time from the platform.
 
   **The corpus is behind the control now — see the pull request that closed this item.** Signed
@@ -1013,8 +1011,7 @@ tool for running and playing has.**
     fall back to a system face on one platform only.
   - **A placeholder is not a label** still applies to the field when it arrives: it may carry the
     hint, and it may not be the only place the field is named.
-- **Account and settings move to the right of the banner. — done**, see the completed entry at the
-  top of this file. The bar is two sides with a hairline between them, the tools cluster is one
+- **Account and settings move to the right of the banner. — done.** The bar is two sides with a hairline between them, the tools cluster is one
   idiom rather than three, and the account stopped being a `.banner-link`: an identity was wearing
   navigation's clothes.
 - **The Hero/Villain switch moves into that settings menu — done**, with the light/dark switch
@@ -1034,11 +1031,10 @@ tool for running and playing has.**
 
 #### Two smaller things from the same reading
 
-- **The Hero Point limit does not need a full-width panel for one button. Done — see the completed
-  entry at the top of this file.** Two cards as their own two-option group under a rule, not tiers
-  7 and 8, and the flipping label is gone. The argument is kept in full up there.
-- **`/rules`' "What is here" panel is inert rather than pointless. Done — see the completed entry at
-  the top of this file.** The counts are gone and each row runs a search scoped to that chapter,
+- **The Hero Point limit does not need a full-width panel for one button. Done.** Two cards as
+  their own two-option group under a rule, not tiers 7 and 8, and the flipping label is gone. The
+  argument for it is the rest of this bullet.
+- **`/rules`' "What is here" panel is inert rather than pointless. Done.** The counts are gone and each row runs a search scoped to that chapter,
   through a `chapter=N` parameter on `/api/rulebook/search`. The argument below is kept because it
   is what the change was built to, and because it is the record of why the two easier routes were
   refused.
@@ -1106,10 +1102,10 @@ it by mutation rather than argue it**. They ran 64 mutations and **38 survived**
 rulebook corpus and were fixed at the time; the remaining 33 were grouped into three slices.
 
 **All three are closed** — A1 (the MCP server's twelve), A2 (browser and replay, thirteen) and A3
-(engine and validator, eight), one completed entry each below. **They were worked concurrently on
-three branches and reconciled afterwards**, which is why each entry quotes a test count measured
-against its own branch rather than against this tree; the reconciled figure is the one in the
-table at the top of this file. The merge touched only this file, `CLAUDE.md` and
+(engine and validator, eight). **They were worked concurrently on three branches and reconciled
+afterwards**, which is why the three quoted a test count measured against their own branch rather
+than against this tree; the count is not written down anywhere now — `./scripts/count-tests.sh`
+is the answer. The merge touched only this file, `CLAUDE.md` and
 `docs/HANDOVER.md` (since deleted) — no test and no source file was resolved by hand.
 
 None of the 33 was a bug in the product. Every one was a **test that did not hold what it claimed
@@ -1133,7 +1129,7 @@ actually wanted; the dashboard was the assumed route to it.
 **What Pages does have**, and it is a live-debugging tool rather than a record:
 
 ```bash
-npx wrangler pages deployment tail --project-name=prowlers-and-paragons --environment production
+npx wrangler pages deployment tail --project-name=prowlers-and-paragons-chargen --environment production
 ```
 
 Useful filters: `--status ok|error|canceled`, `--search <text>` (matches inside `console.log`
@@ -1176,13 +1172,13 @@ that property is worth more than a nicer dashboard. That reasoning is unchanged 
 
 ### 7. The pre-1.0 audit — **closed. Dead code and hot paths measured clean; the token side is costed but not implemented**
 
-The adversarial half has run and been acted on: 126 mutations, 48 survivors, eleven streams. See
-the completed entry, and `docs/notes/` for the mutation tables.
+The adversarial half has run and been acted on: 126 mutations, 48 survivors, eleven streams —
+`docs/notes/` carries the mutation tables.
 
 **The first of the two remaining bullets — "is it snapshotable to a fresh AI agent?" — is closed
-by the split recorded in the entry in [the archive](docs/progress/).** `CLAUDE.md` is 290 lines and indexes ten
-files under `docs/guide/`. The second bullet — "is the codebase as optimised as it should be?" —
-is now audited too. Full writeup in the entry in [the archive](docs/progress/); the short version:
+by the split that produced `docs/guide/`.** `CLAUDE.md` indexes one file per area under
+`docs/guide/`, and `RepositoryGuideTests` holds its line budget. The second bullet — "is the
+codebase as optimised as it should be?" — is now audited too; the short version:
 
 - **Dead code: two exports removed, nothing else found.** `worker/db.js`'s `userByEmail` and
   `worker/search.js`'s `corpusIndex` were `export`ed with no caller outside their own file — both
@@ -1213,7 +1209,7 @@ is now audited too. Full writeup in the entry in [the archive](docs/progress/); 
   `font-style: italic`. No orphaned font, no duplicated data staged into `wwwroot` beyond what
   item 5 already documents and rules out of scope.
 - **The token side is costed, not implemented — the owner's call, per the task that ran this
-  audit.** `PROGRESS.md` is 5,069 lines / 446,711 characters / 71,769 words — roughly **90–110K
+  audit.** `PROGRESS.md` was 5,069 lines / 446,711 characters / 71,769 words when this was measured, before the archive split; it is 1,863 lines now — then roughly **90–110K
   tokens** to read in full, against **~15K tokens** for `Current state` + `Remaining work` +
   `How to maintain this` alone (60,829 of those characters). `Completed work` is the other
   ~89% of the file: 4,503 lines across 68 entries, prepended newest-first so far — the newest
@@ -1230,15 +1226,22 @@ is now audited too. Full writeup in the entry in [the archive](docs/progress/); 
   this remains costed and not done: it is a slice of its own, as the previous note said, and
   still the owner's call rather than something to do as a side effect of an audit.
 
-### 9. Visual regression testing — **closed, and then closed properly**
+### 25. Visual regression testing — **closed, and then closed properly**
 
-> **Read this heading note first.** When this entry was written the check covered seven pages;
+> **This entry was numbered 9 and is renumbered, because 9 was used twice.** The other 9 is
+> durable telemetry, above. Two headings with one number is an ambiguous pointer in a file whose
+> code comments cite items by number, and it is the concrete defect item 22 recorded. The number
+> moved rather than the older entry's because nothing anywhere cites item 9; 25 is the next free
+> number and is now taken, so a new item is 26. `ProgressPointerTests` fails the build on the next
+> repeat.
+>
+> **Read this heading note second.** When this entry was written the check covered seven pages (eight goldens now);
 > four were then dropped because a locally-rendered golden could not agree with CI's Chrome, and
 > the entry below still describes the seven-page version. All seven are back, and the goldens now
 > come from `.github/workflows/visual-goldens.yml` on `ubuntu-latest` — the same Chrome that
 > compares them. The comparator itself also turned out to be unable to see a uniform whole-page
-> colour shift, which is a hole this entry's confident tone did not anticipate. Both are in the
-> completed entry above.
+> colour shift, which is a hole this entry's confident tone did not anticipate. Both were fixed
+> when they were found.
 
 Nine browser harnesses asserted verdicts — sticky, narrow, motion, theme, shortcut, insets — and
 none of them looked at a pixel, so four palettes and three new screens were judged by eye. Closed
@@ -1253,11 +1256,11 @@ existing proof-harness step:
   a ~150-line plain-Node PNG decoder/differ using only `node:zlib` — no image-diff package is
   installed, on purpose: this repository has never had a `package.json`, and adding the first npm
   dependency for a CI convenience is a worse trade than the ~150 lines.
-- **The goldens are Linux-rendered, never from this Windows machine.** On a Linux host (CI) the
+- **The goldens are Linux-rendered, never from a developer machine** (a Windows box when this was written; the Mac is the same story, since the pixel half needs Docker). On a Linux host (CI) the
   script drives the Chrome already on PATH; everywhere else it drives `selenium/standalone-chrome`
   in Docker — real Google Chrome, not a distro-patched Chromium, so a developer's own machine
   produces the same pixels CI would. The goldens committed here were generated exactly that way,
-  from this Windows machine, through that Docker path — verified pixel-identical across two
+  from that Windows machine, through that Docker path — verified pixel-identical across two
   independent runs.
 - **Broken and watched to fail, not just reasoned about.** `--primary` on the Hero-light palette
   was changed from `#1B4F9C` to `#2E8B57` and the screenshot regenerated: the check failed on
@@ -1301,7 +1304,7 @@ wrong, which is worse than none.
 
 **Slice (c) landed the same day** — Chapter 5 "Resolve and Adversity" (pp.83–85; the corpus carries no p.86) as `data/rules/play/resolve.json`, twenty-eight entries under `CanonicalResolveRules.cs` and the same reflection walk. Every spend carries an explicit `currency` and a `who`, and a test holds Resolve to the Hero and Adversity to the GM by the currency rather than by an id. The p.85 example (four Heroes, Challenge Level 2 → 8 Adversity) resolves through the JSON; the starting-Resolve table is read-compared against `DerivedStatsCalculator.CalculateResolve` at three ranks; the eleven Powers p.83 exempts are cross-checked against `powers.json`'s `affects_resolve` — ten as exemptions and the eleventh, Expertise, per nomination, because the page exempts it only "except for combat skills". **That carve-out was a recorded engine gap for a day and is fixed, on the owner's ruling of 2026-09-06 (book, then JSON, then engine):** a combat skill is an Expertise nominated to one of the four Abilities the Attack and Defense table on Ch.4 p.75 uses to attack or defend — Might, Agility, Toughness, Willpower — never a Talent (Scáthach prints Expertise (Academics: Strategy and Tactics) 12d with Resolve 5, which only holds if it does not count; the engine reproduces both that 5 and the 3 it would be), and never a Power (Ch.2 p.28: a specialisation falls under an Ability or Talent; `EXPERTISE_NOMINATION_NOT_A_TRAIT` reports one). `powers.json`'s `expertise` carries `affects_resolve_when_nominated`, `DerivedStatsCalculator.ResolveAffectedBySelection` reads it, and none of the twenty published Heroes or the twenty-eight Pinnacle City sheets moved. The book never defines the phrase — it occurs once in the extracted corpus — so the reading is the repository's, errs towards counting (less Resolve for a Hero), and leaves p.83's GM's-final-say as the release valve; `docs/guide/rules-engine.md` carries the derivation and the rival reading. Two figures that first arrived as facts were demoted on review — the par share rate (inferred from the printed 2-for-1, unprinted itself) and two Ch.4 initiative values that belong to slice (b).
 
-**Slice (b) landed on 2026-09-06** — Chapter 4 "Combat" (pp.73–81; the corpus carries no p.82) as `combat.json` (fifty-one entries: the page, Edge order and its ties, seizing the initiative and the GM's alternative that slice (c) deferred here, multiple actions, ranges, throwing, movement, chases, the five-row attack and defence matrix, cover, size, visibility, damage, Health, healing, special effects, grappling, stunts, Threat ranks, Minions on both sides, and the nine special cases) and `gritty.json` (the ten Gritty settings and their preamble), under `CanonicalCombatRules.cs` and `CanonicalGrittyRules.cs` and the same reflection walk. Edge and Health are read-compared against `DerivedStatsCalculator`, with the expected value built from the file's own formula string. The book's worked fights are the fixtures — p.74's movement and chase, p.76's special effect and break-free, p.79's fatal damage, p.81's Example of Combat step by step — each resolving through the JSON. **The extraction defect was fixed rather than worked around**: `EXAMPLE OF COMBAT` was a full-width title set inside the left column, so the extractor filed it ahead of the sidebar's `WOUND PENALTIES` and merged the two; `PageReader` now defers a full-width block's title to the end of its band, which also repaired eight Ch.7 sections `SMASHING` had been qualifying since the extraction, and a second fix keeps a full-width block's paragraph breaks. All ten chapters regenerate byte-identical from the PDF (1,525 sections now, from 1,523), the bake in `worker/corpus.js` matches, and `docs/guide/rulebook-corpus.md` records the one case the deferral cannot decide. Review demoted two figures that had arrived as facts — Fatal Damage's rescue point, which the printed word puts *below* the threshold while the printed example puts it above (recorded as printed, the example's reading as an `interpretation`), and Slow Healing's lowest band, whose hourly rate the page never prints — and four hedges the first pass had flattened. Wound Penalties is gritty, which answers one of the questions below. **(d) landed on 2026-09-06 — see the pull request that carried it** — `play/ProwlersAndParagons.Play.csproj` beside `engine/`, referencing it and never the reverse (guarded at csproj and source level, and `PresentationFlagsTests`, the no-filesystem and no-network scans, and the `CostCalculator`/`CharacterValidator` ban all extend to it): `PlayRulesRepository` reads the five play files strictly, `IDiceSource` returns faces, `SuccessCounter` holds the whole dice model with no literal in it, `Combatant` is immutable and only a Hero can hold Resolve, `CombatantFactory.From` is the one place a sheet is read and the caller supplies `Kind` and `Side`, and `Encounter.Step` is pure over an immutable state with a ledger that names the rule and its page on every line. Every intent flag is applied or refused on the ledger; every table switch is applied or announced at `Begin` as not yet; `docs/guide/play-engine.md` tabulates the seventeen readings the data could not answer and two guards hold its not-yet lists to the code. The book's eight worked examples replay through the data — p.67, p.74 twice, p.76 twice, p.79, the whole of p.81, p.85 — and a broken twin substitutes one line of a copy of `combat.json` (the special effect's rounding), throwing unless it matches exactly once, and requires both p.76 replays to say `FAIL` while the other six pass. The adversarial review found eleven defects, seven of them ledger lines announcing an effect the state never received (defeat by special effect, the dying clock, area defence halving, all-out's guard clause, charge's impact, Tough Minions' count, a grab stored as a hold); all are fixed with a fixture each, and the round dropped the engine's one silent design reading — sides are a field now, so Heroes can fight Heroes as p.73 says they may. Still not modelled, and listed as such: keeping hold, knockback, luring, team attacks, three of the four Adversity spends, the cover/size/visibility modifiers, the item a full grab wins, and five Gritty switches (Close Range, The Drop, Friendly Fire, Hard Targets, Slow Healing, the raised Gear Limit). Verified by the orchestrator: the p.76 replays go red when the rounding is hard-coded, and the defeat-by-effect line goes red when its state change is removed. (e) a second MCP server, `prowlers-and-paragons-play`, with four tools and its own guide whose rule is the mirror of the creation policy — the engine resolves, the model narrates; (f) the first balance measurement, reported only with its N, seed, policy and table settings. **Eight questions for the owner before (d):** the dice model as printed (recommend yes); Monte Carlo rather than expected value (recommend yes — Resolve is spent after the roll and 6s explode); **where the twenty-eight Pinnacle City sheets are — answered: in the production D1 under the tabletop account, and one `wrangler --cwd d1 d1 execute prowlers-and-paragons --remote --json` query pulls them; on 2026-09-06 all twenty-eight read and priced legal through `build --from-dir` in one process, into the gitignored `characters/pinnacle-city/`, so (f) is not blocked**; the default table (recommend the book's baseline, every gritty rule off); what decides an NPC's action (an `IPolicy`, named in every report); whether `play/` may read `IsVillain` (recommend no — the caller sets `Combatant.Kind`); whether Wound Penalties is core or gritty; and whether `docs/RULEBOOK-COVERAGE.md`'s Ch.3–5 rows move (slice (a) moved Ch.3's).
+**Slice (b) landed on 2026-09-06** — Chapter 4 "Combat" (pp.73–81; the corpus carries no p.82) as `combat.json` (fifty-one entries: the page, Edge order and its ties, seizing the initiative and the GM's alternative that slice (c) deferred here, multiple actions, ranges, throwing, movement, chases, the five-row attack and defence matrix, cover, size, visibility, damage, Health, healing, special effects, grappling, stunts, Threat ranks, Minions on both sides, and the nine special cases) and `gritty.json` (the ten Gritty settings and their preamble), under `CanonicalCombatRules.cs` and `CanonicalGrittyRules.cs` and the same reflection walk. Edge and Health are read-compared against `DerivedStatsCalculator`, with the expected value built from the file's own formula string. The book's worked fights are the fixtures — p.74's movement and chase, p.76's special effect and break-free, p.79's fatal damage, p.81's Example of Combat step by step — each resolving through the JSON. **The extraction defect was fixed rather than worked around**: `EXAMPLE OF COMBAT` was a full-width title set inside the left column, so the extractor filed it ahead of the sidebar's `WOUND PENALTIES` and merged the two; `PageReader` now defers a full-width block's title to the end of its band, which also repaired eight Ch.7 sections `SMASHING` had been qualifying since the extraction, and a second fix keeps a full-width block's paragraph breaks. All ten chapters regenerate byte-identical from the PDF (1,525 sections now, from 1,523), the bake in `worker/corpus.js` matches, and `docs/guide/rulebook-corpus.md` records the one case the deferral cannot decide. Review demoted two figures that had arrived as facts — Fatal Damage's rescue point, which the printed word puts *below* the threshold while the printed example puts it above (recorded as printed, the example's reading as an `interpretation`), and Slow Healing's lowest band, whose hourly rate the page never prints — and four hedges the first pass had flattened. Wound Penalties is gritty, which answers one of the questions below. **(d) landed on 2026-09-06 — see the pull request that carried it** — `play/ProwlersAndParagons.Play.csproj` beside `engine/`, referencing it and never the reverse (guarded at csproj and source level, and `PresentationFlagsTests`, the no-filesystem and no-network scans, and the `CostCalculator`/`CharacterValidator` ban all extend to it): `PlayRulesRepository` reads the five play files strictly, `IDiceSource` returns faces, `SuccessCounter` holds the whole dice model with no literal in it, `Combatant` is immutable and only a Hero can hold Resolve, `CombatantFactory.From` is the one place a sheet is read and the caller supplies `Kind` and `Side`, and `Encounter.Step` is pure over an immutable state with a ledger that names the rule and its page on every line. Every intent flag is applied or refused on the ledger; every table switch is applied or announced at `Begin` as not yet; `docs/guide/play-engine.md` tabulates the seventeen readings the data could not answer and two guards hold its not-yet lists to the code. The book's eight worked examples replay through the data — p.67, p.74 twice, p.76 twice, p.79, the whole of p.81, p.85 — and a broken twin substitutes one line of a copy of `combat.json` (the special effect's rounding), throwing unless it matches exactly once, and requires both p.76 replays to say `FAIL` while the other six pass. The adversarial review found eleven defects, seven of them ledger lines announcing an effect the state never received (defeat by special effect, the dying clock, area defence halving, all-out's guard clause, charge's impact, Tough Minions' count, a grab stored as a hold); all are fixed with a fixture each, and the round dropped the engine's one silent design reading — sides are a field now, so Heroes can fight Heroes as p.73 says they may. Still not modelled, and listed as such: keeping hold, knockback, luring, team attacks, three of the four Adversity spends, the cover/size/visibility modifiers, the item a full grab wins, and five Gritty switches (Close Range, The Drop, Friendly Fire, Hard Targets, Slow Healing, the raised Gear Limit). Verified by the orchestrator: the p.76 replays go red when the rounding is hard-coded, and the defeat-by-effect line goes red when its state change is removed. **(e) landed on 2026-09-06 — see the pull request that carried it** — `mcp-play/ProwlersAndParagons.McpPlay.csproj`, wire name `prowlers-and-paragons-play`, registered in `.mcp.json` beside the first server and run the same way (`dotnet exec` on a published dll, now under `mcp-play-server/`); `RulesLocation` and `CommandLine` moved by rename into `mcp-shared/` so neither server references the other. Four tools: `combat_guide` serves `mcp-play/PLAY-POLICY.md` verbatim, whose rule is the mirror of the creation policy — the engine resolves, the model narrates — and whose not-yet lists are held to the engine's by a test; `start_encounter` takes character JSON through the strict reader (a refused sheet, an unknown tier, a fight with one side, a Minion group of none — each a refusal by name, never a crash); `take_turn` takes one intent and answers the ledger lines it added and the public state, one fight's turns serialised behind that fight's own gate; `run_encounters` runs N seeded fights under a named policy and answers win rates, pages and what was spent **only in the same object as its N, its seeds, its policy and the whole table echoed**, refusing fewer than thirty or more than five thousand. Standard output carries the protocol and nothing else, held by the same source scan and driven runtime scan the first server has, over both launch paths; every problem code the server can emit is driven by one case and the set is pinned against the source. A thousand seeded runs of the p.81 fight cost under three seconds cold. Verified by the orchestrator: a one-run "measurement" and a non-blocking gate each go red; (f) the first balance measurement, reported only with its N, seed, policy and table settings. **Eight questions for the owner before (d):** the dice model as printed (recommend yes); Monte Carlo rather than expected value (recommend yes — Resolve is spent after the roll and 6s explode); **where the twenty-eight Pinnacle City sheets are — answered: in the production D1 under the tabletop account, and one `wrangler --cwd d1 d1 execute prowlers-and-paragons --remote --json` query pulls them; on 2026-09-06 all twenty-eight read and priced legal through `build --from-dir` in one process, into the gitignored `characters/pinnacle-city/`, so (f) is not blocked**; the default table (recommend the book's baseline, every gritty rule off); what decides an NPC's action (an `IPolicy`, named in every report); whether `play/` may read `IsVillain` (recommend no — the caller sets `Combatant.Kind`); whether Wound Penalties is core or gritty; and whether `docs/RULEBOOK-COVERAGE.md`'s Ch.3–5 rows move (slice (a) moved Ch.3's).
 
 ### 15. The Trait Cap is the tier's, and a campaign may want a tighter one
 
@@ -1387,7 +1390,7 @@ every one of them is the shape of a tool built to cost *a* character meeting a j
 
 None of this needs new rules knowledge — it is all the same engine, called differently.
 
-**The browser half of this finding is closed — see [the archive](docs/progress/).**
+**The browser half of this finding is closed.**
 The same twenty-eight NPCs are what broke the character manager, and a roster page that can be
 filtered, grouped by game and read at a glance is what came of it. **Nothing above is affected**:
 every bullet here is about `cli/` and `sheets/` — one file per `--from`, timestamped export names,
@@ -1667,8 +1670,52 @@ of the form `PROGRESS.md item N` in the code — 21 of them under `--include='*.
 --include='*.js' --include='*.sh'` — with nothing guarding that any of them resolves. A dead pointer
 is worse than no pointer; the guard this item proposes should cover them too.
 
-**Not started, and deliberately last.** Nothing is broken; this is contention, and it only bites
-when several branches are open at once. The cheaper half of the answer is a process rule rather
+**What moved, and it is four cells.** Each keeps the one sentence that says what the row *is* and
+gives up the figure:
+
+- **Tests** — already the model, and it had one measured figure left: the e2e driver's check
+  counts, which item 23's audit had *already* caught being wrong once. Gone; the row names
+  `docs/guide/testing.md`, where that account is kept up, and says the figure has been wrong here
+  before.
+- **Hosting** — the long reconstruction of which migration was applied on which run is gone. What
+  the deploy last did moves when somebody deploys, not when somebody edits this file. The
+  workflow's own runs are the record; the mechanism, the two failures that built it and what each
+  token permission was proved by are in `docs/guide/hosting.md`, which already carried all of it.
+- **Accounts** — the migration count and the applied/pending state are gone, replaced by the two
+  commands that answer them. The cell had **seven** where there are eight, which is one of the ten
+  drifts listed in item 23 and the clearest possible demonstration of the rule.
+- **Static analysis** — the Qodana figure and the two commit shas are gone. The two-readings-in-one-
+  day account moved into `docs/guide/testing.md` beside the two rots already recorded there, so
+  that file now carries all four; the cell keeps the standing instruction not to name a sha, which
+  is the one thing in it that was never a measurement.
+
+**What stayed, and why.** `Powers: 141 entries`, the 106 Pros/Cons, the twelve gear features —
+these move when the *data* moves, which is the point of the row and the whole reason the table is
+here. `Rulebook coverage`, `Front ends`, `Wizard`, `Printed sheet`, `Licence` and `Known-wrong
+data` are decisions or descriptions of shape, not readings: nothing about them is measured
+somewhere else and transcribed here. `Zero warnings at CI strictness` stayed too, and the
+distinction is worth naming — it is a standard the build enforces on every run, not a figure
+somebody took once, and the difference is whether anything fails when it stops being true.
+
+**The guard is `ProgressCurrentStateTests`**, and it refuses three shapes in that table: a counted
+figure over tests, migrations, sections or checks; a commit sha; and a state described as pending.
+It carries a positive control on the Tests row's pointer — the table has to be there, the `Tests`
+row has to name `./scripts/count-tests.sh`, and that script has to exist — so a scan that matched
+no cells fails rather than passing vacuously; and controls in both directions on the patterns
+themselves, which are watched to fire on the four cell texts that produced this item and *not* to
+fire on the four figures the table is meant to keep. **What it cannot do** is bounded by the same
+thing every scan here is: it matches shapes, so a count spelled a way it does not know, or a stale
+state described without a number, walks straight through. Nothing checks a cell against reality —
+that is what the pointer in the cell is for, and why the cell has to carry one.
+
+**The `### 9.` half is done**: the closed one is now 25, and `ProgressPointerTests` fails the build
+on the next repeated number. **The 21 `PROGRESS.md item N` comments in the source are not**, and
+that is deliberate rather than overlooked — resolving one means reading an item to see whether the
+comment still means it, which is the judgement half of item 23's audit and not something a scan
+settles. What the number guard buys is that none of the 21 can become ambiguous again.
+
+**Done on 2026-09-06, last as planned** — four rows (Tests, Hosting, Accounts, Static analysis) gave up their figures for pointers, the rest stayed because they are decisions rather than readings, and `ProgressCurrentStateTests` refuses a counted figure, a sha or a pending state in the table with the Tests row's pointer as its positive control; verified by the orchestrator, who watched a restored Qodana count and a restored sha each go red. Nothing was broken; this was contention, and it only bit
+when several branches were open at once. The cheaper half of the answer is a process rule rather
 than a restructure and is already in `CLAUDE.md`: the orchestrator writes this file, not the agents.
 
 ### 23. This file's own claims went stale in sixteen places
@@ -1711,7 +1758,49 @@ file has gone stale before and will again. `RepositoryGuideTests` already proves
 number and every `docs/progress/` link in this file to resolving. Claims about *behaviour* cannot
 be guarded that way and will still need an audit; say so rather than implying the test covers them.
 
-Not started.
+**The guard is `ProgressPointerTests`, and it is six checks over this file's own text.**
+
+- **Every markdown link resolves** — a path link to a path that is there, an anchor to a heading
+  in this file. GitHub's slug rule is spelled out rather than approximated and pinned against
+  three anchors that work today, because an em dash is dropped like any other punctuation and the
+  spaces either side of it survive: half the anchors here carry a doubled hyphen for that reason,
+  and a slug function that tidied hyphen runs would call every one of them dead.
+- **Every `docs/progress/` link names an entry rather than the directory.** This is the check a
+  path-existence test could never have made, and it is the audit's largest finding: the directory
+  exists, so all sixteen bare links resolved perfectly while pointing at nothing in particular.
+  The one exception is the signpost under `## Completed work`, identified by where it is rather
+  than how it is written, since naming the directory is that pointer's whole job.
+- **Nothing names `the completed entry` without saying which file.** There were six, not five —
+  the sixth was wrapped across two lines, which is why a line-oriented grep had found three.
+- **Every test this file names in backticks exists** in one of the two `dotnet test` projects,
+  with a control on the search itself: a name that has never existed must come back missing.
+- **The file names no commit sha except the ones an allow-list carries**, each with the claim it
+  is for — and every sha on that list must still be in the file, so the list cannot become the
+  next place things rot.
+- **No two entries share an item number**, which is the `### 9.` defect generalised. GitHub's
+  anchors hid it: two headings with different titles make different slugs, so every *link*
+  resolved and only the *number* was ambiguous — and the number is what prose and the 21 code
+  comments citing this file use.
+
+**What it cannot do, which is the half worth reading.** Every check above is about a pointer, so
+**a claim with no link is invisible to all of them.** The ten drifts listed above are exactly that
+shape — seven migrations recorded where there are eight, a chapter named wrong, a page count one
+out, `CLAUDE.md` measured at 290 lines — and not one of them names a file, an anchor or a test.
+No scan of this file's text has an opinion about any of them; they still need somebody to read it
+against the code. What the guard buys is that the *mechanical* half never needs auditing again, so
+the audit that is left is the half that actually needed judgement in the first place. Item 22's
+`ProgressCurrentStateTests` takes the second bite from the other side, refusing the *shapes* of
+figure that go stale in the one table that holds most of them — the seven-migrations drift above is
+in a cell it now covers. `docs/guide/testing.md` carries both, and says why the sha check is an
+allow-list rather than `git cat-file`: CI checks out at depth 1, so a reachability test would fail
+the build on facts that are true.
+
+**Twenty-two dead pointers were fixed rather than twenty-one**, per-site as this entry asked and
+not by find-and-replace: repointed where a surviving entry carries the argument — the e2e harness
+account is `docs/progress/2026-09-02-driving-the-assembled-app.md` — and otherwise dropped, so the
+claim stands on its own. The second `### 9.` is now 25.
+
+**Done on 2026-09-06.** `ProgressPointerTests` holds every link and anchor to resolving (GitHub's slug rule written out and pinned against live anchors), every `docs/progress/` link to naming an entry rather than the directory, every backticked `…Tests[.Method]` to existing, every sha to an allow-list, and every item number to being used once; what it cannot see is a claim with no link, and the twenty-one `PROGRESS.md item N` comments in code are judgement rather than a scan and were left. Verified by the orchestrator, who broke an anchor and watched `EveryLinkResolves` name the line.
 
 ### 24. A bUnit event is dispatched, not applied, and three palette tests read a render early
 
