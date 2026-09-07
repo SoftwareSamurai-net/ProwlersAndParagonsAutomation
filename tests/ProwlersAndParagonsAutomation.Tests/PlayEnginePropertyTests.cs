@@ -153,6 +153,11 @@ public sealed class PlayEnginePropertyTests
 
             state = StepAndCheck(encounter, state, policy.Choose(state, actor), ref moved);
 
+            // p.76's toss, on every turn — see the hook's own comment for why it is not another
+            // branch of the cycle. It names what the actor is holding when they are holding
+            // anything, so both the drop and the refusal are inside the property.
+            state = StepAndCheck(encounter, state, policy.Tosses(state[actor.Id]), ref moved);
+
             if (policy.AfterRoll(state, state[actor.Id]) is { } follow)
                 state = StepAndCheck(encounter, state, follow, ref moved);
 
@@ -181,7 +186,8 @@ public sealed class PlayEnginePropertyTests
         Assert.Equal(
             [
                 nameof(Attack), nameof(BreakFree), nameof(GrappleIntent), nameof(Hold),
-                nameof(Move), nameof(SpendAdversity), nameof(SpendResolve), nameof(Stabilise)
+                nameof(Move), nameof(SpendAdversity), nameof(SpendResolve), nameof(Stabilise),
+                nameof(Toss)
             ],
             policy.Emitted.Order(StringComparer.Ordinal));
 
@@ -189,6 +195,17 @@ public sealed class PlayEnginePropertyTests
 
         // And every band of p.75's cover, including the one that refuses before anything is rolled.
         Assert.Equal(Enum.GetValues<Cover>().Order(), policy.Covers.Order());
+
+        // p.76's grab and the item it wins, on both sides of each of its three refusals: a grab that
+        // names an object and one that names none, an attack made with an item and one made with
+        // nothing, and a toss of what the actor is holding as well as of what they are not. The
+        // third of those is a fact about the fight rather than about the generator — a run in which
+        // no full grab ever landed would never reach the drop — so it is asserted here, where a
+        // seed that stopped reaching it fails rather than quietly narrowing the property.
+        Assert.Equal([false, true], policy.GrabbedItems.Order());
+        Assert.Equal([false, true], policy.SwungItems.Order());
+        Assert.Contains(true, policy.TossedWhatTheyHeld);
+        Assert.Contains(false, policy.TossedWhatTheyHeld);
 
         // p.80's Hard Targets is inside the property too: somebody in the fight is a machine, and
         // the generator both aims at a weak point and does not.
@@ -416,7 +433,19 @@ public sealed class PlayEnginePropertyTests
         Assert.Contains(result.Added, l => l.Text.Contains("holds no Resolve", StringComparison.Ordinal));
     }
 
-    /// <summary>Three Heroes against a Villain, a Foe and a group of Minions.</summary>
+    /// <summary>
+    /// Three Heroes against a Villain, a Foe and a group of Minions — <b>one of them holding
+    /// something</b>.
+    ///
+    /// <para><b>The item is here because a full grab is not something a seed can promise.</b> p.76
+    /// needs three net successes on a Might contest, the generator reaches a grab on one turn in ten
+    /// and names an object on half of those, and across twenty-five seeds most fights never land one
+    /// — so the branches that <em>read</em> <see cref="Combatant.Holding"/> (the toss that drops an
+    /// item, the attack made with one) sat outside a property whose whole subject is every branch of
+    /// <c>Step</c>. Starting a Hero with the sword makes them reachable on every seed. Nothing on the
+    /// wire opens a fight this way; this is a fixture's construction, the same as a state built with
+    /// a grapple already in it.</para>
+    /// </summary>
     private static List<Combatant> Party()
     {
         var heroes = Enumerable.Range(1, 3).Select(i => Combatant.Hero(
@@ -429,7 +458,13 @@ public sealed class PlayEnginePropertyTests
             // <b>A Blast, whose own Ch.2 Range is <c>ranged</c></b>, so p.79's Close Range rule is
             // inside the property rather than beside it: the generator rolls that Trait on a Power
             // row and the pair opens at Close.
-            rangedPowers: new HashSet<string>(StringComparer.Ordinal) { "blast" }));
+            rangedPowers: new HashSet<string>(StringComparer.Ordinal) { "blast" }))
+            .Select((hero, i) => i == 0 ? hero.Holds("the sword", wonOnPage: 0) : hero)
+            .ToList();
+
+        // The control on that construction: exactly one of them is holding it, so the toss branches
+        // below are reached from a fact rather than from a hope.
+        Assert.Single(heroes, hero => hero.Holding is not null);
 
         return
         [

@@ -66,7 +66,12 @@ internal sealed class RandomPolicy : IPolicy
         {
             0 => new Attack(
                 actor.Id, target, rolled, Damage(), Row(),
-                AllOut: Coin(), Area: Coin(), Cover: Behind(), VulnerablePart: WeakPoint()),
+                AllOut: Coin(), Area: Coin(), Cover: Behind(), VulnerablePart: WeakPoint(),
+                // p.76's "use it ... on that same page": half of these name an item and half do
+                // not, so the refusal and the attack that names nothing are both inside the
+                // property. Naming one the actor is holding is reached whenever the grapple branch
+                // below has just won a full grab.
+                Item: Swung()),
             1 => new Attack(
                 actor.Id, target, rolled, Damage(), Row(),
                 Effect: "Ensnare", Cover: Behind(), CoverStructure: Pick(9)),
@@ -75,7 +80,7 @@ internal sealed class RandomPolicy : IPolicy
                 actor.Id, target, rolled, Damage(), Row(), Team: true, CloseRangeOnly: Thrown()),
             4 => new Move(actor.Id, target, Closer: Coin()),
             5 => new Hold(actor.Id),
-            6 => new GrappleIntent(actor.Id, target, (GrappleMove)Pick(3)),
+            6 => new GrappleIntent(actor.Id, target, (GrappleMove)Pick(3), Grabbed()),
             7 => new BreakFree(actor.Id, rolled, Threshold: Pick(4)),
             8 => new Stabilise(actor.Id, target),
             _ => Adversity(actor, target)
@@ -90,6 +95,64 @@ internal sealed class RandomPolicy : IPolicy
 
     /// <summary>Every band of cover this policy has put on an attack, for a fixture's control.</summary>
     public HashSet<Cover> Covers { get; } = [];
+
+    /// <summary>
+    /// Both answers p.76's grab takes: an object named, and none — the second of which is refused
+    /// with nothing rolled, and is a branch of <c>Step</c> like any other.
+    /// </summary>
+    public HashSet<bool> GrabbedItems { get; } = [];
+
+    /// <summary>The same two answers for the item an attack may be made with, and for a toss.</summary>
+    public HashSet<bool> SwungItems { get; } = [];
+
+    /// <summary>Whether a toss named what its actor was holding, or something they were not.</summary>
+    public HashSet<bool> TossedWhatTheyHeld { get; } = [];
+
+    // <b>Cycled on counters of their own, for the reason every other flag here is</b>: an answer
+    // chosen off a die is one some seed will not reach, and each of these has a refusal on one side
+    // of it — a grab of nothing, an attack naming an item nobody holds — which is exactly the branch
+    // a purity property wants inside it.
+    private int _nextGrabbed;
+    private int _nextSwung;
+
+    private string? Grabbed()
+    {
+        var named = _nextGrabbed++ % 2 == 0;
+        GrabbedItems.Add(named);
+        return named ? TheItem : null;
+    }
+
+    private string? Swung()
+    {
+        var named = _nextSwung++ % 2 == 0;
+        SwungItems.Add(named);
+        return named ? TheItem : null;
+    }
+
+    /// <summary>The one object this generator ever fights over, so a grab and a use can meet.</summary>
+    private const string TheItem = "the sword";
+
+    /// <summary>
+    /// p.76's toss, on every turn — a hook rather than another branch of <see cref="Choose"/>, for
+    /// the arithmetic reason <see cref="GmBuysForAnNpc"/> is one: the cycle's length decides how many
+    /// turns a fight has to last for every branch to come round, and lengthening it from ten to
+    /// twelve already pushed one seed's fourth Adversity purchase past the end of its fight.
+    ///
+    /// <para>It names what the actor is holding where they are holding anything, so the toss that
+    /// drops an item is reached whenever a full grab has landed, and names something else otherwise,
+    /// so the refusal is reached on every other turn.</para>
+    /// </summary>
+    public Toss Tosses(Combatant actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+
+        var holding = actor.Holding is not null;
+
+        TossedWhatTheyHeld.Add(holding);
+        Emitted.Add(nameof(Toss));
+
+        return new Toss(actor.Id, holding ? actor.Holding!.Name : TheItem);
+    }
 
     /// <summary>Both answers p.80's <c>vulnerable_part</c> declaration takes, for the same control.</summary>
     public HashSet<bool> WeakPoints { get; } = [];
