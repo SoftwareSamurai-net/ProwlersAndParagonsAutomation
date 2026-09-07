@@ -941,6 +941,20 @@ too, with a fixture nested three deep — `wrangler/<server>/wrangler-….log` i
 the ordinary line survived, since "no token on disk" holds perfectly against a file that was
 emptied.
 
+**And a finding that came out of watching that run rather than reasoning about it, because it
+corrects a claim this file and `redacted_tail` both made.** The premise for redacting a server log
+has always been that stage two drives `/signin?t=<raw token>` and the request line therefore
+carries the bearer secret. **`wrangler@4.127.0` does not log it**: `pages dev` records the
+*pathname* and drops the query, so a sign-in navigation appears as `GET /signin 200 OK`, and a full
+run of both drivers produced not one `?t=` across the fourteen server logs it writes. Run
+34040527190's three leaked tokens came from the drivers' own verdict lines, which is a different
+path and already fixed. The redactor stays, for three reasons — that is a property of a wrangler
+version and not of this harness, the same path now also quotes wrangler's own debug log, and the
+whole directory is uploaded — but the consequence is worth stating plainly: **a clean run is not
+evidence that the redactor works.** It never was. What proves it is `REDACTED_TAIL`'s planted
+token, because a corpus with no secret in it and a redactor that does nothing are
+indistinguishable from the outside.
+
 **What would name the cause next time is now collected rather than hoped for.** If a third death
 has this shape, the run's own output carries the error block and the stack, and the artifact
 carries the rest of the file.
