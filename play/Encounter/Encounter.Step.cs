@@ -264,7 +264,51 @@ public sealed partial class Encounter
             + $"{roll.Successes}, and the impact of {(attackSuccesses - roll.Successes) * rate} less "
             + $"{charge.Charge.SelfDamageReducedBy} ({inflicted}) leaves them on {health} Health"));
 
-        return impact == 0 ? state : state.With(state[actor.Id].WithHealth(health));
+        if (impact == 0) return state;
+
+        // p.80's Slow Healing: a charger standing on nothing is a character in that condition, and
+        // the impact of their own charge is damage like any other.
+        var charger = state[actor.Id];
+        var hurt = charger.WithHealth(health);
+
+        return state.With(AnyDamageAtAllPutsThemDown(state, charger, impact, lines) ? hurt.Overcome() : hurt);
+    }
+
+    /// <summary>
+    /// p.80's Slow Healing, the sharp end of the sentence that let a character stand up at all:
+    /// somebody conscious at or below the figure that defeats them "is defeated if you take even a
+    /// single point of damage in this condition".
+    ///
+    /// <para><b>It lives here rather than inside one damage path because there is more than
+    /// one.</b> An attack's damage is the obvious one and was the only one this test was made in;
+    /// p.78's charge hurts the <em>charger</em> through <see cref="TheImpactComesBack"/>, which
+    /// writes a Health of its own and never went near it. A character on their feet at the defeat
+    /// figure could charge a braced opponent, take the impact on the ledger, and still be standing
+    /// — and with Fatal Damage off the Health clamps at the floor they were already on, so the
+    /// damage left no trace in the state at all.</para>
+    ///
+    /// <para><b>"Even a single point" is the threshold and nothing softer.</b> Zero damage is not a
+    /// point: an attack that landed nothing, and an effect that does no damage at all, leave them
+    /// standing — which is the control the fixtures for this rule are written around.</para>
+    ///
+    /// <para>Taking the state away is the whole of the consequence — see
+    /// <see cref="Combatant.Overcome"/> — so this returns whether it should be taken and the caller
+    /// applies it to whatever it was about to store.</para>
+    /// </summary>
+    private bool AnyDamageAtAllPutsThemDown(
+        EncounterState state, Combatant victim, int damage, List<LedgerLine> lines)
+    {
+        if (damage <= 0 || !victim.ConsciousAtZeroOrLess || !state.Table.SlowHealing) return false;
+
+        var slow = _play.GetGritty("gritty_slow_healing");
+
+        lines.Add(new LedgerLine(
+            state.Page, victim.Id, slow.Id, slow.SourceRef,
+            $"{victim.Name} was on their feet at {victim.CurrentHealth} Health under Slow "
+            + $"Healing, and p.80 puts them down again for {damage} point"
+            + (damage == 1 ? "" : "s") + " of damage: any at all does it"));
+
+        return true;
     }
 
     /// <summary>
@@ -1796,19 +1840,8 @@ public sealed partial class Encounter
 
         // p.80's Slow Healing, the sharp end of the sentence that let them stand up at all: a
         // character conscious at or below the defeat figure "is defeated if you take even a single
-        // point of damage in this condition".
-        var overcome = damage > 0 && target.ConsciousAtZeroOrLess && state.Table.SlowHealing;
-
-        if (overcome)
-        {
-            var slow = _play.GetGritty("gritty_slow_healing");
-
-            lines.Add(new LedgerLine(
-                state.Page, target.Id, slow.Id, slow.SourceRef,
-                $"{target.Name} was on their feet at {target.CurrentHealth} Health under Slow "
-                + $"Healing, and p.80 puts them down again for {damage} point"
-                + (damage == 1 ? "" : "s") + " of damage: any at all does it"));
-        }
+        // point of damage in this condition". Shared with p.78's charge, which hurts the charger.
+        var overcome = AnyDamageAtAllPutsThemDown(state, target, damage, lines);
 
         Combatant Down(Combatant hurt) => overcome ? hurt.Overcome() : hurt;
 

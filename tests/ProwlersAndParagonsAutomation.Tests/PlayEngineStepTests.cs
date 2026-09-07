@@ -6096,6 +6096,70 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A charge's own impact is damage too, and it puts a standing character back down.</b>
+    ///
+    /// <para>p.80's sentence is about damage and not about attacks: "you are defeated if you take
+    /// even a single point of damage in this condition". <b>An attack aimed at the character is not
+    /// the only way they take one.</b> p.78 hurts the <em>charger</em> — "the charger makes their
+    /// own passive defense roll against the attack to see whether the impact hurts them" — through
+    /// a path that writes a Health of its own, and that path never asked the question. A character
+    /// on their feet at nothing could charge a braced opponent, take two points on the ledger and
+    /// walk away still standing.</para>
+    ///
+    /// <para><b>With Fatal Damage off the state hid it completely</b>, which is why this is driven
+    /// against the defeat flag rather than against a Health: the clamp at the defeat figure leaves a
+    /// character already on that figure exactly where they were, so the impact left no trace at all
+    /// beyond a ledger line saying it had happened.</para>
+    ///
+    /// <para>The controls are the impact and the switch. The impact is required to be a real
+    /// figure, so this cannot pass against a charge that hurt nobody; and the same exchange with
+    /// Slow Healing off is required to leave a character who never stood up in the first
+    /// place.</para>
+    /// </summary>
+    [Fact]
+    public void AChargesOwnImpactPutsAStandingCharacterBackDown()
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        // 6d of Might and the charge's two for eight dice, of which two land; the Villain's 2d
+        // passive Toughness comes up sixes for four, so the charge lands nothing and the
+        // self-damage is reduced by nothing; then the charger's own 2d passive answers their own
+        // two successes with none, which is two points of impact.
+        int[] faces = [4, 4, 1, 1, 1, 1, 1, 1, 6, 6, 1, 1];
+
+        var (slow, fight) = Floored(SlowHealingOn);
+        var state = fight.Step(slow, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.True(state["hero"].ConsciousAtZeroOrLess);
+        Assert.False(state["hero"].Defeated(floor));
+
+        var dice = new ScriptedDice(faces);
+
+        var charged = new Encounter(_play, dice, SlowHealingOn)
+            .Step(state, new Attack("hero", "villain", "might", DamageKind.Subdual, Charge: true));
+
+        // The control: the charge really did come back on the charger, and for a figure rather than
+        // for nothing — an impact of zero would satisfy "still standing" honestly.
+        var impact = Assert.Single(charged.Added, l =>
+            l.Text.Contains("the impact of", StringComparison.Ordinal));
+
+        Assert.Contains("the impact of 2 ", impact.Text, StringComparison.Ordinal);
+        Assert.Equal(0, dice.Remaining);
+
+        Assert.False(charged.State["hero"].ConsciousAtZeroOrLess);
+        Assert.True(
+            charged.State["hero"].Defeated(floor),
+            "the charger took the impact of their own charge and stayed on their feet");
+
+        // And the switch off is the baseline: a Hero who never stood up is down the whole time, so
+        // the flag above is Slow Healing's and not something every charge does.
+        var (ordinary, plain) = Floored(TableRules.Book);
+        var up = plain.Step(ordinary, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.False(up["hero"].ConsciousAtZeroOrLess);
+    }
+
+    /// <summary>
     /// <b>An attack that lands nothing leaves them standing</b> — "even a single point" is a point,
     /// and a miss is not one. The control on the fixture above: without this, an engine that put a
     /// standing character down on every attack aimed at them would pass it perfectly.
