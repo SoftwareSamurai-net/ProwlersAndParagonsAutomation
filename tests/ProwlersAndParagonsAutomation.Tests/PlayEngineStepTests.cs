@@ -1457,6 +1457,347 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>p.73's seized initiative, bought out of the GM's pool for an NPC.</b>
+    ///
+    /// <para>It used to answer <c>not yet implemented</c> from that pool, because it charged the
+    /// buyer's own Resolve and an NPC has none. It goes through <c>Charge(fromAdversity: true)</c>
+    /// now, and everything p.73 prints about the purchase is unchanged by which pool paid: the place
+    /// at the front, the duration that refuses the second purchase, and the GM's alternative, which
+    /// doubles an effective Edge instead.</para>
+    ///
+    /// <para><b>The effect is read off the order rather than off the line</b>, because a ledger line
+    /// saying somebody went first and an order that has not moved is the one failure this engine's
+    /// ledger rules exist to prevent. So the page is turned and the order is looked at, twice: under
+    /// the book, where a seizer precedes everybody whatever their Edge, and under the GM's
+    /// alternative, with figures only the doubling wins on.</para>
+    ///
+    /// <para><b>A Hero is refused, and so is a group of Minions.</b> The first is p.85's
+    /// <c>npc_kinds</c>; the second is p.73's own <c>minions_have_an_edge</c> and <c>minions_act</c>,
+    /// which leave a Minion group nothing either form of this purchase could give them — see the
+    /// readings table in <c>docs/guide/play-engine.md</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolSeizesTheInitiativeForAnNpcAndNotForAHeroOrAMob()
+    {
+        var rule = _play.GetCombat("seizing_initiative").SeizeInitiative!;
+        var tie = _play.GetCombat("edge_ties").TieBreak!;
+
+        // The controls on the data: the price this fixture's arithmetic uses, and the two fields the
+        // Minion refusal is read off.
+        Assert.Equal(1, rule.CostResolve);
+        Assert.False(tie.MinionsHaveAnEdge);
+        Assert.Contains("after everyone else", tie.MinionsAct, StringComparison.Ordinal);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 20, traits, ["toughness"]);
+        var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat");
+
+        var encounter = new Encounter(_play, new SeededDice(19));
+        var opened = encounter.Begin([hero, villain, mob], challengeLevel: 2);
+
+        // The controls on the fixture: two points in the pool, and the Hero in front to start with,
+        // so a Villain at the front below is this purchase and not the order it opened in.
+        Assert.True(opened.Adversity >= 2, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.Equal("hero", opened.TurnOrder[0]);
+
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        // The pool paid exactly once, and the Villain's Resolve is the field this asserts: a Villain
+        // holds none at all, so a purchase charged to one would be a throw rather than a wrong count.
+        Assert.Equal(opened.Adversity - rule.CostResolve, bought.State.Adversity);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+        Assert.False(bought.State["villain"].HoldsResolve);
+
+        // p.85 beside p.73: the announcement cites the Chapter 5 page and the purchase its own.
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.85", StringComparison.Ordinal)
+            && l.Text.Contains("the GM spends 1 Adversity on the Villain", StringComparison.Ordinal));
+
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, "seizing_initiative", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.73", StringComparison.Ordinal));
+
+        // The effect lands where p.73 puts it: at the front of the next page's order.
+        var turned = encounter.Step(bought.State, new EndPage("")).State;
+
+        Assert.Equal("villain", turned.TurnOrder[0]);
+
+        // And it lasts the rest of the fight, so the second purchase is refused with nothing spent.
+        var again = encounter.Step(turned, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(turned.Adversity, again.State.Adversity);
+        Assert.Contains(again.Added, l =>
+            l.Text.Contains("has already seized the initiative", StringComparison.Ordinal));
+
+        // A Hero is not an NPC: nothing spent, and nobody seized.
+        var onAHero = encounter.Step(opened, new SpendAdversity(
+            "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity, onAHero.State.Adversity);
+        Assert.Equal(3, onAHero.State["hero"].Resolve);
+        Assert.DoesNotContain("hero", onAHero.State.Seized);
+
+        // A Minion group is an NPC, and p.73 leaves this purchase nothing to give them.
+        var onTheMob = encounter.Step(opened, new SpendAdversity(
+            "mob", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity, onTheMob.State.Adversity);
+        Assert.DoesNotContain("mob", onTheMob.State.Seized);
+
+        Assert.Contains(onTheMob.Added, l =>
+            string.Equals(l.Rule, "edge_ties", StringComparison.Ordinal)
+            && l.Text.Contains("no Edge at all", StringComparison.Ordinal)
+            && l.Text.Contains(tie.MinionsAct, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The GM's alternative to seizing, bought out of the GM's pool.</b>
+    ///
+    /// <para>p.73 offers a table a different effect for the same point: the buyer's effective Edge
+    /// doubles rather than their going first outright. Driven separately from the fixture above
+    /// because the two are different answers to the same purchase, and the figures here are chosen
+    /// so that only the doubling wins — a Villain on 5 against a Hero on 9 goes second unless the 5
+    /// has become 10.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsAlternativeToSeizingIsBoughtOutOfTheGmsPoolToo()
+    {
+        var alternative = _play.GetCombat("seize_initiative_gm_alternative");
+
+        // The control on the data: the effect this fixture's arithmetic reads as a doubling.
+        Assert.Contains("doubles", alternative.GmAlternative!.Effect, StringComparison.Ordinal);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 20, traits, ["toughness"]);
+
+        var encounter = new Encounter(
+            _play, new SeededDice(19), TableRules.Book with { GmAlternativeToSeizingInitiative = true });
+
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        // The controls: a pool to spend, and the Hero ahead on the undoubled figures.
+        Assert.True(opened.Adversity >= 1, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.Equal("hero", opened.TurnOrder[0]);
+
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity - 1, bought.State.Adversity);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+
+        // The line names the alternative's own entry rather than the purchase's.
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, "seize_initiative_gm_alternative", StringComparison.Ordinal)
+            && l.Text.Contains(alternative.GmAlternative.Effect, StringComparison.Ordinal));
+
+        // And a doubled 5 goes ahead of an undoubled 9.
+        var turned = encounter.Step(bought.State, new EndPage("")).State;
+
+        Assert.Equal("villain", turned.TurnOrder[0]);
+    }
+
+    /// <summary>
+    /// <b>p.76's instant recovery, bought out of the GM's pool for an NPC who has just gone down.</b>
+    ///
+    /// <para>Every limit the page prints survives the change of pool. The Health it brings back is
+    /// <c>after_a_damaging_defeat_restores_health</c>, read off the entry; <c>limit_per_scene</c> is
+    /// counted on the character rather than on the pool, so a Villain bought back onto their feet is
+    /// not bought back a second time out of the GM's money; and the purchase is refused where there
+    /// is nothing to recover from.</para>
+    ///
+    /// <para><b>A group of Minions is refused, off p.77.</b> A group has no Health to bring back and
+    /// cannot be carrying an effect to shake off, because an effect against a group takes bodies out
+    /// of it instead.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolBringsAnNpcRoundAndNotAMob()
+    {
+        var entry = _play.GetCombat("instant_recovery");
+        var rule = entry.InstantRecovery!;
+
+        // The controls on the data: the price, the Health it restores, and the once-a-scene limit.
+        Assert.Equal(1, rule.CostResolve);
+        Assert.Equal(1, rule.LimitPerScene);
+        Assert.True(rule.AfterADamagingDefeatRestoresHealth > 0);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat");
+
+        var villain = Combatant
+            .Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+            .WithHealth(0);
+
+        var encounter = new Encounter(_play, new SeededDice(23));
+        var opened = encounter.Begin([hero, villain, mob], challengeLevel: 2);
+
+        // The controls on the fixture: two points to spend, and the Villain really is down.
+        Assert.True(opened.Adversity >= 2, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.True(opened["villain"].Defeated(_play.GetCombat("damage").Damage!.DefeatedAtHealth));
+
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        // The pool paid once, the Villain's own pool is untouched, and they are on their feet with
+        // the Health the entry names.
+        Assert.Equal(opened.Adversity - rule.CostResolve, bought.State.Adversity);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+        Assert.Equal(rule.AfterADamagingDefeatRestoresHealth, bought.State["villain"].CurrentHealth);
+        Assert.False(bought.State["villain"].Defeated(_play.GetCombat("damage").Damage!.DefeatedAtHealth));
+
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.85", StringComparison.Ordinal));
+
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.76", StringComparison.Ordinal)
+            && l.Text.Contains("the GM spends 1 Adversity on the Villain", StringComparison.Ordinal));
+
+        // The limit is the character's and the pool cannot buy round it: knocked down again, the
+        // second purchase is refused with nothing spent.
+        var downAgain = bought.State.With(bought.State["villain"].WithHealth(0));
+
+        var twice = encounter.Step(downAgain, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(downAgain.Adversity, twice.State.Adversity);
+        Assert.Contains(twice.Added, l =>
+            l.Text.Contains("has already taken 1 instant recovery this scene", StringComparison.Ordinal));
+
+        // A Hero is not an NPC.
+        var onAHero = encounter.Step(opened, new SpendAdversity(
+            "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(opened.Adversity, onAHero.State.Adversity);
+        Assert.Equal(3, onAHero.State["hero"].Resolve);
+
+        // And a Minion group has neither half of what this purchase gives back.
+        var onTheMob = encounter.Step(opened, new SpendAdversity(
+            "mob", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(opened.Adversity, onTheMob.State.Adversity);
+        Assert.Equal(4, onTheMob.State["mob"].GroupSize);
+
+        Assert.Contains(onTheMob.Added, l =>
+            string.Equals(l.Rule, "attacking_minions", StringComparison.Ordinal)
+            && l.Text.Contains("no Health to bring back", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>p.79's Fatal Damage rescue and its stabilisation, both bought out of the GM's pool.</b>
+    ///
+    /// <para>The two are driven together because the page ties them together:
+    /// <c>resolve_also_stabilises_if_necessary</c> makes the rescue do both, so a fixture that
+    /// bought the rescue and never looked at the clock would leave half the entry unchecked. The
+    /// rescue's own arithmetic is the interpretation's — one point <em>above</em> the threshold,
+    /// which is what the worked example computes — and is unchanged by which pool paid.</para>
+    ///
+    /// <para><b>A group of Minions is refused for both, off p.77.</b> The threshold is the negative
+    /// of a full Health and the clock starts when lethal damage takes a Health past it;
+    /// <c>minions_have_health</c> is false, so a group is never at either.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolBuysAnNpcBackFromAFatalBlowAndStopsTheClock()
+    {
+        var entry = _play.GetGritty("gritty_fatal_damage");
+        var fatal = entry.FatalDamage!;
+
+        // The controls on the data: the two prices, and the clause that makes the rescue steady them.
+        Assert.Equal(1, fatal.CostResolveToAvoid);
+        Assert.Equal(1, fatal.CostResolveToStabiliseImmediately);
+        Assert.True(fatal.ResolveAlsoStabilisesIfNecessary);
+
+        var table = TableRules.Book with { FatalDamage = true };
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat");
+
+        // A Health of 4 puts the fatal threshold at -4; this one is at -5, past it and bleeding.
+        var villain = Combatant
+            .Villain("villain", "the Villain", edge: 5, health: 4, traits, ["toughness"])
+            .WithHealth(-5).Bleeding(dying: true);
+
+        var encounter = new Encounter(_play, new SeededDice(23), table);
+        var opened = encounter.Begin([hero, villain, mob], challengeLevel: 2);
+
+        // The controls on the fixture: a pool, and a Villain who is both past the line and on the
+        // clock, so the two halves below are each about something that was true first.
+        Assert.True(opened.Adversity >= 2, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.Equal(-5, opened["villain"].CurrentHealth);
+        Assert.True(opened["villain"].Dying);
+
+        var rescued = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.AvoidFatalDamage));
+
+        // One point out of the pool, none out of a Resolve the Villain does not have, and the blow
+        // is bought back to one point above the threshold of -4.
+        Assert.Equal(opened.Adversity - fatal.CostResolveToAvoid, rescued.State.Adversity);
+        Assert.Equal(0, rescued.State["villain"].Resolve);
+        Assert.Equal(-3, rescued.State["villain"].CurrentHealth);
+
+        // And the same point steadied them, which is the clause the page attaches to the rescue.
+        Assert.False(rescued.State["villain"].Dying);
+
+        Assert.Contains(rescued.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.Text.Contains("the GM spends 1 Adversity on the Villain against a fatal blow", StringComparison.Ordinal));
+
+        Assert.Contains(rescued.Added, l =>
+            l.Text.Contains("the same point steadies the Villain", StringComparison.Ordinal));
+
+        Assert.Contains(rescued.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.85", StringComparison.Ordinal));
+
+        // p.79's other purchase, on its own: a point stops the clock and moves no Health.
+        var steadied = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.Stabilise));
+
+        Assert.Equal(opened.Adversity - fatal.CostResolveToStabiliseImmediately, steadied.State.Adversity);
+        Assert.Equal(0, steadied.State["villain"].Resolve);
+        Assert.False(steadied.State["villain"].Dying);
+        Assert.Equal(-5, steadied.State["villain"].CurrentHealth);
+
+        Assert.Contains(steadied.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.Text.Contains("the GM spends 1 Adversity on the Villain to stabilise at once", StringComparison.Ordinal));
+
+        // A Hero is not an NPC, for either of them.
+        foreach (var purchase in new[] { ResolveSpend.AvoidFatalDamage, ResolveSpend.Stabilise })
+        {
+            var onAHero = encounter.Step(opened, new SpendAdversity(
+                "hero", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
+
+            Assert.Equal(opened.Adversity, onAHero.State.Adversity);
+            Assert.Equal(3, onAHero.State["hero"].Resolve);
+        }
+
+        // And a Minion group has no Health, so it is at neither the threshold nor the clock — the
+        // refusal is p.77's rather than "is not dying", which is a different thing to be told.
+        foreach (var purchase in new[] { ResolveSpend.AvoidFatalDamage, ResolveSpend.Stabilise })
+        {
+            var onTheMob = encounter.Step(opened, new SpendAdversity(
+                "mob", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
+
+            Assert.Equal(opened.Adversity, onTheMob.State.Adversity);
+
+            Assert.Contains(onTheMob.Added, l =>
+                string.Equals(l.Rule, "attacking_minions", StringComparison.Ordinal)
+                && l.Text.Contains("no dying clock to stop", StringComparison.Ordinal));
+        }
+    }
+
+    /// <summary>
     /// <b>p.85's suppress-a-Flaw spend: the pool pays, the character carries it, and the ledger says
     /// the rest is the GM's.</b>
     ///
