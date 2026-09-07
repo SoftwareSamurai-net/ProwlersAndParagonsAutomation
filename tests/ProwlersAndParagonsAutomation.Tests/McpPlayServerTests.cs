@@ -3534,12 +3534,12 @@ public sealed class McpPlayServerTests
     /// names it.</b>
     ///
     /// <para><b>Accepted rather than refused, and the argument is that an absent block is silence
-    /// and not a contrary claim.</b> <c>CharacterSheet.CampaignTable</c> is written by joining a
-    /// campaign, so a sheet without one has not opted out of anything — it has never been in a game
-    /// that adopted anything. Refusing would make the commonest fight there is unfightable without
-    /// hand-editing JSON: a campaign's Hero against a Villain somebody built in the sandbox, which
-    /// is what the GM running that campaign does every week. Two sheets that disagree have no
-    /// honest answer; this has one.</para>
+    /// and not a contrary claim.</b> A sheet without one has not opted out of anything. Refusing
+    /// would make the commonest fight there is unfightable without hand-editing JSON: a campaign's
+    /// Hero against a Villain somebody built in the sandbox, which is what the GM running that
+    /// campaign does every week. Two sheets that disagree have no honest answer; this has one.
+    /// <see cref="ASheetThatNamesACampaignAndCarriesNoTableIsNotAnnouncedAsBeingAtNone"/> is the
+    /// other half: silence is not the same silence in every case, and page one says which.</para>
     ///
     /// <para><b>What the refusal would have protected against is answered by saying so.</b> The
     /// sheet that carried none is named on page one and in the echo, which is the discipline this
@@ -3566,6 +3566,60 @@ public sealed class McpPlayServerTests
             Assert.Contains("'villain'", table["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
             Assert.Contains("'villain'", PageOneOnTheTable(answer), StringComparison.Ordinal);
             Assert.Contains("no table", PageOneOnTheTable(answer), StringComparison.Ordinal);
+
+            // This Villain names no campaign, so page one may say so — and the fixture below is the
+            // one where it may not.
+            Assert.Contains("no campaign", PageOneOnTheTable(answer), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>An absent table is not one state, and page one must not print the flattering reading of
+    /// it.</b>
+    ///
+    /// <para><b>The claim this fixture exists to falsify</b> is the one the accept-and-announce
+    /// decision was argued from: that a sheet carrying no block "has never been in a game that
+    /// adopted anything". It is not true. <c>CampaignJoin.CopyHouseRules</c> writes the campaign's
+    /// table into an empty field with <c>??=</c> and nothing writes at all afterwards, so a
+    /// character who joined <em>before</em> the GM adopted anything keeps a null block for ever —
+    /// and <c>Inspect</c>'s table check requires both sides to have set something, so no finding is
+    /// produced and no panel exists to print one under. <c>docs/guide/browser.md</c> records that
+    /// direction as known and unreported.</para>
+    ///
+    /// <para>So the same absent block means one of three things, and this server can separate the
+    /// first from the other two because <c>CampaignId</c> sits on the sheet beside it. Announcing a
+    /// character with a campaign as though it had none is exactly the reassurance a refusal was
+    /// declined in favour of: the GM reads "carries no table", takes it for the sandbox Villain
+    /// they built, and never learns that a player's Hero from another game has just been fought
+    /// under rules that game may not play.</para>
+    ///
+    /// <para><b>Both directions are driven</b>, because a sentence that said the careful thing
+    /// about every sheet would be as useless as one that said the flattering thing: the sandbox
+    /// Villain above really does name no campaign, and page one really does say so.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASheetThatNamesACampaignAndCarriesNoTableIsNotAnnouncedAsBeingAtNone() =>
+        await WithClient(async client =>
+        {
+            var fight = OneOfThemInACampaign();
+            fight[1]!["character"]!["CampaignId"] = "the-other-game";
+
+            var answer = await Open(client, fight);
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var page = PageOneOnTheTable(answer);
+
+            // Named, and named with the game it is in.
+            Assert.Contains("'villain'", page, StringComparison.Ordinal);
+            Assert.Contains("carries no table", page, StringComparison.Ordinal);
+            Assert.Contains("'the-other-game'", page, StringComparison.Ordinal);
+
+            // And not announced as being outside any game, which is the false half.
+            Assert.DoesNotContain("names no campaign", page, StringComparison.Ordinal);
+
+            // The echo carries the same sentence, because run_encounters has no ledger at all.
+            Assert.Contains("'the-other-game'",
+                TableOf(answer)["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
         });
 
     /// <summary>

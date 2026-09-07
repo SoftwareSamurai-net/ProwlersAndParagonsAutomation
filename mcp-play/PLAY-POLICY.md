@@ -106,10 +106,15 @@ under the wrong game with nothing in the answer to say so.
   Export them from the same campaign, or fight them under a table you pass yourself and sheets that
   carry none.
 - **One of them carries none.** Accepted, and page one names the character that brought nothing.
-  An absent block is silence rather than a contrary claim — a sheet without one has never been in a
-  game that adopted anything — so a campaign's Hero against a Villain built in the sandbox is an
-  ordinary fight and not an error. **Do not narrate that character as having agreed to the house
-  rules**; they are being fought under somebody else's.
+  An absent block is silence rather than a contrary claim, so a campaign's Hero against a Villain
+  built in the sandbox is an ordinary fight and not an error. **Do not narrate that character as
+  having agreed to the house rules**; they are being fought under somebody else's.
+  **And read the sentence page one prints, because there are two of them.** A character naming no
+  campaign was built outside any game. A character naming a campaign and still carrying no block is
+  a different thing — either that game adopted nothing, or the copy was taken before it did, and
+  this server cannot tell which. Page one says so and names the campaign. **Do not report that
+  second one as being at no table**: it may be a player's Hero from a game whose rules never
+  travelled, and it has just been fought under somebody else's.
 - **You also pass a table yourself.** It has to agree with the sheets switch by switch. Agreement
   is fine and comes back as both. A disagreement is refused, `CALL_TABLE_DISAGREES`, naming the
   setting: neither is quietly preferred, because whichever won, the other is a setting somebody

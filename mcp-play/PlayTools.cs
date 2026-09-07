@@ -774,14 +774,25 @@ public sealed class PlayTools
     ///
     /// <para><b>A sheet carrying no table beside sheets that do is accepted, and page one says
     /// so.</b> That is deliberately not the same answer, because an absent block is not a contrary
-    /// claim — it is silence. <c>CharacterSheet.CampaignTable</c> is written only by joining a
-    /// campaign, so a sheet without one has not opted out of anything; it has never been in a game
-    /// that adopted anything. Refusing here would make the commonest fight there is unfightable
+    /// claim — it is silence. Refusing here would make the commonest fight there is unfightable
     /// without hand-editing JSON: a campaign's Hero against a Villain somebody built in the
     /// sandbox, which is exactly what the GM running that campaign does every week. What the
     /// refusal would protect against — a rule quietly applied to somebody who never agreed to
     /// it — is answered instead by naming the sheet that carried none on page one and in the
     /// echo, which is the discipline this server applies to every table setting it accepts.</para>
+    ///
+    /// <para><b>Silence about what, though — and this is where the sentence has to be careful.</b>
+    /// It is tempting to say a sheet without a block has never been in a game that adopted
+    /// anything, and that is <em>not true</em>. <c>CampaignJoin</c> copies the campaign's table
+    /// into an empty field and never over a full one, so a character who joined before the GM
+    /// decided anything keeps a null block for ever and nothing on the campaigns page reports it —
+    /// see docs/guide/browser.md, "The copy going stale is reported in one of its two directions".
+    /// So an absent block is ambiguous three ways: no game at all, a game that plays the book, or a
+    /// stale copy of a game that does not. This server can tell the first of those from the other
+    /// two, because <c>CharacterSheet.CampaignId</c> is on the sheet beside the block, and page one
+    /// says which it is rather than asserting the flattering one. A sentence that told a GM their
+    /// player's Hero was at no table, when it names a campaign whose rules simply never travelled,
+    /// would be this server inventing the reassurance it was built to withhold.</para>
     ///
     /// <para><b>A caller who also passes a table has to agree with the sheets, switch by
     /// switch.</b> Agreement is fine and is echoed as both; a disagreement is
@@ -794,13 +805,14 @@ public sealed class PlayTools
     /// <param name="everyone">The fight, in the order it was handed in — which is the order the
     /// refusals below name sheets in, so the same fight always names the same pair.</param>
     /// <param name="carried">The block each sheet carried, by combatant id, for those that did.</param>
-    /// <param name="barefaced">The character combatants whose sheet carried none, in order. A
-    /// group of Minions has no sheet at all and is on neither list.</param>
+    /// <param name="barefaced">The character combatants whose sheet carried none, each with the
+    /// campaign its sheet names if it names one. A group of Minions has no sheet at all and is on
+    /// neither list.</param>
     private static bool TryAgreeTable(
         TableRules? fromCall,
         IReadOnlyList<Combatant> everyone,
         IReadOnlyDictionary<string, CampaignTable> carried,
-        IReadOnlyList<string> barefaced,
+        IReadOnlyList<AtNoTable> barefaced,
         out TableRules rules,
         out TableSource source,
         out string note,
@@ -847,10 +859,7 @@ public sealed class PlayTools
             return false;
         }
 
-        var without = barefaced.Count == 0
-            ? ""
-            : $"; {Sentence(barefaced)} carr{(barefaced.Count == 1 ? "ies" : "y")} no table and "
-              + "will be fought under it";
+        var without = Barefaced(barefaced);
 
         if (fromCall is { } given)
         {
@@ -882,8 +891,49 @@ public sealed class PlayTools
         return true;
     }
 
+    /// <summary>
+    /// The clause page one adds for the sheets that carried no house rules — and it says, of each
+    /// of them, which kind of silence it is.
+    ///
+    /// <para><b>Two clauses rather than one, because the honest sentence is different.</b> A sheet
+    /// naming no campaign was built outside any game, and being fought under somebody else's table
+    /// takes nothing away from it. A sheet naming a campaign and carrying no block is the case this
+    /// server must not flatter: <c>CampaignJoin</c> writes the campaign's table into an empty field
+    /// only, so the block is missing either because that game adopted nothing or because the copy
+    /// was taken before it did — and the second is a state the browser produces and does not report
+    /// (docs/guide/browser.md). Calling that character "at no table" would tell a GM the thing they
+    /// would most like to hear and have no way to check.</para>
+    ///
+    /// <para><b>Both clauses keep "carries no table"</b>, which is the fact a reader scans for, and
+    /// neither of them says the character agreed to anything.</para>
+    /// </summary>
+    private static string Barefaced(IReadOnlyList<AtNoTable> sheets)
+    {
+        if (sheets.Count == 0) return "";
+
+        var sandbox = sheets.Where(s => s.CampaignId is null).Select(s => s.Id).ToList();
+        var clauses = new List<string>();
+
+        if (sandbox.Count > 0)
+        {
+            clauses.Add($"{Sentence(sandbox)} carr{(sandbox.Count == 1 ? "ies" : "y")} no table "
+                        + $"and name{(sandbox.Count == 1 ? "s" : "")} no campaign, so "
+                        + $"{(sandbox.Count == 1 ? "it is" : "they are")} fought under this one");
+        }
+
+        foreach (var sheet in sheets.Where(s => s.CampaignId is not null))
+        {
+            clauses.Add($"'{sheet.Id}' carries no table but names campaign "
+                        + $"'{sheet.CampaignId}' — either that game adopted nothing or this copy "
+                        + "was taken before it did, and this server cannot tell which — so it too "
+                        + "is fought under this one");
+        }
+
+        return "; " + string.Join("; ", clauses);
+    }
+
     /// <summary>A list of ids in a sentence: <c>a</c>, <c>a and b</c>, <c>a, b and c</c>.</summary>
-    private static string Sentence(IReadOnlyList<string> ids) => ids.Count switch
+    private static string Sentence(List<string> ids) => ids.Count switch
     {
         1 => $"'{ids[0]}'",
         _ => string.Join(", ", ids.Take(ids.Count - 1).Select(id => $"'{id}'"))
@@ -947,22 +997,45 @@ public sealed class PlayTools
     private static readonly IReadOnlyDictionary<string, CampaignTable> NoTables =
         new Dictionary<string, CampaignTable>(StringComparer.Ordinal);
 
+    /// <summary>
+    /// What one sheet says about the game it came from: the house rules it carries, and the
+    /// campaign it names.
+    ///
+    /// <para><b>The two travel together because an absent block on its own does not say enough.</b>
+    /// A sheet carrying no table and naming no campaign was built outside any game. A sheet
+    /// carrying no table and naming one is a different thing — either the game adopted nothing, or
+    /// the copy predates what it adopted, which is a state `CampaignJoin` produces and nothing
+    /// reports (docs/guide/browser.md). Both are accepted; page one says which.</para>
+    /// </summary>
+    private sealed record Membership(CampaignTable? Table, string? CampaignId)
+    {
+        /// <summary>A group of Minions, which has no sheet and so says nothing about any game.</summary>
+        public static Membership None { get; } = new(null, null);
+    }
+
     /// <param name="carried">
     /// The house rules each character sheet brought with it, by combatant id, for the sheets that
     /// carried any. A campaign copies its table onto a character when it joins and the
     /// <c>.json</c> export carries the block, which is the only route a house rule has into a
     /// fight: this server holds no account and cannot resolve a campaign.
     /// </param>
+    /// <summary>
+    /// One combatant whose sheet carried no house rules, and the campaign that sheet names if it
+    /// names one — which is the difference page one has to print. See <see cref="Membership"/>.
+    /// </summary>
+    private sealed record AtNoTable(string Id, string? CampaignId);
+
     /// <param name="barefaced">
-    /// The character combatants whose sheet carried none, in the order they were handed in. A
-    /// group of Minions is on neither list — it has no sheet to carry anything.
+    /// The character combatants whose sheet carried none, in the order they were handed in, each
+    /// with the campaign it names if it names one. A group of Minions is on neither list — it has
+    /// no sheet to carry anything.
     /// </param>
     private bool TryReadCombatants(
         JsonElement combatants,
         out IReadOnlyList<Combatant> everyone,
         out IReadOnlyDictionary<string, string> tiers,
         out IReadOnlyDictionary<string, CampaignTable> carried,
-        out IReadOnlyList<string> barefaced,
+        out IReadOnlyList<AtNoTable> barefaced,
         out JsonObject problem)
     {
         everyone = [];
@@ -984,7 +1057,7 @@ public sealed class PlayTools
         var built = new List<Combatant>();
         var byId = new Dictionary<string, string>(StringComparer.Ordinal);
         var tables = new Dictionary<string, CampaignTable>(StringComparer.Ordinal);
-        var without = new List<string>();
+        var without = new List<AtNoTable>();
         var ids = new HashSet<string>(StringComparer.Ordinal);
 
         for (var i = 0; i < array.Count; i++)
@@ -995,13 +1068,20 @@ public sealed class PlayTools
                 return false;
             }
 
-            if (!TryReadCombatant(entry, i + 1, out var combatant, out var tier, out var table, out problem))
+            if (!TryReadCombatant(entry, i + 1, out var combatant, out var tier, out var from, out problem))
                 return false;
 
             if (tier is not null) byId[combatant.Id] = tier;
 
-            if (table is not null) tables[combatant.Id] = table;
-            else if (combatant.Kind != CombatantKind.MinionGroup) without.Add(combatant.Id);
+            // <b>A group of Minions is on neither list, and that is a decision rather than a
+            // gap.</b> It has no sheet, so it carries no table and names no campaign — putting it
+            // on the barefaced list would have page one announce that the robots brought no house
+            // rules, which is noise of a kind that trains a reader to stop reading the line. What
+            // it cannot do is carry a table nobody notices: there is no field on a Minion group to
+            // put one in, so silence here is complete rather than partial.
+            if (from.Table is not null) tables[combatant.Id] = from.Table;
+            else if (combatant.Kind != CombatantKind.MinionGroup)
+                without.Add(new AtNoTable(combatant.Id, from.CampaignId));
 
             if (!ids.Add(combatant.Id))
             {
@@ -1024,18 +1104,19 @@ public sealed class PlayTools
     /// <summary>The kinds a combatant may be, on the wire.</summary>
     public static IReadOnlyList<string> Kinds { get; } = ["hero", "villain", "foe", "extra", "minions"];
 
-    /// <param name="table">
-    /// The house rules the sheet carried, or null where it carried none — and null where the
-    /// combatant is a group of Minions, which has no sheet at all.
+    /// <param name="membership">
+    /// The house rules the sheet carried and the campaign it names, either of which may be null —
+    /// and <see cref="Membership.None"/> where the combatant is a group of Minions, which has no
+    /// sheet at all.
     /// </param>
     private bool TryReadCombatant(
         JsonObject entry, int position, out Combatant combatant, out string? tier,
-        out CampaignTable? table, out JsonObject problem)
+        out Membership membership, out JsonObject problem)
     {
         combatant = Combatant.Extra("placeholder", "placeholder", 0, 1,
             new Dictionary<string, int>(StringComparer.Ordinal), []);
         tier = null;
-        table = null;
+        membership = Membership.None;
         problem = new JsonObject();
 
         var kind = Text(entry, "kind").Trim().ToLowerInvariant();
@@ -1091,10 +1172,15 @@ public sealed class PlayTools
         // <b>The one thing this server reads off a sheet that is not about the character.</b>
         // `CharacterSheet.CampaignTable` is written by joining a campaign and copied by the
         // `.json` export, so it is how a table's house rules reach a fight — this server holds no
-        // account and cannot resolve a `CampaignId`. Null is not "the book": it is a sheet that
-        // has never been in a game that adopted anything, which is why an absent block is silence
-        // and not a claim. See TryAgreeTable.
-        table = sheet.CampaignTable;
+        // account and cannot resolve a `CampaignId`.
+        //
+        // <b>The id is read beside it because an absent block is two different states.</b> A sheet
+        // naming no campaign was built outside any game; a sheet naming one and carrying no block
+        // is either in a game that adopted nothing or a copy taken before it did — see
+        // docs/guide/browser.md on the stale direction that nothing reports. Neither is a contrary
+        // claim, so both are accepted, and page one tells them apart rather than printing one
+        // sentence that is true of only one of them. See TryAgreeTable.
+        membership = new Membership(sheet.CampaignTable, sheet.CampaignId);
 
         var rung = kind switch
         {

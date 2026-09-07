@@ -276,12 +276,20 @@ lives there, and nothing about it is repeated here.
       half its combatants were not built for.
     - **A sheet carrying none beside sheets that do is accepted**, and it is named on page one and
       in the echo. **That asymmetry is the decision, and it is deliberate**: an absent block is
-      *silence*, not a contrary claim — `CampaignTable` is written only by joining a campaign, so a
-      sheet without one has never been in a game that adopted anything. Refusing would make the
-      commonest fight there is unfightable without hand-editing JSON, since a GM's Villain is built
-      in the sandbox and joins no campaign. What a refusal would have protected against — a rule
-      applied to somebody who never agreed to it — is answered by *saying so*, which is the
-      discipline every table setting here is already held to.
+      *silence*, not a contrary claim. Refusing would make the commonest fight there is unfightable
+      without hand-editing JSON, since a GM's Villain is built in the sandbox and joins no campaign.
+      What a refusal would have protected against — a rule applied to somebody who never agreed to
+      it — is answered by *saying so*, which is the discipline every table setting here is already
+      held to.
+      **But it is not the same silence every time, and the sentence has to say which.** An absent
+      block means one of three things: no game at all, a game that plays the book, or a copy taken
+      before the GM adopted anything — `CampaignJoin` writes the table into an empty field with
+      `??=` and never afterwards, and `Inspect` reports that direction not at all (see
+      [`browser.md`](browser.md), "The copy going stale is reported in one of its two directions").
+      This server can separate the first from the other two, because `CampaignId` is on the sheet
+      beside the block, and page one names the campaign rather than announcing the character as
+      being at no table. Saying "carries no table" of a Hero whose game's rules simply never
+      travelled would be this server inventing the reassurance a refusal was declined in favour of.
     - **A `table` argument beside sheets that carry one** has to agree switch by switch;
       a disagreement is `CALL_TABLE_DISAGREES` rather than a precedence rule, because whichever won,
       the other is a setting somebody chose and this server threw away.
