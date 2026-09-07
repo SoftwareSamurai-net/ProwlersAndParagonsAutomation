@@ -278,6 +278,31 @@ on the ledger rather than left silent: the daily healing rate by Toughness, the 
 after-battle healing roll, and the Medicine Talent's once-a-week limit. Those are yours to keep
 track of between scenes — do not narrate a character healing here.
 
+**A `grab` needs you to say what is being grabbed, and a full one puts it in the winner's hands for
+the page.** p.76 aims a grab at an object and a hold at a person, so `"move": "grab"` takes an
+`"item"` — any words you like — and a grab naming nothing is refused with nothing rolled, because a
+grab of nothing is the page's own definition of a hold. A partial grab records what the two of them
+are fighting over and comes back on the state under `grapples`; a full one moves it, and the winner's
+`holding` says what they have, the page they took it on, and whether they have swung it yet.
+
+**What the page gives the winner is one page, and this server applies it as state.** Send
+`"item"` on an attack to use it, or the `toss` intent to throw it away — either is refused by name
+unless that is exactly what the actor is holding, because a full grab is the only way anything
+reaches anybody's hands here and an item this engine does not know about is one you would otherwise
+be conjuring into the fight by naming it. **Neither spends the turn**: that is p.76's "in effect, a
+free action", and the actor still has their ordinary action afterwards. Anything still held at the
+end of the page it was won on is tossed aside and nobody has it — an item that *was* used stays
+where it is, and what becomes of it after that is yours.
+
+**Three things about a grab are yours and the ledger says which.** What losing the item means for
+the loser's own attacks: no figure of theirs is changed, because an attack here names a Trait and
+nothing in this repository's rules data says which Trait a weapon backs — so if the sword mattered,
+say so yourself. Where a tossed item landed, for the same reason there is no scenery here. And a
+partial grab's "neither of you can use it": what the engine applies of that deadlock is the clause
+beside it — neither character has an active defence against anyone else — because an attack has no
+field naming which weapon backs it. Naming an item on an attack **changes no figure at all**: not the
+pool, not the row of the table, not the damage. Do not narrate it as a bonus.
+
 **`friendly_fire` needs nothing from you.** Whether a target is "engaged in close combat or
 otherwise bunched up" is worked out from the range bands you already set: anyone at Close Range
 with the target who is not you is somebody a stray round can find. A ranged attack into that costs
