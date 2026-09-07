@@ -280,7 +280,12 @@ joins, and the engine reads the character. Nothing here resolves a campaign id; 
   the encounter server is handed characters and never a campaign, so a fight fought with somebody's
   Hero is fought under the book unless the Hero brought its table's rules along. `CampaignTableNamesTests`
   holds its switch list to `play/Encounter/TableRules.cs` by reading that file as source — reflecting
-  over it would mean the test project referencing `play/` to enforce that `engine/` does not.
+  over it would mean the test project referencing `play/` to enforce that `engine/` does not. **The
+  block reaches a fight through `TableRules.From`**, the one seam between the two lists, and the
+  same guard reads that conversion too: a switch on both sides and missing from the copy compiles,
+  passes the list check, and is a house rule no fight carries. Who decides *which* table a fight is
+  under, out of the sheets it was handed, is the encounter server's — see
+  [`mcp-and-headless.md`](mcp-and-headless.md).
 - **A house price on a character in no campaign is reported in `web/`, not here.** Saying it means
   reading `CharacterSheet.CampaignId`, which `PresentationFlagsTests` bars from all rules code — so
   it is `CampaignJoin.Inspect`'s `IMMORTALITY_COST_WITHOUT_CAMPAIGN`, beside the tier and cap

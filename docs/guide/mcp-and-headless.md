@@ -262,6 +262,43 @@ lives there, and nothing about it is repeated here.
   read one, and `CombatantFactory.From` is guarded: a sheet the engine cannot derive a figure from
   comes back as `COMBATANT_UNBUILDABLE` pointing at the *other* server, because whether a character
   is legal is not a question this one answers.
+- **The fight's table comes off the sheets it is handed, and this server never reads a campaign.**
+  It holds no account and cannot resolve a `CampaignId` — that is the design, not a gap — so the
+  only route a house rule has into a fight is `CharacterSheet.CampaignTable`, written onto a
+  character when it joins a game and carried by the export. `TryAgreeTable` decides which table the
+  scene is under, once, out of every sheet plus the optional `table` argument, and `TableRules.From`
+  turns the answer into what an `Encounter` is built with. Four cases and each is either on page one
+  or in the refusal:
+    - **Sheets that agree** set the table, and page one says so.
+    - **Sheets that disagree** are `TABLE_DISAGREES`, naming both characters and the first setting
+      they differ on. Two blocks that differ are two contrary claims about which game is being
+      played; there is no honest way to pick one, and taking either measures a fight under rules
+      half its combatants were not built for.
+    - **A sheet carrying none beside sheets that do is accepted**, and it is named on page one and
+      in the echo. **That asymmetry is the decision, and it is deliberate**: an absent block is
+      *silence*, not a contrary claim — `CampaignTable` is written only by joining a campaign, so a
+      sheet without one has never been in a game that adopted anything. Refusing would make the
+      commonest fight there is unfightable without hand-editing JSON, since a GM's Villain is built
+      in the sandbox and joins no campaign. What a refusal would have protected against — a rule
+      applied to somebody who never agreed to it — is answered by *saying so*, which is the
+      discipline every table setting here is already held to.
+    - **A `table` argument beside sheets that carry one** has to agree switch by switch;
+      a disagreement is `CALL_TABLE_DISAGREES` rather than a precedence rule, because whichever won,
+      the other is a setting somebody chose and this server threw away.
+  **Where it came from comes back inside `table` as `source` and `source_note`**, because
+  `run_encounters` answers with no ledger and a rate is quoted with its table: two runs whose
+  switches read alike may have got them off the characters or off an argument somebody typed.
+  **`ImmortalityCost` is not read here and the policy says so once** — it is a creation-side price,
+  so two sheets naming different prices for it is not a disagreement about anything a fight can see.
+- **The sheets arrive as the stored payload and not as the `.json` export, and the strict reader is
+  what makes that checkable.** The block is `CampaignTable`, spelled the way the rest of a character
+  is; the export's snake_case `campaign_table` is a different document, and a sheet carrying it is
+  `CHARACTER_UNREADABLE` rather than a character quietly read as being at no table. That refusal is
+  the whole value of reading strictly here: a dropped house-rules block is a fight measured under
+  the wrong game with an echo saying the table came from nowhere in particular, and nothing in the
+  answer a reader could tell apart from a character that really is at no table. A wire fixture in
+  `McpPlayServerTests` drives exactly that spelling, with the reader's own spelling beneath it as
+  the control.
 - **A tier the character rules do not have is `NO_SUCH_TIER`, and the opening ledger says which tier
   each character was built to.** `DerivedStatsCalculator.CalculateResolve` answers **0** for an
   absent or unresolvable tier — the honest answer for a figure it cannot derive, and a silent lie

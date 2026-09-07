@@ -2695,6 +2695,14 @@ public sealed class McpPlayServerTests
                 }))
         };
 
+    /// <summary>
+    /// Every code this server can refuse with, as a set — the same keys the theory below drives,
+    /// so <see cref="McpPlayPolicyTests"/> can hold the play policy's named refusals to them
+    /// without keeping a second list of its own.
+    /// </summary>
+    public static IReadOnlySet<string> ProblemCodes { get; } =
+        Refusals.Keys.ToHashSet(StringComparer.Ordinal);
+
     public static TheoryData<string> EveryProblemCode => [.. Refusals.Keys.Order(StringComparer.Ordinal)];
 
     /// <summary>
