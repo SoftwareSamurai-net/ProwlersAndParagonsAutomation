@@ -112,8 +112,9 @@ verdicts rather than test counts, and cannot run without publishing a site first
 checks" alongside four suites' thousands would make the total meaningless. See **Driving the
 assembled app** at the end of this file.
 
-**And a seventh, for the same reason: `./scripts/test-kill-tree.sh`.** It reports seven verdicts
-about whether the harness can stop a server it started — see **Proving `kill_tree`** below. It is a
+**And a seventh, for the same reason: `./scripts/test-kill-tree.sh`.** It reports nine verdicts
+about whether the harness can stop a server it started, and about what it says when it could not —
+see **Proving `kill_tree`** below. It is a
 step in `build.yml` and is not totalled anywhere either.
 
 **`tests/e2e` is a .NET project and is still not a `dotnet test` project, for the same reason.** It
@@ -650,9 +651,10 @@ against a pre-built site.
 ### Proving `kill_tree`, and why a green run was never evidence about it
 
 ```bash
-./scripts/test-kill-tree.sh                  # eight checks: the parses, three trees, the orphan
+./scripts/test-kill-tree.sh                  # nine checks: the parses, three trees, the orphan
                                              # backstop, the log redactor, the server-state
-                                             # reading and its bound; ~13s
+                                             # reading and its bound, and what a dead wrangler's
+                                             # report says; ~13s
 ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic ones only. NOT a full run
 ```
 
@@ -784,8 +786,10 @@ whole section opens with.
 A failing drive prints, in this order: every verdict the driver reached; an `::error::` naming how
 many of how many checks failed; the names of any checks that **did not run**; one `::error::` line
 saying whether the server was **still alive, already dead (with its exit status), or gone** when
-the drive ended, and whether anything was still listening on its port; and the last forty lines of
-that server's own log, with `[?&]t=` values redacted.
+the drive ended, and whether anything was still listening on its port; then — when it is not alive
+— **the fatal error wrangler logged**, **the tail of wrangler's own debug log**, and the last forty
+lines of that server's own log. Everything quoted out of a log goes through the same `[?&]t=`
+substitution.
 
 **That reading is bounded and cannot hang.** `capture_server_state` takes the exit status from
 `wait`, and `wait` on a live child blocks until that child exits — so a *wrong* aliveness reading
@@ -843,6 +847,103 @@ normally right up to the navigation it died on: it had already served the BOOT c
 full page loads and an axe scan, and the node driver's own drive in the same job made about
 fifteen navigations against an identically-configured server without trouble. There is no
 degradation before the death to attribute it to.
+
+#### The second death, and where wrangler puts the half it does not print
+
+**There have been two in about seventy-five runs, and they are not the same shape.** Run
+`34040527190` is the one above: the listener gone and staying gone, no error line, nothing on the
+way out. Run `34120157313` — a merge commit on `main`, the Playwright step, twin
+`html-lang-dropped` on port 8793 — is the other, and it is the first the reporting above was able
+to describe. The server was **ALREADY DEAD with exit status 1**, and its last forty lines were:
+
+```
+[wrangler:info] GET /build 200 OK (11ms)
+
+✘ [ERROR]
+
+If you think this is a bug then please create an issue at …
+Note that there is a newer version of Wrangler available (4.129.0). …
+🪵  Logs were written to "/home/runner/.config/.wrangler/logs/wrangler-2026-09-07_12-19-49_785.log"
+[wrangler:info] GET /css/theme.css 304 Not Modified (38ms)
+```
+
+An exit status of 1 is wrangler refusing to continue rather than a signal, so this one is not the
+OOM candidate the paragraph above weighs. Two things were wrong with reading it. **The cause was
+in the middle of a request log** rather than stated — `304 Not Modified` on both sides of it — and
+**the error had no message at all.**
+
+**Where the message went is in the pinned wrangler's own source, and it decides the fix.**
+`src/core/handle-errors.ts` ends with
+
+```js
+logger.error(loggableException instanceof Error ? loggableException.message : loggableException);
+if (loggableException instanceof Error) { logger.debug(loggableException.stack); }
+```
+
+— the message to stdout, **the stack to `logger.debug`**, which the default log level never
+prints. And `Logger.doLog` appends **every** level to wrangler's debug *file* unconditionally while
+filtering only the console, so that file has the stack whether or not anybody asked for a debug
+level. Raising `WRANGLER_LOG` would buy a flooded stdout and nothing else. The file is what the
+`🪵` line names, it lives under `~/.config/.wrangler/logs` on Linux and
+`~/Library/Preferences/.wrangler/logs` on macOS, and run `33827524692` had already carried a
+`kj::Exception` stack in one. Nothing collected any of them.
+
+**So the harness owns that file now.** `start_server` sets `WRANGLER_LOG_PATH` per server to
+`.e2e/logs/wrangler/<name>/`. Four things about it, each of which was checked rather than assumed:
+
+- **It is the variable 4.127.0 honours.** In `src/utils/log-file.ts` it is an environment-variable
+  factory whose default is `<global config dir>/logs`, and `getDebugFilepath` treats the value as a
+  **directory** unless it ends in `.log`.
+- **Measured against a real `wrangler pages dev` of the pinned version**, not read off the source
+  alone: the log appeared in the named directory, the file count under
+  `~/Library/Preferences/.wrangler/logs` was unchanged at 406 across the run, and the collected
+  file held 21 `debug` entries against a 23-line stdout log.
+- **Handed over as a path relative to the repository root**, like everything else wrangler is
+  given here, for the reason the server section below states: wrangler is Node and `path.resolve`
+  turns a Git Bash `/c/Users/…` into `C:\c\Users\…`. Proved to resolve against the server's own
+  working directory by driving it from there.
+- **Under `.e2e/` and never under `$HOME`**, so one `rm -rf .e2e` is still the whole of this
+  harness's state and nothing accumulates in a directory where a reader would have to guess which
+  run wrote which file. `scripts/test-kill-tree.sh`'s own wrangler gets the same treatment into its
+  temp directory.
+
+**And the report leads with the cause.** When the server is not alive, `say_server_state` prints
+`wrangler_error_block` — twenty lines from the **last** `[ERROR]` line, matched with `grep -F` and
+never a pattern containing the `✘`, which is three bytes whose meaning to `grep`'s `.` depends on
+the locale — then the tail of the **newest** file in that server's debug directory, and only then
+the forty-line request tail. When there is no `[ERROR]` line it says so, because that separates a
+death from outside the process from wrangler refusing to continue; when there is no debug log it
+says that too, because an uncollected stack read as an all-clear is this repository's oldest
+failure shape.
+
+**`WRANGLER_DEATH` in `scripts/test-kill-tree.sh` is the check, and its control is the whole of
+it.** The fixture's `✘ [ERROR]` sits at line 5 of a 60-line log, so it is **outside** the last
+forty — asserted, not assumed — and its presence in the report is therefore evidence that
+something quoted it rather than the tail happening to contain it. A fixture with the error inside
+the tail would pass against a function that does nothing new, which is exactly the tautology this
+file keeps having to un-ship. Two more controls: the newer of the two planted debug logs is the one
+`newest_debug_log` picks, and it really holds the planted stack; and the report printed the
+ordinary tail, so the token-absence assertions are not satisfied by a report that said nothing.
+Watched red seven ways — the error block unquoted, the debug log unquoted, its tail through `tail`
+rather than `redacted_tail`, every file in the directory quoted instead of the newest, the block
+printed after the tail, a missing debug log passed over in silence, and the fixture shortened so
+its error falls inside the forty lines.
+
+**The whole file is downloadable, because forty lines of a stack is not a stack.** `build.yml`
+uploads `.e2e/logs/` with `actions/upload-artifact@v7` when either drive fails —
+`include-hidden-files: true` and `if-no-files-found: error` for the reason the visual-regression
+upload's own comment gives at length, and gated on the two steps' `outcome` rather than on
+`failure()`, since a job that falls over at `dotnet test` never creates the directory. **The
+artifact carries no raw sign-in token**: `e2e.sh`'s EXIT trap puts the directory through
+`redact_in_place` first, which is the same substitution every failure tail uses, because an
+artifact is a copy of the bytes those tails are careful not to print. `REDACTED_TAIL` holds that
+too, with a fixture nested three deep — `wrangler/<server>/wrangler-….log` is — and a control that
+the ordinary line survived, since "no token on disk" holds perfectly against a file that was
+emptied.
+
+**What would name the cause next time is now collected rather than hoped for.** If a third death
+has this shape, the run's own output carries the error block and the stack, and the artifact
+carries the rest of the file.
 
 **A check that did not run is not a failure, and the figures say so.** Both drivers stop when the
 server stops answering rather than driving the rest into a refused connection each, and print
