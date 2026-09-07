@@ -136,6 +136,65 @@ public sealed class AutosaveOrderTests
             async () => Assert.Equal(Finished + "!", await NameHeld(ctx)));
     }
 
+    /// <summary>
+    /// <b>The version announced is read before the write and not after it, and this is the
+    /// interleaving that tells the two apart.</b>
+    ///
+    /// <para><see cref="Autosave"/>'s doc comment says the announced version can only ever
+    /// understate what landed. Nothing held it to that: the tests above hold the <em>first</em>
+    /// write open, and both orderings of that one line behave identically until a second write is
+    /// in flight. So this holds the <em>coalesced</em> one — the moment the account is holding the
+    /// older name, the reader has typed a newer one, and the write carrying it has not landed.</para>
+    ///
+    /// <para><b>Read before:</b> the first write announces the version it started at, which is no
+    /// longer the character's version, so the shell says nothing and the write that follows says it
+    /// truthfully. <b>Read after:</b> it announces the version the character is at <em>now</em> —
+    /// which is the version of bytes still on the wire — and the shell tells a reader their
+    /// finished name is kept while the account holds a prefix of it. That is the exact lie this
+    /// class was written to end, and it survives the fix if the line moves.</para>
+    ///
+    /// <para><b>The positive control is the second gate being reached.</b> It is proof that the
+    /// first write returned and the pump went round, which is the only moment the assertion below
+    /// is about: without it, "the shell does not say Saved" would hold just as well for a run in
+    /// which no write had finished at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task SavedIsNotSaidForBytesStillOnTheWire()
+    {
+        await using var ctx = SignedIn();
+        var layout = ctx.Render<MainLayout>();
+
+        var held = HoldEachWrite(ctx);
+
+        await Type(layout, ctx, Typed);
+        await held.Reached(1).WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
+
+        await Type(layout, ctx, Finished);
+
+        held.Let(1);
+
+        // The coalesced write has reached the wire, so the first has returned and been announced.
+        await held.Reached(2).WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
+
+        // The control on the state: this is the window the assertion is about — the account holds
+        // the older name and the newer one has not landed.
+        Assert.Equal(Typed, await NameHeld(ctx));
+        Assert.Equal(Finished, ctx.Session.Sheet.Name);
+
+        layout.Render();
+
+        Assert.NotEqual("Saved", layout.Find(".save-status").TextContent.Trim());
+
+        held.Let(2);
+
+        await layout.WaitForAssertionAsync(
+            () => Assert.Equal("Saved", layout.Find(".save-status").TextContent.Trim()));
+
+        Assert.Equal(Finished, await NameHeld(ctx));
+    }
+
     // ── That the real app is wired to any of this ─────────────────────────────────────────────
 
     /// <summary>
@@ -253,6 +312,55 @@ public sealed class AutosaveOrderTests
         };
 
         return held;
+    }
+
+    /// <summary>
+    /// Hold <em>every</em> <c>PUT</c> open at the wire, each behind a gate of its own.
+    ///
+    /// <para><see cref="HoldTheFirstWrite"/> lets everything after the first through, which is
+    /// right for the tests that only decide the order of the first two bodies. A test about what
+    /// the shell says <em>between</em> two writes needs the second one held as well, so that the
+    /// window it asserts in is one the test opened rather than one it hoped for.</para>
+    /// </summary>
+    private sealed class GatedWrites
+    {
+        private readonly Dictionary<int, TaskCompletionSource> _reached = [];
+        private readonly Dictionary<int, TaskCompletionSource> _release = [];
+        private readonly Lock _gate = new();
+
+        public Task Reached(int nth) => Slot(_reached, nth).Task;
+
+        public void Let(int nth) => Slot(_release, nth).TrySetResult();
+
+        public async Task Arrive(int nth)
+        {
+            Slot(_reached, nth).TrySetResult();
+            await Slot(_release, nth).Task;
+        }
+
+        private TaskCompletionSource Slot(Dictionary<int, TaskCompletionSource> of, int nth)
+        {
+            lock (_gate)
+            {
+                if (!of.TryGetValue(nth, out var slot))
+                {
+                    slot = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    of[nth] = slot;
+                }
+
+                return slot;
+            }
+        }
+    }
+
+    private static GatedWrites HoldEachWrite(RenderContext ctx)
+    {
+        var gates = new GatedWrites();
+        var seen = 0;
+
+        ctx.Api.BeforeStoringCharacter = _ => gates.Arrive(Interlocked.Increment(ref seen));
+
+        return gates;
     }
 
     /// <summary>
