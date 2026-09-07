@@ -29,6 +29,29 @@ public enum CombatantKind
 }
 
 /// <summary>
+/// An item a character has in their hands, which in this engine only ever arrives one way: p.76's
+/// full grab took it off somebody.
+///
+/// <para><b>There is no inventory here and this is not one.</b> A <c>CharacterSheet</c>'s gear is a
+/// name with optional custom features on it, nothing downstream can tell an attack made with a sword
+/// from a bare-handed one, and <c>play/</c> may not read the character rules anyway — see the Gear
+/// Limit in <c>docs/guide/play-engine.md</c>. So the name is <b>the caller's word</b>, the way a
+/// lure's target and a misfortune's narration are, and the only thing the engine claims about it is
+/// what p.76 says: who has it, and whether the page it was won on has been spent.</para>
+///
+/// <para><b>The page it was won on is what makes "that same page" enforceable.</b> p.76 lets the
+/// winner "use it or toss it aside on that same page"; an item won and neither used nor tossed by
+/// the time the page turns is dropped, which <see cref="Encounter.Step"/> does at
+/// <see cref="EndPage"/>. <see cref="Used"/> is what discharges the clause — an item the winner
+/// actually swung stays with them, and what becomes of it after that is the GM's, because the page
+/// stops talking.</para>
+/// </summary>
+/// <param name="Name">What it is, in the caller's own words.</param>
+/// <param name="WonOnPage">The page the full grab that took it landed on.</param>
+/// <param name="Used">Whether the holder has attacked with it since.</param>
+public sealed record HeldItem(string Name, int WonOnPage, bool Used = false);
+
+/// <summary>
 /// An immutable snapshot of one participant in a fight.
 ///
 /// <para><b>It is a snapshot, not a view of a character sheet.</b> The encounter never holds a
@@ -69,7 +92,8 @@ public sealed class Combatant
         bool ready,
         bool consciousAtZeroOrLess,
         IReadOnlySet<string> powers,
-        IReadOnlySet<string> rangedPowers)
+        IReadOnlySet<string> rangedPowers,
+        HeldItem? holding)
     {
         Id = id;
         Name = name;
@@ -93,6 +117,7 @@ public sealed class Combatant
         ConsciousAtZeroOrLess = consciousAtZeroOrLess;
         Powers = powers;
         RangedPowers = rangedPowers;
+        Holding = holding;
     }
 
     /// <summary>The side the book's own fights are written from: the player characters'.</summary>
@@ -346,6 +371,24 @@ public sealed class Combatant
     /// </summary>
     public IReadOnlySet<string> RangedPowers { get; }
 
+    /// <summary>
+    /// The item p.76's full grab put in this combatant's hands, or null.
+    ///
+    /// <para><b>It is the whole of what a full grab leaves behind, and it is read rather than kept
+    /// for the look of it.</b> Three rules turn on it: an <see cref="Attack"/> may name an item and
+    /// is refused unless it is this one, a <see cref="Toss"/> may drop it and is refused unless it is
+    /// this one, and <see cref="EndPage"/> drops an item won on the page that is ending and neither
+    /// used nor tossed — which is p.76's "on that same page" made a state rather than a sentence.
+    /// </para>
+    ///
+    /// <para><b>Null is not "empty-handed" and never claims to be.</b> This engine has no inventory:
+    /// nobody starts a fight holding anything it knows about, and a combatant carrying a sword on
+    /// their sheet comes out of <see cref="CombatantFactory"/> indistinguishable from one who is not.
+    /// So null means <em>nothing this fight has taken off anybody</em>, and what else a character has
+    /// in their hands is the GM's, exactly as the Gear Limit's absence is.</para>
+    /// </summary>
+    public HeldItem? Holding { get; }
+
     /// <summary>Whether this combatant holds Resolve at all — true for a Hero and nobody else.</summary>
     public bool HoldsResolve => Kind == CombatantKind.Hero;
 
@@ -424,13 +467,13 @@ public sealed class Combatant
     public Combatant WithHealth(int health) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
             DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
 
     /// <summary>This combatant bleeding out, or steadied. p.79's clock, started and stopped.</summary>
     public Combatant Bleeding(bool dying) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
 
     /// <summary>
     /// This combatant brought round by p.76's instant recovery: on their feet at
@@ -444,7 +487,7 @@ public sealed class Combatant
     public Combatant Recovered(int health, bool consciousAtZeroOrLess = false) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
             defeatedByEffect: null, Dying, InstantRecoveriesUsed + 1, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, consciousAtZeroOrLess, Powers, RangedPowers);
+            Size, Invisible, HardTarget, Ready, consciousAtZeroOrLess, Powers, RangedPowers, Holding);
 
     /// <summary>
     /// p.80's other half of the same sentence: a character standing at or below the defeat figure
@@ -457,7 +500,7 @@ public sealed class Combatant
     public Combatant Overcome() =>
         new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, consciousAtZeroOrLess: false, Powers, RangedPowers);
+            Size, Invisible, HardTarget, Ready, consciousAtZeroOrLess: false, Powers, RangedPowers, Holding);
 
     /// <summary>
     /// This combatant put out of the fight by <paramref name="effect"/> — p.76's defeat by special
@@ -470,7 +513,7 @@ public sealed class Combatant
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, effect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
     }
 
     /// <summary>
@@ -496,7 +539,7 @@ public sealed class Combatant
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, flaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
     }
 
     /// <summary>
@@ -541,8 +584,64 @@ public sealed class Combatant
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
     }
+
+    /// <summary>
+    /// This combatant holding <paramref name="item"/>, won by a full grab on
+    /// <paramref name="wonOnPage"/> — p.76's "you gain control of the object".
+    ///
+    /// <para>Whatever they were holding before is gone, because a pair of hands is what the page is
+    /// talking about and this engine models one item, not a bag. A grab that takes a second thing off
+    /// somebody drops the first, and the ledger line says so.</para>
+    /// </summary>
+    public Combatant Holds(string item, int wonOnPage)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(item);
+
+        return new Combatant(
+            Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
+            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers,
+            new HeldItem(item, wonOnPage));
+    }
+
+    /// <summary>
+    /// This combatant having swung what they are holding — p.76's "can use it".
+    ///
+    /// <para><b>What that discharges is the clause and not the possession.</b> The page gives the
+    /// winner the object and one page in which to use or discard it; an item that was used is an item
+    /// the page has stopped talking about, so <see cref="Encounter.Step"/> stops dropping it when the
+    /// page turns and what becomes of it afterwards is the GM's.</para>
+    ///
+    /// <para>A throw on empty hands, because the engine refuses an attack naming an item nobody holds
+    /// on the ledger long before this: reaching here is a programming error rather than a request.
+    /// </para>
+    /// </summary>
+    public Combatant Used() =>
+        Holding is { } held
+            ? new Combatant(
+                Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
+                Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
+                Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers,
+                held with { Used = true })
+            : throw new InvalidOperationException(
+                $"{Name} is holding nothing, so there is nothing for them to have used. An attack "
+                + "naming an item its actor does not hold is refused on the ledger before it "
+                + "reaches here.");
+
+    /// <summary>
+    /// This combatant empty-handed: p.76's "toss it aside", and what the page turn does to an item
+    /// its winner neither used nor tossed.
+    ///
+    /// <para>Nobody holds it afterwards — this engine has no floor to put it on, so the ledger line
+    /// is where it went and there is no state for a dropped object.</para>
+    /// </summary>
+    public Combatant Dropped() =>
+        new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
+            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers,
+            holding: null);
 
     /// <summary>This Minion group with fewer bodies in it.</summary>
     public Combatant WithGroupSize(int groupSize) =>
@@ -550,7 +649,7 @@ public sealed class Combatant
             ? new Combatant(
                 Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, Math.Max(0, groupSize),
                 TraitRanks, Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-                Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers)
+                Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding)
             : throw new InvalidOperationException($"{Name} is a {Kind}, not a group of Minions.");
 
     private static Combatant Build(
@@ -583,6 +682,6 @@ public sealed class Combatant
             [.. defences],
             defeatedByEffect: null, dying: false, instantRecoveriesUsed: 0, suppressedFlaw: null,
             size, invisible, hardTarget, ready, consciousAtZeroOrLess: false,
-            powers ?? EmptyPowers, rangedPowers ?? EmptyPowers);
+            powers ?? EmptyPowers, rangedPowers ?? EmptyPowers, holding: null);
     }
 }

@@ -3093,8 +3093,12 @@ public sealed class PlayEngineStepTests
         var dice = new ScriptedDice([.. FacesFor(10, net), .. FacesFor(10, 0)]);
         var encounter = new Encounter(_play, dice);
 
+        // p.76's grab is aimed at an object, so one has to be named or nothing is rolled — see
+        // AGrabThatNamesNoItemIsRefusedBeforeAnythingIsRolled.
+        var item = move == GrappleMove.Grab ? "the sword" : null;
+
         var step = encounter.Step(
-            encounter.Begin(Wrestlers()), new GrappleIntent("holder", "held", move));
+            encounter.Begin(Wrestlers()), new GrappleIntent("holder", "held", move, item));
 
         Assert.Equal(0, dice.Remaining);
 
@@ -3104,6 +3108,10 @@ public sealed class PlayEngineStepTests
         Assert.Equal(expected, grapple.Kind);
         Assert.Equal("holder", grapple.Holder);
         Assert.Equal("held", grapple.Held);
+
+        // And the object is on the record for a grab and on nothing else: a hold is aimed at a
+        // person, so an item field carrying anything there would be a fact about the wrong move.
+        Assert.Equal(item, grapple.Item);
     }
 
     /// <summary>
@@ -7655,17 +7663,38 @@ public sealed class PlayEngineStepTests
         Assert.Equal(without.TraitRanks.OrderBy(t => t.Key, StringComparer.Ordinal), with.TraitRanks.OrderBy(t => t.Key, StringComparer.Ordinal));
         Assert.Equal(without.Rank("might"), with.Rank("might"));
 
-        // And an attack has nowhere to name one, so the limit could not be applied per attack
-        // either: every field of p.75's attack is a Trait, a row, or a modifier.
+        // And an attack has no piece of equipment to name, so the limit could not be applied per
+        // attack either: every field of p.75's attack is a Trait, a row, or a modifier.
         Assert.DoesNotContain(
             typeof(Attack).GetProperties().Select(p => p.Name),
             name => name.Contains("Gear", StringComparison.OrdinalIgnoreCase)
-                    || name.Contains("Weapon", StringComparison.OrdinalIgnoreCase)
-                    || name.Contains("Item", StringComparison.OrdinalIgnoreCase));
+                    || name.Contains("Weapon", StringComparison.OrdinalIgnoreCase));
 
         Assert.DoesNotContain(
             typeof(Combatant).GetProperties().Select(p => p.Name),
             name => name.Contains("Gear", StringComparison.OrdinalIgnoreCase));
+
+        // <b><see cref="Attack.Item"/> is the one thing on an attack that names an object, and it is
+        // not equipment this limit could bite on.</b> It carries what p.76's full grab put in the
+        // actor's hands, and the claim above survives it only because naming it moves no figure —
+        // which is driven rather than argued, because a field that had quietly started adding a
+        // Weapon Bonus is exactly what would make the paragraph above stop being true.
+        Assert.Equal(RollOf(Item: null), RollOf(Item: "a basic sword"));
+
+        string RollOf(string? Item)
+        {
+            var encounter = new Encounter(_play, new SeededDice(15));
+
+            var state = encounter.Begin(Wrestlers());
+            state = state.With(state["holder"].Holds("a basic sword", state.Page));
+
+            return encounter
+                .Step(state, new Attack("holder", "held", "might", Item: Item))
+                .Added
+                .Single(l => l.Text.Contains("attacks", StringComparison.Ordinal)
+                             && l.Text.Contains("defends with", StringComparison.Ordinal))
+                .Text;
+        }
 
         // The figure exists and is the entry's; nothing reads it. That is the whole reason the two
         // switches are still on Encounter.SwitchesNotYetApplied.

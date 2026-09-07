@@ -252,6 +252,22 @@ public abstract record Intent(string Actor);
 /// own Range is not <c>ranged</c> — and the ledger says so rather than leaving a caller thinking
 /// they bought something.</para>
 /// </param>
+/// <param name="Item">
+/// The item this attack is made with, where it is the one p.76's full grab has just put in the
+/// actor's hands — "you gain control of the object and can use it or toss it aside on that same
+/// page".
+///
+/// <para><b>It is refused unless the actor is actually holding it</b>, by name and with nothing
+/// rolled. This engine has no inventory and never claims to: the only way an item reaches
+/// <see cref="Combatant.Holding"/> is by being taken off somebody, so an attack naming anything else
+/// is a claim about equipment nothing here can answer for.</para>
+///
+/// <para><b>It changes no figure and is not allowed to.</b> There is no Weapon Bonus anywhere in
+/// this repository's rules data and no sheet says which Trait a weapon backs — see the Gear Limit in
+/// <c>docs/guide/play-engine.md</c> — so naming an item moves neither the pool, nor the row of p.75's
+/// table, nor the damage. What it does is spend the page p.76 gives the winner, so the item stays
+/// with them past the page turn instead of being tossed aside at it.</para>
+/// </param>
 public sealed record Attack(
     string Actor,
     string Target,
@@ -266,7 +282,8 @@ public sealed record Attack(
     Cover Cover = Cover.None,
     int? CoverStructure = null,
     bool VulnerablePart = false,
-    bool CloseRangeOnly = false) : Intent(Actor);
+    bool CloseRangeOnly = false,
+    string? Item = null) : Intent(Actor);
 
 /// <summary>
 /// Closing with or opening from one other combatant (p.74).
@@ -280,7 +297,47 @@ public sealed record Move(string Actor, string Toward, bool Closer = true) : Int
 public sealed record Hold(string Actor) : Intent(Actor);
 
 /// <summary>p.76: a grab, a hold or an escape — Might against Might, read off the Grappling table.</summary>
-public sealed record GrappleIntent(string Actor, string Target, GrappleMove Move) : Intent(Actor);
+/// <param name="Actor">Who is making the move.</param>
+/// <param name="Target">Who they are making it against.</param>
+/// <param name="Move">A grab, a hold or an escape.</param>
+/// <param name="Item">
+/// What is being grabbed, in the caller's own words — required by <see cref="GrappleMove.Grab"/> and
+/// meaningless on the other two.
+///
+/// <para><b>A grab that names nothing is refused with nothing rolled, and that is the page's own
+/// distinction rather than a validation rule.</b> p.76 defines a grab as "an attempt to take a weapon
+/// or other handheld item away from your opponent" and a hold as "an attempt to control or restrain
+/// your opponent" — so a grab with no object is a hold by another name, and resolving one would put a
+/// contest over nothing in particular on the ledger and, on three net successes, hand somebody
+/// control of it.</para>
+///
+/// <para><b>It is the caller's word, for the reason <see cref="Combatant.Size"/> and
+/// <see cref="Combatant.Invisible"/> are.</b> There is no inventory here and no sheet this engine may
+/// read carries one — see <see cref="HeldItem"/>. What the engine does with the word is exactly what
+/// p.76 states: a partial grab records it as the thing both characters have hold of, and a full grab
+/// moves it.</para>
+/// </param>
+public sealed record GrappleIntent(
+    string Actor, string Target, GrappleMove Move, string? Item = null) : Intent(Actor);
+
+/// <summary>
+/// p.76: throwing away the item a full grab has just won — "you can use it or toss it aside on that
+/// same page without suffering a multiple action penalty".
+///
+/// <para><b>It is an intent of its own rather than a flag on <see cref="EndTurn"/> because it is a
+/// thing a character does</b>, and the ledger has to be able to say they did it: an item tossed and
+/// an item merely dropped when the page turned are different events, and only one of them was
+/// somebody's decision.</para>
+///
+/// <para><b>It does not use up the turn</b>, which is the page's "in effect, a free action". Nothing
+/// in this engine counts actions per page — multiple actions and their −2d are on the guide's list of
+/// mechanics with no intent yet — so what the clause buys here is that the actor may still take their
+/// ordinary action, and a fixture drives exactly that rather than asserting a penalty that is not
+/// modelled.</para>
+/// </summary>
+/// <param name="Actor">Who is throwing it away.</param>
+/// <param name="Item">Which item — refused by name unless it is the one they are holding.</param>
+public sealed record Toss(string Actor, string Item) : Intent(Actor);
 
 /// <summary>
 /// p.76: spending a turn wrestling with a special effect, rolling the passive defence the Power
