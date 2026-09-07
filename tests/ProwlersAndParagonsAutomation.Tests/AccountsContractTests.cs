@@ -441,6 +441,79 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
+    /// Every membership address <c>worker/index.js</c> routes is named in the contract.
+    ///
+    /// <para><b>The contract is <c>docs/CHARACTERS-API.md</c> and this is what makes that
+    /// sentence true of the code rather than of the day it was written.</b> Three files here say
+    /// so — <c>memberships.js</c>'s header, the guide, and the document's own opening, which calls
+    /// itself the thing three pieces of work are built against in parallel. Nothing held it. The
+    /// address table and the routing block were kept in step by whoever remembered, and an address
+    /// added to one and not the other is invisible: the server answers it, the browser can reach
+    /// it, and the only record of what this API is says it does not exist.</para>
+    ///
+    /// <para><b>Read off the routing block's own comparisons</b>, the same extraction
+    /// <see cref="TheMembershipAddressesAreRoutedInsideTheGate"/> uses and for the same reason —
+    /// a list of addresses typed into this test is a third copy to keep in step, and it would
+    /// have nothing to say about the address somebody adds next. <b>The positive control is the
+    /// count</b>: an extraction that has stopped matching yields an empty set, which satisfies
+    /// "every one of these is documented" for free. That is the shape of guard this repository has
+    /// shipped measuring nothing four times.</para>
+    ///
+    /// <para><b>It runs one way only.</b> An address in the document that nothing routes is a
+    /// different fault with a different fix — the document leads the code here, deliberately, and
+    /// is allowed to describe an address before one exists.</para>
+    /// </summary>
+    [Fact]
+    public void EveryRoutedMembershipAddressIsInTheContract()
+    {
+        var indexJs = File.ReadAllText(WorkerFile("index.js"));
+        var contract = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "docs", "CHARACTERS-API.md"));
+
+        // **Scoped to the membership block, not to the file**, and that is not tidiness: `tail` is
+        // the local name the admin-accounts block uses too, so a whole-file sweep finds
+        // `tail === 'characters'` and demands an address under `/api/memberships/{id}` that has
+        // never existed. It found exactly that the first time this test was run.
+        var block = Regex.Match(indexJs,
+            @"if \(path\.startsWith\('/api/memberships/'\)\) \{(?<body>.*?)return fail\(404",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(block.Success,
+            "worker/index.js no longer routes the /api/memberships/ prefix as one block, so this "
+            + "test cannot see which sub-paths are routed and would pass whatever they were.");
+
+        var tails = Regex.Matches(block.Groups["body"].Value,
+                @"(?:membershipId|tail)\s*===\s*'([a-z]+)'",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // The control, first. Six sub-paths are routed under this prefix today; a number under
+        // five means the extraction has stopped seeing the routing block, and every assertion
+        // below would then be true of nothing.
+        Assert.True(tails.Count >= 5,
+            "this test found " + tails.Count + " membership sub-paths routed in worker/index.js "
+            + "and there are at least five, so the extraction has stopped matching and every "
+            + "assertion below would pass against an empty set: "
+            + string.Join(", ", tails));
+
+        // `inbox` and `join` sit directly under the prefix; everything else is under an id. The
+        // document writes an id as `{id}`, which is what a table row can be matched on.
+        var undocumented = tails
+            .Select(tail => tail is "inbox" or "join"
+                ? $"/api/memberships/{tail}"
+                : $"/api/memberships/{{id}}/{tail}")
+            .Where(address => !contract.Contains(address, StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(undocumented.Count == 0,
+            "worker/index.js routes these and docs/CHARACTERS-API.md — which this repository "
+            + "calls the contract in three places — names none of them: "
+            + string.Join(", ", undocumented));
+    }
+
+    /// <summary>
     /// The membership wire keys are spelled the same at both ends, on all six shapes.
     ///
     /// <para><b>Structural at both ends, for the reason this file records for the character
