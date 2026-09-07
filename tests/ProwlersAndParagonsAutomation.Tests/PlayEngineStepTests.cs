@@ -6245,6 +6245,201 @@ public sealed class PlayEngineStepTests
     }
 
 
+    // ── The baseline every one of these figures is measured against ──────────
+
+    /// <summary>
+    /// A fight with a Hero, a Villain and a mob in it, either declaring every fact this slice added
+    /// to a <see cref="Combatant"/> or declaring none of them.
+    ///
+    /// <para><b>The readiness is deliberately mixed.</b> p.79's Drop doubles a holder's Edge
+    /// against everyone who has not got one levelled, so a party in which everybody is ready
+    /// doubles every figure and comes out in the order it went in — which would make the run below
+    /// agree with its baseline for the wrong reason. Only the Villain and the mob are ready, and
+    /// the Villain's doubled Edge would overtake the Hero's.</para>
+    /// </summary>
+    private static List<Combatant> Declaring(bool everything)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 6, ["agility"] = 4, ["toughness"] = 4
+        };
+
+        return
+        [
+            Combatant.Hero(
+                "hero", "the Hero", edge: 9, health: 10, resolve: 3, traits, ["toughness", "agility"],
+                hardTarget: everything),
+            Combatant.Villain(
+                "villain", "the Villain", edge: 8, health: 10, traits, ["toughness", "agility"],
+                hardTarget: everything, ready: everything),
+            Combatant.Minions(
+                "mob", "the robots", threat: 5, groupSize: 4, threatTraitId: "threat",
+                hardTarget: everything, ready: everything)
+        ];
+    }
+
+    /// <summary>
+    /// <b>A fact declared for a switch that is off leaves the whole fight where it was — the order,
+    /// every Health, and the ledger line for line.</b>
+    ///
+    /// <para>This is the baseline every balance figure off this engine is quoted against, and it is
+    /// the property the five switches in this slice most needed and had least of: each of them was
+    /// driven with its own setting off, and none of them was driven against a run that had never
+    /// heard of the setting at all. <b>The difference matters because the declarations are new
+    /// fields on <see cref="Combatant"/></b> — a <c>hard_target</c> read one branch too early, or a
+    /// <c>ready</c> that doubled an Edge before the switch was consulted, moves a measurement that
+    /// is supposed to be the book's own.</para>
+    ///
+    /// <para>Two whole runs to the end on one seed, one party declaring every flag and one
+    /// declaring none, compared on the state and on the ledger. <b>The control is that the run did
+    /// something</b>: it has to have turned pages, thrown dice and taken Health off somebody, or
+    /// two empty fights would agree perfectly.</para>
+    /// </summary>
+    [Fact]
+    public void EveryDeclarationThisSliceAddedChangesNothingWhileItsSwitchIsOff()
+    {
+        EncounterState Run(bool declaring)
+        {
+            var encounter = new Encounter(_play, new SeededDice(80), TableRules.Book);
+
+            return encounter.RunToEnd(
+                encounter.Begin(Declaring(declaring)), new AttackTheWeakest(_play), maxPages: 30);
+        }
+
+        var plain = Run(declaring: false);
+        var declared = Run(declaring: true);
+
+        // The control: this was a fight and not a formality.
+        Assert.True(plain.Page > 1, "the baseline run never turned a page");
+        Assert.True(plain.Ledger.Lines.Count > 20, "the baseline run barely happened");
+        Assert.Contains(
+            plain.Combatants.Values,
+            c => c.Kind != CombatantKind.MinionGroup && c.CurrentHealth < c.FullHealth);
+
+        Assert.Equal(plain.TurnOrder, declared.TurnOrder);
+        Assert.Equal(plain.Page, declared.Page);
+
+        foreach (var id in plain.Combatants.Keys)
+        {
+            Assert.Equal(plain[id].CurrentHealth, declared[id].CurrentHealth);
+            Assert.Equal(plain[id].GroupSize, declared[id].GroupSize);
+            Assert.Equal(plain[id].Defeated(DefeatFloor), declared[id].Defeated(DefeatFloor));
+        }
+
+        Assert.Equal(
+            plain.Ledger.Lines.Select(l => $"{l.Page}|{l.Rule}|{l.Text}"),
+            declared.Ledger.Lines.Select(l => $"{l.Page}|{l.Rule}|{l.Text}"));
+    }
+
+    /// <summary>The defeat figure, for a fixture that has no encounter of its own to ask.</summary>
+    private int DefeatFloor => _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+    /// <summary>
+    /// <b>The two declarations this slice added to an <see cref="Attack"/> throw the same pool and
+    /// take the same Health while their switches are off.</b>
+    ///
+    /// <para>The same reasoning as the fixture above, on the other kind of declaration. Both flags
+    /// price something — <c>vulnerable_part</c> costs four dice and <c>close_range_only</c> saves a
+    /// dodger two — so a flag consulted before its switch would be visible in the pool, and the pool
+    /// is what the scripted dice count.</para>
+    ///
+    /// <para><b>Only the ledger may differ, and only in one direction</b>: a weak point declared
+    /// against a table that never took Hard Targets says so, because a caller who believed they had
+    /// bought something should be told they had not. That line is the only difference allowed here,
+    /// and it is required to be present rather than merely tolerated.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoDeclarationsOnAnAttackChangeNoPoolWhileTheirSwitchesAreOff()
+    {
+        (int Thrown, EncounterState State, IReadOnlyList<LedgerLine> Lines) Shot(bool declaring)
+        {
+            var dice = new ScriptedDice([.. Enumerable.Repeat(4, 60)]);
+            var encounter = new Encounter(_play, dice, TableRules.Book);
+            var state = encounter.Begin(Declaring(everything: false));
+
+            var step = encounter.Step(state, new Attack(
+                "hero", "villain", "might", DamageKind.Subdual, AttackType.RangedWeapon,
+                VulnerablePart: declaring, CloseRangeOnly: declaring));
+
+            return (60 - dice.Remaining, step.State, step.Added);
+        }
+
+        var plain = Shot(declaring: false);
+        var declared = Shot(declaring: true);
+
+        // The control: an attack was resolved and it took Health off somebody, so this is not two
+        // refusals agreeing.
+        Assert.Contains(plain.Lines, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+        Assert.True(plain.State["villain"].CurrentHealth < plain.State["villain"].FullHealth);
+
+        Assert.Equal(plain.Thrown, declared.Thrown);
+        Assert.Equal(plain.State["villain"].CurrentHealth, declared.State["villain"].CurrentHealth);
+
+        // The one line the declarations are allowed to add, and it has to be there.
+        Assert.Contains(declared.Lines, l =>
+            string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal)
+            && l.Text.Contains("this table did not take Hard Targets", StringComparison.Ordinal));
+
+        Assert.Equal(
+            plain.Lines.Select(l => l.Text),
+            declared.Lines
+                .Where(l => !string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal))
+                .Select(l => l.Text));
+    }
+
+    /// <summary>
+    /// <b>Page one no longer says "not yet implemented" for the five this slice applied, and still
+    /// says it for the two it did not.</b>
+    ///
+    /// <para>That sentence is the whole of what a reader has to tell an applied setting from an
+    /// accepted one, and it is generated off <see cref="Encounter.SwitchesNotYetApplied"/> rather
+    /// than written per rule — so a switch removed from the code's list and left in the sentence,
+    /// or the other way round, is the exact drift this fixture exists to catch. Driven on the
+    /// printed text of a run with all twelve of them on at once.</para>
+    /// </summary>
+    [Fact]
+    public void PageOneNamesTheFiveAsAppliedAndTheGearLimitAsNot()
+    {
+        var everything = TableRules.Book with
+        {
+            CloseRangePenalty = true,
+            TheDrop = true,
+            FriendlyFire = true,
+            HardTargets = true,
+            SlowHealing = true,
+            RaisedGearLimit = true,
+            GearLimitRank = 9
+        };
+
+        var state = new Encounter(_play, new SeededDice(80), everything)
+            .Begin(Declaring(everything: false));
+
+        string Announcement(string name) => Assert.Single(
+            state.Ledger.Lines,
+            l => l.Text.StartsWith($"table setting {name} is on", StringComparison.Ordinal)).Text;
+
+        foreach (var applied in new[]
+        {
+            nameof(TableRules.CloseRangePenalty), nameof(TableRules.TheDrop),
+            nameof(TableRules.FriendlyFire), nameof(TableRules.HardTargets),
+            nameof(TableRules.SlowHealing)
+        })
+        {
+            Assert.DoesNotContain("not yet implemented", Announcement(applied), StringComparison.Ordinal);
+        }
+
+        // And the two the engine still declines, which is what keeps the assertions above from
+        // being satisfied by a page that had stopped saying "not yet implemented" about anything.
+        foreach (var listed in new[]
+        {
+            nameof(TableRules.RaisedGearLimit), nameof(TableRules.GearLimitRank)
+        })
+        {
+            Assert.Contains("not yet implemented", Announcement(listed), StringComparison.Ordinal);
+        }
+    }
+
+
     // ── p.80's Gear Limit, and why both its switches are still listed ────────
 
     /// <summary>
