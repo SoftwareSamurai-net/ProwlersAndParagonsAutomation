@@ -148,6 +148,19 @@ public sealed record CampaignFinding(
 public static class CampaignJoin
 {
     /// <summary>
+    /// The one finding code a caller has to be able to name, because it is the one finding whose
+    /// truth depends on who is reading it.
+    ///
+    /// <para>Every other finding here is computed from a campaign that resolved, so producing one
+    /// at all means the reader's account owns the game. This one is produced from a campaign that
+    /// did <em>not</em> resolve — which for a GM means it is gone, and for a player means only that
+    /// a campaign's payload is scoped to the account that owns it, which is true of every live
+    /// game they are in. <c>Campaigns.razor</c> holds the membership list that tells those two
+    /// apart; see its <c>WorthSaying</c>.</para>
+    /// </summary>
+    public const string UnknownCampaign = "UNKNOWN_CAMPAIGN";
+
+    /// <summary>
     /// Put a character into a campaign, or report why it is not being put into one.
     ///
     /// <para>The only case that writes anything is the one where the character has no tier yet
@@ -320,7 +333,7 @@ public static class CampaignJoin
 
         if (campaign is null)
         {
-            return new CampaignFinding("UNKNOWN_CAMPAIGN",
+            return new CampaignFinding(UnknownCampaign,
                 "This character names a campaign that is not here. Nothing about the character "
                 + "has changed — the campaign may be on another browser, or may have been "
                 + "deleted.");

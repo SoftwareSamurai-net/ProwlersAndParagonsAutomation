@@ -935,6 +935,25 @@ the storage half, which shipped a slice earlier.
   is what the engine prices from, and it is what travels to a fight. **Nothing is drawn at all for
   a character playing the book**, which is the same question `CampaignTable.IsTheBook` answers for
   the printed sheet: a heading over thirteen "no"s is true of every game.
+- **So the panel has to say it is a copy, and the first version said the opposite.** A join writes
+  into empty fields only and nothing else writes at all, so a GM who edits the campaign afterwards
+  changes nothing on a character already in it — `Inspect` reports that disagreement and a member
+  is the one reader who can never see the report. Under those two facts *"Only the GM can change
+  them"* was true of the game and false of the list it sat under, and a reader has no way to tell
+  those apart. It now says when the copy was taken and what would take a new one — inside the
+  28-word ceiling `WebPresentationTests` puts on a paragraph, which caught the first attempt at 37
+  and was right to. `CampaignMemberViewTests` drives the whole state: join, GM edits, the panel
+  still prints the old rules.
+- **A member is no longer told their game may have been deleted.** The same scoping means a
+  player's browser resolves *no campaign at all* for a live game, so `UNKNOWN_CAMPAIGN` — written
+  for a campaign that is genuinely gone, which
+  [`accounts-server.md`](accounts-server.md) records as owner-approved — was printed to every
+  member who had just successfully joined one, immediately above that campaign's own name and its
+  house rules. `Campaigns.razor`'s `WorthSaying` drops it where the reader holds a membership row
+  for that campaign id, which is evidence from the one server read scoped to the player rather than
+  the owner. **Only that finding, and only on that evidence**: the other five are computed from a
+  campaign that did resolve, and a *missing* membership list means a read that failed, which is not
+  grounds for hiding a report.
 - **The GM's form uses checkboxes, not the two-card idiom, and the distinction is what that idiom
   is for.** Two cards exist because a single *toggle* has to label itself with either the state or
   the action and did both by turns. A checkbox's label is the rule and its box is the answer, so

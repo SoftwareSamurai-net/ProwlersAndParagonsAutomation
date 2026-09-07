@@ -286,7 +286,15 @@ else
 
            **Nothing at all for a character playing the book**, which is a heading over thirteen
            "no"s and true of every game — the same question `CampaignTable.IsTheBook` answers for
-           the printed sheet. *@
+           the printed sheet.
+
+           **And the sentence under it says the list is a copy, because it is one and nothing
+           refreshes it.** A join writes into empty fields only, so a GM who changes the game
+           afterwards changes nothing here; `Inspect` reports that disagreement, and a member is
+           the one reader who can never see the report — the campaign it is computed from does not
+           resolve for them. "Only the GM can change them" was true of the game and false of the
+           list underneath it, and a reader has no way to tell those apart from a screen that
+           states the first. So this says when the copy was taken and what would take a new one. *@
         @if (HouseRules is { Count: > 0 } house)
         {
             <p class="others-head">House rules on this character</p>
@@ -297,8 +305,8 @@ else
                 }
             </ul>
             <p class="small muted">
-                Set by whoever runs the game and copied onto the character when it joined. Only the
-                GM can change them.
+                Set by whoever runs the game and copied onto the character when it joined. A later
+                change by the GM arrives when this character joins again.
             </p>
         }
 
@@ -537,8 +545,39 @@ else
     /// </summary>
     private CampaignFinding? Finding =>
         _resolved && string.Equals(_resolvedFrom, Session.Sheet.CampaignId, StringComparison.Ordinal)
-            ? CampaignJoin.Inspect(Session.Sheet, _campaign)
+            ? WorthSaying(CampaignJoin.Inspect(Session.Sheet, _campaign))
             : null;
+
+    /// <summary>
+    /// The finding, unless it is one this reader is the wrong person to be told.
+    ///
+    /// <para><b><c>UNKNOWN_CAMPAIGN</c> is true of the store and false of the world for every
+    /// player in every game.</b> <see cref="CampaignJoin.Inspect"/> is handed the campaign a store
+    /// resolved, and a campaign's payload is scoped to the account that owns it — so a player's
+    /// browser resolves null for a game that is perfectly alive, and the sentence a GM needs
+    /// ("the campaign may have been deleted") was being printed to every member who had just
+    /// successfully joined one, directly above the panel listing that campaign's own house rules.
+    /// The finding is right about what it was told; the page is the half that knows better.</para>
+    ///
+    /// <para><b>A membership row is the evidence, and it is evidence the finding cannot have.</b>
+    /// <c>Memberships.MineAsync</c> answers the games this reader is in, by campaign id, from the
+    /// one read on the server that is scoped to the player rather than the owner. A row for the
+    /// campaign the character names says the game is there and this account simply may not read
+    /// its payload — and the game is listed by name in this very panel, a few lines down, which is
+    /// the reassurance the suppressed sentence was contradicting.</para>
+    ///
+    /// <para><b>Nothing else is suppressed, and no other finding could be.</b> The other five are
+    /// computed from a campaign that <em>did</em> resolve, so a reader seeing one is a reader whose
+    /// account owns the game. Suppressing on a <em>missing</em> membership list is deliberately not
+    /// done either: <c>MineAsync</c> answering null is a read that failed, and a failed read is not
+    /// grounds for hiding a report — the same rule the standing follows one screen over.</para>
+    /// </summary>
+    private CampaignFinding? WorthSaying(CampaignFinding? finding) =>
+        finding is { Code: CampaignJoin.UnknownCampaign }
+        && _playing is { } playing
+        && playing.Any(m => string.Equals(m.CampaignId, Session.Sheet.CampaignId, StringComparison.Ordinal))
+            ? null
+            : finding;
 
     /// <summary>
     /// The two figures a finding carries as fields, in the app's own words, or nothing.
