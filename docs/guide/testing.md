@@ -164,6 +164,34 @@ So the figures are gone and the script is the answer. Two properties of it are l
 that goes stale, and a test count is not a quality gate — the suites failing is. Comparing two
 commits is `git worktree add` and a second run.
 
+## Two lists in two projects that cannot see each other
+
+`CampaignTableNamesTests` requires every `bool` on `play/Encounter/TableRules.cs` to have a
+same-named property on `engine/CampaignTable`, and the reverse. They are two types because
+`engine/` may not reference `play/`, so nothing in the compiler holds them together.
+
+- **It reads `TableRules.cs` as source text rather than by reflection**, because reflecting over it
+  would mean this test project referencing `play/` in order to enforce that `engine/` does not.
+  The campaign side *is* reflected over, since this project already references the engine and a
+  real type is a better witness than a second regular expression.
+- **The count assertion is the positive control and is not decoration.** A regular expression that
+  has stopped matching — a file moved, a record rewritten with primary-constructor parameters —
+  makes two empty sets, and two empty sets are equal. That is a green test asserting nothing,
+  which is three of this repository's four historical guard faults.
+- **The failure message says which direction is wrong**, because the two are different bugs: a
+  switch only `play/` has is a rule nobody can choose, and one only the campaign has is a promise
+  the simulator will never keep.
+- `CampaignTableExportTests` extends the same chain to the JSON export, holding its key list to the
+  switch list rather than typing thirteen names out — so the guarantee runs from the simulator
+  through the campaign to the file the encounter server reads.
+
+`HousePriceReadTests` is the other guard this slice added, and it is `TraitCapReadTests`' shape:
+every `PowerCost` call in `engine/`, `sheets/`, `web/`, `cli/` and `mcp/` passes the character's
+house price, or the file is named with the reason it prices the book. Its own positive control
+requires the scan to find the qualified calls in every one of the five projects, because a pattern
+that has stopped matching reports no offences.
+
+
 ## Two guards read `PROGRESS.md` itself
 
 **Both exist because a stale claim in that file is inherited by every agent at once.** It is the first thing `CLAUDE.md` sends anybody to, and an audit on 2026-09-05 found **21 dead pointers and ten factual drifts** in it — one of which had already sent a reader off to build something that had shipped three days earlier. `CLAUDE.md`'s standing rule is that a dead pointer is worse than no pointer, because it reads as though the reasoning was written down and sends the reader to the one place it is not. These two are that rule applied to the index of open work.

@@ -122,6 +122,17 @@ public sealed class Judgement
             // reading one figure alone cannot tell a specialist from a table's rule.
             ["trait_cap"]      = DerivedStatsCalculator.EffectiveTraitCap(sheet, tier),
             ["tier_trait_cap"] = tier?.TraitCapRank,
+            // <b>The table's price for Immortality, where the character carries one.</b> Null is
+            // the book's, which the entry itself prints — the same shape as the cap above, and
+            // here for the same reason: a spend that includes 9 Hero Points for a Power the
+            // rulebook prices at 3 is unreadable without the figure that made it so.
+            //
+            // <b>There is no flag for it and there must not be one.</b> `--trait-cap` overrides
+            // every character in a run because a house cap is a fact about a table and a caller
+            // asking "what do these look like at 6d" wants exactly that. A price is different:
+            // it is Hero Points, so an override would silently re-cost every sheet in the run
+            // against a game none of them is in. The sheet is the source.
+            ["immortality_cost"] = sheet.ImmortalityCost,
             ["derived"]   = new JsonObject
             {
                 ["edge"]    = Answer(() => _derived.CalculateEdge(sheet)),

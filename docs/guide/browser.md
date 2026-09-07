@@ -911,6 +911,47 @@ the storage half, which shipped a slice earlier.
   by nothing that computes anything, and `CampaignTests.ACampaignsTraitCapIsNotReadFromTheCampaign`
   pins that at three caps including none. **If a reader for `CampaignId` is ever written, that is
   the test that fails.**
+- **A campaign's table rules and its price for Immortality are copied the way the cap is, and read
+  the way the cap is.** `Campaign.Table` and `Campaign.ImmortalityCost` go onto
+  `CharacterSheet.CampaignTable` and `CharacterSheet.ImmortalityCost` when the character has
+  neither, never over ones it has, and `CampaignJoinResult.TookHouseRules` says whether it
+  happened — read before the `??=`, which is silent by construction and is the fault the cap's own
+  message shipped with. **One flag for two fields**, unlike the tier and the cap: those each move a
+  figure a player can point at and so each is named with its number, while thirteen switches
+  enumerated in a join sentence is not a sentence anybody finishes. The message says the game's
+  rules came with it; the panel says which.
+- **`Inspect` gains three findings, and one of them is asked before the "in no campaign" exit.**
+  `IMMORTALITY_COST_WITHOUT_CAMPAIGN` is about exactly that state, so a check after the exit could
+  never fire. It lives here rather than in `CharacterValidator` because saying it means reading
+  `CharacterSheet.CampaignId` — barred from all rules code, and `PresentationFlagsTests` caught the
+  first version of the check, which was in the validator. `CAMPAIGN_IMMORTALITY_COST_MISMATCH` is
+  the cap's rule for a price. `CAMPAIGN_TABLE_MISMATCH` is reported **last**, because it is the one
+  finding that moves no figure.
+- **The member's list of house rules is read off the character, not off the campaign, and the
+  server forces that.** A campaign's payload is scoped to the account that owns it — a player
+  cannot fetch the game they are in, which is why `Inspect` answers `UNKNOWN_CAMPAIGN` to a member
+  — so the campaign's own copy is not something the panel could draw for the person who most needs
+  it. The character's copy is the answer for that character anyway: it was written on joining, it
+  is what the engine prices from, and it is what travels to a fight. **Nothing is drawn at all for
+  a character playing the book**, which is the same question `CampaignTable.IsTheBook` answers for
+  the printed sheet: a heading over thirteen "no"s is true of every game.
+- **The GM's form uses checkboxes, not the two-card idiom, and the distinction is what that idiom
+  is for.** Two cards exist because a single *toggle* has to label itself with either the state or
+  the action and did both by turns. A checkbox's label is the rule and its box is the answer, so
+  neither reading is ambiguous — and thirteen pairs of cards is twenty-six controls for a menu
+  somebody is picking from. Same idiom as the Gear editor's paired-weapon box. **The price is said
+  and not refused**, the choice the Trait Cap box already makes one field up and for the same two
+  reasons: a GM may type a figure before reading the range, and the engine reports the same mistake
+  one level down so the two answers cannot disagree.
+- **The book is stored as null.** A campaign whose GM opened the form and turned nothing on is
+  byte-identical to one written before the form existed — they are the same game, and a stored block
+  of thirteen falses is a difference `CampaignDiff` and `Inspect` would then have to be careful not
+  to report. **Turning the Gear Limit off drops its rank with it**, so a GM turning it back on does
+  not silently get a number they had forgotten typing.
+- **`sheets/HouseRuleFormatter` is the one place a switch has a printed name and a page**, and the
+  page must not name the type — `WebPresentationTests` bars a page from printing a type this
+  project declares, and caught this one. A reader is owed the rulebook's heading, never a C#
+  identifier, which is the rule every finding and every diff row already follows.
 - **`CampaignId` is not in `CharacterSession.IsWorthKeeping`, and must not be.** Adding it would
   make picking a campaign create a real, listed, empty character the moment it happened — verbatim
   the defect that predicate was added to fix.
@@ -1318,6 +1359,19 @@ works and nobody can reach.
   spend could not be the trigger, and a player who set one between submissions moved their Resolve
   and could turn a legal Ability illegal while the GM's list stayed empty. A tier change moves this
   row as well as the Tier row, which is two facts and not a duplicate.
+- **The Immortality row is drawn only under a character that has the Power, and the book's price
+  stands in for a character carrying none.** `Immortality 3 HP → 9 HP`, not `null → 9`, which is
+  this application's bookkeeping — the Trait Cap row's own rule, one field over. It is here at all
+  because a table's price is Hero Points: a campaign that raised it moved the spend on every
+  character in it with the Power, so the GM is owed the reason beside the figure. A price nobody
+  pays is a row nobody can act on.
+- **An optional rule that moved is one row per switch, named the way the book names it** —
+  `Fatal Damage off → on`. One row for the block would print "House rules changed", which is
+  exactly the sentence this screen exists not to print: a GM deciding about a submission needs to
+  know *which* rule. A block that arrived carrying nothing compares equal to no block at all, so a
+  character joining a table that adopted nothing gets no rows — a row saying "House rules added"
+  would be the application reporting its own storage. The Gear Limit rank is its own row, because
+  `Raised Gear Limit off → on` does not say to what.
 - **An id the rules data does not know is printed as itself, deliberately.** A payload can name a
   Power from a build these rules do not have, and a diff full of rows called "Unnamed" tells a GM
   nothing.
