@@ -152,6 +152,43 @@ site="$work/site"
 twins="$work/twins"
 logs="$work/logs"
 
+# ------------------------------------------------------------------------------------------------
+# WHERE WRANGLER WRITES ITS OWN DEBUG LOG, WHICH IS NOT THE LOG THIS HARNESS CAPTURES.
+#
+# **`wrangler pages dev` keeps a second log, and the thing a fatal error withholds from stdout is
+# in it.** Read out of the pinned 4.127.0's own `src/core/handle-errors.ts`:
+#
+#     logger.error(loggableException instanceof Error ? loggableException.message : …);
+#     if (loggableException instanceof Error) { logger.debug(loggableException.stack); }
+#
+# — the *message* goes to stdout and the **stack goes to `logger.debug`**, which the default log
+# level never prints. And `Logger.doLog` appends **every** level to the debug file unconditionally
+# while only the console is filtered, so that file has the stack whether or not anybody asked for
+# a debug level. Raising `WRANGLER_LOG` would therefore buy nothing here except a flooded stdout.
+#
+# **That gap is not theoretical, it is the second death this harness has seen.** CI run
+# `34120157313`, twin `html-lang-dropped` on port 8793: the server was already dead with exit
+# status 1, and the whole of what it said was `✘ [ERROR]` with an **empty message**, the generic
+# "please create an issue" line, and `🪵 Logs were written to "/home/runner/.config/.wrangler/logs/
+# wrangler-….log"`. The message was empty because the exception's `.message` was; the stack was in
+# the file nobody collected. Run `33827524692` had already carried a `kj::Exception` stack in that
+# same file.
+#
+# **`WRANGLER_LOG_PATH` is the variable, and it was measured rather than remembered.** In
+# `src/utils/log-file.ts` it is an environment-variable factory whose default is
+# `<global wrangler config dir>/logs`, and `getDebugFilepath` treats the value as a *directory*
+# unless it ends in `.log`. Driven against a real `wrangler pages dev` of the pinned version on
+# 2026-09-07: with it set, the log appeared in the named directory and the count of files under
+# `~/Library/Preferences/.wrangler/logs` was unchanged at 406 across the run — and the collected
+# file held 21 `debug` entries against a 23-line stdout log.
+#
+# **Under `.e2e/` for the same two reasons `.e2e/d1` is**: one `rm -rf .e2e` stays the whole of
+# this harness's state, and nothing of this run's is written under `$HOME`, where it would
+# accumulate for ever and be attributed to whichever run a reader guessed. One directory per
+# server, because the question a failure asks is always about *one* server.
+wrangler_logs="$logs/wrangler"
+wrangler_logs_rel=".e2e/logs/wrangler"
+
 # The local D1 the accounts API runs against, and the sign-in rows seeded into it.
 #
 # **Under `.e2e/` rather than the repository's own `.wrangler/`**, so that one `rm -rf .e2e` is
@@ -327,7 +364,7 @@ fi
 # Publish the site, unless a caller in the same job already did.
 
 rm -rf "$twins" "$logs" "$db_state" "$seed_sql" "$seed_plan"
-mkdir -p "$work" "$twins" "$logs"
+mkdir -p "$work" "$twins" "$logs" "$wrangler_logs"
 
 # Written every run rather than committed, so it cannot quietly acquire a line.
 printf '# Written by scripts/e2e.sh. Deliberately empty - see its header.\n' > "$env_file"
@@ -563,9 +600,24 @@ start_server() {
   # `capture_server_state` in scripts/e2e/process.sh, and CI run 34040527190 for what that cost.
   server_log="$log"
 
+  # **And the *other* log, which is wrangler's own and carries what a fatal error kept off stdout.**
+  # See the `wrangler_logs` comment at the top of this file for the mechanism and the measurement.
+  # A directory per server, so `say_server_state` can quote the file belonging to the server that
+  # died rather than the newest one on the machine; recorded in `server_debug_dir` for the same
+  # reason `server_log` is recorded above.
+  #
+  # **Handed to wrangler as a path relative to `$root`, like everything else it is given**, and for
+  # the reason this file's `work=` comment states: wrangler is Node and cannot read a Git Bash path
+  # like `/c/Users/…` — `path.resolve` would turn one into `C:\c\Users\…`. It resolves a relative
+  # value against its own working directory, which the subshell below makes `$root`. The absolute
+  # form is kept here only for this shell to read the file back with.
+  server_debug_dir="$wrangler_logs/$name"
+  mkdir -p "$server_debug_dir"
+
   (
     cd "$root" || exit 1
     CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
+      WRANGLER_LOG_PATH="$wrangler_logs_rel/$name" \
       exec npx --yes "wrangler@${wrangler_version}" pages dev "$dir" \
         --ip 127.0.0.1 --port "$port" \
         --env-file "$env_file_rel" --binding 'ADMIN_EMAIL=' \

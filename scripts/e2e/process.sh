@@ -50,10 +50,16 @@ redacted_tail() {
 # The server currently running, if any. `stop_server` reads the first two and is also the EXIT
 # trap, so it has to be able to run against a script that never started one. `server_log` is where
 # that server's output went, which is what `say_server_state` quotes.
+#
+# `server_debug_dir` is the *other* log: the directory `start_server` points `WRANGLER_LOG_PATH` at,
+# which is where wrangler keeps its own debug log — and that file, not the one above, is where a
+# fatal error's stack goes. See `start_server` in scripts/e2e.sh for the mechanism and the
+# measurement, and `say_wrangler_debug_log` below for what is done with it.
 
 server_pid=''
 server_port=0
 server_log=''
+server_debug_dir=''
 
 # ------------------------------------------------------------------------------------------------
 # WHETHER THE SERVER OUTLIVED THE DRIVE, AND WHAT IT SAID ON THE WAY OUT.

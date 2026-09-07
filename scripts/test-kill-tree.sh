@@ -823,8 +823,14 @@ wrangler_case() {
   # Byte for byte the shape `start_server` uses, because the pid `$!` names is part of what is
   # under test: a subshell that `exec`s npx, so `server_pid` is npx itself rather than a shell
   # above it.
+  #
+  # **`WRANGLER_LOG_PATH` for the same reason `start_server` sets it**, minus the collecting:
+  # wrangler writes a debug log per invocation and its default home is under `$HOME`, where this
+  # check's fixtures would pile up for ever with nothing to attribute them to. Relative, so it
+  # lands in `$dir` — which the `RETURN` trap deletes — and so wrangler's Node never has to read a
+  # Git Bash path.
   drive_tree_case WRANGLER_TREE "$port" \
-    "cd '$dir' && CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' exec npx --yes wrangler@${version} pages dev site --ip 127.0.0.1 --port $port" \
+    "cd '$dir' && CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' WRANGLER_LOG_PATH=wrangler-logs exec npx --yes wrangler@${version} pages dev site --ip 127.0.0.1 --port $port" \
     120
 }
 
