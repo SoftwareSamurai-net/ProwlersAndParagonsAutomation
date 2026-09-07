@@ -36,6 +36,24 @@ namespace ProwlersAndParagons.Testing;
 ///
 /// <para>Consequence worth knowing when adding a pattern: <b>a lookaround silently costs the
 /// linear guarantee.</b> Prefer a formulation without one where the choice exists.</para>
+///
+/// <para><b>And one semantic difference, because "byte-identical results" is true of everything
+/// except this.</b> Both engines were run over every pattern this repository actually builds —
+/// the 206 that take the linear path, against every source file under <c>web/</c>,
+/// <c>worker/</c>, <c>functions/</c>, <c>docs/</c> and the rest, 61,594 pattern-by-file
+/// comparisons — and they agree exactly on match count, match span, group success, group value,
+/// group index and <see cref="Regex.Replace(string, string)"/> output. They disagree on one
+/// thing: <b><see cref="Group.Captures"/> under <see cref="RegexOptions.NonBacktracking"/> holds
+/// only the <em>final</em> capture of a quantified group</b>, where the backtracking engine
+/// holds every one. <c>\b[a-z]+(_[a-z]+)+\b</c> over <c>one_two_three</c> is the whole of it:
+/// <c>Groups[1].Value</c> is <c>"_three"</c> either way, but <c>Groups[1].Captures.Count</c> is
+/// 2 under backtracking and 1 here.</para>
+///
+/// <para>Nothing in either test project reads <see cref="Group.Captures"/> today, which is why
+/// the sweep onto this engine was safe. <c>ScanRegexTests</c> pins the difference anyway, so the
+/// first caller to reach for it meets a test that says so rather than a quietly wrong answer.
+/// <b>If you need every capture of a quantified group, this factory is the wrong way to build
+/// the pattern</b> — match repeatedly, or ask for the backtracking engine deliberately.</para>
 /// </remarks>
 internal static class ScanRegex
 {

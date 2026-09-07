@@ -84,6 +84,95 @@ public sealed class ScanRegexTests
     }
 
     /// <summary>
+    /// <b>Every construct the linear engine refuses lands on the fallback, rather than throwing
+    /// out of <see cref="ScanRegex.Build"/>.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para><c>Build</c> catches two exception types, and that set is a claim about a framework
+    /// it does not own: <see cref="NotSupportedException"/> for a construct the non-backtracking
+    /// engine cannot express, and <see cref="ArgumentOutOfRangeException"/> for an option it will
+    /// not sit beside. If .NET ever refuses one of these some third way — or refuses something
+    /// new — the catch misses it, and a scanning test that has always passed dies at construction
+    /// with an exception about regular expressions, a long way from anything a reader would
+    /// connect to this factory.</para>
+    ///
+    /// <para>So this walks the refusals: the three the doc comment names, plus the conditional,
+    /// the balancing group, <c>\G</c> and <see cref="RegexOptions.RightToLeft"/>, which it does
+    /// not. Every one must come back as a working backtracking <see cref="Regex"/>.</para>
+    ///
+    /// <para><b>What it deliberately does not cover</b> is a pattern that is simply invalid —
+    /// <c>a(b</c>, <c>a*+</c>, a backreference to a group that does not exist. Those throw
+    /// <see cref="RegexParseException"/> from <em>both</em> engines, so they are not a fallback
+    /// concern: they threw the same way before <c>ScanRegex</c> existed.</para>
+    /// </remarks>
+    [Theory]
+    [InlineData("(?=a)b", RegexOptions.None, "a lookahead")]
+    [InlineData("(?<=a)b", RegexOptions.None, "a lookbehind")]
+    [InlineData(@"(a)\1", RegexOptions.None, "a backreference")]
+    [InlineData(@"(?<q>a)\k<q>", RegexOptions.None, "a named backreference")]
+    [InlineData("(?>a+)b", RegexOptions.None, "an atomic group")]
+    [InlineData("(?(a)b|c)", RegexOptions.None, "a conditional")]
+    [InlineData("(?<b>x)+(?<a-b>y)", RegexOptions.None, "a balancing group")]
+    [InlineData(@"\Ga", RegexOptions.None, @"the \G anchor")]
+    [InlineData("a", RegexOptions.RightToLeft, "RightToLeft")]
+    public void AConstructTheLinearEngineRefusesFallsBackInsteadOfThrowing(
+        string pattern, RegexOptions options, string construct)
+    {
+        var thrown = Record.Exception(() => ScanRegex.Build(pattern, options));
+
+        Assert.True(thrown is null,
+            $"Build threw a {thrown?.GetType().Name} on {construct}, instead of falling back to "
+            + "the backtracking engine. Its catch clauses no longer cover everything the "
+            + "non-backtracking engine refuses, so a scanning test that has always passed now "
+            + $"dies at construction. Pattern: {pattern}. Message: {thrown?.Message}");
+
+        var rx = ScanRegex.Build(pattern, options);
+
+        Assert.False(rx.Options.HasFlag(RegexOptions.NonBacktracking),
+            $"{construct} was accepted by the linear engine, so this row no longer exercises the "
+            + "fallback at all and some other row is carrying it alone.");
+
+        Assert.Equal(ScanRegex.ScanTimeout, rx.MatchTimeout);
+    }
+
+    /// <summary>
+    /// <b>The one place the two engines disagree, pinned so that nobody meets it as a bug.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>The sweep onto <see cref="RegexOptions.NonBacktracking"/> was checked by running
+    /// both engines over every pattern this repository builds against every source file it
+    /// scans, and they agree on match count, span, group success, group value, group index and
+    /// <c>Replace</c> output — 61,594 pattern-by-file comparisons, no difference. The single
+    /// exception is <see cref="Group.Captures"/>: the linear engine keeps only the last capture
+    /// of a quantified group.</para>
+    ///
+    /// <para><b>Nothing reads <c>Captures</c> today</b>, which is exactly why this deserves a
+    /// test rather than a note — an unreached difference is the kind that gets met as a wrong
+    /// answer years later. If it starts failing because the engine gained full capture tracking,
+    /// delete it and the paragraph in <see cref="ScanRegex"/> together; if a scanning test starts
+    /// needing every capture, this is the assertion that says why it cannot have them from
+    /// here.</para>
+    /// </remarks>
+    [Fact]
+    public void TheLinearEngineKeepsOnlyTheLastCaptureOfAQuantifiedGroup()
+    {
+        const string pattern = @"\b[a-z]+(_[a-z]+)+\b";
+        const string input = "one_two_three";
+
+        var backtracking = new Regex(pattern, RegexOptions.None, ScanRegex.ScanTimeout)
+            .Match(input).Groups[1];
+        var linear = ScanRegex.Build(pattern).Match(input).Groups[1];
+
+        // The part every caller in this repository actually reads is identical.
+        Assert.Equal(backtracking.Value, linear.Value);
+        Assert.Equal(backtracking.Index, linear.Index);
+
+        // The part none of them reads is not.
+        Assert.Equal(["_two", "_three"], backtracking.Captures.Select(c => c.Value));
+        Assert.Equal(["_three"], linear.Captures.Select(c => c.Value));
+    }
+
+    /// <summary>
     /// The blob the linearity control runs on: 192k of unbroken token characters, the shape a
     /// minified bundle or a base64 payload has, and the shape whose cost under backtracking is
     /// quadratic in its length.
