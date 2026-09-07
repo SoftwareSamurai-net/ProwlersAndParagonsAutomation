@@ -935,6 +935,17 @@ the storage half, which shipped a slice earlier.
   is what the engine prices from, and it is what travels to a fight. **Nothing is drawn at all for
   a character playing the book**, which is the same question `CampaignTable.IsTheBook` answers for
   the printed sheet: a heading over thirteen "no"s is true of every game.
+- **The copy going stale is reported in one of its two directions, and the other is silent.** Both
+  `Inspect` checks require the campaign *and* the character to have set something, so a character
+  that joined before the GM decided anything — sheet null, campaign now charging 12 — produces no
+  finding at all and no panel to print one under, while the engine prices Immortality at the book's
+  3. Driven and confirmed. **This is item 15's cap exactly** — the same both-set condition, and
+  this file's claim that "a character with none has already inherited the campaign's" is true only
+  of a campaign that had already decided at the time of the join — so it wants settling once for
+  the cap, the price and the switch block together rather than fixed for whichever one is being
+  worked on. What makes it survivable meanwhile is that **a re-join picks it up**: `??=` fires into
+  the still-empty field, `TookHouseRules` is true and the join says so, which is why the panel's
+  sentence points at joining again rather than at the GM.
 - **So the panel has to say it is a copy, and the first version said the opposite.** A join writes
   into empty fields only and nothing else writes at all, so a GM who edits the campaign afterwards
   changes nothing on a character already in it — `Inspect` reports that disagreement and a member
