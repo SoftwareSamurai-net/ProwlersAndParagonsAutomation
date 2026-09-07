@@ -236,6 +236,22 @@ public abstract record Intent(string Actor);
 /// have a weak point is the GM's, and the ledger line says so rather than pretending this engine
 /// checked.</para>
 /// </param>
+/// <param name="CloseRangeOnly">
+/// p.79's Close Range rule, and its own exception: this attack is one of the "ordinary thrown
+/// weapons and other short-range attacks that can only be used at Close Range", so a dodger does
+/// not lose the two dice for meeting it up close.
+///
+/// <para><b>It is the caller's word, and the default is the other way because the page's is.</b>
+/// <c>range_classes</c>' <c>ranged_attacks_reach</c> is the rule — a ranged attack reaches Close
+/// Range or Distant Range — and thrown weapons are printed beside it as an <em>exception</em>. So a
+/// ranged attack reaches Distant unless somebody says otherwise, and this is where they say it: a
+/// fight here has no equipment in it, so nothing can tell a pistol from a throwing knife but the
+/// person running the fight.</para>
+///
+/// <para>It changes nothing for an attack the rule never reached — a fist, a sword, a Power whose
+/// own Range is not <c>ranged</c> — and the ledger says so rather than leaving a caller thinking
+/// they bought something.</para>
+/// </param>
 public sealed record Attack(
     string Actor,
     string Target,
@@ -249,7 +265,8 @@ public sealed record Attack(
     bool Team = false,
     Cover Cover = Cover.None,
     int? CoverStructure = null,
-    bool VulnerablePart = false) : Intent(Actor);
+    bool VulnerablePart = false,
+    bool CloseRangeOnly = false) : Intent(Actor);
 
 /// <summary>
 /// Closing with or opening from one other combatant (p.74).

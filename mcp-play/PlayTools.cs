@@ -254,9 +254,11 @@ public sealed class PlayTools
             + "\"mecha\", \"trait_id\": \"blast\", \"type\": \"physical_power\"}. An attack also "
             + "takes \"cover\" (none, light, heavy, almost_full, complete) and, where the shot goes "
             + "through the obstacle rather than at the exposed part of the target, "
-            + "\"cover_structure\" — the obstacle's Structure rank — and \"vulnerable_part\", "
+            + "\"cover_structure\" — the obstacle's Structure rank — \"vulnerable_part\", "
             + "which under the hard_targets setting costs four dice and cancels the target's "
-            + "doubled passive defence.")]
+            + "doubled passive defence, and \"close_range_only\" for an ordinary thrown weapon or "
+            + "anything else that only works up close, which the close_range_penalty setting "
+            + "ignores.")]
         JsonElement intent)
     {
         if (string.IsNullOrWhiteSpace(encounterId) || !_encounters.TryGetValue(encounterId, out var held))
@@ -1269,7 +1271,10 @@ public sealed class PlayTools
                     Number(entry, "cover_structure"),
                     // p.80's Hard Targets: the attacker aims at the weak points instead, which
                     // costs four dice and cancels the doubling for this one shot.
-                    Flag(entry, "vulnerable_part"));
+                    Flag(entry, "vulnerable_part"),
+                    // p.79's Close Range, and its own exception. A fight here has no equipment in
+                    // it, so a thrown weapon is the caller's word or it is nothing at all.
+                    Flag(entry, "close_range_only"));
                 return true;
 
             case "move":

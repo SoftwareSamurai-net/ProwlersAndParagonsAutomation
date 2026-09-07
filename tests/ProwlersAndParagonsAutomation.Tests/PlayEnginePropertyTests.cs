@@ -130,7 +130,8 @@ public sealed class PlayEnginePropertyTests
     {
         var table = TableRules.Book with
         {
-            FatalDamage = true, WoundPenalties = true, HardTargets = true
+            FatalDamage = true, WoundPenalties = true, HardTargets = true,
+            CloseRangePenalty = true
         };
         var encounter = new Encounter(_play, new SeededDice(seed), table);
 
@@ -178,6 +179,11 @@ public sealed class PlayEnginePropertyTests
         // the generator both aims at a weak point and does not.
         Assert.Contains(state.Combatants.Values, c => c.HardTarget);
         Assert.Equal([false, true], policy.WeakPoints.Order());
+
+        // p.79's Close Range too: the generator declares a thrown weapon and does not, and the
+        // party carries a Power whose own Range reaches past the nearest band.
+        Assert.Equal([false, true], policy.ThrownWeapons.Order());
+        Assert.Contains(state.Combatants.Values, c => c.RangedPowers.Count > 0);
 
         // The light really was bad and somebody really was invisible, or the paragraph above
         // describes a fight this property did not run.
@@ -352,7 +358,11 @@ public sealed class PlayEnginePropertyTests
             {
                 ["might"] = 8, ["toughness"] = 6, ["agility"] = 5, ["blast"] = 7
             },
-            ["toughness", "agility"]));
+            ["toughness", "agility"],
+            // <b>A Blast, whose own Ch.2 Range is <c>ranged</c></b>, so p.79's Close Range rule is
+            // inside the property rather than beside it: the generator rolls that Trait on a Power
+            // row and the pair opens at Close.
+            rangedPowers: new HashSet<string>(StringComparer.Ordinal) { "blast" }));
 
         return
         [

@@ -773,6 +773,133 @@ public sealed partial class Encounter
     }
 
     /// <summary>
+    /// Whether p.75's table calls this a <b>ranged</b> attack — which for the two Power rows is a
+    /// question only the Power's own Ch.2 Range can answer.
+    ///
+    /// <para><b>Every part of it is derived from the table rather than listed here.</b> A row whose
+    /// printed type names <em>Ranged</em> is a ranged attack; the rows whose attacking Trait is the
+    /// table's bare <c>Power</c> column are the ones the table declines to classify, and for those
+    /// the answer is on the sheet, in <see cref="Combatant.RangedPowers"/>. Everything left is one
+    /// of p.73's close combat attacks — a fist or a swung weapon — which
+    /// <c>close_combat_attacks_require</c> puts against an adjacent target and nowhere else.</para>
+    /// </summary>
+    private bool IsARangedAttack(Combatant attacker, Attack attack)
+    {
+        var table = _play.GetCombat("attack_and_defense_table").AttackDefenseTable!;
+        var printed = PrintedType(attack.Type);
+
+        var row = table.SingleOrDefault(r => string.Equals(r.Type, printed, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"attack_and_defense_table has no row '{printed}', so this engine cannot tell "
+                + "whether p.79's Close Range rule reaches this attack.");
+
+        if (row.Type.Contains("Ranged", StringComparison.OrdinalIgnoreCase)) return true;
+
+        return string.Equals(row.AttackTrait, PowerColumn, StringComparison.Ordinal)
+               && attacker.RangedPowers.Contains(attack.TraitId);
+    }
+
+    /// <summary>
+    /// p.79's Close Range penalty: <c>penalty_dice_to_active_defense</c> on the dodger when a
+    /// ranged attack is made from inside the nearest band.
+    ///
+    /// <para><b>Three facts have to line up and each is read where it lives.</b> That the pair is
+    /// at Close Range is <see cref="EncounterState.Ranges"/>, which is pairwise because p.73's
+    /// bands are. That the attack is ranged comes off p.75's table and, for a Power, off the
+    /// sheet — see <see cref="IsARangedAttack"/>. That such an attack <em>can</em> be used at
+    /// Distant or Extreme Range is <c>range_classes</c>' own <c>ranged_attacks_reach</c>, which is
+    /// the rule the entry's <c>applies_only_to_attacks_usable_at</c> is asking about; both strings
+    /// are read and a pair that no longer agrees is a throw rather than a penalty applied on
+    /// nothing.</para>
+    ///
+    /// <para><b>The exception is the caller's and the default is the page's.</b> Thrown weapons are
+    /// printed as an exception to the reach, not as the reach — so <see cref="Attack.CloseRangeOnly"/>
+    /// is what turns the penalty off, and a declaration that turned nothing off says so. There is
+    /// no equipment in a fight here, so nothing else could tell a pistol from a throwing knife.</para>
+    ///
+    /// <para>It moves an <b>active</b> defence and nothing else, because the entry says
+    /// <c>penalty_dice_to_active_defense</c>: a soak is a soak whatever is being shot at you.</para>
+    /// </summary>
+    private int RangedUpClose(
+        EncounterState state, Combatant target, Combatant attacker, Attack attack, List<LedgerLine> lines)
+    {
+        if (!state.Table.CloseRangePenalty) return 0;
+
+        var entry = _play.GetGritty("gritty_close_range");
+        var rule = entry.CloseRangePenalty!;
+
+        var ranged = IsARangedAttack(attacker, attack);
+
+        if (!ranged || state.RangeBetween(attacker.Id, target.Id) != RangeBand.Close)
+        {
+            if (attack.CloseRangeOnly)
+            {
+                lines.Add(new LedgerLine(
+                    state.Page, target.Id, entry.Id, entry.SourceRef,
+                    $"{attacker.Name}'s attack is declared one of {rule.IgnoredFor}, and the rule "
+                    + $"would not have reached it anyway: {(ranged ? "the two are not at Close Range" : "this is not a ranged attack")}. "
+                    + $"{target.Name}'s defence is unmoved"));
+            }
+
+            return 0;
+        }
+
+        if (attack.CloseRangeOnly)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, target.Id, entry.Id, entry.SourceRef,
+                $"p.79 says to ignore this rule for {rule.IgnoredFor}, and {attacker.Name}'s attack "
+                + $"is declared one: {target.Name}'s active defence keeps its dice"));
+
+            return 0;
+        }
+
+        ReachIsStillPrinted(rule.AppliesOnlyToAttacksUsableAt);
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{rule.AppliesAgainst}: {attacker.Name} is inside Close Range of {target.Name}, and a "
+            + $"ranged attack reaches {_play.GetCombat("range_classes").RangeRules!.RangedAttacksReach}, "
+            + $"which is one of {rule.AppliesOnlyToAttacksUsableAt} — so {target.Name}'s active "
+            + $"defence is {Dice(rule.PenaltyDiceToActiveDefense)}"));
+
+        return rule.PenaltyDiceToActiveDefense;
+    }
+
+    /// <summary>
+    /// That a ranged attack still reaches past the nearest band, which is the whole of what makes
+    /// p.79's rule apply to one.
+    ///
+    /// <para><b>Both halves are read and neither is typed.</b> The entry asks for an attack usable
+    /// at <c>applies_only_to_attacks_usable_at</c>; <c>range_classes</c> says how far a ranged
+    /// attack reaches. Where the two stop naming a band past Close, this engine is being asked to
+    /// apply a penalty whose own condition it can no longer establish, so it throws rather than
+    /// applying it on nothing — the band names are <see cref="RangeBand"/>'s, which are p.73's.
+    /// </para>
+    /// </summary>
+    private void ReachIsStillPrinted(string required)
+    {
+        var reach = _play.GetCombat("range_classes").RangeRules!.RangedAttacksReach;
+
+        var beyondClose = Enum.GetNames<RangeBand>()
+            .Where(band => !string.Equals(band, nameof(RangeBand.Close), StringComparison.Ordinal))
+            .ToList();
+
+        var named = beyondClose.Where(band =>
+            required.Contains(band, StringComparison.OrdinalIgnoreCase)
+            && reach.Contains(band, StringComparison.OrdinalIgnoreCase));
+
+        if (named.Any()) return;
+
+        throw new InvalidOperationException(
+            $"gritty_close_range applies only to attacks usable at '{required}', and range_classes "
+            + $"says a ranged attack reaches '{reach}'. The two no longer name a range class past "
+            + $"{nameof(RangeBand.Close)} between them, so this engine cannot establish the rule's "
+            + "own condition and will not apply the penalty on nothing. See "
+            + "docs/guide/play-engine.md's readings table.");
+    }
+
+    /// <summary>
     /// Which Trait answers an attack, and what pool it throws.
     ///
     /// <para><b>The candidates come from p.75's Attack and Defense table, by the row the attack is
@@ -930,6 +1057,10 @@ public sealed partial class Encounter
         {
             pool += SizeModifier(state, target, state[attack.Actor], lines);
             pool += VisibilityPenalty(state, target, state[attack.Actor], "active defence", lines);
+
+            // p.79's Close Range, which is an active defence's rule too: a gun in your face is hard
+            // to dodge, and a soak is a soak whatever is being shot at you.
+            pool += RangedUpClose(state, target, state[attack.Actor], attack, lines);
         }
 
         return (best.Item1, pool, best.Item3);

@@ -95,21 +95,22 @@ public static class CombatantFactory
         var edge = derived.CalculateEdge(sheet);
         var defences = DefencesAvailableTo(traits, play);
         var powers = PowersOn(sheet);
+        var rangedPowers = RangedPowersOn(sheet, rules);
 
         return kind switch
         {
             CombatantKind.Hero => Combatant.Hero(
                 id ?? name, name, edge, health, derived.CalculateResolve(sheet), traits, defences,
-                side ?? Combatant.HeroSide, size, invisible, powers, hardTarget),
+                side ?? Combatant.HeroSide, size, invisible, powers, hardTarget, rangedPowers),
             CombatantKind.Villain => Combatant.Villain(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers, hardTarget),
+                size, invisible, powers, hardTarget, rangedPowers),
             CombatantKind.Foe => Combatant.Foe(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers, hardTarget),
+                size, invisible, powers, hardTarget, rangedPowers),
             CombatantKind.Extra => Combatant.Extra(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers, hardTarget),
+                size, invisible, powers, hardTarget, rangedPowers),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown kind of combatant.")
         };
     }
@@ -125,6 +126,32 @@ public static class CombatantFactory
     /// </summary>
     private static HashSet<string> PowersOn(CharacterSheet sheet) =>
         new(sheet.SelectedPowers.Select(power => power.PowerId), StringComparer.Ordinal);
+
+    /// <summary>
+    /// Ch.2 p.19's Range for a Power whose effect reaches a target at a distance.
+    ///
+    /// <para><b>It is a value of the character rules' own vocabulary and this is the one place
+    /// <c>play/</c> spells it</b>, because it is the one place a sheet is read at all. The other
+    /// four — <c>self</c>, <c>touch</c>, <c>zone</c> and <c>special</c> — are deliberately not here;
+    /// see <see cref="Combatant.RangedPowers"/> for the reading and its direction.</para>
+    /// </summary>
+    private const string RangedPowerRange = "ranged";
+
+    /// <summary>
+    /// Every Power on the sheet whose own Range is <see cref="RangedPowerRange"/> — the half of
+    /// Ch.4 p.79's Close Range rule that a character sheet can answer.
+    ///
+    /// <para><b>A Power id the character rules do not have contributes nothing rather than
+    /// throwing</b>, because judging a sheet is the first engine's job and this one only asks for
+    /// the figures it needs: an invented Power is a character <c>CharacterValidator</c> refuses,
+    /// and a fight that got this far is one somebody has already decided to run.</para>
+    /// </summary>
+    private static HashSet<string> RangedPowersOn(CharacterSheet sheet, RulesRepository rules) =>
+        new(sheet.SelectedPowers
+                .Select(power => power.PowerId)
+                .Where(id => string.Equals(
+                    rules.GetPower(id)?.Range, RangedPowerRange, StringComparison.OrdinalIgnoreCase)),
+            StringComparer.Ordinal);
 
     /// <summary>
     /// Health as the character engine computes it, halved for a Foe.

@@ -71,7 +71,8 @@ internal sealed class RandomPolicy : IPolicy
                 actor.Id, target, rolled, Damage(), Row(),
                 Effect: "Ensnare", Cover: Behind(), CoverStructure: Pick(9)),
             2 => new Attack(actor.Id, target, rolled, Damage(), Row(), Charge: true),
-            3 => new Attack(actor.Id, target, rolled, Damage(), Row(), Team: true),
+            3 => new Attack(
+                actor.Id, target, rolled, Damage(), Row(), Team: true, CloseRangeOnly: Thrown()),
             4 => new Move(actor.Id, target, Closer: Coin()),
             5 => new Hold(actor.Id),
             6 => new GrappleIntent(actor.Id, target, (GrappleMove)Pick(3)),
@@ -92,6 +93,18 @@ internal sealed class RandomPolicy : IPolicy
 
     /// <summary>Both answers p.80's <c>vulnerable_part</c> declaration takes, for the same control.</summary>
     public HashSet<bool> WeakPoints { get; } = [];
+
+    /// <summary>Both answers p.79's <c>close_range_only</c> declaration takes, for the same control.</summary>
+    public HashSet<bool> ThrownWeapons { get; } = [];
+
+    private int _nextThrown;
+
+    private bool Thrown()
+    {
+        var lobbed = _nextThrown++ % 2 == 0;
+        ThrownWeapons.Add(lobbed);
+        return lobbed;
+    }
 
     // <b>Its own counter and cycled, for the reason the cover band is</b>, and without lengthening
     // the intent cycle: a flag chosen off a die is one some seed will not reach, and the branch

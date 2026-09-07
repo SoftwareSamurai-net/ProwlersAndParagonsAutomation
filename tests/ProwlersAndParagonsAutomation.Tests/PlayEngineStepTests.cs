@@ -5191,6 +5191,250 @@ public sealed class PlayEngineStepTests
             StringComparison.Ordinal);
     }
 
+
+    // ── p.79's Close Range ───────────────────────────────────────────────────
+
+    /// <summary>The Close Range table setting, and nothing else.</summary>
+    private static readonly TableRules CloseRangeOn = TableRules.Book with { CloseRangePenalty = true };
+
+    /// <summary>
+    /// <b>A ranged attack from inside Close Range costs the dodger exactly the dice p.79 prints,
+    /// and a close combat attack costs them nothing.</b>
+    ///
+    /// <para>The figure is read off <c>penalty_dice_to_active_defense</c> rather than restated, and
+    /// the rule's own condition is driven from both sides: a Ranged Weapon takes it and a fist does
+    /// not, which is the difference p.75's table draws and this engine reads off the row's printed
+    /// type rather than off a list of its own.</para>
+    ///
+    /// <para><b>The switch off is the baseline and is measured first.</b> A setting that is off has
+    /// to change nothing — the same exchange, the same pair, the same band, and the same pool.</para>
+    /// </summary>
+    [Fact]
+    public void ARangedAttackFromInsideCloseRangeCostsTheDodgerThePrintedDice()
+    {
+        var penalty = _play.GetGritty("gritty_close_range").CloseRangePenalty!.PenaltyDiceToActiveDefense;
+
+        // The control on the reading: a penalty of nothing would make every equality below hold of
+        // an engine applying no rule at all.
+        Assert.NotEqual(0, penalty);
+
+        var (attacker, dodger) = Pair("agility", 6);
+
+        var fist = new Attack("hero", "villain", "might");
+        var gun = new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon);
+
+        // A fight opens at Close Range unless the GM says otherwise, which is where this rule bites.
+        var punched = Exchange(attacker, dodger, fist, table: CloseRangeOn);
+        var shot = Exchange(attacker, dodger, gun, table: CloseRangeOn);
+
+        Assert.Equal(punched.Thrown + penalty, shot.Thrown);
+        Assert.DoesNotContain(punched.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+
+        // The switch off changes nothing, for the same shot.
+        var off = Exchange(attacker, dodger, gun);
+
+        Assert.Equal(punched.Thrown, off.Thrown);
+        Assert.DoesNotContain(off.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>It costs the dodging kind of defence and nothing else.</b>
+    ///
+    /// <para>The entry's field is <c>penalty_dice_to_active_defense</c> in as many words: a soak is
+    /// a soak whatever is being shot at you. The control is the same shot against a dodger, which
+    /// does move — so the equality below is a statement about the defence and not about a shot that
+    /// never happened.</para>
+    /// </summary>
+    [Fact]
+    public void CloseRangeNeverMovesAPassiveDefence()
+    {
+        var gun = new Attack("hero", "villain", "might", DamageKind.Subdual, AttackType.RangedWeapon);
+
+        var (attacker, soaker) = Pair("toughness", 6);
+        var soaked = Exchange(attacker, soaker, gun, table: CloseRangeOn);
+        var openSoak = Exchange(attacker, soaker, gun);
+
+        Assert.Equal(openSoak.Thrown, soaked.Thrown);
+
+        var (_, dodger) = Pair("agility", 6);
+        var dodged = Exchange(attacker, dodger, gun, table: CloseRangeOn);
+        var openDodge = Exchange(attacker, dodger, gun);
+
+        Assert.NotEqual(openDodge.Thrown, dodged.Thrown);
+    }
+
+    /// <summary>
+    /// <b>It only reaches a pair who are at Close Range with each other.</b>
+    ///
+    /// <para>p.79 prices a gun in your face, and the same gun from across the street is the
+    /// ordinary exchange. The bands are pairwise on the state because p.73's are, so this is driven
+    /// by opening the fight at Distant Range rather than by moving a flag.</para>
+    /// </summary>
+    [Fact]
+    public void CloseRangeDoesNotReachAShotFromTheNextRangeClassOut()
+    {
+        var (attacker, dodger) = Pair("agility", 6);
+        var gun = new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon);
+
+        var dice = new ScriptedDice([.. Enumerable.Repeat(4, 300)]);
+        var encounter = new Encounter(_play, dice, CloseRangeOn);
+        var state = encounter.Begin([attacker, dodger], opening: RangeBand.Distant);
+
+        var step = encounter.Step(state, gun);
+        var far = 300 - dice.Remaining;
+
+        // The control: the shot really was resolved, so the comparison below is not of two zeroes.
+        Assert.Contains(step.Added, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(step.Added, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+
+        // And the same shot at Close Range does cost the dice, so the band is what decided it.
+        Assert.NotEqual(far, Exchange(attacker, dodger, gun, table: CloseRangeOn).Thrown);
+    }
+
+    /// <summary>
+    /// <b>A Power is ranged when its own Ch.2 Range says so, and that is read off the sheet.</b>
+    ///
+    /// <para>p.75's table declines to classify its two Power rows — their attacking Trait is the
+    /// bare <c>Power</c> column — so whether a Physical Power reaches past Close Range is a property
+    /// of the Power. <c>CombatantFactory</c> answers it, and the two Powers driven here are a Blast,
+    /// whose printed Range is <c>ranged</c>, and an Armor, whose printed Range is <c>self</c>.</para>
+    ///
+    /// <para>The controls come out of the character rules rather than being assumed: each Power's
+    /// Range is asserted before the exchange that turns on it.</para>
+    /// </summary>
+    [Fact]
+    public void APowerIsRangedWhenItsOwnPrintedRangeSaysSoAndNotOtherwise()
+    {
+        var rules = new RulesFixture();
+        var penalty = _play.GetGritty("gritty_close_range").CloseRangePenalty!.PenaltyDiceToActiveDefense;
+
+        // The controls: the two Powers really do print the two Ranges this fixture turns on.
+        Assert.Equal("ranged", rules.Rules.GetPower("blast")!.Range, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal("self", rules.Rules.GetPower("armor")!.Range, StringComparer.OrdinalIgnoreCase);
+
+        var sheet = rules.LegalSheet();
+        sheet.Name = "the Hero";
+
+        // Enough Edge to be first in the order, so the exchange below is theirs to make.
+        sheet.AbilityRanks["perception"] = 6;
+        sheet.AbilityRanks["agility"] = 6;
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 8));
+        sheet.SelectedPowers.Add(new SelectedPower("armor", 8));
+
+        var attacker = CombatantFactory.From(
+            sheet, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
+
+        Assert.Contains("blast", attacker.RangedPowers, StringComparer.Ordinal);
+        Assert.DoesNotContain("armor", attacker.RangedPowers, StringComparer.Ordinal);
+
+        // The other control: both came back at a real rank, so neither exchange below is a pool of
+        // nothing. The two ranks are read rather than assumed equal — the character engine decides
+        // what a Power is worth on a sheet, and this fixture is about the Range beside it.
+        Assert.True(attacker.Rank("blast") > 0, "the Blast came back at 0d");
+        Assert.True(attacker.Rank("armor") > 0, "the Armor came back at 0d");
+
+        var (_, dodger) = Pair("agility", 6);
+
+        var blast = new Attack("hero", "villain", "blast", Type: AttackType.PhysicalPower);
+        var swung = blast with { TraitId = "armor" };
+
+        var shot = Exchange(attacker, dodger, blast, table: CloseRangeOn);
+        var clubbed = Exchange(attacker, dodger, swung, table: CloseRangeOn);
+
+        // The two pools differ by the two Powers' own ranks and by the penalty, and by nothing
+        // else: the Blast is ranged and pays it, the Armor is not and does not.
+        Assert.Equal(
+            attacker.Rank("blast") - attacker.Rank("armor") + penalty,
+            shot.Thrown - clubbed.Thrown);
+
+        Assert.Contains(shot.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+        Assert.DoesNotContain(clubbed.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The page's own exception is the caller's word, and a declaration that turned nothing off
+    /// says so.</b>
+    ///
+    /// <para>p.79 tells a table to ignore the rule for "ordinary thrown weapons and other
+    /// short-range attacks that can only be used at Close Range". A fight here has no equipment in
+    /// it, so nothing but the person running it can tell a pistol from a throwing knife — and the
+    /// default is a pistol, because <c>range_classes</c> makes reaching Distant Range the rule and
+    /// prints thrown weapons beside it as the exception.</para>
+    /// </summary>
+    [Fact]
+    public void AThrownWeaponIsTheCallersWordAndADeclarationThatBuysNothingSaysSo()
+    {
+        var rule = _play.GetGritty("gritty_close_range").CloseRangePenalty!;
+
+        var (attacker, dodger) = Pair("agility", 6);
+
+        var gun = new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon);
+        var knife = gun with { CloseRangeOnly = true };
+        var fist = new Attack("hero", "villain", "might", CloseRangeOnly: true);
+
+        var shot = Exchange(attacker, dodger, gun, table: CloseRangeOn);
+        var thrown = Exchange(attacker, dodger, knife, table: CloseRangeOn);
+        var punched = Exchange(attacker, dodger, fist, table: CloseRangeOn);
+
+        Assert.Equal(shot.Thrown - rule.PenaltyDiceToActiveDefense, thrown.Thrown);
+        Assert.Equal(thrown.Thrown, punched.Thrown);
+
+        Assert.Contains(rule.IgnoredFor, Line(thrown, "gritty_close_range"), StringComparison.Ordinal);
+        Assert.Contains(
+            "would not have reached it anyway",
+            Line(punched, "gritty_close_range"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A pair of entries that no longer name a range class past Close is a throw.</b>
+    ///
+    /// <para>The whole of what makes p.79's rule apply to an attack is that such an attack could
+    /// have been made from farther off, and this engine establishes that by reading two strings:
+    /// the entry's <c>applies_only_to_attacks_usable_at</c> and <c>range_classes</c>'
+    /// <c>ranged_attacks_reach</c>. A penalty applied when its own condition can no longer be
+    /// established is the shape of defect the ledger exists to prevent, so it throws.</para>
+    ///
+    /// <para>Both sides are driven, and the control is the same exchange against the shipped bytes.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "\"ranged_attacks_reach\": \"Close Range or Distant Range\"",
+        "\"ranged_attacks_reach\": \"about as far as you would expect\"",
+        PlayRulesRepository.CombatFile)]
+    [InlineData(
+        "\"applies_only_to_attacks_usable_at\": \"Distant or Extreme Range\"",
+        "\"applies_only_to_attacks_usable_at\": \"anything you could have shot from farther off\"",
+        PlayRulesRepository.GrittyFile)]
+    public void ARangeReachThisEngineCanNoLongerEstablishIsAThrow(
+        string find, string replace, string file)
+    {
+        var (attacker, dodger) = Pair("agility", 6);
+        var gun = new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon);
+
+        // The control: against the shipped bytes the exchange resolves and cites the rule.
+        var shipped = Exchange(attacker, dodger, gun, table: CloseRangeOn);
+
+        Assert.Contains(shipped.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+
+        var reworded = SubstitutedPlayRules.With(file, find, replace);
+        var encounter = new Encounter(
+            reworded, new ScriptedDice([.. Enumerable.Repeat(4, 300)]), CloseRangeOn);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            encounter.Step(encounter.Begin([attacker, dodger]), gun));
+
+        Assert.Contains("gritty_close_range", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(RangeBand.Close), thrown.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
     private static string Line((int Thrown, IReadOnlyList<LedgerLine> Lines) exchange, string ruleId) =>
         Assert.Single(exchange.Lines, l => string.Equals(l.Rule, ruleId, StringComparison.Ordinal)).Text;

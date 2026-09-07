@@ -191,15 +191,22 @@ page one of the run and do not move the numbers:
 
 | Setting | Entry |
 |---|---|
-| `CloseRangePenalty` | `gritty_close_range` |
 | `TheDrop` | `gritty_the_drop` |
 | `FriendlyFire` | `gritty_friendly_fire` |
 | `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other six — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`,
-`HardTargets` and the initiative variant beside them — are applied.
+The other seven — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`,
+`HardTargets`, `close_range_penalty` and the initiative variant beside them — are applied.
+
+**`close_range_penalty` costs a dodger two dice against a ranged attack made from inside Close
+Range, and it works out on its own which attacks those are.** A Ranged Weapon is one by p.75's own
+row; a Power is one when its Ch.2 Range is `ranged`, which is read off the sheet. A fist or a sword
+never is. **The one thing it cannot see is a thrown weapon**, because a fight here has no equipment
+in it: send `"close_range_only": true` on the attack for the page's own exception — an ordinary
+thrown weapon or anything else that only works up close — and the dodger keeps their dice. Leave it
+off for a gun.
 
 **`hard_targets` needs you to say which combatants are hard.** Send `"hard_target": true` on a
 combatant — a machine, a vehicle, a thick inanimate object — and every **passive** defence of

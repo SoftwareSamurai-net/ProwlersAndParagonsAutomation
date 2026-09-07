@@ -2963,6 +2963,68 @@ public sealed class McpPlayServerTests
             Assert.DoesNotContain("toughness 10d", line, StringComparison.Ordinal);
         });
 
+
+    // ── p.79's Close Range, over the wire ─────────────────────────────────
+
+    /// <summary>
+    /// <b>The <c>close_range_penalty</c> setting costs a dodger the printed dice, and an attack's
+    /// <c>close_range_only</c> turns it off.</b>
+    ///
+    /// <para>Both are driven through the tools rather than asserted about the reader, because the
+    /// field of an intent is exactly what the play policy's spelling guard cannot see — the guard
+    /// is scoped to tool arguments, and this is how p.79's <c>team</c> flag came to be dropped in
+    /// silence. The control is the same shot with the setting off, whose pool is the rank on the
+    /// sheet.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheCloseRangeSettingCrossesTheWireAndItsThrownWeaponExceptionDoesToo() =>
+        await WithClient(async client =>
+        {
+            var penalty = _play.GetGritty("gritty_close_range")
+                .CloseRangePenalty!.PenaltyDiceToActiveDefense;
+
+            async Task<JsonNode> Shoot(bool setting, bool thrown)
+            {
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = TwoSidesDodging(),
+                    ["table"] = new JsonObject { ["close_range_penalty"] = setting },
+                    ["seed"] = 79
+                });
+
+                var intent = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                    ["trait_id"] = "might", ["type"] = "ranged_weapon"
+                };
+
+                if (thrown) intent["close_range_only"] = true;
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = intent
+                });
+            }
+
+            // The control: the setting off is the rank on the sheet, and no line cites the rule.
+            var baseline = await Shoot(setting: false, thrown: false);
+
+            Assert.Contains("agility 6d", RollLine(baseline), StringComparison.Ordinal);
+            Assert.False(Cites(baseline, "gritty_close_range"));
+
+            var shot = await Shoot(setting: true, thrown: false);
+
+            Assert.Contains($"agility {6 + penalty}d", RollLine(shot), StringComparison.Ordinal);
+            Assert.True(Cites(shot, "gritty_close_range"));
+
+            // And the page's own exception, which a reader that had dropped the flag would ignore.
+            var knife = await Shoot(setting: true, thrown: true);
+
+            Assert.Contains("agility 6d", RollLine(knife), StringComparison.Ordinal);
+            Assert.True(Cites(knife, "gritty_close_range"));
+        });
+
     /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
     /// reader — enough to open a fight for the tests that are about something else.

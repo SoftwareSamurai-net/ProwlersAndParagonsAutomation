@@ -106,14 +106,17 @@ Three properties of it are load-bearing:
 
 | Setting | Entry |
 |---|---|
-| `CloseRangePenalty` | `gritty_close_range` |
 | `TheDrop` | `gritty_the_drop` |
 | `FriendlyFire` | `gritty_friendly_fire` |
 | `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other six gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, and the initiative variant beside them.
+The other seven gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, `CloseRangePenalty`, and the initiative variant beside them.
+
+**p.79's Close Range rule needs three facts and each is read where it lives.** That the pair is at Close Range is `EncounterState.Ranges`, which is pairwise because p.73's bands are. That the attack is *ranged* comes off p.75's table — a row whose printed type names *Ranged* is one, and the rows whose attacking Trait is the table's bare `Power` column are the ones the table declines to classify. For those the answer is on the sheet: `Combatant.RangedPowers` is every Power id whose **own Ch.2 Range** is `ranged`, filled by `CombatantFactory` the way `Powers` is, because a Blast reaches across the street and a Growth does not and neither `Powers` nor `TraitRanks` can tell them apart. That such an attack *can* be used at Distant or Extreme is `range_classes`' own `ranged_attacks_reach`, which is exactly the question the entry's `applies_only_to_attacks_usable_at` asks; both strings are read and a pair that stops naming a band past Close is a **throw**, not a penalty applied on nothing.
+
+**`ignored_for` is the caller's word, and the default is the page's.** Thrown weapons are printed as an *exception* to the reach rather than as the reach, so `Attack.CloseRangeOnly` is what turns the penalty off and a ranged attack reaches Distant unless somebody says otherwise. There is no equipment in a fight here — see the Gear Limit below — so nothing but the person running it could tell a pistol from a throwing knife. A declaration that turned nothing off says so on the ledger.
 
 **p.80's Hard Targets is two rules that meet on one roll, and each half lives where its fact is.** `Combatant.HardTarget` is the caller's word — Chapter 2 has no flag that says a character is a machine, and the same battlesuit is a vehicle in one GM's game and a person in armour in another's, which is the same argument `Size` and `Invisible` are here on. `Attack.VulnerablePart` is a **declaration on one attack** and not a state of the target, because the page prices it that way: the attacker accepts `penalty_dice_to_negate_it` on *their* roll, and the next character to swing at the same machine may decline to. The doubling multiplies the rank **before** either printed halving — the page doubles a *rank*, and doubling afterwards would put an odd one through the round-up half first and hand back a die more than p.80 allows. Active defences never move, because the page says passive; a `CoverStructure` does not either, because the declaration is made on a combatant and a wall is not one. `recommended_pro_for_vehicle_scale_weapons` is named on the ledger and **not applied**: the Penetrating Pro is advice about how characters are built, and `play/` holds no opinion about Pros.
 
