@@ -726,6 +726,75 @@ public sealed class CampaignStorageTests
     }
 
     /// <summary>
+    /// <b>A campaign written before house rules existed reads back as the game it always was.</b>
+    ///
+    /// <para><c>StoredCampaign.CurrentVersion</c> is 1 and did not move, which is the whole claim:
+    /// the two new fields are nullable with defaults, so an absent key deserialises to null and
+    /// null means the book as printed. Bumping the version would have been the alternative and
+    /// would have been wrong — a mismatch is discarded in silence, so every campaign anybody had
+    /// would have vanished to say something that is true of all of them.</para>
+    ///
+    /// <para><b>The payload is the literal bytes the store used to write</b>, for the reason
+    /// <c>CharacterStoreTests</c> keeps its pre-campaign character verbatim: a payload built by
+    /// today's writer proves the writer round-trips itself, which is a different and much weaker
+    /// claim than one about what is already in somebody's account.</para>
+    /// </summary>
+    [Fact]
+    public void ACampaignStoredBeforeHouseRulesExistedReadsBackPlayingTheBook()
+    {
+        const string beforeHouseRules =
+            """
+            {"Version":1,"Campaign":{"Id":"g_0000000000000000000000","Name":"Pinnacle City",
+            "TierId":"standard","TraitCapRank":6,"UnlimitedBudget":false}}
+            """;
+
+        var campaign = StoredCampaign.Read(beforeHouseRules.ReplaceLineEndings(""));
+
+        Assert.NotNull(campaign);
+
+        // Everything it did say is still what it says — the control, without which a reader that
+        // had started answering an empty campaign would satisfy the three assertions below.
+        Assert.Equal("Pinnacle City", campaign!.Name);
+        Assert.Equal("standard", campaign.TierId);
+        Assert.Equal(6, campaign.TraitCapRank);
+
+        // And the two it could not have said are null, which is the book.
+        Assert.Null(campaign.Table);
+        Assert.Null(campaign.ImmortalityCost);
+
+        // Null and "every switch off" are the same game, so a screen and the diff treat them
+        // alike — that is the property the null is chosen for, rather than a happy accident.
+        Assert.True((campaign.Table ?? CampaignTable.Book).IsTheBook);
+    }
+
+    /// <summary>
+    /// <b>And a character stored before them prices Immortality at the book's 3.</b>
+    ///
+    /// <para>The other half of the same question, one envelope over:
+    /// <c>CharacterSheetJson</c> is what the browser's storage and the <c>build</c> command both
+    /// read, and a sheet with no <c>ImmortalityCost</c> key is a sheet at no table. Asserted
+    /// against the rulebook's own figure rather than against 3, because the number belongs to
+    /// <c>data/rules/</c>.</para>
+    /// </summary>
+    [Fact]
+    public void ACharacterStoredBeforeHouseRulesExistedIsChargedTheBooksPrice()
+    {
+        const string beforeHouseRules =
+            """
+            {"SelectedTierId":"standard","Name":"Nine","SelectedPowers":[{"PowerId":"immortality",
+            "PurchasedRanks":0,"Pros":[],"Cons":[]}]}
+            """;
+
+        var sheet = CharacterSheetJson.Read(beforeHouseRules.ReplaceLineEndings(""), strict: true);
+
+        Assert.NotNull(sheet);
+        Assert.Null(sheet!.CampaignTable);
+        Assert.Null(sheet.ImmortalityCost);
+
+        Assert.Equal(Rules.GetPower("immortality")!.CostFlat, Costs.TotalPowersCost(sheet));
+    }
+
+    /// <summary>
     /// A code that is not the ten symbols this minter produces is shown as it is, rather than cut
     /// in half. A formatter with an opinion about a value it does not recognise is a formatter
     /// that corrupts one.

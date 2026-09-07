@@ -137,6 +137,50 @@ public sealed class ImmortalityHousePriceTests
     }
 
     /// <summary>
+    /// <b>Vulnerable still takes one off, and it takes it off the table's price.</b>
+    ///
+    /// <para>Immortality prints one Con of its own — Vulnerable, a flat −1 — and a Con is a change
+    /// to what <em>this</em> Power costs, so it applies to whatever the Power costs here. Two ways
+    /// of getting that wrong both compile: charging the book's 3 and then subtracting (2 at every
+    /// table), or applying the table's price and dropping the Con (the table's figure exactly, at
+    /// every price). Both are one line, neither is visible on a screen, and a character sheet is
+    /// the only place the difference shows.</para>
+    ///
+    /// <para><b>The book's own figure is the control</b>, because a test that only checked the
+    /// house prices would pass over a calculator that had stopped reading the Con at all.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(null, 2)]
+    [InlineData(6, 5)]
+    [InlineData(9, 8)]
+    [InlineData(12, 11)]
+    public void TheOneConImmortalityPrintsComesOffTheTablesPrice(int? house, int expected)
+    {
+        var vulnerable = new SelectedPower("immortality", 0, [], [new SelectedProCon("vulnerable")]);
+
+        Assert.Equal(expected, _f.Costs.PowerCost(vulnerable, house));
+    }
+
+    /// <summary>
+    /// <b>And the unranked floor is still underneath the Con as well as underneath the price.</b>
+    ///
+    /// <para><c>APriceBelowTheRulebookFloorIsReportedAndFlooredRatherThanCharged</c> is this one
+    /// field over: the floor is applied to the Power's total, so it catches a Con that has taken
+    /// the last point off a price the table had already set low. A table charging 1 with the Con
+    /// bought is the case where the two meet, and it comes to 1 rather than 0.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void ThePriceAndTheConTogetherStillCannotGoBelowTheUnrankedFloor(int house)
+    {
+        var vulnerable = new SelectedPower("immortality", 0, [], [new SelectedProCon("vulnerable")]);
+
+        Assert.Equal(1, _f.Costs.PowerCost(vulnerable, house));
+    }
+
+    /// <summary>
     /// Both ends of the range are inside it, and nothing between them is reported. The ends come
     /// from the data rather than being typed here, for the reason the data carries them at all.
     /// </summary>
