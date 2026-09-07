@@ -2095,6 +2095,16 @@ public sealed class McpPlayServerTests
                 ["openingRange"] = "sideways"
             })),
 
+            ["NO_SUCH_VISIBILITY"] = new(client => Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["visibility"] = "gloomy"
+            })),
+
+            // p.75's size bands are a ratio, so a zero divides and the infinity it yields satisfies
+            // every band there is — refused rather than taken as the default.
+            ["BAD_SIZE"] = new(client => Open(client, WithSize(0))),
+
             ["ENCOUNTER_WOULD_NOT_OPEN"] = new(
                 client => Call(client, "start_encounter", new Dictionary<string, object?>
                 {
@@ -2168,6 +2178,12 @@ public sealed class McpPlayServerTests
             {
                 ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
                 ["trait_id"] = "might", ["type"] = "wizardry"
+            })),
+
+            ["NO_SUCH_COVER"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                ["trait_id"] = "might", ["cover"] = "a hedge"
             })),
 
             ["NO_SUCH_MOVE"] = new(client => Turn(client, new JsonObject
@@ -2304,6 +2320,14 @@ public sealed class McpPlayServerTests
     {
         var fight = TwoSides();
         fight[0]!["character"]!["SelectedTierId"] = tier;
+        return fight;
+    }
+
+    /// <summary>The fight with one combatant given a size p.75's bands cannot be a ratio of.</summary>
+    private static JsonArray WithSize(double size)
+    {
+        var fight = TwoSides();
+        fight[0]!["size"] = size;
         return fight;
     }
 

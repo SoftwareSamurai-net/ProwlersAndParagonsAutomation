@@ -2026,28 +2026,53 @@ public sealed class PlayEngineStepTests
     /// Fatal Damage was applied when half of it was not. Both directions are checked: an entry the
     /// engine lists and the guide does not, and one the guide lists that the engine has quietly
     /// implemented since.</para>
+    ///
+    /// <para><b><c>EntriesNotYetApplied</c> is empty, and an empty-equals-empty comparison proves
+    /// nothing</b> — which is why the entries half is checked from the <em>other</em> end: the guide
+    /// must carry no such table at all, so a table quietly reappearing in the document without the
+    /// engine agreeing goes red here. The switches table stays non-empty and is what keeps the parse
+    /// itself honest: a <see cref="ListedUnder"/> that had stopped finding rows would fail on it
+    /// rather than pass in silence on both.</para>
     /// </summary>
     [Fact]
     public void TheGuidesNotAppliedListsAreTheEnginesNotAppliedLists()
     {
-        // The controls: the parse found a table, and the sets are not empty — an empty-equals-empty
-        // comparison is the shape of a guard that proves nothing.
-        var entries = ListedUnder("**`Encounter.EntriesNotYetApplied`**");
+        // The control: the parse found a table with rows in it. Both halves below lean on this one
+        // working, and the entries half cannot supply its own control while the set is empty.
         var switches = ListedUnder("**`Encounter.SwitchesNotYetApplied`**");
 
-        Assert.NotEmpty(entries);
         Assert.NotEmpty(switches);
-
-        Assert.Equal(
-            Encounter.EntriesNotYetApplied.Order(StringComparer.Ordinal),
-            entries.Order(StringComparer.Ordinal));
 
         Assert.Equal(
             Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
             switches.Order(StringComparer.Ordinal));
 
-        // And every entry the engine says it does not apply is an entry that exists.
+        // The entries half, from the other end: nothing is unapplied, so the guide carries no table
+        // of unapplied entries — and it still has to name the field, or a reader has no way to tell
+        // "empty" from "this document has stopped tracking it".
+        Assert.Empty(Encounter.EntriesNotYetApplied);
+
+        Assert.Contains("`Encounter.EntriesNotYetApplied` is empty", Guide(), StringComparison.Ordinal);
+
+        Assert.DoesNotContain(
+            "**`Encounter.EntriesNotYetApplied`**", Guide(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Every entry the engine says it does not apply is an entry that exists.</b>
+    ///
+    /// <para>Kept as its own fact rather than folded into the check above, because the set is empty
+    /// today and the loop would run zero times: what makes it worth anything is the control beside
+    /// it, which proves the lookup it would use can actually fail an id that is not there.</para>
+    /// </summary>
+    [Fact]
+    public void EveryEntryTheEngineDoesNotApplyIsAnEntryThatExists()
+    {
         var known = _play.EntryIds().Select(e => e.Id).ToHashSet(StringComparer.Ordinal);
+
+        // The control: the instrument really can tell a real id from an invented one.
+        Assert.Contains("modifier_cover", known, StringComparer.Ordinal);
+        Assert.DoesNotContain("modifier_moonlight", known, StringComparer.Ordinal);
 
         foreach (var id in Encounter.EntriesNotYetApplied)
             Assert.True(known.Contains(id), $"the engine lists '{id}', which is in none of the five files");

@@ -161,19 +161,23 @@ public sealed class McpPlayPolicyTests
     [Fact]
     public void ThePolicysNotAppliedListsAreTheEnginesNotAppliedLists()
     {
-        var entries = ListedUnder("**`Encounter.EntriesNotYetApplied`**");
+        // The control, and the only half that can still supply one: the parse found a table with
+        // rows in it. `EntriesNotYetApplied` is empty, so its half is checked from the other end.
         var switches = ListedUnder("**`Encounter.SwitchesNotYetApplied`**");
 
-        Assert.NotEmpty(entries);
         Assert.NotEmpty(switches);
-
-        Assert.Equal(
-            Encounter.EntriesNotYetApplied.Order(StringComparer.Ordinal),
-            entries.Order(StringComparer.Ordinal));
 
         Assert.Equal(
             Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
             switches.Order(StringComparer.Ordinal));
+
+        Assert.Empty(Encounter.EntriesNotYetApplied);
+
+        // The document says so in as many words and carries no table of unapplied entries — so a
+        // table reappearing here without the engine agreeing is red, which is the direction that
+        // would otherwise tell every conversation not to narrate an effect that now works.
+        Assert.Contains("`Encounter.EntriesNotYetApplied` is empty", Flowed, StringComparison.Ordinal);
+        Assert.DoesNotContain("**`Encounter.EntriesNotYetApplied`**", Text, StringComparison.Ordinal);
     }
 
     /// <summary>
