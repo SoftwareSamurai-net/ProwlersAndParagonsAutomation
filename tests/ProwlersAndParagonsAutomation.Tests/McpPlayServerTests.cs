@@ -1690,7 +1690,7 @@ public sealed class McpPlayServerTests
             var grapple = Assert.Single(state["grapples"]!.AsArray());
 
             Assert.Equal("grab", grapple!["move"]!.GetValue<string>());
-            Assert.Equal("the sword", grapple["item"]!.GetValue<string>());
+            Assert.Equal("the sword", grapple["item"]?.GetValue<string>());
 
             var combatants = state["combatants"]!.AsArray()
                 .ToDictionary(c => c!["id"]!.GetValue<string>(), c => c!["holding"]);
@@ -1701,9 +1701,11 @@ public sealed class McpPlayServerTests
 
             Assert.Equal("full", grapple["kind"]!.GetValue<string>());
 
-            Assert.Equal("the sword", combatants[actor]!["item"]!.GetValue<string>());
-            Assert.False(combatants[actor]!["used"]!.GetValue<bool>());
-            Assert.True(combatants[actor]!["won_on_page"]!.GetValue<int>() >= 1);
+            Assert.Equal("the sword", combatants[actor]?["item"]?.GetValue<string>());
+            Assert.Equal(false, combatants[actor]?["used"]?.GetValue<bool>());
+            Assert.True(combatants[actor]?["won_on_page"]?.GetValue<int>() >= 1,
+                "the page a full grab was won on is what decides whether the page turn takes the "
+                + "item away, so it has to be on the wire beside the item itself");
         });
 
     /// <summary>
