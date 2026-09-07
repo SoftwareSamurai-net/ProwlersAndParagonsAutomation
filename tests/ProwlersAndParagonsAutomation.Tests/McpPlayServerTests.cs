@@ -3639,6 +3639,59 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>Two sheets whose only difference is a Gear Limit rank behind a switch neither turned on
+    /// fight, and the fight they fight is the same fight either way.</b>
+    ///
+    /// <para>The rank is read only where <c>RaisedGearLimit</c> is on — see
+    /// <c>PlayTableRulesTests.ARankBehindAnUnadoptedGearLimitSwitchIsNotADisagreement</c> for the
+    /// argument. Driven here because the refusal it would have produced is the visible half: a GM
+    /// handed <c>TABLE_DISAGREES</c> naming `gear_limit_rank` cannot repair it in the browser,
+    /// which clears the rank when the switch goes off and hides the input while it is off. The only
+    /// repair would be hand-editing JSON, which is the thing the decision beside this one is built
+    /// to spare them.</para>
+    ///
+    /// <para><b>The control is the adopted case</b>, in the same call: turn the switch on for one
+    /// of them and the fight is refused, so this is not a server that has stopped comparing the
+    /// Gear Limit at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task TwoSheetsDifferingOnlyInARankNobodyAdoptedAreNotRefused() =>
+        await WithClient(async client =>
+        {
+            var inert = TwoSides();
+            inert[0]!["character"]!["CampaignTable"] =
+                new JsonObject { ["WoundPenalties"] = true, ["GearLimitRank"] = 6 };
+            inert[1]!["character"]!["CampaignTable"] =
+                new JsonObject { ["WoundPenalties"] = true, ["GearLimitRank"] = 12 };
+
+            var answer = await Open(client, inert);
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+            Assert.Equal("sheets", TableOf(answer)["source"]!.GetValue<string>());
+
+            // The switch is off, so nothing in the fight reads either figure.
+            Assert.False(TableOf(answer)["raised_gear_limit"]!.GetValue<bool>());
+            Assert.Contains("gritty_wound_penalties", RulesOnTheLedger(answer), StringComparer.Ordinal);
+
+            // The control: adopt it on one side and the same pair is refused — by the switch, which
+            // is the name a GM can act on.
+            var adopted = TwoSides();
+            adopted[0]!["character"]!["CampaignTable"] = new JsonObject
+            {
+                ["WoundPenalties"] = true, ["RaisedGearLimit"] = true, ["GearLimitRank"] = 6
+            };
+            adopted[1]!["character"]!["CampaignTable"] =
+                new JsonObject { ["WoundPenalties"] = true, ["GearLimitRank"] = 12 };
+
+            var refused = await Open(client, adopted);
+
+            Assert.False(refused["ok"]!.GetValue<bool>(), refused.ToJsonString());
+            Assert.Equal("TABLE_DISAGREES", refused["problem"]!["code"]!.GetValue<string>());
+            Assert.Contains("raised_gear_limit",
+                refused["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
     /// <b>A group of Minions is on neither side of the table question: it carries none, and page
     /// one does not say so.</b>
     ///

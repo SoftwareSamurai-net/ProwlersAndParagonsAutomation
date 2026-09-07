@@ -336,4 +336,57 @@ public sealed class PlayTableRulesTests
         Assert.True(twelve.IsOn(nameof(TableRules.GearLimitRank)));
         Assert.Equal(nameof(TableRules.GearLimitRank), TableRules.FirstDifference(nine, twelve));
     }
+
+    /// <summary>
+    /// <b>A Gear Limit rank behind a switch nobody turned on is not a disagreement, because it is
+    /// not a setting.</b>
+    ///
+    /// <para><see cref="TableRules.GearLimit"/> reads the figure only where <c>RaisedGearLimit</c>
+    /// is on, and the field's own doc says that is why the two are separate fields at all: "a rank
+    /// left here while the switch is off is a figure the table has not adopted". Two tables that
+    /// both left the switch off are playing the same game whatever numbers sit behind it — every
+    /// roll in a fight between them is identical — so a fight refused over it is a fight blocked by
+    /// a figure nothing reads.</para>
+    ///
+    /// <para><b>It is also a refusal nobody could act on.</b> The campaign form clears the rank
+    /// when the switch goes off and does not draw the input while it is off, so the only repair
+    /// available to a GM handed that refusal is hand-editing character JSON — which is what the
+    /// decision beside this one, to accept a sheet carrying no table at all, exists to spare them.
+    /// The rule this leaves standing is the one that matters: a setting a table <em>has</em>
+    /// adopted is never quietly ignored.</para>
+    ///
+    /// <para><b>Two controls keep it from being a hole.</b> The switch on for either side brings
+    /// the figure back into the comparison; and a table with the switch on against one with it off
+    /// is still named — by <c>RaisedGearLimit</c>, which comes earlier in
+    /// <see cref="TableRules.Switches"/> and is the more useful of the two names.</para>
+    /// </summary>
+    [Fact]
+    public void ARankBehindAnUnadoptedGearLimitSwitchIsNotADisagreement()
+    {
+        var six = TableRules.From(new CampaignTable { GearLimitRank = 6 });
+        var twelve = TableRules.From(new CampaignTable { GearLimitRank = 12 });
+        var none = TableRules.From(new CampaignTable());
+
+        Assert.Null(TableRules.FirstDifference(six, twelve));
+        Assert.Null(TableRules.FirstDifference(six, none));
+        Assert.Null(TableRules.FirstDifference(none, six));
+
+        // Nothing in a fight between them could tell them apart either.
+        Assert.Equal(six.GearLimit(_play), twelve.GearLimit(_play));
+
+        // The first control: adopted on one side, and the switch itself is named — earlier in
+        // Switches than the rank, and the more actionable of the two.
+        var adopted = TableRules.From(new CampaignTable { RaisedGearLimit = true, GearLimitRank = 12 });
+
+        Assert.Equal(nameof(TableRules.RaisedGearLimit), TableRules.FirstDifference(six, adopted));
+
+        // Adopted on both, and the figure is a disagreement again.
+        var alsoAdopted = TableRules.From(new CampaignTable { RaisedGearLimit = true, GearLimitRank = 6 });
+
+        Assert.Equal(nameof(TableRules.GearLimitRank), TableRules.FirstDifference(adopted, alsoAdopted));
+
+        // The second control: the ranks really were different, so the nulls above are about the
+        // switch and not about a comparison that has stopped reading the figure at all.
+        Assert.NotEqual(six.GearLimitRank, twelve.GearLimitRank);
+    }
 }

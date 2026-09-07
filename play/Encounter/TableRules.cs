@@ -195,6 +195,19 @@ public sealed record TableRules
     /// <para><see cref="Switches"/> order is what makes "the first" a fact rather than a
     /// coincidence of how a dictionary happened to enumerate, so the same pair of tables always
     /// names the same setting.</para>
+    ///
+    /// <para><b>A rank behind an unadopted switch is not a disagreement, and this is the one place
+    /// that judgement is made.</b> <see cref="GearLimit"/> reads the figure only where
+    /// <see cref="RaisedGearLimit"/> is on, and the field's own doc says why the two are separate
+    /// fields at all: "a rank left here while the switch is off is a figure the table has not
+    /// adopted". Two tables both leaving the switch off are playing the same game whatever numbers
+    /// sit behind it — every roll in the fight is identical — so refusing them is a fight blocked
+    /// over a figure nothing reads. It is also a refusal nobody can act on through the browser,
+    /// which clears the rank when the switch goes off and hides the input while it is off; the only
+    /// repair would be hand-editing JSON, which is what the accept-a-silent-sheet decision beside
+    /// this one exists to avoid. Where either table has the switch on, the rank is compared as a
+    /// figure — a table on 9 and a table on 12 are two games, and <see cref="IsOn"/> alone would
+    /// call them one.</para>
     /// </summary>
     public static string? FirstDifference(TableRules a, TableRules b)
     {
@@ -203,11 +216,14 @@ public sealed record TableRules
 
         foreach (var name in Switches.Select(s => s.Name).Distinct(StringComparer.Ordinal))
         {
-            // The rank is compared as a figure and not as a presence: IsOn answers only whether
-            // one was set at all, so a table on 9 and a table on 12 would agree under it.
             if (string.Equals(name, nameof(GearLimitRank), StringComparison.Ordinal))
             {
-                if (a.GearLimitRank != b.GearLimitRank) return name;
+                // Only where somebody has adopted it. Note that a table with the switch on and one
+                // with it off have already been separated by RaisedGearLimit, which comes earlier
+                // in Switches — so reaching here with either switch on means both are on.
+                if ((a.RaisedGearLimit || b.RaisedGearLimit) && a.GearLimitRank != b.GearLimitRank)
+                    return name;
+
                 continue;
             }
 
