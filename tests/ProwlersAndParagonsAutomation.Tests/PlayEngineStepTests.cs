@@ -5976,6 +5976,142 @@ public sealed class PlayEngineStepTests
     }
 
 
+    /// <summary>
+    /// <b>The stray round is answered by the second target's own defence, it can find the shooter's
+    /// own side, and it costs the shooter neither a point of Resolve nor their turn.</b>
+    ///
+    /// <para><b>Hitting your own people is the whole of what p.80 is about</b> — "another target
+    /// involved in the melee", with no word about sides — so the fixture puts a Hero-side ally in
+    /// the tangle and requires the round to find them. Nothing in <c>Melee</c> partitions on
+    /// <see cref="Combatant.Side"/>, and this is what says so from outside.</para>
+    ///
+    /// <para><b>The defence is driven by counting faces rather than by reading the prose.</b> The
+    /// ally's Toughness is twice the first target's, so the pool the second exchange throws is a
+    /// different number from the pool the first one threw, and a stray round answered by the wrong
+    /// character's rank runs the scripted dice out or leaves faces on the table. That is a
+    /// mechanical difference an engine copying the first defence across could not fake.</para>
+    ///
+    /// <para>The two figures beside it are the ones p.80 never charges for: the shot is a
+    /// consequence of the first attack, not a second action, so the shooter's Resolve is untouched
+    /// and it is still their turn when it is over.</para>
+    /// </summary>
+    [Fact]
+    public void TheStrayRoundFindsTheShootersOwnAllyAndIsAnsweredByTheirOwnDefence()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        var fight = new List<Combatant>
+        {
+            Combatant.Hero(
+                "hero", "the Hero", edge: 12, health: 10, resolve: 2,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 }, ["toughness"]),
+            Combatant.Villain(
+                "villain", "the Villain", edge: 7, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 }, ["toughness"]),
+            Combatant.Extra(
+                "ally", "the Sidekick", edge: 3, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 8 },
+                ["toughness"], side: Combatant.HeroSide)
+        };
+
+        // The control on the fixture's own arithmetic: the two defences really are different pools,
+        // so counting faces can tell them apart.
+        Assert.NotEqual(Halved(4), Halved(8));
+
+        int[] faces =
+        [
+            .. Enumerable.Repeat(1, 8 + rule.PenaltyDice),   // the shot into the scrum, missing
+            .. Enumerable.Repeat(1, Halved(4)),              // the Villain's own soak
+            3,                                               // the GM's pick, of one candidate
+            4, 4, .. Enumerable.Repeat(1, 6),                // the stray round: two successes
+            .. Enumerable.Repeat(1, Halved(8))               // and the Sidekick's own soak
+        ];
+
+        var dice = new ScriptedDice(faces);
+        var encounter = new Encounter(_play, dice, FriendlyFireOn);
+        var state = encounter.Begin(fight);
+
+        var step = encounter.Step(
+            state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+        // The control: every face was consumed and no more asked for, which is the assertion that
+        // the second exchange threw the Sidekick's pool and not the Villain's.
+        Assert.Equal(0, dice.Remaining);
+
+        var sent = Assert.Single(step.Added, l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        Assert.Contains("the Sidekick", sent.Text, StringComparison.Ordinal);
+
+        var ally = step.State["ally"];
+
+        Assert.Equal(Combatant.HeroSide, ally.Side);
+        Assert.Equal(ally.FullHealth - (2 * rate), ally.CurrentHealth);
+
+        // And what the second attack does not cost: p.80 makes it a consequence of the first shot
+        // rather than a second action.
+        Assert.Equal(state["hero"].Resolve, step.State["hero"].Resolve);
+        Assert.Equal("hero", step.State.Current!.Id);
+    }
+
+    /// <summary>
+    /// <b>The stray round can find the shooter's own Minions, and it defeats them the way any
+    /// attack on a group does.</b>
+    ///
+    /// <para>A group of Minions is a target like any other and p.80's melee is derived from p.73's
+    /// range bands, which know nothing about who brought whom — so a mob standing beside the person
+    /// their own side was shooting at is in the tangle. Worth driving separately because a Minion
+    /// group takes a different path out of the attack: there is no Health to remove, and what the
+    /// round does is take bodies off the count.</para>
+    /// </summary>
+    [Fact]
+    public void TheStrayRoundCanFindTheShootersOwnMinions()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+
+        var fight = new List<Combatant>
+        {
+            Combatant.Hero(
+                "hero", "the Hero", edge: 12, health: 10, resolve: 0,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 }, ["toughness"]),
+            Combatant.Villain(
+                "villain", "the Villain", edge: 7, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 }, ["toughness"]),
+            Combatant.Minions(
+                "mob", "our own robots", threat: 2, groupSize: 4, threatTraitId: "threat",
+                side: Combatant.HeroSide)
+        };
+
+        int[] faces =
+        [
+            .. Enumerable.Repeat(1, 8 + rule.PenaltyDice),   // the shot into the scrum, missing
+            .. Enumerable.Repeat(1, Halved(4)),              // the Villain's own soak
+            2,                                               // the GM's pick
+            .. Enumerable.Repeat(6, 8),                      // the stray round, landing hard
+            .. Enumerable.Repeat(1, 30)                       // whatever the mob answers with
+        ];
+
+        var dice = new ScriptedDice(faces);
+        var encounter = new Encounter(_play, dice, FriendlyFireOn);
+        var state = encounter.Begin(fight);
+
+        var step = encounter.Step(
+            state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+        var sent = Assert.Single(step.Added, l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        Assert.Contains("our own robots", sent.Text, StringComparison.Ordinal);
+
+        // The state, not the prose: bodies came off the count that the shooter's own side brought.
+        Assert.Equal(Combatant.HeroSide, step.State["mob"].Side);
+        Assert.True(
+            step.State["mob"].GroupSize < state["mob"].GroupSize,
+            "the round was announced against the mob and never landed on it");
+    }
+
+
     // ── p.80's Slow Healing ──────────────────────────────────────────────────
 
     /// <summary>Slow Healing, and nothing else.</summary>
@@ -6093,6 +6229,66 @@ public sealed class PlayEngineStepTests
         Assert.Equal(floor, struck["hero"].CurrentHealth);
         Assert.False(struck["hero"].ConsciousAtZeroOrLess);
         Assert.True(struck["hero"].Defeated(floor), "one point of damage left them standing");
+    }
+
+    /// <summary>
+    /// <b>A character p.80 leaves conscious is a character who can act: they attack, they hurt
+    /// somebody, and they spend the Resolve they have left.</b>
+    ///
+    /// <para>"You may be conscious while at 0 or negative Health" is the whole of what this state
+    /// is, and being in the fight is what conscious means — so <see cref="Combatant.Defeated"/>
+    /// reading <see cref="Combatant.ConsciousAtZeroOrLess"/> is not a bookkeeping detail, it is
+    /// every refusal in <c>Encounter.Step</c> at once. Every intent that is a character doing
+    /// something is refused for a defeated actor, so an engine that had set the flag and left the
+    /// defeat test alone would have sold a point of Resolve for a character who could stand there
+    /// and nothing else.</para>
+    ///
+    /// <para><b>The control is the same fight without the setting</b>, where the Hero is down and
+    /// each of the same two intents is refused by name. Without it this fixture would pass against
+    /// an engine that had stopped refusing a defeated character anything.</para>
+    /// </summary>
+    [Fact]
+    public void ACharacterStandingAtNothingActsLikeAnybodyElse()
+    {
+        (EncounterState State, IReadOnlyList<LedgerLine> Lines) Fight(TableRules table)
+        {
+            var (opening, fight) = Floored(table);
+            var state = fight.Step(opening, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+            var lines = new List<LedgerLine>();
+
+            var struck = fight.Step(state, new Attack("hero", "villain", "might", DamageKind.Subdual));
+            lines.AddRange(struck.Added);
+
+            var seized = fight.Step(struck.State, new SpendResolve("hero", ResolveSpend.SeizeInitiative));
+            lines.AddRange(seized.Added);
+
+            return (seized.State, lines);
+        }
+
+        var standing = Fight(SlowHealingOn);
+
+        Assert.True(standing.State["hero"].ConsciousAtZeroOrLess);
+
+        // They attacked, and it landed: the state moved, not just the ledger.
+        Assert.Contains(standing.Lines, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+        Assert.True(standing.State["villain"].CurrentHealth < standing.State["villain"].FullHealth);
+
+        // And they bought something with the point they had left.
+        Assert.Contains("hero", standing.State.Seized, StringComparer.Ordinal);
+        Assert.Equal(0, standing.State["hero"].Resolve);
+
+        // The control: the same attack by a Hero on the same Health who never stood up, which the
+        // engine refuses. Without it this would pass against an engine that had stopped refusing a
+        // defeated character anything.
+        var (floored, ordinary) = Floored(TableRules.Book);
+        var refused = ordinary.Step(floored, new Attack("hero", "villain", "might", DamageKind.Subdual));
+
+        Assert.DoesNotContain(refused.Added, l =>
+            l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        Assert.Equal(
+            refused.State["villain"].FullHealth, refused.State["villain"].CurrentHealth);
     }
 
     /// <summary>
