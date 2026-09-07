@@ -3639,6 +3639,112 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// A <see cref="TableRules"/> built back out of an echo, switch by switch, <b>driven by
+    /// <c>TableRules.Switches</c> rather than by the keys the echo happens to have</b>.
+    ///
+    /// <para>That direction is the whole of it. Reading the echo's own keys would prove the echo
+    /// self-consistent and nothing else: a build that had dropped a switch from the echo would
+    /// hand back an object this method reconstructed perfectly, agreeing with itself about a game
+    /// it had not described. Asking for every switch the engine has means a missing key is a
+    /// failure here, which is the defect this file has already shipped once in a different
+    /// place — a setting accepted, applied and not reported.</para>
+    /// </summary>
+    private static TableRules RebuiltFrom(JsonObject echo)
+    {
+        var rebuilt = new TableRules();
+        var names = TableRules.Switches.Select(s => s.Name).Distinct(StringComparer.Ordinal).ToList();
+
+        // The control: the engine has switches to ask about at all.
+        Assert.True(names.Count >= 13, $"only {names.Count} table settings were found to rebuild.");
+
+        foreach (var name in names)
+        {
+            var key = PlayTools.Wire(name);
+
+            Assert.True(echo.ContainsKey(key),
+                $"the echoed table carries no '{key}'. A report is quoted with its table, and a "
+                + "switch missing from the echo is a game the reader cannot identify — the run "
+                + "carried it and the answer did not say so.");
+
+            var property = typeof(TableRules).GetProperty(name)
+                           ?? throw new InvalidOperationException($"TableRules has no {name}.");
+
+            property.SetValue(rebuilt, string.Equals(name, nameof(TableRules.GearLimitRank), StringComparison.Ordinal)
+                ? echo[key]?.GetValue<int>()
+                : echo[key]!.GetValue<bool>());
+        }
+
+        return rebuilt;
+    }
+
+    /// <summary>
+    /// <b>The table a run was resolved under can be rebuilt from the answer alone, and what comes
+    /// back is the table the fight really ran under.</b>
+    ///
+    /// <para><c>run_encounters</c> answers with no ledger, so its echo is the only record a
+    /// measurement leaves. "Quoted with its table" is worth nothing if the echo is a summary: a
+    /// reader has to be able to reconstruct the thing and fight the same fight again.</para>
+    ///
+    /// <para><b>The round trip is closed against the engine and not against the fixture.</b>
+    /// Rebuilding the echo and comparing it to the block the fixture put on the sheets would check
+    /// that this server can copy a JSON object. What is checked instead is that the rebuilt table's
+    /// <c>On()</c> is exactly the set of switches <c>Encounter.Begin</c> wrote a ledger line for —
+    /// those lines come off the <c>TableRules</c> the encounter was constructed with, so agreement
+    /// means the echo describes the game that was played. The fixture's own block is checked too,
+    /// last, so that a run under the book could not satisfy the first part trivially.</para>
+    /// </summary>
+    [Fact]
+    public async Task ATableRebuiltFromTheEchoIsTheTableTheFightRanUnder() =>
+        await WithClient(async client =>
+        {
+            var block = new JsonObject
+            {
+                ["WoundPenalties"] = true,
+                ["TheDrop"] = true,
+                ["CheckingYourSwing"] = true,
+                ["RaisedGearLimit"] = true,
+                ["GearLimitRank"] = 9
+            };
+
+            var answer = await Open(client, UnderOneTable(block));
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var rebuilt = RebuiltFrom(TableOf(answer));
+
+            // What the engine itself was built with: Begin writes one line per switch that is on,
+            // naming the setting in the sentence.
+            var applied = answer["ledger"]!.AsArray()
+                .Select(l => l!["text"]!.GetValue<string>())
+                .Where(t => t.StartsWith("table setting ", StringComparison.Ordinal))
+                .Select(t => t.Split(' ')[2])
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            // The control: the run really did carry switches, so the equality below is not two
+            // empty lists agreeing. Five, because `On()` counts a Gear Limit rank that was set as
+            // one — the four flags plus the rank's own presence.
+            Assert.Equal(5, applied.Count);
+
+            Assert.Equal(applied, rebuilt.On().Order(StringComparer.Ordinal));
+
+            // `On()` says a rank was set; only the echo says which one it was, so the figure needs
+            // its own assertion.
+            Assert.Equal(9, rebuilt.GearLimitRank);
+
+            // Last, the whole record against the sheets' own block — a run under the book would
+            // have satisfied nothing above and cannot satisfy this.
+            Assert.Equal(TableRules.From(new CampaignTable
+            {
+                WoundPenalties = true,
+                TheDrop = true,
+                CheckingYourSwing = true,
+                RaisedGearLimit = true,
+                GearLimitRank = 9
+            }), rebuilt);
+        });
+
+    /// <summary>
     /// <b>The same fight refuses the same way whichever order its sheets arrive in — the same pair
     /// and the same switch.</b>
     ///
