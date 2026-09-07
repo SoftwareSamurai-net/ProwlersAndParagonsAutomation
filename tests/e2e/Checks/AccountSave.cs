@@ -17,6 +17,11 @@ namespace ProwlersAndParagons.E2e.Checks;
 ///   <item>the first context signed in as the account that will own the character;</item>
 ///   <item>the application really put it on the wire — a <c>/api/characters</c> response came back
 ///     under 400, which is what "nothing ever wrote to the store" would not produce;</item>
+///   <item>and it put <em>this</em> character on the wire: the shell says "Saved" while the whole
+///     name stands in the field, which it does only while a completed write has reported the
+///     version the character is at now. A name is typed one letter at a time, so without this the
+///     check could open its second browser on the strength of the first letter having been
+///     written — and a prefix found there could not be told apart from a harness reading early;</item>
 ///   <item>the second context began with local storage that has never heard of this character, so
 ///     anything it shows came over the network;</item>
 ///   <item>the second context signed in as somebody — <see cref="Account.SignIn"/> throws a control
@@ -76,7 +81,7 @@ public static class AccountSave
         // **A non-GET, because a GET would pass for free.** Signing in reads `/api/characters`
         // straight away; counting that as evidence of a write is exactly the shape of the defect
         // this check exists for — a feature reading a store nothing writes to.
-        var writes = await WaitForWrite(first);
+        var (writes, said, onScreen) = await WaitForWrite(first);
 
         var asked = first.ResponsesSoFar()
             .Where(r => r.Url.Contains("/api/characters", StringComparison.Ordinal))
@@ -88,6 +93,25 @@ public static class AccountSave
             + (asked.Count > 0
                 ? string.Join(", ", asked.Select(r => $"{r.Method} -> {r.Status}"))
                 : "nothing under /api/characters at all"));
+
+        // **The second half of the control, and without it the outcome below is about this
+        // harness's clock.** A write having been answered says a write happened; it does not say
+        // *which* body was in it, and a name typed one character at a time is a run of writes. So
+        // the finished name has to be the one the application is reporting: "Saved" appears when a
+        // completed write reported the version the character is at right now — see
+        // `CharacterSession.Saved` — so the word standing while the field holds the whole name is
+        // the application saying this name, and not a prefix of it, reached the account.
+        //
+        // Asked here rather than assumed, because the difference is exactly the failure this
+        // check reported once: a second browser was handed "Account Bound H". If that ever
+        // happens again with this control satisfied, it is the account's answer and not the
+        // harness reading too early — which is the whole reason to spend a wait on it.
+        Harness.Control(said == "Saved" && onScreen == Name,
+            $"the application never reported \"{Name}\" as saved to {owner}'s account: the name "
+            + $"field held \"{onScreen}\" and the save status said \"{said}\". Opening a second "
+            + "browser now would ask whether a character followed the account before the "
+            + "application had said it went there, which is a question about this harness rather "
+            + "than about the account");
 
         // ------------------------------------------------------------------------------------
         // A second browser, in effect: its own cookie jar, its own empty storage.
@@ -181,15 +205,24 @@ public static class AccountSave
     }
 
     /// <summary>
-    /// Wait, bounded, for the application to write the character to the account, and return the
-    /// answers it got.
+    /// Wait, bounded, for the application to write <em>this</em> character to the account, and
+    /// report what it was answered, what the shell says about it, and what the field holds.
     ///
-    /// <para>The autosave is a fire-and-forget continuation on every change, so this polls what the
-    /// browser was actually answered rather than assuming the write has already landed. An empty
-    /// list back is a finding and the caller says so; it is never a reason to wait for ever.</para>
+    /// <para><b>Two conditions, not one, and the second is the one that was missing.</b> The
+    /// autosave is a fire-and-forget continuation on every change, so this polls what the browser
+    /// was actually answered rather than assuming a write has landed — but a name typed one
+    /// character at a time is a run of edits, and "some write was answered" is satisfied by the
+    /// first letter. The shell's "Saved" is what distinguishes them: it stands only while a
+    /// completed write reported the version the character is at now, so waiting for it, with the
+    /// whole name in the field, is waiting for the finished name rather than for a prefix.</para>
+    ///
+    /// <para><b>Every arm returns rather than throwing, and the caller says what it found.</b> An
+    /// empty list, an unsaid word and a half-typed field are all findings; none of them is a reason
+    /// to wait for ever, and a timeout that reported nothing about the state it gave up in would
+    /// leave the next reader guessing which of the three it was.</para>
     /// </summary>
-    private static async Task<List<(string Method, string Url, int Status)>> WaitForWrite(
-        Harness harness)
+    private static async Task<(List<(string Method, string Url, int Status)> Writes,
+        string? Said, string? OnScreen)> WaitForWrite(Harness harness)
     {
         var deadline = DateTime.UtcNow.AddMilliseconds(20_000);
 
@@ -201,7 +234,17 @@ public static class AccountSave
                             && r.Status < 400)
                 .ToList();
 
-            if (writes.Count > 0 || DateTime.UtcNow >= deadline) return writes;
+            var said = await harness.Eval<string?>(
+                "document.querySelector('.save-status')?.textContent.trim() ?? null");
+
+            var onScreen = await harness.Eval<string?>(
+                "document.querySelector('#ft-name')?.value ?? null");
+
+            if ((writes.Count > 0 && said == "Saved" && onScreen == Name)
+                || DateTime.UtcNow >= deadline)
+            {
+                return (writes, said, onScreen);
+            }
 
             await Task.Delay(250);
         }

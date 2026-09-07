@@ -106,6 +106,8 @@ as in scope. **Nothing here is a defect.**
 - [x] **[29](#29-a-campaigns-table-rules-and-its-immortality-price)** — the owner's toggles: a campaign carries the table's optional rules and its Immortality price, shown to every member, copied onto the sheet on join, priced from the sheet, and carried by the export. Verified by the orchestrator 2026-09-07: the price bound, and the suppression of a false "campaign gone" for members, each went red under mutation
 - [x] **[30](#30-a-member-sees-the-copy-their-character-carries-not-the-campaigns-live-table)** — a member reads their game's live table through a route scoped to their own membership row, sees it beside the copy their character carries with a row per difference and a read-at age, and a character that joined before the GM decided anything is told so under its own finding. Verified by the orchestrator 2026-09-07: the campaign-owner join clause, and the finding's switches arm, each went red under mutation — the second only after a fixture the orchestrator's mutation showed was missing
 
+- [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
+
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
 **Several of these touch the same files, so they are not independent slices.** 12 and 16 both
@@ -2002,6 +2004,41 @@ switch under `CAMPAIGN_HOUSE_RULES_NOT_COPIED`, carrying each figure only where 
 missing. The review found the two-GMs-one-code fixture reading an insertion order rather than the
 join clause, the live read picking any membership the account holds rather than the character's,
 the cap left out of the finding, and no contract guard for a routed address.
+
+### 31. The account autosave lost an edit to its own predecessor
+
+**Found by the e2e harness on 2026-09-07, on a pull request that changed one test file.**
+`ACCOUNT_SAVE` opened a second browser as the same account and read the character's name as
+"Account Bound H" while the first browser had typed "Account Bound Hero" and said it was saved.
+Item 28's new server-state line said the server was alive and bound, so this was the check's own
+finding; the rerun passed, so it was a race. Three lines of code made it a real one: `Program.cs`
+started one fire-and-forget write per change with nothing ordering it against the one before;
+`ApiCharacterStore.SaveAsync` serialised eagerly and carried no version; `worker/characters.js`
+wrote unconditionally. An earlier PUT landing after a later one lost the keystrokes between them,
+and "Saved" reported the version of whichever write returned last. `docs/guide/browser.md` had
+already called the palette's search race "the autosave's defect in a new place".
+
+**Fixed — see the pull request that carried it.** `web/Services/Autosave.cs` is one write open at
+a time, the latest edit coalesced into the next, the announced version read immediately before the
+write so "Saved" can only ever understate what landed; a write that throws re-pumps a pending edit
+before the throw goes where it went, bounded by edits made rather than failures suffered.
+`AutosaveOrderTests` reproduces the sighting to the character by holding the first PUT at the wire.
+Client serialisation rather than a server version, deliberately: both writes come from one tab and
+the newer is the keeper, `CharacterSession.Version` restarts per page load so a server refusing an
+older number would refuse a second tab wholesale, and `409` on that route already means the account
+is full. The e2e check now waits for the name it typed rather than for any write. The review found
+the throw path dropping the coalesced edit, the app's own `Start()` unguarded (deleting it left
+every test green while the deployed site wrote nothing — item 10's shape, now a source-reading
+guard), and pinned the announced-version order, the mid-write character switch and item 26's
+refusals on the coalesced trip.
+
+**Left open, named rather than hidden.** Two tabs editing one character still race at the server,
+which is a different defect needing the server-side version this entry argues against in its
+current form. And a keystroke landing inside the one JS-interop hop between the pump capturing the
+sheet and the store resolving the pointer could in principle write one character's bytes under
+another's id; it predates this fix, is unreachable under bUnit's synchronous storage, and closing it
+means carrying the captured id through `ICharacterStore` — a design change nobody should land
+without a harness that can watch it fail.
 
 ## Completed work
 

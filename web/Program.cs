@@ -75,6 +75,12 @@ builder.Services.AddScoped<Theme>();
 builder.Services.AddScoped<ReplayLoader>();
 builder.Services.AddScoped<Sliders>();
 
+// The write-through that follows every edit. Registered rather than written out at the foot of
+// this file so that the bUnit context can resolve the same one the app runs — a mirror of three
+// lines is a mirror that drifts, and the ordering it enforces is exactly what a test has to be
+// able to drive. See Autosave.
+builder.Services.AddScoped<Autosave>();
+
 var host = builder.Build();
 
 // The character is read back before the first render, not after it. Restoring in a
@@ -168,25 +174,20 @@ if (saved is { } withMode)
 }
 #pragma warning restore CA1031
 
-// Every change writes through. The sheet is small and localStorage is synchronous and
-// fast, so there is nothing to gain by batching — and a debounce is one more way to lose
-// the last edit before a refresh, which is the thing this exists to prevent.
+// Every change writes through, and **one write is open at a time**. The reasoning is all in
+// Autosave, because it stopped fitting in a comment: this used to be a fire-and-forget write
+// per change with nothing ordering it against the one before, which is harmless against
+// synchronous localStorage and a lost update against an account — two PUTs in flight together,
+// and the server keeps whichever body reaches it last.
 //
-// **The "Saved" the shell shows is this await returning, and nothing more.** SaveAsync
-// never throws — see ICharacterStore's own doc comment — so there is no failure path to
-// invent a message for, and no "saving…" state either: nobody out here knows how long a
-// write takes, only that it finished.
+// There is still no debounce, deliberately. A debounce is one more way to lose the last edit
+// before a refresh, which is the thing this exists to prevent; coalescing is not one, because
+// the coalesced write is always sent and always carries the newest sheet.
 //
-// **The version is captured before the await, not read again after it.** Two saves can be
-// in flight together and finish in either order, so a version read from `session` once this
-// one's write returns could belong to an edit made while this write was still going — session
-// itself weighs the two by number rather than by which callback happened to run last.
-session.Changed += () => _ = SaveThenAnnounce(session.Version);
-
-async Task SaveThenAnnounce(int version)
-{
-    await store.SaveAsync(session.Sheet, session.Mode);
-    session.NotifySaved(version);
-}
+// **The "Saved" the shell shows is a write returning, and nothing more.** SaveAsync never
+// throws — see ICharacterStore's own doc comment — so there is no failure path to invent a
+// message for, and no "saving…" state either: nobody out here knows how long a write takes,
+// only that it finished.
+host.Services.GetRequiredService<Autosave>().Start();
 
 await host.RunAsync();
