@@ -4340,6 +4340,72 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A band whose printed word this engine does not know is a throw, and so is a cover test it
+    /// no longer recognises.</b>
+    ///
+    /// <para>Four lookups turn a printed phrase into behaviour: the cover band, the visibility band,
+    /// what one of p.75's four size phrases means as a comparison, and the sentence p.75 states the
+    /// rank test in. Every one of them is written to throw rather than to skip a band, because
+    /// <b>a modifier silently worth nothing is the failure the whole ledger exists to prevent</b> —
+    /// and the guide says so in as many words about all four. <b>Nothing drove any of the throws.</b>
+    /// Reading the code cannot tell you whether a field is consulted, which is the same reason
+    /// <see cref="TheDefenceCountAndTheChoiceRuleAreReadFromTheEntry"/> is a twin rather than an
+    /// assertion; these are the same instrument pointed at p.75's three modifiers.</para>
+    ///
+    /// <para>Each case reads the shipped bytes, rewords exactly one phrase — <c>WithDefect</c>
+    /// throws if the phrase has moved, so a case cannot quietly stop reproducing — and drives the
+    /// exchange that needs it. The control is the same exchange against the shipped file, which has
+    /// to resolve.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "\"cover\": \"heavy\"", "\"cover\": \"a fair bit of\"",
+        "modifier_cover", "prints no band called 'heavy'")]
+    [InlineData(
+        "\"visibility\": \"poor\"", "\"visibility\": \"murky\"",
+        "modifier_visibility", "prints no band called 'poor'")]
+    [InlineData(
+        "\"attacker_relative_size\": \"at least twice your size\"",
+        "\"attacker_relative_size\": \"a good deal bigger than you\"",
+        "modifier_size", "a good deal bigger than you")]
+    [InlineData(
+        "\"attacking_through_cover_requires\": \"an attack rank greater than the cover's Structure\"",
+        "\"attacking_through_cover_requires\": \"a knack for finding the gap\"",
+        "modifier_cover", "a knack for finding the gap")]
+    public void ABandOrATestThisEngineNoLongerRecognisesIsAThrow(
+        string find, string replace, string entryId, string names)
+    {
+        // One exchange that reaches all four: heavy cover, in poor light, from an attacker twice the
+        // defender's size, through an obstacle with a Structure — against an active defence, so the
+        // size band is consulted at all.
+        var (attacker, target) = Pair("agility", 4, attackerSize: 2, targetSize: 1, attackRank: 9);
+
+        var attack = new Attack(
+            "hero", "villain", "might", Cover: Cover.Heavy, CoverStructure: 3);
+
+        // The control: against the shipped file this exchange resolves and cites the entry under
+        // test, so the throw below is about the wording and not about an exchange that never ran.
+        var shipped = Exchange(attacker, target, attack, Visibility.Poor);
+
+        Assert.Contains(shipped.Lines, l => string.Equals(l.Rule, entryId, StringComparison.Ordinal));
+
+        var reworded = SubstitutedPlayRules.With(PlayRulesRepository.CombatFile, find, replace);
+        var encounter = new Encounter(reworded, new ScriptedDice([.. Enumerable.Repeat(4, 300)]));
+
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+        {
+            var state = encounter.Begin([attacker, target], visibility: Visibility.Poor);
+            encounter.Step(state, attack);
+        });
+
+        Assert.Contains(entryId, thrown.Message, StringComparison.Ordinal);
+
+        // And it names the phrase it could not read, so somebody who reworded the file can see
+        // which line they moved rather than being told only that something is wrong.
+        Assert.Contains(names, thrown.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>A completely hidden target cannot be hit, and nothing is rolled.</b>
     ///
     /// <para>The refusal is driven rather than asserted about: the dice source is handed a script
