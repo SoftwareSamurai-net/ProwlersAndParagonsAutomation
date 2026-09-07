@@ -27,7 +27,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost, which is what found the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
-The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**. The remaining four each rebuild 1 HP out, for a recorded reason — see [Close the last four Heroes](#1-close-the-last-four-heroes), where the bound is stated exactly: it holds of what is *modelled*, and Shadow's printed Gear box carries a custom feature that would put him at +2.
+The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **17 of the 20 to exactly their 125 Hero Point budget**. The remaining three each rebuild 1 HP out, for a recorded reason — see [Close the last three Heroes](#1-close-the-last-three-heroes), where the bound is stated exactly: it holds of what is *modelled*, and Shadow's printed Gear box carries a custom feature that would put him at +2.
 
 ---
 
@@ -75,15 +75,15 @@ as in scope. **Nothing here is a defect.**
 
 **Waiting on the owner — not work an agent can pick up**
 
-- [ ] **[13](#13-the-owners-branding-and-the-sign-in-email)** — branding, and a kit that lives outside this repository
+- [ ] **[13](#13-the-owners-branding-and-the-sign-in-email)** — branding; the kit is awaited on [issue #161](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/issues/161)
 - [ ] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — whether character variants deserve a mechanism; its own entry recommends deferring
 
 **Ready to build, specified enough to start**
 
-- [ ] **[1](#1-close-the-last-four-heroes)** — the last four Heroes, 1 HP out each. **The interaction hypothesis was swept 2026-09-05 and is negative** — see the entry; nothing cheap is left
+- [ ] **[1](#1-close-the-last-three-heroes)** — the last three Heroes, 1 HP out each. **T-Kay closed on the owner's ruling of 2026-09-06** that her `Limited` is somewhat limited; the interaction hypothesis was swept 2026-09-05 and is negative — see the entry; nothing cheap is left
 - [x] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver, and `kill_tree` proved directly. Verified by the orchestrator 2026-09-05: nine checks green, nine twins red on the kind each declares, both drivers, no process left behind. **CI run 33949251306 then proved the Linux leak for real** — the port holder survived outside the tree — and the cause is recorded in the entry; the fix's Linux verdict was given by run 33960793977: all seven kill-tree checks green on `ubuntu-latest`, the real wrangler tree included, and no "still listening" warning anywhere in the job
 - [x] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement, and the rulebook corpus behind `Ctrl`/`⌘`+`K`. Verified by the orchestrator 2026-09-05; what remains of the search bullet is the banner field, recorded in the entry
-- [ ] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`. **Slices (a) to (e) of six have landed** — Chapters 3, 4 and 5 as verified data under `data/rules/play/`, `play/`, the second engine that resolves a fight out of them, and `mcp-play/`, the second MCP server that runs encounters through it; (f), the first measurement, is what remains; the plan and eight questions for the owner are in the entry
+- [ ] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`. **Slices (a) to (e) of six have landed** — Chapters 3, 4 and 5 as verified data under `data/rules/play/`, `play/`, the second engine that resolves a fight out of them, and `mcp-play/`, the second MCP server that runs encounters through it; **(f), the first measurement, is what remains, and the owner deferred it on 2026-09-06**: no simulation until the campaign's first villain is submitted, so that there is something to benchmark the three 100-point player sheets (now on production) against — "a feature to build for later". The table it will run at is settled: no Gritty rule, and the GM's alternative to seizing the initiative — doubled Edge rather than going first, "so Super Speed stays awesome" — which is already `TableRules.GmAlternativeToSeizingInitiative`. The engine's own not-yet list is in `docs/guide/play-engine.md`, and it is shorter: **keeping hold, knockback, luring and team attacks are applied since 2026-09-07** — see the pull request that carried them, whose review found the server dropping the team flag it had just documented, an explosion throwing the sixes of a discarded roll, and an Adversity line written before the pool paid. Verified by the orchestrator: the lurer's forfeited turn and the team flag over the wire each went red under mutation. Still listed: the three scene-shaped Adversity spends, cover, size and visibility, the item a full grab wins, and six Gritty switches
 - [x] **[15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one)** — a campaign-tighter Trait Cap, and it moves Resolve. Verified by the orchestrator 2026-09-05
 - [x] **[16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster)** — `build` checks a roster in one process and answers cross-sheet questions. Verified by the orchestrator 2026-09-05; the monotonic-ladder question waits on item 21
 - [x] **[19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds)** — a GM sets a player's cap and sees what they hold, on `/admin`. Verified by the orchestrator 2026-09-05
@@ -99,6 +99,9 @@ as in scope. **Nothing here is a defect.**
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
 - [x] **[24](#24-a-bunit-event-is-dispatched-not-applied-and-three-palette-tests-read-a-render-early)** — three palette tests raced the renderer and went red on CI one at a time; the whole class is swept and a guard fails the build on the next synchronous drive. Verified by the orchestrator 2026-09-06
 - [x] **[26](#26-a-campaign-submission-carried-an-empty-sheet-under-a-real-characters-label)** — the owner found an approved campaign clone that was an empty sheet; the join and the submit now act on the character the row names, an empty sheet is refused and marked, and the autosave never writes one over a stored character. Verified by the orchestrator 2026-09-06
+- [x] **[27](#27-the-session-must-hold-the-character-the-pointer-names)** — a failed read at sign-in or boot is now said on screen with a retry that re-adopts, the autosave and Start-another both refuse to write over a character this browser never read, and the notice follows the pointer. Verified by the orchestrator 2026-09-07: the unread-id recording, the Start-another refusal and the pointer-scoped notice each went red under mutation
+
+- [x] **[28](#28-two-flakes-on-a-docs-only-pull-request-and-what-the-harness-said-about-them)** — three flakes seen in one day on trees that had passed: the e2e server dying mid-drive with nothing said about why, the in-process MCP teardown race, and a secret-scan regex timed out by a loaded runner. Each is swept class-wide. Verified by the orchestrator 2026-09-07: a lying aliveness test fails the kill-tree suite in thirteen seconds rather than hanging it, the MCP helper goes red with no EOF and with a faulted teardown step, a planted key in `web/` and in a Razor file turns the scan red, and both e2e drivers pass with every twin red on the merged tree
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -110,24 +113,23 @@ between.
 
 Each entry below says what a slice on it would actually involve, including which approaches are already spent. Read the entry here before starting.
 
-### 1. Close the last four Heroes
+### 1. Close the last three Heroes
 
-Sixteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other four are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
+Seventeen of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other three are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
 
 | Hero | Residual | Why |
 |---|---|---|
 | Herald (Scathach) | +1 | Strike carries four Pros and Cons at once — most likely a variant reading |
 | Shadow | +1 | Unexplained |
-| T-Kay | −1 | `Limited: only for Telekinesis` does not say which grade |
 | Vigilant | −1 | Its Jo Sticks are *Upgraded*, a custom gear feature worth +2 — which would take him to +1, not to zero |
 
 Nothing left is more than 1 HP out, and the test asserting that bound has been tightened from 6 to 2 and now to 1, so it stays true.
 
-**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, and four values one point either side of zero pair up by chance. Do not read more into it.
+**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, +1, +1, and three values one point either side of zero say nothing. Do not read more into it.
 
 **All four transcriptions have now been read line by line against the printed sheets, and all four are faithful.** Abilities, all twelve Talents, every Power and its rank, the Pros and Cons in each parenthesis, the Perks with their unit counts, the Flaws, and Edge/Health/Resolve — checked against the page for Scáthach (p.135), Shadow (p.140), T-Kay (p.143) and Vigilant (p.146).
 
-**So the method that closed three Heroes is spent, and the conclusion is different from what it was.** Vector, Talon and Airmid were all *transcription* faults — a Power underpriced, a group costed per option, a whole Power dropped. These four are not. **The remaining ±1 HP is in the pricing model**, and finding it needs a per-element cost breakdown compared against a hand-computed expectation from the sheet, not another read of the page.
+**So the method that closed three Heroes is spent, and the conclusion is different from what it was.** Vector, Talon and Airmid were all *transcription* faults — a Power underpriced, a group costed per option, a whole Power dropped. These are not. **The remaining ±1 HP is in the pricing model**, and finding it needs a per-element cost breakdown compared against a hand-computed expectation from the sheet, not another read of the page.
 
 Two things established on the way, so nobody re-checks them:
 
@@ -138,7 +140,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **Revisited, and deliberately not closed.** The arithmetic was worked out and it is a trap:
 
-- **T-Kay closes exactly** if `Limited: only for Telekinesis` is read as *somewhat limited* (−1) rather than *significantly limited* (−2). It sits on Lightning Reflexes, a flat 3 HP Power, so the grade is worth 1 HP after the floor — precisely her −1. **That is the tuning this item forbids.** The sheet prints no grade; "only for Telekinesis" reads at least as much like the harsher grade as the milder one, and the only thing recommending the milder one is that it makes the number come out. Deciding it needs the Power's entry in the book, not this file.
+- **T-Kay is closed, by the owner's ruling of 2026-09-06 and not by this file**: `Limited: only for Telekinesis` is *somewhat limited* (−1), and she rebuilds to exactly 125. It sits on Lightning Reflexes, a flat 3 HP Power, so the grade was worth exactly her −1 — which is why this entry had refused to pick it: the only argument for the milder grade was that it made the number come out, and that is the tuning this item forbids. What changed is not the arithmetic but who decided. The sheet prints no grade and the book maps no phrase onto one, so it is an ambiguity the owner may rule on, and a ruling is not a fit. `PrebuiltHeroes.cs` records the grade as the ruling with its date, `docs/guide/testing.md` carries the ruling-versus-tuning distinction, and nobody is to re-derive the grade from her total in either direction.
 
   **And it is a two-way choice, not a three-way one, because the floor collapses half of it.** Measured, by rebuilding her on each grade: −1 gives **125**, −2 gives 124, and −4 gives **124 as well** — an unranked Power floors at 1 HP, so 3 − 4 clamps to the same figure 3 − 2 produces. The two harsher readings are indistinguishable in her total.
 
@@ -148,7 +150,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **The book was then opened, and it settled two of the three questions above.** `docs/` holds both PDFs — they are gitignored, so they are in the main working directory and **not in a worktree's `docs/`**, which is how they were missed at first.
 
-- **T-Kay's grade is a judgement call by the rulebook's own words.** The Limited entry (Ch.2) reads: −1 "if the Power is somewhat limited", −2 "if it's significantly limited", −4 "if it's severely limited", and then *"Use this Con as a catch-all when nothing else seems appropriate."* There is no rule mapping "only for Telekinesis" onto a grade, so the milder reading has nothing recommending it except that it produces a zero. **Left as recorded**, at −2, which is also the reading with an argument behind it: a flat +6 Edge that applies to one Power out of five is significantly limited by breadth. The counter-argument is practical — Telekinesis is her 12d signature Power and she uses it constantly, so the restriction rarely bites — and the rulebook is vague enough to hold both. What settles it in favour of leaving it alone is that the alternative is chosen *by its result*.
+- **T-Kay's grade is a judgement call by the rulebook's own words — which is what made it the owner's to make; this bullet is the record of the argument as it stood before the ruling.** The Limited entry (Ch.2) reads: −1 "if the Power is somewhat limited", −2 "if it's significantly limited", −4 "if it's severely limited", and then *"Use this Con as a catch-all when nothing else seems appropriate."* There is no rule mapping "only for Telekinesis" onto a grade, so the milder reading has nothing recommending it except that it produces a zero. **It was left as recorded**, at −2, until the ruling, as the reading with an argument behind it: a flat +6 Edge that applies to one Power out of five is significantly limited by breadth. The counter-argument is practical — Telekinesis is her 12d signature Power and she uses it constantly, so the restriction rarely bites — and the rulebook is vague enough to hold both. What settles it in favour of leaving it alone is that the alternative is chosen *by its result*.
 - **Vigilant's Upgraded is confirmed printed** — his Gear box reads `2 Jo Sticks: 10d (s) Melee (Upgraded)`, and he has Two-Fisted, so the pair is customised for one price of 2 HP. He is 1 HP under, so transcribing it lands him on +1. It closes nothing and is left recorded rather than half-applied.
 - **Herald (Airmid) is closed.** The lead was her package: she was recorded on the Superhero Package while her sheet prints nine of twelve Talents at 2d, and a package's granted ranks are a floor. Following it found the actual fault — **her sheet prints two Expertise Powers, "Expertise (Medicine: Ancient Remedies) 12d" and "Expertise (Science: Botany) 12d", and only the first was transcribed.** Expertise costs half a Hero Point per rank and takes its baseline from the nominated Trait, so 12d over Science 2d is ten purchased ranks and **exactly 5 HP** — which is what the wrong package was absorbing. With the second Expertise transcribed and the package corrected to the one her printed Talents allow, she rebuilds to 125 to the point. Both halves are forced by the printed page.
 - **Scathach's transcription is verified faithful to the printed sheet** — every Ability, all twelve Talents, all eleven Powers, both her Edge/Health/Resolve and her Determination, and all four modifiers on Strike. The rulebook gives Strike two different deflection Pros, `Deflect` (+4, physical *and* energy) and `Deflect Missiles` (+2, physical only); her sheet prints the plain one and the data uses +4, which is right. So her +1 is in the pricing model, not in the data — which is a narrowing rather than an answer.
@@ -162,7 +164,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 | Hero | Rebuild | What the breakdown found |
 |---|---|---|
-| T-Kay | 124 | Flight 1 HP/rank, Force Field 1 HP/rank, Telekinesis 2 HP/rank, Area +2, Zone +2, Overload +2, Determination 5 HP per Resolve — **every element as printed**. The −1 is entirely the `Limited` grade |
+| T-Kay | 125 on the ruling (124 at −2) | Flight 1 HP/rank, Force Field 1 HP/rank, Telekinesis 2 HP/rank, Area +2, Zone +2, Overload +2, Determination 5 HP per Resolve — **every element as printed**. The −1 is entirely the `Limited` grade |
 | Herald (Scathach) | 126 | Strike's four modifiers confirmed on the page: Deflect +4, Phase Shift +4, Reach/Throw +2, Item −1. Weakness Detection 3 HP flat. **No mispriced element** |
 | Shadow | 126 | Preparation 6 HP flat (Ch.2 p.38) and Swing Line 1 HP per 2 ranks (p.44) both confirmed printed |
 | Vigilant | 124 | the same two confirmed |
@@ -175,13 +177,13 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **One genuine narrowing came out of the line-by-line arithmetic that hadn't been stated before, and it rules out rather than explains.** Swing Line and Wall Crawling are both priced at 1 HP per 2 ranks — exactly the rulebook's own floor rate — so `Base` and `MinimumRankedCost` are numerically identical before any Con is applied, and the floor ("no Power can ever cost less... regardless of its Cons") then swallows the Item Con whole: Shadow's Swing Line and Wall Crawling, and Vigilant's Swing Line, all cost exactly what they would with no Con recorded at all. This is the rulebook's own stated rule working as intended, not a bug, and it is neutral — the same floor would have bound for the authors too, so it explains none of the four residuals. Recorded so the next attempt does not spend time re-deriving it.
 
-**The other question a cheap instrument could finally answer: does any package other than the recorded "closest" one land any of the four on exactly 125?** No — swept across every package whose granted ranks the Hero's printed Traits do not fall below, none of the nine viable alternate (Hero, Package) pairings reaches 125. `PrebuiltHeroTests.NoOtherPackageLandsAnyOfTheFourUnclosedHeroesOnExactly125` pins this now, with a positive control (the candidate list must be non-empty) and was watched to fail: deliberately asserting against T-Kay's real civilian-package total (127) rather than 125 turned three of the four theory cases red, then was reverted.
+**The other question a cheap instrument could finally answer: does any package other than the recorded "closest" one land any of the four on exactly 125?** No — swept across every package whose granted ranks the Hero's printed Traits do not fall below, none of the viable alternate (Hero, Package) pairings reaches 125. `PrebuiltHeroTests.NoOtherPackageLandsAnyOfTheThreeUnclosedHeroesOnExactly125` pins this now — it held four Heroes until T-Kay's ruling — with a positive control (the candidate list must be non-empty) and was watched to fail: deliberately asserting against T-Kay's real civilian-package total (127) rather than 125 turned three of the then-four theory cases red, then was reverted. A second guard, `PrebuiltHeroTests.TheExactHeroListNamesEveryHeroRecordedExact`, now holds the per-Hero exact list and the recorded residuals to naming every published Hero exactly once, because the list had been one short of the count it claimed for as long as both existed.
 
 **One thing the pages did add, and it widens rather than closes.** Shadow's Gear box prints `2 Pistols: 9d Ranged (Silenced)`. Silenced is a Ch.6 custom feature at 1 HP, and the pair is one price under his Two-Fisted — so transcribed, Shadow is **+2**, not +1. The "nothing more than 1 HP out" bound above holds only because gear features are not modelled on these transcriptions. Recorded rather than half-applied, exactly as Vigilant's Upgraded Jo Sticks are.
 
 **What the breakdown did find was two defects, and neither is a Hero Point.** Both made a character printed in the rulebook one this tool refuses. They were reachable only because nothing had ever asked the validator about the twenty; `EveryPublishedHeroIsALegalCharacter` now does.
 
-Four rebuilds 1 HP out, each with a recorded reason — and one of them, Shadow, 1 HP further out than that once his printed gear is counted — remains a more honest state than four zeroes.
+Three rebuilds 1 HP out, each with a recorded reason — and one of them, Shadow, 1 HP further out than that once his printed gear is counted — remains a more honest state than three zeroes.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
@@ -1071,6 +1073,8 @@ which `scripts/probe-mail.mjs` imports rather than reassembling — see item 8's
 matters. Any change here is **outward-facing and costs the hourly allowance to test**, so it is
 proofed against the probe and not against a real inbox.
 
+**Asked on 2026-09-06, the owner did not recognise the email comparison** ("I dont know what this means"), so that half is dropped until they raise it again. The kit is on their work PC; [issue #161](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/issues/161) is where they will attach it, and nothing here starts until it is there.
+
 
 ### 5. The browser payload is large — a characteristic, not a defect
 
@@ -1855,10 +1859,86 @@ received. Verified by the orchestrator: the join's re-adopt and the autosave's r
 under mutation. **Remedy for the live row**: the player resubmits and the GM approves; nothing in the
 database is edited by hand.
 
-**Left open, recorded rather than hidden**: the root invariant — that the session holds the character
+**Left open here and closed by item 27**: the root invariant — that the session holds the character
 the pointer names — is still enforced at the campaigns page and not at sign-in, so a stale pointer
 after a failed read is still a state the app can be in; saying so on screen, or re-adopting there, is
 a slice of its own.
+
+### 27. The session must hold the character the pointer names
+
+**Found by the review of item 26, and deliberately left open there.** `SignIn.razor` and `Program.cs`
+both do `if (await Store.LoadAsync() is { } theirs) Session.Open(…); else Session.StartAgain();` —
+so a read that fails (a `404`, a timeout, the site's own `index.html` answering a `200`) empties the
+session **without moving the current-character pointer**. The pointer still names the stored
+character; the session holds nothing. Item 26 stopped the campaigns page acting on that split
+(joining re-adopts or refuses; submitting reads the row's character by id; the autosave will not
+write an empty sheet over a stored full one), which closes the one path that reached somebody
+else's database. The state itself remains: a signed-in reader whose character could not be read is
+looking at an empty builder that the app believes is their character, and the next edit autosaves
+under that id.
+
+**What a slice would do.** Either re-adopt on the next successful read (a retry that lands moves
+the sheet into the session and says so in `.save-status`), or say on screen that the character
+could not be loaded and offer the manager — never leave the two disagreeing in silence. A test
+drives the failed read through `SignIn.razor` (not by calling `StartAgain` directly, which is how
+item 26's first reproduction missed the join), asserts the split, and asserts it is reported or
+healed. `docs/guide/browser.md`'s "Keeping a character while starting another" carries the ordering
+rules the fix has to keep.
+
+**Not a defect a player has hit yet as far as the record shows**; recorded so the next campaign-page
+change does not rediscover the state it stands on.
+
+**Built 2026-09-07 — see the pull request that carried it.** The fact is recorded by the read and not by a caller: `ApiCharacterStore.UnreadId` is set inside the no-argument `LoadAsync()` when the pointer's character is `Unreachable`, cleared by any successful read of that id or by the pointer moving, and never set for an id this browser minted. The autosave's `WouldWriteOverACharacterNothingRead` sits beside item 26's `WouldEmptyACharacter` and answers the question that one stops asking the moment somebody types a name; `StartAnotherAsync` asks the same question and refuses whole, with a fourth sentence under the button. `MainLayout`'s `.save-status` says the character could not be loaded, offers a retry that re-adopts and says so, and links the manager; it is gated on being signed in and follows the pointer. The review found the Start-another hole, the pointer-scope defect and a false notice on a new account booting offline, and closed all three. `SessionHoldsThePointerTests` drives every path through `SignIn.razor` or a mirror of `Program.cs`'s boot lines, and a source-reading guard holds that mirror to the three lines it copies.
+
+### 28. Two flakes on a docs-only pull request, and what the harness said about them
+
+**Pull request #160 changed `PROGRESS.md` and nothing else, and its build failed twice for two
+different reasons, neither of them in its diff.** A third was seen the same day on a laptop under
+load. Each is a class, not an instance, and each was swept as one — `docs/guide/testing.md` records
+the mechanism of each beside the bUnit dispatch trap.
+
+- **The e2e server died mid-drive and the harness said nothing about why.** Run 34040527190's
+  Playwright step: BOOT passed, A11Y waited 45 s for `/build` to render, and every check after it
+  reported `net::ERR_CONNECTION_REFUSED` as if it were its own finding — three of them printing a
+  raw seeded sign-in token in the URL into a public log. `e2e.sh` printed the driver's verdicts and
+  never the server's log tail, and never said whether `server_pid` was still alive. Now
+  `capture_server_state` runs before `stop_server` on every failure arm and says alive-or-dead, exit
+  status and whether the port is bound, quoting the redacted log only when the server is gone; both
+  drivers probe the server once, report `[HARNESS] the server stopped answering` as one named kind,
+  print `NOT RUN` for the rest and count only what ran; verdicts are redacted and one line. The cause
+  itself was not found — once in sixty runs, a listener gone and staying gone rather than a `workerd`
+  respawn — and the two things that would name it next time, the wrapper's exit status and the log's
+  last lines, are exactly what is printed now.
+- **The in-process MCP server's teardown raced its own read loop.** The rerun failed
+  `McpPlayServerTests.EveryProblemCodeIsDrivenOverTheWire` with *Reading is not allowed after reader
+  was completed*: both server test classes disposed the transport, which completes the `PipeReader`
+  under a live `ReadLineAsync`, and the SDK (`ModelContextProtocol.Core` 2.2.0) propagates anything
+  but cancellation out of `RunAsync`. EOF is a clean end in that SDK, so the fix is ordering rather
+  than a catch: one shared `InProcessMcpServer` completes the client's writer, waits a bounded time
+  for the run to end on its own, and only then disposes; every teardown step is folded into one
+  verdict so a harness fault can neither mask a body's failure nor be swallowed by a passing one.
+- **A secret scan's five-second regex timeout fired under load — and the load was not the cause.**
+  `AccountsContractTests.NoKeyOrTokenIsInTheRepository` threw `RegexMatchTimeoutException` at a load
+  average of 176, but the pattern was quadratic in any unbroken run of token characters: a 128 KB
+  blob times it out on an idle laptop, and `worker/corpus.js` is 722 KB. Every source-scanning regex
+  in both test projects now goes through one `ScanRegex.Build`, which asks for the linear engine and
+  refuses to fall back silently; the scan itself covers the whole account server, the Razor tree,
+  `scripts/` and `tests/` rather than two directories partially, with planted fixtures per
+  alternative so a pattern that matches nothing cannot pass, and the one place the two engines
+  disagree (`Group.Captures` on a quantified group, read by nobody) is pinned. The review replaced a
+  wall-clock tripwire that was itself a flake at 6.6× margin with a control whose only clock is on
+  the side that must fail.
+
+**What the reviews added, because the first fixes were themselves checks nobody had broken.** The
+orchestrator's inverted-aliveness mutation *hung* the kill-tree suite for eleven minutes instead of
+turning it red — `wait` on a live child blocks — so `capture_server_state` is bounded and the suite
+proves a lying aliveness test fails within seconds. A server that answers by hanging (dead `workerd`
+under live wrangler, the documented death mode) was being classified as the check's own failure, and
+crashed the Node driver outright; both drivers now bound the probe and call it stopped. A passing
+run whose server died after the last check said nothing; it warns. The new verdict lines leaked a
+token through the half of the URL that was not wrapped; redaction moved to one choke point per
+driver, proved with a planted token. `test-kill-tree.sh` started a hundred marker processes with no
+trap and left them all on SIGTERM. Everything above was watched red before it was believed.
 
 ## Completed work
 

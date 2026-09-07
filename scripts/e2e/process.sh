@@ -47,11 +47,165 @@ redacted_tail() {
 }
 
 # ------------------------------------------------------------------------------------------------
-# The server currently running, if any. `stop_server` reads both and is also the EXIT trap, so it
-# has to be able to run against a script that never started one.
+# The server currently running, if any. `stop_server` reads the first two and is also the EXIT
+# trap, so it has to be able to run against a script that never started one. `server_log` is where
+# that server's output went, which is what `say_server_state` quotes.
 
 server_pid=''
 server_port=0
+server_log=''
+
+# ------------------------------------------------------------------------------------------------
+# WHETHER THE SERVER OUTLIVED THE DRIVE, AND WHAT IT SAID ON THE WAY OUT.
+#
+# **The harness could report eight refused connections and not one word about the server.** CI run
+# `34040527190` (attempt 1) is the whole argument: `BOOT` passed, `A11Y` then spent 45 seconds
+# waiting for `/build` to render, and the remaining seven checks each reported
+# `net::ERR_CONNECTION_REFUSED` as if it were their own finding. `wrangler pages dev` had died
+# mid-drive — and `scripts/e2e.sh` printed the driver's verdicts, called `stop_server`, and said
+# nothing about whether there had still been a server to stop or what its log's last words were.
+# Eight red lines, no evidence, and the only honest reading of the run was "something happened".
+#
+# The asymmetry that made that possible: `start_server`'s two failure arms have printed a
+# `redacted_tail` since the day they were written, because a server that never comes up is
+# obviously a server question. A server that comes up and then dies is the same question, and
+# nothing asked it.
+#
+# **`capture_server_state` has to run before `stop_server`, and that ordering is the whole of it.**
+# Afterwards there is nothing left to ask: the pid is killed and reaped, the port is released, and
+# "was it alive when the drive ended" has no answer any more. So it is a separate function from the
+# printing, called at the moment the drive returns, whatever the verdicts were.
+server_state=''
+
+# server_is_live <pid> — is that process still in the table?
+#
+# **`kill -0` and not `ps`**: a bash background job that has exited is reaped by bash's own SIGCHLD
+# handler, so its pid is gone from the table while bash still remembers the status. Measured on
+# bash 3.2: a background job that exited a second ago answers `kill -0` with a failure and `wait`
+# with its real status, so the two together read a dead server correctly.
+#
+# **A function rather than an inline test because it is a seam**, the way `children_of` reads
+# `$proc_root` rather than `/proc`. `scripts/test-kill-tree.sh` replaces it with one that lies —
+# says *gone* about a process that is running — to drive the branch below with a wrong reading,
+# which is the only way to prove that branch cannot hang. Nothing in a real run replaces it.
+server_is_live() {
+  kill -0 "$1" 2>/dev/null
+}
+
+# settled_dead <pid> — wait, *bounded*, for a pid to genuinely leave the process table. 0 if it
+# has, 1 if it is still there when the bound runs out.
+#
+# **This is what stops a wrong reading turning a failed run into a hung CI job**, and it is not
+# hypothetical: inverting `server_is_live`'s test so that a live server takes the dead branch below
+# made `scripts/test-kill-tree.sh` block for eleven minutes and counting, because `wait` on a live
+# child blocks until that child exits — and the child here is a server nothing has stopped yet. A
+# harness that hangs instead of failing is the shape this repository's own guard rules warn about:
+# a hung job is read as an infrastructure fault, and it costs the whole job's time before anybody
+# sees a line of output.
+#
+# **`kill -0` here, deliberately, and not `server_is_live`.** This is a bound and not a second
+# opinion — the loop returns within `server_state_settle_tries` tenths of a second whatever either
+# test says — but writing it against the raw primitive is also what lets the fixture lie to
+# `server_is_live` alone and watch this catch it.
+settled_dead() {
+  local tries=0
+
+  while kill -0 "$1" 2>/dev/null; do
+    if [ "$tries" -ge "${server_state_settle_tries:-20}" ]; then
+      return 1
+    fi
+
+    tries=$((tries + 1))
+    sleep 0.1
+  done
+
+  return 0
+}
+
+# capture_server_state — read the running server's fate into `server_state`.
+#
+# **`wait` is reached only once the pid has been *observed* gone**, first by `server_is_live` and
+# then by `settled_dead`'s bounded confirmation — see both above. Waiting on a live one would block
+# until the server was stopped, which is exactly the information this is trying to preserve.
+#
+# **A status of 127 is bash saying it cannot tell you**, not wrangler's own: `wait` answers 127 for
+# a pid that is not a job of this shell. Said in the message rather than smoothed over, because a
+# harness that invents an exit status is worse than one that admits it has none.
+#
+# **The port is asked separately, because the pid is not the server.** `$!` is the `npx` wrapper;
+# `workerd` is three levels below it and is what actually holds the socket. "The wrapper is alive
+# and nothing is listening" and "the wrapper is gone and something still is" are both states this
+# harness has seen, and neither is describable by the pid alone.
+capture_server_state() {
+  if [ -z "$server_pid" ]; then
+    server_state='not running at all (nothing was started, or it had already been stopped)'
+    return 0
+  fi
+
+  if server_is_live "$server_pid"; then
+    server_state="still ALIVE (pid $server_pid)"
+  elif ! settled_dead "$server_pid"; then
+    # The two readings disagree, so the honest answer is that neither can be trusted — and saying
+    # so costs two seconds, where taking the exit status anyway costs the rest of the job.
+    server_state="UNREADABLE (pid $server_pid is still in the process table although this harness"\
+" read it as gone, which is a bug in capture_server_state; no exit status was taken, because"\
+" waiting on a live child would block until the server was stopped)"
+  else
+    local status=0
+    wait "$server_pid" 2>/dev/null || status=$?
+
+    if [ "$status" -eq 127 ]; then
+      server_state="ALREADY DEAD (pid $server_pid; no exit status — it is not a job of this shell)"
+    else
+      server_state="ALREADY DEAD (pid $server_pid, exit status $status)"
+    fi
+  fi
+
+  if port_in_use "$server_port"; then
+    server_state="$server_state, and something is still listening on port $server_port"
+  else
+    server_state="$server_state, and nothing is listening on port $server_port"
+  fi
+
+  return 0
+}
+
+# say_server_state <what-ended> — the one line run 34040527190 needed, and the log behind it.
+#
+# **`redacted_tail` and never `tail`**, for the reason its own comment gives: this is a request log
+# and stage two drives `/signin?t=<raw token>`, so an unredacted tail pasted into a CI run's public
+# output carries the bearer secret with it.
+#
+# **The tail is printed only when the server is not alive, and that is not brevity for its own
+# sake.** Most failures here are a check going red against a perfectly healthy server — a
+# deliberately-broken twin's whole purpose is exactly that — and forty lines of `GET /css/app.css
+# 200 OK` under every one of them buries the verdict that matters. When the server *is* alive the
+# state line says so and names the log, which is the whole of what a reader needs to decide
+# whether to open it.
+say_server_state() {
+  local what="$1"
+
+  echo "::error::the server was ${server_state:-never asked about, which is a bug in this script}"\
+" when ${what} ended."
+
+  if [ -z "$server_log" ] || [ ! -s "$server_log" ]; then
+    echo "::error::there is no server log to quote (${server_log:-none was recorded})."
+    return 0
+  fi
+
+  case "$server_state" in
+    *ALIVE*)
+      echo "::error::its log is $server_log, not quoted here: the server outlived the drive, so"\
+" what went wrong is above and not in it."
+      ;;
+    *)
+      echo "::error::the last 40 lines of $server_log, with sign-in tokens redacted:"
+      redacted_tail "$server_log" 40
+      ;;
+  esac
+
+  return 0
+}
 
 on_windows() {
   case "$(uname -s)" in

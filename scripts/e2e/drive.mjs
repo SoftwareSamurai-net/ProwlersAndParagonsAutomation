@@ -100,6 +100,42 @@ const RECORDER = `
 class ControlFailed extends Error {}
 
 /**
+ * A message fit to print as a verdict: no raw sign-in token in it, and one line.
+ *
+ * **The redaction is the same rule `scripts/e2e/process.sh`'s `redacted_tail` obeys, one layer
+ * out.** Stage two navigates to `/signin?t=<raw token>`, so an error naming the address it could
+ * not reach carries a bearer secret — and CI run 34040527190 duly printed three of them into a
+ * public log, because only the *shell* half of this harness had ever thought about it. Same
+ * pattern: `[?&]t=` and not a bare `t=`, and a base64url value.
+ *
+ * **One line, because `scripts/e2e.sh` reads these with `grep ^E2E CHECK`.** A message with a
+ * newline in it puts everything after the newline outside the verdict, where the script's
+ * `case` on the whole line cannot see it.
+ */
+function redact(message) {
+    return String(message ?? '')
+        .replace(/([?&]t=)[A-Za-z0-9_-]+/g, '$1<redacted>')
+        .replace(/\s*\n\s*/g, ' ');
+}
+
+/**
+ * Print one verdict. **The only place a verdict reaches stdout, and the whole line goes through
+ * `redact` rather than the piece somebody remembered to wrap.**
+ *
+ * Measured, not reasoned about: the first version redacted `error.message` and interpolated the
+ * probe's answer beside it raw, so driving this file at `http://…/?x=1&t=<token>` printed
+ * `&t=<redacted>` in the half that had been wrapped and the token in full in the half that had
+ * not, on one line. That is the same shape as the CI leak this rule was written for — a rule
+ * obeyed at the call sites somebody thought of — and one choke point is what makes it a rule.
+ *
+ * It costs nothing to redact a green verdict or a `NOT RUN` line, and "only the red half is
+ * cleaned" is a rule that holds exactly until something passes.
+ */
+function say(line) {
+    console.log(redact(line));
+}
+
+/**
  * Assert that the work happened.
  *
  * **Distinct from `outcome` on purpose.** "The palette never changed" and "the palette changed to
@@ -587,49 +623,152 @@ if (only.size > 0) {
 const CHECKS = only.size > 0 ? ALL_CHECKS.filter(([name]) => only.has(name)) : ALL_CHECKS;
 
 /**
+ * How long the probe below gives the server to answer at all. See its comment for the bound, and
+ * `Runner.ProbeTimeoutMs`, which is the same figure for the same reason.
+ */
+const PROBE_TIMEOUT_MS = 10000;
+
+/**
+ * Whether the server this run is driving has stopped answering — **measured, not inferred from
+ * the wording of an exception**.
+ *
+ * **The class this replaces is what CI run 34040527190 reported.** `wrangler pages dev` died four
+ * seconds into a drive; the check that was running reported a 45-second render timeout as its own
+ * `[OUTCOME]`, and the seven after it each reported `net::ERR_CONNECTION_REFUSED` as its own
+ * finding. Eight verdicts about eight checks, none of them about the one thing that had happened.
+ *
+ * **A string match on the error would be the third denylist this repository has been burnt by.**
+ * `net::ERR_CONNECTION_REFUSED` is one of a dozen spellings a dead server can produce — reset,
+ * empty response, a socket that hangs — and a render timeout, which is how the *first* check saw
+ * it, contains none of them. So this asks the server directly instead: one request from Node, and
+ * a refused connection is a fact about the world rather than a guess about a message.
+ *
+ * **An answer counts, whatever it says.** A 500, a redirect, a slow but arriving response — all of
+ * those are a server that is still there and a check that is entitled to its own verdict.
+ * Narrowing it that way is what keeps a twin's honest red from being relabelled: the whole point
+ * of a twin is a check failing while the server is perfectly alive, and `boot-app-never-mounts`
+ * serves `/` perfectly well while never mounting the app.
+ *
+ * **No answer at all counts too, and leaving it out was the half of this that CI has not yet
+ * billed us for.** `docs/guide/testing.md` records the state in as many words: a `workerd` that
+ * has died under a live `wrangler pages dev` does not refuse connections — wrangler keeps the port
+ * and **answers by hanging for ever**, which is why readiness here is the served body rather than
+ * the status code. Against that server every check below spends its full navigation timeout and
+ * reports it as its own `[OUTCOME]`, which is precisely the reporting run 34040527190 was fixed
+ * for, arrived at by the other road. So a probe that does not come back within
+ * `PROBE_TIMEOUT_MS` is a server that has stopped answering, in the plain meaning of the sentence.
+ *
+ * **The bound is what keeps that honest.** Ten seconds for a `GET /` off a local static server
+ * that has already served this run — the measured cost is milliseconds — so it separates "hung"
+ * from "loaded" with three orders of magnitude in hand. And it is only ever asked after a check
+ * has already failed: a site that cannot serve its front page in ten seconds has no verdict worth
+ * reading anyway.
+ *
+ * **`tests/e2e/Runner.cs` classifies identically, deliberately.** Both drivers print the same
+ * sentence for the same fact, including the POSIX spelling of the socket error, because `e2e.sh`
+ * reads both with one `grep` and a reader compares two runs by eye.
+ */
+async function serverStoppedAnswering() {
+    try {
+        await fetch(`${base}/`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+        return null;
+    } catch (error) {
+        // `fetch` wraps the real reason; `cause.code` is where Node puts `ECONNREFUSED`, and
+        // `AbortSignal.timeout` arrives as a `TimeoutError` either directly or as the cause.
+        const code = error?.cause?.code ?? error?.code ?? '';
+        if (code === 'ECONNREFUSED' || code === 'ECONNRESET') return `${base}/ answered ${code}`;
+
+        const name = error?.name ?? error?.cause?.name ?? '';
+        if (name === 'TimeoutError' || name === 'AbortError') {
+            return `${base}/ did not answer within ${PROBE_TIMEOUT_MS}ms`;
+        }
+
+        return null;
+    }
+}
+
+/**
  * Run one check and print its verdict.
  *
  * **A check that throws says FAIL rather than ending the run**, for the same reason the proof
  * harnesses' twins must *say* FAIL rather than merely fail to say PASS: scripts/e2e.sh drives a
  * deliberately-broken twin of this site and requires the named check to be red there, and a
  * harness that died on the way would leave that line absent — which is not a verdict.
+ *
+ * **Three kinds now, and the third is the driver rather than the site.** `[HARNESS]` is what the
+ * Playwright driver has always minted for its own bugs, and `scripts/e2e.sh` refuses to count one
+ * as a working negative control — a twin whose only red verdict is a `[HARNESS]` one has not been
+ * watched to fail for the reason it claims. A server that has gone away is exactly that: nothing
+ * it produces says anything about whether this check can see its defect.
+ *
+ * Returns `'pass'`, `'fail'`, or `'server-gone'`.
  */
 async function run(name, check, page) {
     const started = Date.now();
 
     try {
         const detail = await check(page);
-        console.log(`E2E CHECK ${name}: PASS — ${detail} (${Date.now() - started}ms)`);
-        return true;
+        say(`E2E CHECK ${name}: PASS — ${detail} (${Date.now() - started}ms)`);
+        return 'pass';
     } catch (error) {
+        const gone = await serverStoppedAnswering();
+
+        if (gone) {
+            say(`E2E CHECK ${name}: FAIL — [HARNESS] the server stopped answering `
+                + `(${gone}), so this verdict is about the server and not about ${name}. `
+                + `What the check saw first: ${error?.message} (${Date.now() - started}ms)`);
+            return 'server-gone';
+        }
+
         const kind = error instanceof ControlFailed ? 'CONTROL' : 'OUTCOME';
-        console.log(`E2E CHECK ${name}: FAIL — [${kind}] ${error.message} (${Date.now() - started}ms)`);
-        return false;
+        say(`E2E CHECK ${name}: FAIL — [${kind}] ${error?.message} (${Date.now() - started}ms)`);
+        return 'fail';
     }
 }
 
 const { page, close } = await launch({});
 
 let passed = 0;
+let ran = 0;
+let notRun = [];
 
 try {
     await page.send('Page.addScriptToEvaluateOnNewDocument', { source: RECORDER });
 
-    for (const [name, check] of CHECKS) {
+    for (let i = 0; i < CHECKS.length; i++) {
+        const [name, check] = CHECKS[i];
+
         // Each check starts from a page it navigated to itself, and reads only what the
         // application put there. State left behind by an earlier check is deliberate — a browser
         // a person has used is not a fresh one — and no check depends on another having run.
-        if (await run(name, check, page)) passed++;
+        const verdict = await run(name, check, page);
+
+        ran++;
+        if (verdict === 'pass') passed++;
 
         // Console noise is per-check: an error logged while the boot check ran must not be
         // reported by the palette check three minutes later.
         page.exceptions.length = 0;
         page.consoleErrors.length = 0;
+
+        // **Stopping is the honest answer, and it is not only about time.** Every check below
+        // would navigate to a server that is not there, fail on the first request, and print a
+        // verdict that reads as a finding about itself. `NOT RUN` is neither a pass nor a fail;
+        // the summary line counts what ran, so the figures cannot quietly describe a suite that
+        // did not happen.
+        if (verdict === 'server-gone') {
+            notRun = CHECKS.slice(i + 1).map(([rest]) => rest);
+            break;
+        }
     }
 } finally {
     await close();
     await sleep(50);
 }
 
-console.log(`E2E RAN ${CHECKS.length} CHECKS, ${passed} PASSED`);
+for (const name of notRun) {
+    say(`E2E CHECK ${name}: NOT RUN — the server stopped answering before this check`);
+}
+
+say(`E2E RAN ${ran} CHECKS, ${passed} PASSED`);
 process.exit(passed === CHECKS.length ? 0 : 1);

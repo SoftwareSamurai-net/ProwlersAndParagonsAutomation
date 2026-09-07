@@ -41,4 +41,21 @@
         <ProjectReference Include="..\..\web\ProwlersAndParagons.Web.csproj" />
     </ItemGroup>
 
+    <!-- The scanning-regex factory, shared with the engine suite rather than copied into it.
+
+         **A <Compile Include> here and a project in mcp-shared/ is not an inconsistency.** That
+         csproj rejects file linking for a measurable reason: compiling one file into two
+         assemblies puts the same type name in both, and a project referencing both then cannot
+         use the name unqualified — CS0433. Nothing references both test projects, and nothing
+         can: they are the two leaves of the build. So the objection does not apply here, and a
+         link costs an ItemGroup where a project would cost a csproj and a solution entry.
+
+         It is shared rather than duplicated because the rule it carries — a scan gets the
+         linear engine, never a five-second wall clock — is one this repository has already
+         broken once, and a second copy is how the second copy drifts back. -->
+    <ItemGroup>
+        <Compile Include="..\ProwlersAndParagonsAutomation.Tests\ScanRegex.cs"
+                 Link="ScanRegex.cs" />
+    </ItemGroup>
+
 </Project>

@@ -64,7 +64,7 @@ public static class PrebuiltHeroSheets
         Build(rules, derived, hero, PrebuiltHeroes.BuildByHero[hero.Name].Package);
 
     /// <summary>
-    /// Overload used only by <see cref="NoOtherPackageLandsAnyOfTheFourUnclosedHeroesOnExactly125"/>
+    /// Overload used only by <see cref="PrebuiltHeroTests.NoOtherPackageLandsAnyOfTheThreeUnclosedHeroesOnExactly125"/>
     /// to rebuild a Hero under a package other than the one recorded against them, so that test can
     /// sweep every package rather than trusting the one <see cref="PrebuiltHeroes.BuildByHero"/>
     /// already picked as closest.

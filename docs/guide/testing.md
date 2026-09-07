@@ -19,9 +19,11 @@ Read before adding a test, changing a guard, running Qodana, or touching the pix
 
   **`linked_ability` on a Talent is the exception, and it is this project's own invention.** The rulebook prints **no Talent→Ability table at all**; the only explicit pairing anywhere in Ch.1–2 is Covert : Agility on p.17, via the half-Agility substitution rule. The other eleven values have been in `data/rules/talents.json` unsourced since the first commit and are used only to group Talents under an Ability heading in the CLI and the browser — no cost, no rank, no validity depends on one. They are pinned as a **regression snapshot**, and the transcription file says so per entry rather than carrying invented page citations. Do not add a `source_ref` to them and do not let a later reader mistake them for transcribed values.
 - `PrebuiltHeroes.cs` transcribes the 20 published Heroes from Ch.8 and `PrebuiltHeroTests` rebuilds each one, asserting the printed Edge, Health and Resolve. Same rule applies: those numbers are the authors', not ours. They are the only tests that check the rules as *applied* rather than as transcribed, so a failure there usually means a rule was misread, not that a number is stale.
-- **16 of the 20 Heroes rebuild to exactly 125 Hero Points** and are asserted as such. The other four are held at a recorded residual in `PrebuiltHeroes.BuildByHero`, none more than 1 HP out **as modelled** — Shadow's printed Gear box carries a Silenced pair his transcription does not, which would put him at +2, so the bound is a fact about what is counted rather than about the authors' arithmetic. Do not tune an ambiguous variant just to force one of those to zero — that is fitting the model to the answer. Fix the underlying gap instead.
+- **17 of the 20 Heroes rebuild to exactly 125 Hero Points**, and each of the seventeen is named on `HeroRebuildsToExactly125`. **That roster and the residuals in `BuildByHero` are two statements of one fact, and `TheExactHeroListNamesEveryHeroRecordedExact` is what makes them agree.** A count and a list cannot check each other: Herald (Airmid) sat recorded at a residual of 0 with no `InlineData` case rebuilding her, so `MostHeroesReconcileExactly` counted seventeen while sixteen were being rebuilt one by one, and nothing went red because neither list was derived from the other. It is the quiet form of a check that stops running. The other three are held at a recorded residual in `PrebuiltHeroes.BuildByHero`, none more than 1 HP out **as modelled** — Shadow's printed Gear box carries a Silenced pair his transcription does not, which would put him at +2, so the bound is a fact about what is counted rather than about the authors' arithmetic. Do not tune an ambiguous variant just to force one of those to zero — that is fitting the model to the answer. Fix the underlying gap instead.
+
+  **T-Kay is the one Hero whose grade was decided rather than derived, and the distinction is the whole of why it is not the tuning the rule above forbids.** Her sheet prints `Lightning Reflexes (Limited: only for Telekinesis)` with no grade, and the rulebook prints no rule mapping a restriction onto one of the three. The owner ruled it *somewhat limited* on 2026-09-06, and she closes at 125 as a consequence. **A ruling is a person deciding an ambiguity the book left open; tuning is choosing the reading that makes a total come out.** Nobody may promote a residual into a ruling on their own — take it to the owner, or leave it recorded.
 - **`EveryPublishedHeroIsALegalCharacter` asks the one question the rest of that file does not: would this tool accept the character the authors printed?** Nothing did until it existed, and two rules were wrong because of it — Blastwave came back with four `DUPLICATE_PRO` errors and T-Kay with `PRO_NOT_APPLICABLE` on the Zone Pro printed on her sheet, so two Heroes in the rulebook could not be built here. The budget exemption is keyed to the residual recorded for each Hero, so a Hero who starts costing the wrong amount fails the residual test rather than being excused. A cost test and a legality test are different questions; keep both.
-- The package each Hero used is inferred, not printed. `ExactlyOnePackageLandsAnExactHeroOn125` re-runs that inference and asserts exactly one package fits each exact Hero, so the attribution cannot quietly become a convenient guess; for the other four it is the closest fit. Vector is why that test exists — his package was recorded as Superhero on a closest-fit basis while his Deflection was underpriced, and correcting the Power made Hero the only fit.
+- The package each Hero used is inferred, not printed. `ExactlyOnePackageLandsAnExactHeroOn125` re-runs that inference and asserts exactly one package fits each exact Hero, so the attribution cannot quietly become a convenient guess; for the other three it is the closest fit. Vector is why that test exists — his package was recorded as Superhero on a closest-fit basis while his Deflection was underpriced, and correcting the Power made Hero the only fit.
 
 The root `.csproj` sits at the repository root, so it carries a `<Compile Remove="…" />` for every sibling project directory; without them the default `**/*.cs` glob pulls their sources into the CLI. Shared build settings — target framework, nullability, the analyzer contract — live in `Directory.Build.props`, so the seven projects in the solution — the CLI at the root, `engine`, `sheets`, `web`, `mcp` and the two test projects — cannot drift into different strictness.
 
@@ -179,7 +181,7 @@ commits is `git worktree add` and a second run.
 
 ## Two test projects, and the difference between them
 
-- **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written, and `HeadlessBuildTests`, which drives the `build` command end to end, and the three `Mcp*Tests`, which drive the MCP server over a pair of pipes. **The wizard itself still has no harness** — that is the CLI gap, and it is narrower than it was rather than closed.
+- **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written, and `HeadlessBuildTests`, which drives the `build` command end to end, and the seven `Mcp*Tests`, two of which — `McpServerTests` and `McpPlayServerTests` — drive a server over a pair of pipes, through the one helper described further down. **The wizard itself still has no harness** — that is the CLI gap, and it is narrower than it was rather than closed.
 - **`tests/ProwlersAndParagons.Web.Tests`** — bUnit. It *renders components* and asserts on the output, and it is the only project that may reference `web/`.
 
 **The split is the point.** A source-reading test cannot see a bug in rendered output, and one duly shipped: Razor swallowed the space in `@name` + `<text> @(rank)d</text>` and the sheet printed **"Armor8d"**. It was fixed on the sheet and the same bug in a second spelling survived on the Powers tab for another whole slice, because no source file looks wrong. Anything about what a component *produces* belongs in the bUnit project; anything about how the source is *written* belongs in the other.
@@ -219,7 +221,34 @@ Both halves of the old instrument depended on a wall clock, and neither dependen
 
 **The rule this leaves behind is bigger than the palette**: an instrument built to remove a timing dependence must not have one of its own. A sleep is a guess about how long the code under it takes, and a stopwatch assertion is a guess about how busy the machine is; both are the thing being tested for, moved into the test. Where a gate will do — a `ManualResetEventSlim`, a `TaskCompletionSource`, `Commands.Pausing` — use the gate.
 
+**A source-scanning regex gets the linear engine, never a wall-clock timeout — build it with `ScanRegex.Build`.** Both projects used to spell every scan `new Regex(pattern, options, TimeSpan.FromSeconds(5))`, and a full run on a ten-core machine at load average ~176 lost `AccountsContractTests.NoKeyOrTokenIsInTheRepository` to a `RegexMatchTimeoutException` — a credential scan reporting a bad tree when what was wrong was the scheduler. **The cap was the smaller half of the problem.** Sweeping all 212 pattern literals in the two projects against the files they really read found three that are super-linear on realistic input: the credential pattern is *quadratic* in the length of any unbroken run of token characters (64k costs 1.9s idle and 128k throws at five seconds with no load at all, so one minified bundle or base64 blob committed under `web/` would break it on an idle laptop), and `WebPresentationTests`' two `([^{}]+)\{…\}` stylesheet scanners cost ~640ms each over the real CSS, because the unanchored leading class re-scans every brace block for a declaration that is almost never in it. `RegexOptions.NonBacktracking` makes match time linear — the two stylesheet scanners drop to under 1ms with byte-identical results, captures included — and with no runaway left to catch, the timeout is `Regex.InfiniteMatchTimeout`, because the only thing a cap can still do to a linear matcher is turn a busy runner into a false verdict, and **a guard that flakes is a guard that gets retried past**. A pattern needing a lookaround, a backreference or an atomic group falls back to backtracking under a 60-second hang detector; that refusal happens at *construction*, so nothing slides quietly back to exponential. Three traps if you touch this. A lookaround silently costs the linear guarantee, so prefer a formulation without one. **A fallback that swallowed everything would look exactly like a fix**, which is why `ScanRegexTests` asserts the engine rather than the answer — forcing `Build` to always fall back was watched turning it red, and a theory walks every construct the linear engine refuses to prove the fallback is actually reached rather than throwing. And **`Group.Captures` is the one thing the two engines disagree about**: the linear engine keeps only the last capture of a quantified group. Both engines were run over all 206 linear patterns against every file they scan — 61,594 comparisons — and match count, span, group value, group index and `Replace` output are identical, so "byte-identical" is true of everything a caller here reads; nothing reads `Captures`, and a test pins the difference so the first one to try finds an assertion rather than a wrong answer.
+
+**Do not put a wall clock in the control either, which is the trap this paragraph originally fell into.** The first version of the linearity control timed `Build` plus one match against five seconds, on the stated grounds that the true cost was "under a millisecond". It is not: the timed region includes building the matcher, which costs about fifty times the match — 23ms idle, 39ms under 30-way load, and **528–756ms under the ~176 load average that produced the original sighting**. A 6.6x margin, on the exact machine state that had already broken this repository once. The control now keeps its only clock on the side that must *fail*: the backtracking twin of the pattern must not finish the blob inside a one-second cap, which load can only make more certain. Finding this also cost the blob: word-boundary anchors on the credential pattern mean the engine starts an attempt only at a boundary, so a solid 192k run of token characters has one start instead of 192,000 and drops from 13.7s to 23ms — the control went red saying its input had stopped being pathological. It is an alternating `A-` run now, which stays quadratic at 15.9s because `-` is in the character class and is not a word character. **An anchor removes one blowup shape; only the engine removes the class.**
+
+**And the scan's corpus is part of the guard, not scenery.** `NoKeyOrTokenIsInTheRepository` read `worker/*.js` and `web/**/*.cs` — not `functions/`, which is the other half of the account server; not one of the 62 `.razor` files under `web/`; not `scripts/probe-mail.mjs`, which sends mail with the owner's own credentials; and not `tests/`, so a key in a fixture was invisible to the guard whose subject is keys in files. It now reads all of them, 6.47MB in ~66ms — **which is the engine change cashed in, because under backtracking that sweep is the thing that timed out**. A wall-clock cap does not merely flake; it prices you out of scanning your own repository. Exclusions are on what was *matched*, never on which file it was in: skipping a file is a standing permission to commit a key into it.
+
 bUnit pulls AngleSharp transitively at a version carrying a published advisory, so `web/`'s test project pins AngleSharp forward. Do not suppress NU1902 instead — see the comment in its csproj.
+
+
+## The in-process MCP server has one clean shutdown, and it is end of input
+
+**The sibling of the bUnit dispatch trap above, in the other test project.** `McpServerTests` and `McpPlayServerTests` each stand a real MCP server up over a pair of `Pipe`s and drive a real client at it, and both go through **one** helper — `InProcessMcpServer.Drive`. Read its comment before touching the teardown; what follows is the short version.
+
+**The trap.** `ModelContextProtocol.Core` 2.2.0 — the pinned version, `6fa3825` — has exactly one shutdown its `StreamServerTransport` treats as clean, and it is **end of input**: the read loop reads a null line, breaks, and calls `SetDisconnected(null)`, which completes the transport's message channel with no error, so `McpSessionHandler.ProcessMessagesCoreAsync`'s `await foreach` ends normally and `McpServerImpl.RunAsync` returns.
+
+**Disposing the transport instead is a race.** `StreamServerTransport.DisposeAsync` cancels its shutdown token and then, four lines later, disposes the input reader — which completes the `PipeReader` under it. A completed reader raises `InvalidOperationException: Reading is not allowed after reader was completed` both from `Pipe.ReadAsync`'s entry check, which runs *before* the cancellation token is looked at, and from `Pipe.AdvanceReader`, which is where a read already in flight lands when it comes back. Whichever of the two arrives first decides whether the loop comes out with an `OperationCanceledException` the transport calls clean or with that one, which it hands to `SetDisconnected(error)`. A faulted channel faults `ProcessMessagesCoreAsync` — it catches `OperationCanceledException` and nothing else — which faults `RunAsync`, which is a red test in a run where nothing was wrong. Run `34040527190` lost that race on a **docs-only** branch, minutes after the identical tree passed on `main`.
+
+**So the order the helper has to keep is:** dispose the client, **complete the client's writer**, wait a bounded time for `RunAsync` to end *on its own*, and only then dispose the transport and the server. The client cannot send that end-of-input itself — `StreamClientSessionTransport.CleanupAsync` cancels its own token and waits for its own read task and never disposes the streams it was handed — so the harness owns the pipe and completes the writer.
+
+**A narrow `catch (InvalidOperationException)` is the wrong fix**, for the reason `CLAUDE.md` gives about denylists: it swallows one spelling and leaves the race under it. The ordering removes the race; nothing completes the reader while the loop is still live.
+
+**One helper, because there were two.** Both classes carried the same code under different names, which is the shape a fix lands in one of and not the other. There is no third: `McpStdioTests`, `McpPlayStdioTests`, `McpQuestionPolicyTests`, `McpPlayPolicyTests` and `McpSetupDocumentationTests` read source or spawn a process and never stand a transport up.
+
+**The positive control is the bounded wait**, not the assertion that reads like one. Every assertion in either class is otherwise satisfied by a helper that leaks a server task per test, which is a slow suite rather than a failing one — so `ShutDown` gives the run `EndsWithin` to end on its own, and one that never ends is a `TimeoutException` and a red test. The `Assert.True(running.IsCompletedSuccessfully)` after it is a restatement rather than a second check: `WaitAsync` has already thrown for both of the ways it could be false, so deleting the line leaves the EOF-removal control red in exactly the same place. **And the bound is per call**, with 77 tests going through it: a shutdown that stops working everywhere costs about 38 minutes rather than hanging the job outright, which is the trade the number is making.
+
+**Nothing in the teardown may escape it, and that is wider than the run.** Its complaints are raised only when the body itself was happy, so a harness fault can never be what a failing test reports — this repository has a written history of reading one as the other. That holds only because *every* step is caught and handed back, disposals included: `ShutDown` runs inside the caller's `finally`, so anything thrown in there replaces the body's own exception on the way out. Measured against the version that caught only the wait — with `client.DisposeAsync()` made to throw, a test whose body failed its own assertion reported the teardown's exception instead. With every step caught, the same mutation leaves the body's failure intact **and** turns a *passing* body red with the teardown's own message. Both directions were run; a step skipped after an earlier one failed would be the next hole, so each is attempted and the first failure is the one reported.
+
+**What was measured, including what would not reproduce.** The race did not fire locally at all: 30 runs of the two classes on a machine at load ~165, four concurrent 10-run loops on top of that, and **32,000 in-process old-teardown cycles at 64-way concurrency** — 0 occurrences, and the old order stays green 10 runs out of 10. That is the honest reading of why it was invisible until CI hit it, and it is why the mutation that proves the fix is **not** the old order. **Break it by completing the reader out from under the live loop** — one line in `Drive`, `await toServer.Reader.CompleteAsync()` before the shutdown — and 77 of the 206 tests in those two classes go red, every one carrying the sighting's own inner stack: `ThrowInvalidOperationException_NoReadingAllowed` → `Pipe.AdvanceReader` → `PipeReaderStream.HandleReadResult` → `StreamReader.ReadLineAsyncInternal` → `StreamServerTransport.ReadMessagesAsync` → `ProcessMessagesCoreAsync` → `McpServerImpl.RunAsync`.
 
 
 ## The pixel diff, and why the goldens are the fragile part
@@ -408,7 +437,12 @@ and it is what a reader debugging a failed sign-in needs. And `start_server`'s f
 `/signin?t=<raw token>`, so the tail pasted into a CI log, an issue or a chat window carried the
 secret with it. `scripts/test-kill-tree.sh` drives the redactor, positive control first — an
 ordinary line survives, and the fixture really did carry a token — because "no token in the output"
-is satisfied perfectly by a redactor that printed nothing.
+is satisfied perfectly by a redactor that printed nothing. **The drivers obey the same rule, and did
+not until run 34040527190 printed three raw tokens into a public CI log**: Playwright's own
+`ERR_CONNECTION_REFUSED at http://…/signin?t=<token>` went straight into a verdict, because only
+the shell half of this harness had ever thought about it. Every `FAIL` message from either driver
+now goes through the same `[?&]t=` substitution — and is flattened to one line, because `e2e.sh`
+reads verdicts with `grep ^E2E CHECK` and Playwright appends a multi-line `Call log:`.
 
 **The seed lives in the shell, not in a driver, and the reasons are arithmetic.** Writing a row
 needs the pinned wrangler version, the database id out of `d1/wrangler.toml`, the `--persist-to`
@@ -565,8 +599,9 @@ against a pre-built site.
 ### Proving `kill_tree`, and why a green run was never evidence about it
 
 ```bash
-./scripts/test-kill-tree.sh                  # seven checks: the parses, three trees, the
-                                             # orphan backstop, the log redactor; ~11s
+./scripts/test-kill-tree.sh                  # eight checks: the parses, three trees, the orphan
+                                             # backstop, the log redactor, the server-state
+                                             # reading and its bound; ~13s
 ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic ones only. NOT a full run
 ```
 
@@ -692,6 +727,110 @@ could act on; `::error::` and `::warning::` both carry the holder's pid and cmdl
 that fails this way is diagnostic on its own. **What would disprove the fix is a `WRANGLER_TREE` or
 `ORPHANED_LISTENER: FAIL` naming a surviving pid — not another green run**, for the reason this
 whole section opens with.
+
+### What a failed run prints, and the one thing it used to leave out
+
+A failing drive prints, in this order: every verdict the driver reached; an `::error::` naming how
+many of how many checks failed; the names of any checks that **did not run**; one `::error::` line
+saying whether the server was **still alive, already dead (with its exit status), or gone** when
+the drive ended, and whether anything was still listening on its port; and the last forty lines of
+that server's own log, with `[?&]t=` values redacted.
+
+**That reading is bounded and cannot hang.** `capture_server_state` takes the exit status from
+`wait`, and `wait` on a live child blocks until that child exits — so a *wrong* aliveness reading
+does not make it say the wrong thing, it makes it say nothing, for ever. Measured before the bound
+existed: inverting the test turned `./scripts/test-kill-tree.sh` into an eleven-minute hang, which
+no CI log distinguishes from a broken runner. The reading is now a seam, `server_is_live`, and the
+dead branch confirms it with a bounded poll before `wait` is allowed to run; when the two disagree
+the state reads `UNREADABLE` and says so, because a harness that invents an exit status for a
+running process is worse than one that admits it has none.
+
+**The last two were missing, and CI run `34040527190` is what that cost.** `wrangler pages dev`
+died four seconds into a nine-check drive. `A11Y` reported a 45-second wait on `/build`, the seven
+checks after it each reported `net::ERR_CONNECTION_REFUSED` as if it were their own finding, and
+the script printed the verdicts, called `stop_server`, and said nothing about the server — so the
+run's whole evidence for a dead server was eight red lines that look identical to eight broken
+checks.
+
+**The ordering is the fix, not the printing.** `capture_server_state` runs *before* `stop_server`,
+at the moment the drive returns and whatever the verdicts were, because afterwards there is
+nothing left to ask: the tree is killed and the port released. `say_server_state` then prints it on
+every failure arm — the 300-second timeout, a missing summary line, zero checks, a failed check,
+and each of the four ways a twin can fail. The asymmetry it removes is that `start_server`'s two
+arms have quoted a `redacted_tail` since the day they were written, because a server that never
+comes up is obviously a server question; a server that comes up and then dies is the same question
+and nothing asked it.
+
+**Both halves are driven by `scripts/test-kill-tree.sh`'s `SERVER_STATE` case**, positive control
+first: a live, bound fixture has to read as alive before a `SIGKILL`ed one is allowed to read as
+`ALREADY DEAD … exit status 137`, and the two readings have to differ — which a constant cannot
+do. Watched red four ways: reporting alive unconditionally, dropping the exit status, swapping
+`redacted_tail` for `tail` (the fixture log carries a token), and printing no log at all.
+
+**A fifth stage drives the reading being wrong**, which is the one thing the four above cannot
+reach: a helper in a shell of its own — bash blocks in `wait` only for *its own* children, so a
+subshell asking about somebody else's returns 127 at once and would prove nothing — replaces
+`server_is_live` with one that says *gone* about a process that is running, and the case requires
+an answer within seconds. Its control is that the helper really did have a live child to block on.
+Watched red two ways: with the bound removed and with the bound made too long to be one.
+
+**What the shape of that failure already rules out, so the next reader does not start from
+nothing.** A `workerd` that has died under a live wrangler does **not** produce refused
+connections: wrangler keeps the port and answers by hanging for ever (which is why readiness is
+the served body — see below), and miniflare respawns a crashed `workerd` and rebinds the same port
+within a second, measured here from run `33949251306`. Run 34040527190 got a document for
+`/build`, then nothing, then a connection *refused* within 18ms on the next check and on every one
+after it — so the listener was gone and stayed gone, which is the supervisor process itself
+exiting or being killed rather than its worker crashing. The two candidates left are an OOM kill
+and wrangler exiting on an error, and they are told apart by exactly the two things that were
+missing: the wrapper's exit status (137 is a signal; the OOM killer leaves that one) and the last
+lines of its log. Nothing about the check that was running is implicated, and that is measured
+rather than assumed. The run on `main` minutes earlier passed the same `A11Y` check in 52,775ms
+for the same 560 passing rule instances — about 3.3 seconds a scan — and the failing run reached
+its *second* address 5.4 seconds in, which is that same rate. So the server was answering
+normally right up to the navigation it died on: it had already served the BOOT check, two more
+full page loads and an axe scan, and the node driver's own drive in the same job made about
+fifteen navigations against an identically-configured server without trouble. There is no
+degradation before the death to attribute it to.
+
+**A check that did not run is not a failure, and the figures say so.** Both drivers stop when the
+server stops answering rather than driving the rest into a refused connection each, and print
+`E2E CHECK <NAME>: NOT RUN` for what is left. `E2E RAN n CHECKS, m PASSED` counts only the ones
+that ran, so `n` shrinking is the shape of this failure; `e2e.sh` prints the `NOT RUN` names beside
+its own count so the two figures cannot be added into a suite that is quietly smaller.
+
+**A green run says it too, and that arm was the last silent one.** "All n checks passed" and "all n
+checks passed and the server was already dead when the last verdict was printed" used to be the
+same four words. It is a `::warning::` and not an `::error::` — every verdict printed stands, and a
+check that could not reach the server does not pass, so failing the run on it would be a claim
+about those verdicts that nothing has measured — but it arrives before the twins start failing to
+reach servers of their own.
+
+**And "stopped answering" includes the server that answers by hanging, which is the shape this
+harness should expect first.** The paragraph above records it: a `workerd` that has died under a
+live `wrangler pages dev` does not refuse connections, it holds the port and hangs. Against that
+server the first version of this reporting was no better than what it replaced — the probe counted
+only `ECONNREFUSED` and `ECONNRESET`, so every check spent its full 30-second navigation timeout
+and reported the dead server as its own `[OUTCOME]`. **The node driver did not even get that far**:
+`cdp.mjs` awaited `Page.navigate` before the load event, Chrome does not answer `Page.navigate`
+until a navigation commits, and the load wait therefore rejected with nothing awaiting it yet — an
+unhandled rejection, which Node answers by printing a stack and exiting. No verdict, no summary
+line, nothing for `e2e.sh` to read. Measured against a socket that accepts and never answers, at
+exactly 30 seconds.
+
+So: **an answer counts whatever it says** — a 500, a redirect, `boot-app-never-mounts` serving `/`
+perfectly while never mounting the app — and **no answer within ten seconds counts as stopped**.
+The bound is three orders of magnitude above a local static server's measured cost for `GET /`, and
+it is only ever asked after a check has already failed. Both drivers classify identically and print
+the same sentence, the POSIX spelling of the socket error included, because `e2e.sh` reads them
+with one `grep` and a reader compares two runs by eye.
+
+**Every verdict goes through one redaction point in each driver, whole line.** The first version
+wrapped `error.message` and interpolated the probe's own answer beside it raw, so a driver pointed
+at a base URL carrying a token printed `&t=<redacted>` in the half somebody had remembered and the
+token in full in the half they had not — one line, one verdict, the same shape as the leak the rule
+was written for. Green verdicts and `NOT RUN` lines go through it too: "only the red half is
+cleaned" is a rule that holds exactly until something passes.
 
 ### Three things about the server, each of which cost a debugging round
 

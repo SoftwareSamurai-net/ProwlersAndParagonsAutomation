@@ -186,9 +186,17 @@ needs extracting; what is missing is that no front end prints the word beside th
 
 ## T-Kay, parsed line by line (printed p.143)
 
-Done because she is one of the four Heroes that do not reconcile, and the residual survived a
+Done while she was one of the four Heroes that did not reconcile, and the residual survived a
 per-element cost check. **Every printed element is transcribed faithfully** — checked against
 the page character by character:
+
+**She reconciles now, and nothing in this parse changed to make her.** Her sheet prints
+`Limited: only for Telekinesis` with no grade, and the rulebook prints no rule mapping a
+restriction onto one of its three; the owner ruled it *somewhat limited* (−1) on 2026-09-06,
+which takes her from 124 to exactly 125. **The cost breakdown below is not the pre-ruling one
+with a note attached — it is the post-ruling one, recomputed through `CostCalculator` element by
+element**, so the Lightning Reflexes line, the Powers subtotal and the grand total all moved. The
+transcription either side of it did not: no Power, rank, Pro, Perk or Flaw was touched.
 
 | Printed | In `PrebuiltHeroes` | |
 |---|---|---|
@@ -198,16 +206,23 @@ the page character by character:
 | `Determination (+2 Resolve)` | `DeterminationResolve: 2` | ✓ |
 | `Flight 8d` | 8 purchased, 1 HP/rank | ✓ |
 | `Force Field 12d (Zone)` | `pro:zone_nova:zone_ranged` | ✓ |
-| `Lightning Reflexes (Limited: only for Telekinesis)` | `con:limited:significantly_limited` | ✓ |
+| `Lightning Reflexes (Limited: only for Telekinesis)` | `con:limited:somewhat_limited` — the grade is the owner's ruling of 2026-09-06, not a printed value | ✓ |
 | `Telekinesis 12d (Area, Overload, Zone)` | `area_burst:area`, `overload`, `zone_nova:zone_ranged` | ✓ |
 | `Contacts (club music scene)` | `contacts` ×1 | ✓ |
 | `Aversion (crowds)`, `Relationship`, `Secret Identity` | `aversion_fear`, `relationship`, `secret_identity` | ✓ |
 | `Gear: None` | none | ✓ |
 | Health 6, Resolve 3, Hero Points 125 | reproduced by the engine | ✓ |
 
-Cost, element by element: package 50 + abilities 8 + talents 2 + powers 63 + perks 1 = **124**.
-Powers: Determination 10, Flight 8, Force Field 12+2, Lightning Reflexes 3−2 floored to 1,
+Cost, element by element: package 50 + abilities 8 + talents 2 + powers 64 + perks 1 = **125**.
+Powers: Determination 10, Flight 8, Force Field 12+2, **Lightning Reflexes 3−1 = 2**,
 Telekinesis 24+2+2+2. Every figure is what the rulebook prints for that element.
+
+That Lightning Reflexes line is the only one the ruling moves, and it is also why the two harsher
+readings were indistinguishable. Lightning Reflexes is a flat 3 HP unranked Power, so −2 takes it
+to 1 outright and −4 would take it to −1, which the 1 HP floor on an unranked Power holds at 1 —
+measured through `CostCalculator.PowerCost`, not reasoned about: 2, 1, 1 for the three grades.
+Only the mildest grade is visible in her total at all, which is a fact about the floor and was
+never an argument for the grade.
 
 ### Three gaps this parse found
 
@@ -220,8 +235,9 @@ None of them changes a cost, and none is a transcription fault.
    are 8 and 14, and this tool can print only one of them.
 2. **`SelectedProCon` has no narrative label, and here that hides the rule.** The sheet says
    `Limited: only for Telekinesis`; the engine can store `limited` and a grade, and nothing else.
-   So the words that *determine which grade is right* — the whole of the argument recorded in
-   `PROGRESS.md` item 1 — cannot be stored beside the Con they justify. This gap is already known
+   So the words the owner's ruling of 2026-09-06 was *about* — "only for Telekinesis", the whole
+   of what makes one grade right — cannot be stored beside the Con they justify, and the ruling
+   has to live in a comment in `PrebuiltHeroes` instead. This gap is already known
    from Stronghold's `(Item: armor)`, but that case loses flavour where this one loses reasoning.
    `SelectedPerk` and `SelectedFlaw` both carry a `NarrativeDetail`; `SelectedProCon` does not.
 3. **The transcription does not record the parentheticals either** — "crowds", "club music

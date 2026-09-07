@@ -181,19 +181,42 @@ class Page {
             `waited ${timeout}ms for ${what ?? expression}; last answer was ${JSON.stringify(last)}`);
     }
 
-    /** Go to a URL and wait for the document's load event. */
+    /**
+     * Go to a URL and wait for the document's load event.
+     *
+     * **The two promises are awaited together, and doing them in sequence killed the driver.**
+     * Chrome does not answer `Page.navigate` until the navigation commits, so against a server
+     * that accepts the connection and never replies — which is exactly what `wrangler pages dev`
+     * does once its `workerd` has died, and `docs/guide/testing.md` says so — `send` is still
+     * pending when the load wait lapses at `timeout`. A promise that rejects with nothing awaiting
+     * it *yet* is an unhandled rejection, and Node's default is to print a stack and exit: no
+     * verdict, no `E2E RAN` line, none of the `NOT RUN` names, nothing for `scripts/e2e.sh` to
+     * read but a missing summary. Measured against a socket that accepts and never answers, where
+     * this method took the whole driver out at exactly 30 seconds.
+     *
+     * The same shape is why the `errorText` throw no longer comes first. A refused connection
+     * answers `Page.navigate` in milliseconds, so the old code threw and left `loaded` dangling
+     * with a live 30-second timer on it — harmless only because the process happened to exit
+     * before the timer fired. `Promise.all` has a handler on both before either can settle, so
+     * neither can be the unhandled one, and whichever fails first is what the check reports.
+     */
     async goto(url, { timeout = 30000 } = {}) {
         const loaded = this.#once('Page.loadEventFired', timeout, `load of ${url}`);
-        const result = await this.send('Page.navigate', { url });
-        if (result.errorText) throw new Error(`navigation to ${url} failed: ${result.errorText}`);
-        await loaded;
+
+        const navigated = this.send('Page.navigate', { url }).then((result) => {
+            if (result.errorText) {
+                throw new Error(`navigation to ${url} failed: ${result.errorText}`);
+            }
+        });
+
+        await Promise.all([navigated, loaded]);
     }
 
-    /** Reload the current document and wait for its load event. */
+    /** Reload the current document and wait for its load event. See `goto` for the `Promise.all`. */
     async reload({ timeout = 30000 } = {}) {
         const loaded = this.#once('Page.loadEventFired', timeout, 'reload');
-        await this.send('Page.reload', { ignoreCache: false });
-        await loaded;
+
+        await Promise.all([this.send('Page.reload', { ignoreCache: false }), loaded]);
     }
 
     /**

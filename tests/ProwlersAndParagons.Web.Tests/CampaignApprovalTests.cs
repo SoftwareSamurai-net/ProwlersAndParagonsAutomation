@@ -8,6 +8,8 @@ using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Pages;
 using ProwlersAndParagonsAutomation.Sheets;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
@@ -1132,19 +1134,17 @@ public sealed class CampaignApprovalTests
     /// </summary>
     private static string VisibleText(string razor)
     {
-        var withoutComments = Regex.Replace(razor, @"@\*.*?\*@", " ",
-            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+        var withoutComments = ScanRegex.Build(@"@\*.*?\*@", RegexOptions.Singleline)
+            .Replace(razor, " ");
 
-        var block = Regex.Match(withoutComments, @"^[ \t]*@code\s*\{",
-            RegexOptions.Multiline, TimeSpan.FromSeconds(5));
+        var block = ScanRegex.Build(@"^[ \t]*@code\s*\{", RegexOptions.Multiline)
+            .Match(withoutComments);
 
         var markup = block.Success ? withoutComments[..block.Index] : withoutComments;
 
-        markup = Regex.Replace(markup, "<[^>]*>", " ", RegexOptions.None, TimeSpan.FromSeconds(5));
-        markup = Regex.Replace(markup, @"@\([^()]*(\([^()]*\))?[^()]*\)", " ",
-            RegexOptions.None, TimeSpan.FromSeconds(5));
-        markup = Regex.Replace(markup, @"@\w+(\.\w+)*(\([^()]*\))?", " ",
-            RegexOptions.None, TimeSpan.FromSeconds(5));
+        markup = ScanRegex.Build("<[^>]*>").Replace(markup, " ");
+        markup = ScanRegex.Build(@"@\([^()]*(\([^()]*\))?[^()]*\)").Replace(markup, " ");
+        markup = ScanRegex.Build(@"@\w+(\.\w+)*(\([^()]*\))?").Replace(markup, " ");
 
         return markup;
     }

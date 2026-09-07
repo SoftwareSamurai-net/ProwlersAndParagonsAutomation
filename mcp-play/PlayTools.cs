@@ -1129,7 +1129,14 @@ public sealed class PlayTools
                     Text(entry, "effect") is { Length: > 0 } effect ? effect : null,
                     Flag(entry, "all_out"),
                     Flag(entry, "charge"),
-                    Flag(entry, "area"));
+                    Flag(entry, "area"),
+                    // <b>p.79's team attack, and it was the one flag the reader did not have.</b>
+                    // PLAY-POLICY.md tells every conversation to send it; without this line it was
+                    // dropped on the floor, the entry's +2d never reached the pool, and
+                    // `spend_resolve` naming `team_attack` answered "was not a team attack" for
+                    // ever. The spelling guard over that document is scoped to tool arguments, and
+                    // the fields of an intent are not among them, so nothing disagreed.
+                    Flag(entry, "team"));
                 return true;
 
             case "move":
@@ -1151,7 +1158,9 @@ public sealed class PlayTools
 
             case "spend_resolve":
                 if (!TryReadEnum<ResolveSpend>(entry, "spend", null, out var spend, out problem)) return false;
-                read = new SpendResolve(actor, spend, Number(entry, "points") ?? 1);
+                read = new SpendResolve(
+                    actor, spend, Number(entry, "points") ?? 1,
+                    Text(entry, "target") is { Length: > 0 } lured ? lured.Trim() : null);
                 return true;
 
             case "spend_adversity":
@@ -1164,7 +1173,9 @@ public sealed class PlayTools
                     asResolve = named;
                 }
 
-                read = new SpendAdversity(actor, gm, Number(entry, "points") ?? 1, asResolve);
+                read = new SpendAdversity(
+                    actor, gm, Number(entry, "points") ?? 1, asResolve,
+                    Text(entry, "target") is { Length: > 0 } onto ? onto.Trim() : null);
                 return true;
 
             case "stabilise":

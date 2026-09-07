@@ -153,6 +153,32 @@
             {
                 @restored
             }
+            else if (Readopted is { } readopted)
+            {
+                @readopted
+            }
+            else if (Split)
+            {
+                @* **The app is pointed at a character it has not got, and this is the only place
+                   that says so.** Signing in and the app's own boot both empty the sheet when the
+                   account's character cannot be read, and neither moves the current-character
+                   pointer, because the character is still there. Nothing on screen distinguished
+                   that from having started a new one — so a reader was looking at an empty builder
+                   the app believed was their character.
+
+                   **Two ways out and no third**, because there is no edit that makes writing over
+                   an unread character safe: read it again, or go and open one. Both go through the
+                   store's own read, which is what ends the split — see `ApiCharacterStore.UnreadId`.
+
+                   **Under "not written" and over "Saved".** The refusal is about the write that
+                   just happened and says which character it was about; this is the standing state
+                   behind it. Neither may sit under "Saved", which would be the app reporting a
+                   write it is declining to make. *@
+                @(Retried ?? "Your character could not be loaded, so nothing is being written over"
+                             + " it. What is on screen has not been kept.")
+                <button type="button" class="btn small" @onclick="ReadAgain">Try again</button>
+                <a class="small" href="build/characters">All your characters</a>
+            }
             else if (JustSaved)
             {
                 <text>Saved</text>
@@ -573,6 +599,79 @@
 
     private string? _notWritten;
     private int _notWrittenAtVersion;
+
+    /// <summary>
+    /// Whether the character this browser has open could not be read into it — see
+    /// <see cref="AccountCharacterStore.UnreadId"/>.
+    ///
+    /// <para><b>Asked of the store on every render rather than latched from an event</b>, because
+    /// it is a standing state and not a moment: it begins before this layout exists — the app's
+    /// own boot restore is the commonest way in — and it ends whenever any read of that character
+    /// lands, including ones this component knows nothing about. A flag set by a notification
+    /// would miss both ends.</para>
+    ///
+    /// <para><b>Only for somebody signed in</b>, which is the one thing this has to check itself:
+    /// the browser's own store has no such state, so a stale id left over from an account is not
+    /// a sentence to show an anonymous reader.</para>
+    /// </summary>
+    private bool Split => _who?.IsSignedIn == true && Characters.UnreadId is { Length: > 0 };
+
+    /// <summary>
+    /// What the last press of "Try again" did, while it is still about the character on screen.
+    /// A retry that landed is <see cref="Readopted"/>; one that did not is said inside the offer
+    /// itself, so the two ways out do not disappear with the sentence explaining them.
+    /// </summary>
+    private string? Retried =>
+        _retried is not null && Session.Version == _retriedAtVersion ? _retried : null;
+
+    private string? _retried;
+    private int _retriedAtVersion;
+
+    /// <summary>
+    /// That the character behind the pointer arrived after all, and is what is on screen now.
+    ///
+    /// <para><b>Said out loud because the reader is being handed a different character than the
+    /// one they were looking at</b>, which is exactly the swap this region announces for a sample,
+    /// an import and a recording. Version-scoped like every other message here, so the first edit
+    /// to the character that came back clears it.</para>
+    /// </summary>
+    private string? Readopted =>
+        _readopted is not null && Session.Version == _readoptedAtVersion ? _readopted : null;
+
+    private string? _readopted;
+    private int _readoptedAtVersion;
+
+    /// <summary>
+    /// Read the character behind the pointer again, and put it on screen if it comes.
+    ///
+    /// <para><b><c>OpenAsync</c> rather than a bare read, for the reason the campaigns page's own
+    /// re-adopt gives</b>: this really is switching to a character — the app is about to act on it
+    /// and the reader is about to be shown it. The pointer is already on this id, so the move it
+    /// makes on the way past is a move to where it already is.</para>
+    ///
+    /// <para><b>Nothing is armed for undo.</b> What is on screen is a sheet the store has been
+    /// refusing to write, so there is no stored copy of it anywhere and nothing an undo could put
+    /// back — and an undo here restores into the sheet without moving the pointer, which is the
+    /// shape that writes a second copy of a kept character into somebody else's slot.</para>
+    /// </summary>
+    private async Task ReadAgain()
+    {
+        if (Characters.UnreadId is not { Length: > 0 } id) return;
+
+        if (await Characters.OpenAsync(id) is not { } theirs)
+        {
+            _retried = "It still could not be read. Nothing has been written over it.";
+            _retriedAtVersion = Session.Version;
+            return;
+        }
+
+        Session.Open(theirs.Sheet, theirs.Mode, id);
+
+        // After the open, not before it: that call rings the session's bell, so the version this
+        // sentence is scoped to is the one the character came back at.
+        _readopted = $"{SavedCharacters.LabelFor(theirs.Sheet)} is back on screen.";
+        _readoptedAtVersion = Session.Version;
+    }
 
     /// <summary>
     /// The store declined a write-through. Held here rather than on the store, because it is a
