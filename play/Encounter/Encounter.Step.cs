@@ -92,6 +92,10 @@ public sealed partial class Encounter
                 $"{actor.Name} has no rank in {attack.TraitId}, so there is no pool to throw");
         }
 
+        // p.75's cover, and the half of it that is a refusal rather than a penalty. First, because
+        // an attack that cannot be made is one nothing else about should happen to: no team attack
+        // recorded against the target, no defences halved by a charge, no dice thrown.
+        if (CoverRefused(state, actor, target, attack, lines) is { } hidden) return hidden;
         if (attack.Charge && ChargeRefused(state, actor, attack, lines) is { } refused) return refused;
         if (attack.Team && TeamAttackRefused(state, actor, target, lines) is { } spent) return spent;
 
@@ -377,9 +381,285 @@ public sealed partial class Encounter
             }
         }
 
+        // p.75's MODIFIERS, on the attacking half of the exchange: what is between the two of them,
+        // and what the light is like. Size is the defender's and is applied on the other side.
+        modifier += CoverPenalty(state, actor, attack, lines);
+        modifier += VisibilityPenalty(state, actor, state[attack.Target], "attack", lines);
+
         modifier += WoundPenalty(state, actor, lines);
 
         return modifier;
+    }
+
+
+    // ── p.75's three situational modifiers ────────────────────────────────
+
+    /// <summary>
+    /// The label a ledger line gives the cover's own durability when it answers an attack.
+    ///
+    /// <para>It is a name for a thing this engine has no catalogue of rather than a Trait id: there
+    /// is no scenery here, and the Structure is a number the caller supplied.</para>
+    /// </summary>
+    private const string CoversStructure = "the cover's Structure";
+
+    /// <summary>A signed count of dice, for a ledger line: <c>+2d</c>, <c>-1d</c>, <c>0d</c>.</summary>
+    private static string Dice(int dice) => dice > 0 ? $"+{dice}d" : $"{dice}d";
+
+    /// <summary>
+    /// One band of <c>modifier_cover</c>, by the word p.75 prints for it.
+    ///
+    /// <para><b>The dice are never typed here.</b> The band is found by its printed word and its
+    /// <c>dice</c> is whatever the file says; a band this engine names and the file has stopped
+    /// printing is a throw, because a modifier silently worth nothing is the shape of defect this
+    /// whole store exists to prevent.</para>
+    /// </summary>
+    private CombatBandModel CoverBand(Cover cover)
+    {
+        var entry = _play.GetCombat("modifier_cover");
+        var printed = PrintedCover(cover);
+
+        return entry.Cover!.Bands.SingleOrDefault(b =>
+                   string.Equals(b.Cover, printed, StringComparison.Ordinal))
+               ?? throw new InvalidOperationException(
+                   $"modifier_cover prints no band called '{printed}'. Its bands are "
+                   + string.Join(", ", entry.Cover.Bands.Select(b => b.Cover))
+                   + ", and this engine reads a band's dice off the file rather than carrying its "
+                   + "own copy of the table.");
+    }
+
+    /// <summary>One band of <c>modifier_visibility</c>, by the word p.75 prints for it.</summary>
+    private CombatBandModel VisibilityBand(Visibility visibility)
+    {
+        var entry = _play.GetCombat("modifier_visibility");
+        var printed = PrintedVisibility(visibility);
+
+        return entry.Visibility!.Bands.SingleOrDefault(b =>
+                   string.Equals(b.Visibility, printed, StringComparison.Ordinal))
+               ?? throw new InvalidOperationException(
+                   $"modifier_visibility prints no band called '{printed}'. Its bands are "
+                   + string.Join(", ", entry.Visibility.Bands.Select(b => b.Visibility))
+                   + ", and this engine reads a band's dice off the file rather than carrying its "
+                   + "own copy of the table.");
+    }
+
+    /// <summary>The word p.75 prints for a band of cover. <see cref="Cover.Complete"/> has none.</summary>
+    private static string PrintedCover(Cover cover) => cover switch
+    {
+        Cover.Light => "light",
+        Cover.Heavy => "heavy",
+        Cover.AlmostFull => "almost full",
+        var other => throw new ArgumentOutOfRangeException(
+            nameof(cover), other, "p.75's cover table prices three bands, and that is not one of them.")
+    };
+
+    /// <summary>The word p.75 prints for a band of visibility. <see cref="Visibility.Clear"/> has none.</summary>
+    private static string PrintedVisibility(Visibility visibility) => visibility switch
+    {
+        Visibility.Poor => "poor",
+        Visibility.None => "none",
+        var other => throw new ArgumentOutOfRangeException(
+            nameof(visibility), other, "p.75's visibility table prices two bands, and that is not one of them.")
+    };
+
+    /// <summary>
+    /// p.75's two refusals about cover, both taken before anything is rolled.
+    ///
+    /// <para><b>A completely hidden target cannot be hit</b> — <c>a_completely_hidden_target_cannot_be_hit</c>
+    /// — and the page's own way past that is to attack <em>through</em> the obstacle, which
+    /// <c>attacking_through_cover_requires</c> prices at an attack rank greater than the cover's
+    /// Structure. Declaring a Structure is the caller saying the shot goes through; without one
+    /// there is nothing to shoot at and nothing is thrown.</para>
+    ///
+    /// <para><b>The rank test is applied at every band and not only at the last one</b>, because
+    /// what it gates is the shot going through a solid thing, and a wall does not become permeable
+    /// because some of the target is sticking out from behind it. A caller who means to shoot at the
+    /// exposed part of a partly-covered target leaves the Structure out and pays the band alone;
+    /// this is the same field doing both jobs, and it is the declaration rather than a fact about
+    /// the wall. <c>docs/guide/play-engine.md</c> records the reading.</para>
+    /// </summary>
+    private EncounterState? CoverRefused(
+        EncounterState state, Combatant actor, Combatant target, Attack attack, List<LedgerLine> lines)
+    {
+        if (attack.Cover == Cover.None && attack.CoverStructure is null) return null;
+
+        var entry = _play.GetCombat("modifier_cover");
+        var rule = entry.Cover!;
+
+        if (attack.CoverStructure is not { } structure)
+        {
+            if (attack.Cover != Cover.Complete || !rule.ACompletelyHiddenTargetCannotBeHit) return null;
+
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{target.Name} is completely hidden behind cover, and p.75 says such a target "
+                + $"cannot be hit. The way through is to attack through the cover, which requires "
+                + $"{rule.AttackingThroughCoverRequires} — say what the cover's Structure is. "
+                + "Nothing was rolled.");
+        }
+
+        var rank = actor.Rank(attack.TraitId);
+
+        if (GetsThrough(rank, structure)) return null;
+
+        return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+            $"{actor.Name} attacks {target.Name} through cover of Structure {structure} with "
+            + $"{attack.TraitId} at rank {rank}d, and p.75 requires {rule.AttackingThroughCoverRequires}. "
+            + "Nothing was rolled.");
+    }
+
+    /// <summary>
+    /// <c>modifier_cover</c>'s band, on the attack roll.
+    ///
+    /// <para><b>Complete cover contributes nothing here on purpose.</b> The printed table stops at
+    /// "almost full"; what the page says about a target hidden altogether is that you cannot hit
+    /// one, which <see cref="CoverRefused"/> has already applied, and an attack that got past it is
+    /// one going through the obstacle rather than one shooting at a fraction of a target.</para>
+    /// </summary>
+    private int CoverPenalty(EncounterState state, Combatant actor, Attack attack, List<LedgerLine> lines)
+    {
+        if (attack.Cover is Cover.None or Cover.Complete) return 0;
+
+        var entry = _play.GetCombat("modifier_cover");
+        var band = CoverBand(attack.Cover);
+        var target = state[attack.Target];
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"cover affects {entry.Cover!.Affects}: {target.Name} has {band.Cover} cover, so "
+            + $"{actor.Name}'s attack is {Dice(band.Dice)}"));
+
+        return band.Dice;
+    }
+
+    /// <summary>
+    /// <c>modifier_size</c>, on the defender's active defence roll and on nothing else.
+    ///
+    /// <para><b>The factor is derived from two sizes and never taken as a band</b>: p.75's bands are
+    /// "at least twice your size" and "no more than one-fifth your size", which are comparisons, and
+    /// a caller handing over a pre-computed band would be handing over the answer. The dice are the
+    /// file's; what this method supplies is what the four English phrases mean as a comparison, in
+    /// the same shape as <c>seize_initiative_gm_alternative</c>'s "doubles" — a phrase the engine
+    /// requires to still be there and throws on if it is not.</para>
+    ///
+    /// <para><b>Where two bands both apply, the narrower one wins.</b> An attacker five times your
+    /// size is also twice your size, and the page plainly means the larger bonus; taking the band
+    /// with the greater magnitude is that, and it is recorded as a reading in the guide.</para>
+    /// </summary>
+    private int SizeModifier(
+        EncounterState state, Combatant defender, Combatant attacker, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("modifier_size");
+        var rule = entry.Size!;
+
+        var factor = attacker.Size / defender.Size;
+
+        var band = rule.Bands
+            .Where(b => SizeBandApplies(b.AttackerRelativeSize!, factor))
+            .OrderByDescending(b => Math.Abs(b.Dice))
+            .ThenBy(b => b.AttackerRelativeSize, StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        if (band is null) return 0;
+
+        lines.Add(new LedgerLine(
+            state.Page, defender.Id, entry.Id, entry.SourceRef,
+            $"size affects {rule.Affects}: {attacker.Name} is {factor:0.##}× {defender.Name}'s size, "
+            + $"which is \"{band.AttackerRelativeSize}\", so {defender.Name}'s active defence is "
+            + $"{Dice(band.Dice)}"));
+
+        return band.Dice;
+    }
+
+    /// <summary>
+    /// What one of p.75's four size phrases means as a comparison of two sizes.
+    ///
+    /// <para><b>The threshold is here and the dice are not, and the split is the point.</b> "twice",
+    /// "5 times", "half" and "one-fifth" are English printed inside a band's own label, and no
+    /// amount of data modelling extracts a number from them — so this engine reads the phrase and
+    /// supplies the comparison, which is a reading and is recorded as one. A band whose phrase this
+    /// does not know is a throw rather than a band quietly skipped, because a modifier that silently
+    /// stopped applying is exactly the failure a ledger exists to make impossible.</para>
+    /// </summary>
+    private static bool SizeBandApplies(string printed, double factor) => printed switch
+    {
+        "at least twice your size" => factor >= 2,
+        "at least 5 times your size" => factor >= 5,
+        "no more than half your size" => factor <= 1d / 2,
+        "no more than one-fifth your size" => factor <= 1d / 5,
+        _ => throw new InvalidOperationException(
+            $"modifier_size prints a band called '{printed}', and this engine does not know what "
+            + "that phrase means as a comparison of two sizes. The four it knows are p.75's; a new "
+            + "or reworded one is a rule it cannot apply, and applying nothing quietly would be "
+            + "worse. See docs/guide/play-engine.md's readings table.")
+    };
+
+    /// <summary>
+    /// <c>modifier_visibility</c>, on whichever roll is being made — p.75 costs an attack roll and
+    /// an active defence roll alike, so this is called from both sides of the same exchange.
+    ///
+    /// <para><b>Two things can make the visibility bad and the worse of them wins.</b> The scene's
+    /// light is <see cref="EncounterState.Visibility"/>; an opponent nobody can see is
+    /// <see cref="Combatant.Invisible"/>, which
+    /// <c>an_invisible_opponent_counts_as_no_visibility</c> makes equivalent to the worst band there
+    /// is. Both are read rather than assumed, so an entry that stopped saying the second moves this
+    /// with it.</para>
+    ///
+    /// <para><b>A compensating Power removes the penalty and the line says which one did.</b>
+    /// <c>powers_that_compensate_given</c> names Blind Fighting and Radar; the field is named
+    /// <em>given</em> because the printed sentence says "a Power that compensates for this, like
+    /// Blind Fighting or Radar", so the list is examples rather than a closed set — a GM who rules
+    /// that some other Power compensates says so by not putting the character in the dark. The
+    /// ledger line says the list is the page's examples, so a reader is never left thinking this
+    /// engine adjudicated the question.</para>
+    /// </summary>
+    private int VisibilityPenalty(
+        EncounterState state, Combatant roller, Combatant opponent, string roll, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("modifier_visibility");
+        var rule = entry.Visibility!;
+
+        var unseen = opponent.Invisible && rule.AnInvisibleOpponentCountsAsNoVisibility;
+        var effective = unseen ? Visibility.None : state.Visibility;
+
+        if (effective == Visibility.Clear) return 0;
+
+        var because = unseen
+            ? $"{opponent.Name} cannot be seen, which p.75 counts as no visibility"
+            : $"the visibility here is {PrintedVisibility(effective)}";
+
+        if (Compensating(roller) is { } power)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, roller.Id, entry.Id, entry.SourceRef,
+                $"{because}, and {roller.Name} has {power}, which p.75 gives as a Power that "
+                + $"compensates — so their {roll} roll is unpenalised"));
+
+            return 0;
+        }
+
+        var band = VisibilityBand(effective);
+
+        lines.Add(new LedgerLine(
+            state.Page, roller.Id, entry.Id, entry.SourceRef,
+            $"visibility affects {rule.Affects}: {because}, so {roller.Name}'s {roll} roll is "
+            + $"{Dice(band.Dice)}"));
+
+        return band.Dice;
+    }
+
+    /// <summary>
+    /// The Power on this combatant's sheet that p.75 gives as compensating for not being able to
+    /// see, in the book's own spelling, or null.
+    ///
+    /// <para><b>It is read off <see cref="Combatant.Powers"/> and not off a rank</b>, because Blind
+    /// Fighting and Radar are default-rank Powers and the character engine answers 0 for both by
+    /// design — so a rank cannot tell "has it" from "has never bought it".</para>
+    /// </summary>
+    private string? Compensating(Combatant combatant)
+    {
+        var rule = _play.GetCombat("modifier_visibility").Visibility!;
+
+        return rule.PowersThatCompensateGiven
+            .FirstOrDefault(printed => combatant.Powers.Contains(Normalise(printed)));
     }
 
     /// <summary>
@@ -488,6 +768,13 @@ public sealed partial class Encounter
             if (rank > best.Item2) best = (trait, rank, active);
         }
 
+        // p.75, the other half of the cover clause: <c>target_may_use_the_covers_structure_as_a_passive
+        // _defense</c>. It is offered after the halvings above and never touched by them, because
+        // every one of those — going all-out, charging, dodging a blast — is about the character's
+        // own defences, and a wall is not one of theirs. It answers the attack when it is the
+        // greater, which is <c>defense_chosen</c>'s own rule applied to one more candidate.
+        if (attack.CoverStructure is { } structure) best = TheCoverAnswers(state, target, structure, best, lines);
+
         if (best.Item1.Length == 0)
         {
             // Nothing left to answer with. p.75 still has the attack resolved against a threshold,
@@ -517,7 +804,53 @@ public sealed partial class Encounter
             }
         }
 
+        // <b>p.75's other two modifiers, and both of them are on this roll only where it is an
+        // active one.</b> Size "affects your active defense rolls" in as many words, so a Toughness,
+        // an Armor or the cover's Structure never moves for it — a giant is no easier to soak.
+        // Visibility affects both halves of the exchange, and this is the defending half: the same
+        // method the attack pool went through, with the roles the other way round.
+        if (best.Item3)
+        {
+            pool += SizeModifier(state, target, state[attack.Actor], lines);
+            pool += VisibilityPenalty(state, target, state[attack.Actor], "active defence", lines);
+        }
+
         return (best.Item1, pool, best.Item3);
+    }
+
+    /// <summary>
+    /// p.75's <c>target_may_use_the_covers_structure_as_a_passive_defense</c>: the obstacle's own
+    /// durability, offered beside the target's own defences and taken when it is the greater.
+    ///
+    /// <para><b>It is a passive defence and the page says so</b>, which is what keeps the size
+    /// modifier off it and what makes p.79's luring — bought off a dodge — unavailable to a target
+    /// who hid behind a wall instead of moving.</para>
+    ///
+    /// <para><b>A line is written either way.</b> A Structure that lost to the target's own Armor is
+    /// still a thing the caller declared and a thing the engine considered; saying nothing about it
+    /// would leave a reader unable to tell that from a Structure the engine had dropped on the
+    /// floor.</para>
+    /// </summary>
+    private (string Trait, int Pool, bool Active) TheCoverAnswers(
+        EncounterState state, Combatant target, int structure,
+        (string Trait, int Pool, bool Active) best, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("modifier_cover");
+
+        if (!entry.Cover!.TargetMayUseTheCoversStructureAsAPassiveDefense) return best;
+
+        var takes = structure > best.Pool;
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"the attack comes through the cover, so p.75 lets {target.Name} answer with "
+            + $"{CoversStructure} of {structure}d as a passive defence: "
+            + (takes
+                ? $"it is the greater and it is what answers, ahead of "
+                  + $"{(best.Trait.Length == 0 ? "nothing of their own" : $"their {best.Trait} at {best.Pool}d")}"
+                : $"their {best.Trait} at {best.Pool}d is the greater, so that answers instead")));
+
+        return takes ? (CoversStructure, structure, false) : best;
     }
 
     /// <summary>
@@ -631,7 +964,21 @@ public sealed partial class Encounter
     /// out of that entry rather than typed — an entry that stops saying "greater than" is a rule this
     /// engine cannot apply. <c>docs/guide/play-engine.md</c> records it as a reading.</para>
     /// </summary>
-    private bool CouldPenetrate(Combatant attacker, Attack attack, int passiveRank)
+    private bool CouldPenetrate(Combatant attacker, Attack attack, int passiveRank) =>
+        GetsThrough(attacker.Rank(attack.TraitId), passiveRank);
+
+    /// <summary>
+    /// <c>modifier_cover</c>'s one test — <c>attacking_through_cover_requires</c>, "an attack rank
+    /// greater than the cover's Structure" — read out of the entry rather than typed.
+    ///
+    /// <para><b>One method, because two rules turn on the same sentence.</b> p.75's own
+    /// attack-through-cover clause is one of them; p.78's guard on going all-out is the other, since
+    /// this phrase is the only place Chapter 4 says what penetrating a passive defence means. A
+    /// different test is a rule this engine cannot apply, so it throws rather than falling back on
+    /// a comparison the book no longer prints. <c>docs/guide/play-engine.md</c> records the reading.
+    /// </para>
+    /// </summary>
+    private bool GetsThrough(int attackRank, int obstacleRank)
     {
         var cover = _play.GetCombat("modifier_cover");
         var test = cover.Cover!.AttackingThroughCoverRequires;
@@ -641,11 +988,12 @@ public sealed partial class Encounter
             throw new InvalidOperationException(
                 $"modifier_cover now says getting through an obstacle requires '{test}'. That "
                 + "phrase is the only place Chapter 4 says what penetrating a passive defence means, "
-                + "and p.78's guard on going all-out is read out of it; a different test is a rule "
-                + "this engine cannot apply. See docs/guide/play-engine.md's readings table.");
+                + "and both p.75's attack through cover and p.78's guard on going all-out are read "
+                + "out of it; a different test is a rule this engine cannot apply. See "
+                + "docs/guide/play-engine.md's readings table.");
         }
 
-        return attacker.Rank(attack.TraitId) > passiveRank;
+        return attackRank > obstacleRank;
     }
 
     /// <summary>The ledger line for an attack that p.78's guard has kept out.</summary>

@@ -42,6 +42,20 @@ public static class CombatantFactory
     /// stand beside their Villain against a Foe who has changed sides. Defaults to the arrangement
     /// every fight the book works through happens to have.
     /// </param>
+    /// <param name="size">
+    /// How big this character is, for p.75's size bands. <b>The caller says, and this reads it off
+    /// nothing</b> — see <see cref="Combatant.Size"/>: Chapter 2 has no size stat, and the one place
+    /// the book turns a rank into a size is Growth's and Shrinking's height tables, which are
+    /// printed in the rulebook and are in no file this project may read. Defaults to the same size
+    /// as everybody else, which is what every figure this engine produces is measured against.
+    /// </param>
+    /// <param name="invisible">
+    /// Whether this character cannot be seen right now (p.75). <b>Also the caller's</b>, and
+    /// deliberately not a read of the Invisibility Power: Ch.2 p.32 prints "You <em>can</em> turn
+    /// invisible", so the Power is a capability and this is a state, and nothing in Chapters 3–5
+    /// turns one on. The half of that sentence which <em>is</em> a capability — the Powers that
+    /// compensate for not seeing — is read off the sheet, below.
+    /// </param>
     public static Combatant From(
         CharacterSheet sheet,
         RulesRepository rules,
@@ -49,7 +63,9 @@ public static class CombatantFactory
         PlayRulesRepository play,
         CombatantKind kind,
         string? id = null,
-        string? side = null)
+        string? side = null,
+        double size = Combatant.SameSize,
+        bool invisible = false)
     {
         ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(rules);
@@ -70,21 +86,37 @@ public static class CombatantFactory
         var health = Health(sheet, derived, play, kind);
         var edge = derived.CalculateEdge(sheet);
         var defences = DefencesAvailableTo(traits, play);
+        var powers = PowersOn(sheet);
 
         return kind switch
         {
             CombatantKind.Hero => Combatant.Hero(
                 id ?? name, name, edge, health, derived.CalculateResolve(sheet), traits, defences,
-                side ?? Combatant.HeroSide),
+                side ?? Combatant.HeroSide, size, invisible, powers),
             CombatantKind.Villain => Combatant.Villain(
-                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide),
+                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
+                size, invisible, powers),
             CombatantKind.Foe => Combatant.Foe(
-                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide),
+                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
+                size, invisible, powers),
             CombatantKind.Extra => Combatant.Extra(
-                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide),
+                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
+                size, invisible, powers),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown kind of combatant.")
         };
     }
+
+    /// <summary>
+    /// Every Power id on the sheet, <b>whatever rank the character engine gives it</b>.
+    ///
+    /// <para><b>It is a separate read from <see cref="TraitRanks"/> because a rank cannot answer the
+    /// question p.75 asks.</b> Blind Fighting and Radar are default-rank Powers, so
+    /// <see cref="DerivedStatsCalculator.GetEffectiveRank"/> answers 0 for both by design — and a
+    /// visibility penalty that read a rank would compensate nobody, silently, for ever. This is the
+    /// list, and <see cref="Combatant.Powers"/> is where it goes.</para>
+    /// </summary>
+    private static HashSet<string> PowersOn(CharacterSheet sheet) =>
+        new(sheet.SelectedPowers.Select(power => power.PowerId), StringComparer.Ordinal);
 
     /// <summary>
     /// Health as the character engine computes it, halved for a Foe.

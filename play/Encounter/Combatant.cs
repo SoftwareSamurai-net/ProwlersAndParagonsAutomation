@@ -62,7 +62,10 @@ public sealed class Combatant
         string? defeatedByEffect,
         bool dying,
         int instantRecoveriesUsed,
-        string? suppressedFlaw)
+        string? suppressedFlaw,
+        double size,
+        bool invisible,
+        IReadOnlySet<string> powers)
     {
         Id = id;
         Name = name;
@@ -79,6 +82,9 @@ public sealed class Combatant
         Dying = dying;
         InstantRecoveriesUsed = instantRecoveriesUsed;
         SuppressedFlaw = suppressedFlaw;
+        Size = size;
+        Invisible = invisible;
+        Powers = powers;
     }
 
     /// <summary>The side the book's own fights are written from: the player characters'.</summary>
@@ -86,6 +92,16 @@ public sealed class Combatant
 
     /// <summary>The side everything the book's fights point at is on, by default.</summary>
     public const string OpposingSide = "villains";
+
+    /// <summary>
+    /// The size everybody is unless somebody says otherwise — <b>the figure that makes every one of
+    /// p.75's size bands not apply</b>, because a ratio of one is neither twice nor half anything.
+    /// </summary>
+    public const double SameSize = 1;
+
+    /// <summary>The Powers a combatant nobody built from a sheet is carrying: none that can be read.</summary>
+    private static readonly IReadOnlySet<string> EmptyPowers =
+        new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>The id the encounter refers to this combatant by.</summary>
     public string Id { get; }
@@ -191,6 +207,56 @@ public sealed class Combatant
     /// </summary>
     public string? SuppressedFlaw { get; }
 
+    /// <summary>
+    /// How big this combatant is, as a bare figure whose only meaning is the ratio between two of
+    /// them. p.75's size bands are "at least twice your size" and "no more than one-fifth your
+    /// size", so what a fight needs is a comparison and not a unit.
+    ///
+    /// <para><b>It is the caller's word, and that is the honest answer rather than a shortcut.</b>
+    /// Chapter 2 has no size stat: the only size a sheet carries is Growth's and Shrinking's, and
+    /// what those Powers print is a rank-to-<em>height</em> table in the rulebook (pp.30 and 39),
+    /// which is not in <c>data/rules/</c> at all — <c>powers.json</c> carries the prose and no
+    /// table. <c>play/</c> reads the play rules and a character's ranks through the first engine;
+    /// it reads neither <c>data/rulebook/</c> nor a height. Typing that table in here would be a
+    /// transcription in code, which is the one thing <c>docs/guide/play-rules.md</c> exists to
+    /// forbid. So a GM who has a giant in the scene says so, and the engine derives the factor.
+    /// </para>
+    ///
+    /// <para><b>The default is that everybody is the same size</b>, which is what makes the guide's
+    /// sentence about a balance run being measured "against somebody the same size" true rather
+    /// than merely unstated.</para>
+    /// </summary>
+    public double Size { get; }
+
+    /// <summary>
+    /// Whether this combatant cannot be seen, which p.75 makes equivalent to no visibility at all
+    /// for anybody attacking or dodging them.
+    ///
+    /// <para><b>It is the caller's word and not a read of the Invisibility Power, and the two are
+    /// different claims.</b> Ch.2 p.32 prints "You <em>can</em> turn invisible" — carrying the Power
+    /// is a capability, being invisible is a state, and nothing in Chapters 3–5 turns one on. An
+    /// engine that read the Power would have every character who owns it invisible for the whole of
+    /// every fight, including the pages they spent shouting at somebody.</para>
+    ///
+    /// <para>The other half of p.75's sentence — the Powers that compensate — <em>is</em> a
+    /// capability, is always on ("whatever the reason", p.24), and so is read off the sheet into
+    /// <see cref="Powers"/>.</para>
+    /// </summary>
+    public bool Invisible { get; }
+
+    /// <summary>
+    /// The ids of the Powers on this combatant's sheet, <b>whatever their rank</b>.
+    ///
+    /// <para><b>It exists because <see cref="TraitRanks"/> cannot answer the question p.75 asks.</b>
+    /// Blind Fighting and Radar are default-rank Powers, so
+    /// <c>DerivedStatsCalculator.GetEffectiveRank</c> answers 0 for both by design — which makes
+    /// "has Blind Fighting" and "has never heard of Blind Fighting" the same reading of a rank. The
+    /// visibility modifier turns on exactly that difference.</para>
+    ///
+    /// <para>Empty for a combatant built by hand and for a group of Minions, who have no sheet.</para>
+    /// </summary>
+    public IReadOnlySet<string> Powers { get; }
+
     /// <summary>Whether this combatant holds Resolve at all — true for a Hero and nobody else.</summary>
     public bool HoldsResolve => Kind == CombatantKind.Hero;
 
@@ -209,29 +275,37 @@ public sealed class Combatant
     public static Combatant Hero(
         string id, string name, int edge, int health, int resolve,
         IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
-        string side = HeroSide) =>
-        Build(id, name, CombatantKind.Hero, side, edge, health, resolve, 0, traitRanks, defences);
+        string side = HeroSide, double size = SameSize, bool invisible = false,
+        IReadOnlySet<string>? powers = null) =>
+        Build(id, name, CombatantKind.Hero, side, edge, health, resolve, 0, traitRanks, defences,
+            size, invisible, powers);
 
     /// <summary>A Villain: the Hero rules, the same Health formula, and no Resolve.</summary>
     public static Combatant Villain(
         string id, string name, int edge, int health,
         IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
-        string side = OpposingSide) =>
-        Build(id, name, CombatantKind.Villain, side, edge, health, 0, 0, traitRanks, defences);
+        string side = OpposingSide, double size = SameSize, bool invisible = false,
+        IReadOnlySet<string>? powers = null) =>
+        Build(id, name, CombatantKind.Villain, side, edge, health, 0, 0, traitRanks, defences,
+            size, invisible, powers);
 
     /// <summary>A Foe, whose Health has already been halved by <see cref="CombatantFactory"/>.</summary>
     public static Combatant Foe(
         string id, string name, int edge, int health,
         IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
-        string side = OpposingSide) =>
-        Build(id, name, CombatantKind.Foe, side, edge, health, 0, 0, traitRanks, defences);
+        string side = OpposingSide, double size = SameSize, bool invisible = false,
+        IReadOnlySet<string>? powers = null) =>
+        Build(id, name, CombatantKind.Foe, side, edge, health, 0, 0, traitRanks, defences,
+            size, invisible, powers);
 
     /// <summary>An Extra.</summary>
     public static Combatant Extra(
         string id, string name, int edge, int health,
         IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
-        string side = OpposingSide) =>
-        Build(id, name, CombatantKind.Extra, side, edge, health, 0, 0, traitRanks, defences);
+        string side = OpposingSide, double size = SameSize, bool invisible = false,
+        IReadOnlySet<string>? powers = null) =>
+        Build(id, name, CombatantKind.Extra, side, edge, health, 0, 0, traitRanks, defences,
+            size, invisible, powers);
 
     /// <summary>
     /// A group of Minions: one Threat rank, no Health, no Edge, and a body count.
@@ -243,21 +317,23 @@ public sealed class Combatant
     /// </summary>
     public static Combatant Minions(
         string id, string name, int threat, int groupSize, string threatTraitId,
-        string side = OpposingSide) =>
+        string side = OpposingSide, double size = SameSize, bool invisible = false) =>
         Build(
             id, name, CombatantKind.MinionGroup, side, edge: 0, health: 0, resolve: 0, groupSize: groupSize,
             traitRanks: new Dictionary<string, int>(StringComparer.Ordinal) { [threatTraitId] = threat },
-            defences: [threatTraitId]);
+            defences: [threatTraitId], size: size, invisible: invisible, powers: null);
 
     /// <summary>This combatant with a different Health. Nothing else moves.</summary>
     public Combatant WithHealth(int health) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
-            DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw);
+            DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
+            Size, Invisible, Powers);
 
     /// <summary>This combatant bleeding out, or steadied. p.79's clock, started and stopped.</summary>
     public Combatant Bleeding(bool dying) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
-            Defences, DefeatedByEffect, dying, InstantRecoveriesUsed, SuppressedFlaw);
+            Defences, DefeatedByEffect, dying, InstantRecoveriesUsed, SuppressedFlaw,
+            Size, Invisible, Powers);
 
     /// <summary>
     /// This combatant brought round by p.76's instant recovery: on their feet at
@@ -265,7 +341,8 @@ public sealed class Combatant
     /// </summary>
     public Combatant Recovered(int health) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
-            defeatedByEffect: null, Dying, InstantRecoveriesUsed + 1, SuppressedFlaw);
+            defeatedByEffect: null, Dying, InstantRecoveriesUsed + 1, SuppressedFlaw,
+            Size, Invisible, Powers);
 
     /// <summary>
     /// This combatant put out of the fight by <paramref name="effect"/> — p.76's defeat by special
@@ -277,7 +354,8 @@ public sealed class Combatant
 
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
-            Defences, effect, Dying, InstantRecoveriesUsed, SuppressedFlaw);
+            Defences, effect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
+            Size, Invisible, Powers);
     }
 
     /// <summary>
@@ -302,7 +380,8 @@ public sealed class Combatant
 
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
-            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, flaw);
+            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, flaw,
+            Size, Invisible, Powers);
     }
 
     /// <summary>
@@ -330,7 +409,8 @@ public sealed class Combatant
 
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks,
-            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw);
+            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
+            Size, Invisible, Powers);
     }
 
     /// <summary>This Minion group with fewer bodies in it.</summary>
@@ -338,12 +418,14 @@ public sealed class Combatant
         Kind == CombatantKind.MinionGroup
             ? new Combatant(
                 Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, Math.Max(0, groupSize),
-                TraitRanks, Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw)
+                TraitRanks, Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
+                Size, Invisible, Powers)
             : throw new InvalidOperationException($"{Name} is a {Kind}, not a group of Minions.");
 
     private static Combatant Build(
         string id, string name, CombatantKind kind, string side, int edge, int health, int resolve,
-        int groupSize, IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences)
+        int groupSize, IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
+        double size = SameSize, bool invisible = false, IReadOnlySet<string>? powers = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -351,10 +433,23 @@ public sealed class Combatant
         ArgumentNullException.ThrowIfNull(traitRanks);
         ArgumentNullException.ThrowIfNull(defences);
 
+        // <b>A size of nothing is refused rather than clamped.</b> p.75's bands are a ratio of two
+        // sizes, so a zero or a negative one makes the comparison meaningless — and the failure
+        // would be silent, since a division by zero is an infinity that satisfies every band.
+        if (size <= 0 || double.IsNaN(size) || double.IsInfinity(size))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(size), size,
+                $"{name} is {size} big. p.75's size bands compare two sizes as a ratio, so a size "
+                + $"has to be a real figure above zero; {SameSize} means the same size as everybody "
+                + "else, which is the default.");
+        }
+
         return new Combatant(
             id, name, kind, side, edge, health, health, resolve, groupSize,
             new Dictionary<string, int>(traitRanks, StringComparer.Ordinal),
             [.. defences],
-            defeatedByEffect: null, dying: false, instantRecoveriesUsed: 0, suppressedFlaw: null);
+            defeatedByEffect: null, dying: false, instantRecoveriesUsed: 0, suppressedFlaw: null,
+            size, invisible, powers ?? EmptyPowers);
     }
 }

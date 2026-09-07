@@ -229,6 +229,23 @@ public sealed record EncounterState
     /// <summary>What this table turned on before play.</summary>
     public required TableRules Table { get; init; }
 
+    /// <summary>
+    /// What the light is like here (p.75), which costs every attack roll and every active defence
+    /// roll made in it.
+    ///
+    /// <para><b>It is on the fight rather than on an intent because it is a fact about the
+    /// scene</b> — the smoke is the same smoke for everybody standing in it, and a field on the
+    /// attack would let one exchange be fought in the dark and the next one beside it in daylight.
+    /// What is <em>not</em> the scene's is an opponent nobody can see: p.75 makes that a fact about
+    /// a pair, and <see cref="Combatant.Invisible"/> carries it.</para>
+    ///
+    /// <para><b>It is not <c>required</c>, and the default is the whole reason.</b>
+    /// <see cref="Encounter.Visibility.Clear"/> is no modifier at all, so a state built without it
+    /// is a fight in clear air — which is what every figure this engine has produced was measured
+    /// in, and what the guide says it was measured in.</para>
+    /// </summary>
+    public Visibility Visibility { get; init; }
+
     /// <summary>Everything the engine has done, with its citations.</summary>
     public required Ledger Ledger { get; init; }
 
