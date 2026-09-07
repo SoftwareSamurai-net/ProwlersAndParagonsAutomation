@@ -1436,10 +1436,16 @@ public sealed partial class Encounter
             + $"{roll.Successes} more: {last.AttackSuccesses} becomes {last.AttackSuccesses + roll.Successes}, "
             + $"and the roll on the table is now {last.AttackPool + extra}d"));
 
+        // <b>The faces go on the roll beside the successes, because they are one roll.</b>
+        // `includes_dice_bought_with_resolve` says a bought die is one of the roll's own, which is
+        // why the pool grows; its face is the same claim from the other side. p.79 explodes the
+        // roll's sixes, and a six a Hero paid for that was not on `AttackFaces` was a six the
+        // purchase could not see.
         var improved = last with
         {
             AttackPool = last.AttackPool + extra,
-            AttackSuccesses = last.AttackSuccesses + roll.Successes
+            AttackSuccesses = last.AttackSuccesses + roll.Successes,
+            AttackFaces = [.. last.AttackFaces, .. roll.Faces]
         };
 
         var after = Charge(state, actor, cost, fromAdversity);
@@ -1508,7 +1514,16 @@ public sealed partial class Encounter
             + $" to reroll {last.AttackPool}d: {roll.Successes} "
             + $"against the first {last.AttackSuccesses}, keeping {kept}"));
 
-        var improved = last with { AttackSuccesses = kept };
+        // <b>The faces follow whichever roll is kept, because the faces are that roll's.</b> p.85's
+        // floor discards the reroll when it comes up worse, and the first roll's faces are then the
+        // ones on the table; where the reroll stands, the dice it threw away are gone with it. An
+        // engine that moved the count and left the faces alone let p.79's explosion reroll the sixes
+        // of a roll nobody is looking at any more.
+        var improved = last with
+        {
+            AttackSuccesses = kept,
+            AttackFaces = kept == roll.Successes ? roll.Faces : last.AttackFaces
+        };
 
         var after = Charge(state, actor, cost, fromAdversity);
         after = ReapplyLastAttack(after, improved, lines);

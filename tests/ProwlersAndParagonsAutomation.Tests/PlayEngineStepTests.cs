@@ -2649,6 +2649,138 @@ public sealed class PlayEngineStepTests
             string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// <b>The faces on the table are the faces of the roll on the table.</b>
+    ///
+    /// <para><c>ResolvedAttack</c> carries the successes and the faces, and they are two accounts of
+    /// one roll. p.84's reroll picks the whole pool back up, so the faces it came up with are the
+    /// discarded ones — and p.79 explodes "your 6s", which is a rule about the faces. An engine
+    /// that moved the count and left the faces where they were threw the sixes of a roll nobody is
+    /// looking at any more.</para>
+    ///
+    /// <para>The controls come first, as everywhere here: the first roll has to have shown the sixes
+    /// the fixture is about, and the reroll has to have been the one kept — p.85's floor keeps the
+    /// better of the two, so a reroll that came up worse would leave the first roll standing and its
+    /// faces would be the right ones.</para>
+    /// </summary>
+    [Fact]
+    public void ARerollExplodesItsOwnSixesAndNotTheOnesItThrewAway()
+    {
+        // The face is the success map's own top key, not a 6 typed here.
+        var top = new SuccessCounter(_play).HighestFace;
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 5,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 40,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 10d showing two sixes for 4; 2d of Toughness for none; then the reroll of all ten, as
+        // five fours and five ones — five successes, and not a six among them.
+        var dice = new ScriptedDice(
+        [
+            .. FacesFor(10, 4),
+            .. FacesFor(2, 0),
+            .. Enumerable.Repeat(4, 5), .. Enumerable.Repeat(1, 5)
+        ]);
+
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true)).State;
+
+        // The control: the roll the reroll discards is the one with the sixes on it.
+        Assert.Equal(4, state.LastAttack!.AttackSuccesses);
+        Assert.Contains(top, state.LastAttack.AttackFaces);
+
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Reroll)).State;
+
+        // The reroll was the better of the two, so it is the roll on the table — and the faces have
+        // to be its own.
+        Assert.Equal(5, state.LastAttack!.AttackSuccesses);
+        Assert.DoesNotContain(top, state.LastAttack.AttackFaces);
+
+        // So there is nothing left to explode, and the refusal says so rather than throwing dice
+        // nobody is holding.
+        var explode = encounter.Step(state, new SpendResolve("hero", ResolveSpend.TeamAttack));
+
+        Assert.Contains("left on that roll to explode", Assert.Single(explode.Added).Text,
+            StringComparison.Ordinal);
+
+        // Nothing was spent on the refusal: the attack and the reroll are the only points gone.
+        Assert.Equal(4, explode.State["hero"].Resolve);
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>A die bought with Resolve is part of the roll that explodes.</b>
+    ///
+    /// <para><c>spend_reroll_challenge_roll</c>'s <c>includes_dice_bought_with_resolve</c> says in as
+    /// many words that a bought die is one of the roll's own, which is why <c>BuyDice</c> grows the
+    /// pool. Its face is the same claim from the other side: a six a Hero paid for is a six on the
+    /// roll, and p.79 explodes the roll's sixes.</para>
+    ///
+    /// <para>The control is the first roll, which is required to have no six on it at all — so the
+    /// explosion below can only be the bought die, and a fixture where the pool already held one
+    /// would prove nothing.</para>
+    /// </summary>
+    [Fact]
+    public void ADieBoughtWithResolveIsOneOfTheSixesATeamAttackExplodes()
+    {
+        var top = new SuccessCounter(_play).HighestFace;
+        var gained = _play.GetResolve("spend_challenge_roll_dice").Spend!.DiceGained!.Value;
+
+        // The control on the data: a point buys a die, or there is nothing to put a six on.
+        Assert.True(gained > 0);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 5,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 40,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 10d of fours and ones for five successes and no six; 2d of Toughness for none; the bought
+        // die coming up a six for two more; and that six thrown again as a one.
+        var dice = new ScriptedDice(
+        [
+            .. Enumerable.Repeat(4, 5), .. Enumerable.Repeat(1, 5),
+            .. FacesFor(2, 0),
+            .. Enumerable.Repeat(top, gained),
+            .. Enumerable.Repeat(1, gained)
+        ]);
+
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true)).State;
+
+        // The control: no six was rolled, so the one that explodes below is the one that was bought.
+        Assert.Equal(5, state.LastAttack!.AttackSuccesses);
+        Assert.DoesNotContain(top, state.LastAttack.AttackFaces);
+
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.ExtraDice)).State;
+
+        Assert.Equal(5 + (2 * gained), state.LastAttack!.AttackSuccesses);
+        Assert.Contains(top, state.LastAttack.AttackFaces);
+
+        var exploded = encounter.Step(state, new SpendResolve("hero", ResolveSpend.TeamAttack));
+
+        Assert.Contains(exploded.Added, l =>
+            string.Equals(l.Rule, "team_attacks", StringComparison.Ordinal)
+            && l.Text.Contains($"{gained} thrown again", StringComparison.Ordinal));
+
+        // The reroll of it scored nothing, so the count stands where the bought die left it — and
+        // every scripted face was asked for, which is what says the bought six was thrown again.
+        Assert.Equal(5 + (2 * gained), exploded.State.LastAttack!.AttackSuccesses);
+        Assert.Equal(0, dice.Remaining);
+    }
+
     // ── Citations ────────────────────────────────────────────────────────────
 
     /// <summary>
