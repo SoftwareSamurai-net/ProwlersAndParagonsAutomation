@@ -3701,6 +3701,133 @@ public sealed class McpPlayServerTests
             Assert.Contains("came from the sheets handed in", provenance, StringComparison.Ordinal);
         });
 
+    /// <summary>
+    /// The keys the play policy tells a conversation to read off an echoed table, which are the
+    /// keys the echo has to have. The four <c>source</c> values are not listed here — they are
+    /// driven out of the server and compared with the document both ways.
+    /// </summary>
+    private static readonly string[] EchoKeysThePolicyUndertakesToName = ["source", "source_note"];
+
+    /// <summary>
+    /// The backticked spans in the play policy's paragraph about the echoed table's provenance —
+    /// the keys it tells a conversation to read and the values it says they take.
+    /// </summary>
+    private static List<string> ProvenanceSpansThePolicyNames()
+    {
+        var text = PlayPolicy.Text;
+        var at = text.IndexOf("Where the table came from comes back inside", StringComparison.Ordinal);
+
+        Assert.True(at >= 0,
+            "mcp-play/PLAY-POLICY.md no longer has the paragraph about where the echoed table came "
+            + "from. Either it has stopped telling conversations to read `source`, or this parse "
+            + "has stopped finding it — and in both cases nothing holds the spellings together.");
+
+        var end = text.IndexOf("\n\n", at, StringComparison.Ordinal);
+
+        Assert.True(end > at, "the provenance paragraph runs to the end of the play policy.");
+
+        return new Regex(@"`([a-z][a-z_]*)`", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(text[at..end])
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// <b>Every name the play policy prints for the echoed table's provenance is one this server
+    /// really answers with — the two keys and all four values.</b>
+    ///
+    /// <para><b>These fall outside the guard that already exists, and that is the finding.</b>
+    /// <see cref="EveryArgumentNameThePolicyPrintsIsSpelledTheWayTheSchemaSpellsIt"/> reads the
+    /// <c>## The calls</c> section and checks spans against the tools' <em>input schemas</em>.
+    /// <c>source</c> and <c>source_note</c> are answer keys in a different section, so nothing
+    /// touched them; and the four values a conversation is told to expect — <c>book</c>,
+    /// <c>call</c>, <c>sheets</c>, <c>sheets_and_call</c> — come from <c>Wire</c> over a private
+    /// enum's member names, so renaming a member silently changes what arrives on the wire while
+    /// the document goes on naming the old one. That is the same fault the <c>max_pages</c> guard
+    /// was written for, one section further down: the document is right-looking and wrong, and
+    /// nothing anywhere says so.</para>
+    ///
+    /// <para><b>Held in both directions.</b> Every value the server can produce is driven here and
+    /// has to be named in the document, and every span in the document's own paragraph has to be
+    /// something the server produces — an echo key, one of those values, or a tool name. A key the
+    /// document invented sends a reader looking for a field that never arrives.</para>
+    /// </summary>
+    [Fact]
+    public async Task EveryProvenanceNameThePolicyPrintsIsOneThisServerEchoes() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonObject> Echo(JsonNode combatants, JsonNode? table)
+            {
+                var arguments = new Dictionary<string, object?> { ["combatants"] = combatants };
+
+                if (table is not null) arguments["table"] = table;
+
+                var answer = await Call(client, "start_encounter", arguments);
+
+                Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+                return TableOf(answer);
+            }
+
+            var agreeing = new JsonObject { ["fatal_damage"] = true, ["wound_penalties"] = true };
+
+            var echoes = new[]
+            {
+                await Echo(TwoSides(), null),
+                await Echo(TwoSides(), new JsonObject { ["wound_penalties"] = true }),
+                await Echo(UnderOneTable(HouseRules()), null),
+                await Echo(UnderOneTable(HouseRules()), agreeing)
+            };
+
+            var produced = echoes.Select(e => e["source"]!.GetValue<string>())
+                .ToHashSet(StringComparer.Ordinal);
+
+            // The control: four calls, four different answers — so a server that had collapsed to
+            // one source could not pass the containment below by naming a smaller set.
+            Assert.Equal(4, produced.Count);
+
+            var spans = ProvenanceSpansThePolicyNames();
+
+            // The control on the parse: it found the paragraph's own names.
+            Assert.Contains("source", spans, StringComparer.Ordinal);
+            Assert.Contains("source_note", spans, StringComparer.Ordinal);
+
+            foreach (var source in produced)
+            {
+                Assert.True(spans.Contains(source, StringComparer.Ordinal),
+                    $"this server answers with a table source of '{source}' and the play policy "
+                    + "does not name it, so a conversation is not told the value it will get.");
+            }
+
+            // Every key the document names is a key the echo has.
+            foreach (var key in EchoKeysThePolicyUndertakesToName)
+            {
+                Assert.All(echoes, echo => Assert.True(echo.ContainsKey(key),
+                    $"the play policy tells every conversation to read `{key}` off the echoed "
+                    + $"table. The echo has no such key: {echo.ToJsonString()}"));
+            }
+
+            // And nothing in the paragraph is a name this server does not answer with — an echo
+            // key, a field of the answer the echo sits in (`table` itself), one of the four
+            // values, or a tool.
+            var tools = (await client.ListToolsAsync()).Select(t => t.Name);
+            var whole = await Open(client, TwoSides());
+
+            var allowed = echoes[0].Select(p => p.Key)
+                .Concat(whole.AsObject().Select(p => p.Key))
+                .Concat(produced)
+                .Concat(tools)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var invented = spans.Where(s => !allowed.Contains(s)).ToList();
+
+            Assert.True(invented.Count == 0,
+                "mcp-play/PLAY-POLICY.md's paragraph about where a table came from prints these "
+                + "names and this server answers with none of them, so a reader is sent looking "
+                + "for a field or a value that never arrives: " + string.Join(", ", invented) + ".");
+        });
+
     /// <summary>One entry's <c>source_ref</c>, whichever of the five play files it is in.</summary>
     private string SourceRefOf(string id)
     {
