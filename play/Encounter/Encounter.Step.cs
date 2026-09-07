@@ -2328,6 +2328,20 @@ public sealed partial class Encounter
                 $"{actor.Name} has no roll on the table to buy dice for");
         }
 
+        // <b>This is the one purchase whose price is the caller's figure, so it is the one that can
+        // be priced backwards.</b> The rate below multiplies, and <see cref="Combatant.Spending"/>
+        // subtracts what it is handed — so a Hero buying −5 dice was charged −5 Resolve, which is
+        // five points of Resolve arriving out of a purchase. <see cref="CannotAfford"/> could not
+        // see it either: a pool is always at least a negative cost. p.84 prices a die at a point and
+        // gives a die for it; a request for none or for fewer than none is not a purchase the page
+        // has any reading of.
+        if (points < 1)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} asked for {points} dice, and p.84 buys {spend.DiceGained} die for "
+                + $"{spend.CostResolve} point — a purchase of fewer than one is not one");
+        }
+
         var cost = spend.CostResolve!.Value * points;
         var extra = spend.DiceGained!.Value * points;
 
@@ -3370,6 +3384,22 @@ public sealed partial class Encounter
             AdversitySpend.Villainy => "adversity_spend_villainy",
             _ => throw new ArgumentOutOfRangeException(nameof(spend))
         });
+
+        // <b>A spend of fewer than one point is refused before the pool is looked at, and the gate
+        // below is why it has to be.</b> That gate compares the pool with what the <em>intent</em>
+        // asked for, and nine of the ten purchases charge their own printed price and ignore the
+        // figure entirely — so a spend of 0 points walked through it on an empty pool and then
+        // charged 1, leaving the GM on −1 Adversity with a purchase they had not paid for. A
+        // negative one is worse: <see cref="BuyDice"/> multiplies the rate by the figure, so
+        // −5 points of extra dice <em>added</em> five to the pool. Neither is a purchase Chapters 4
+        // or 5 price: every <c>cost_resolve</c> and <c>cost_adversity</c> in the store is a whole
+        // number of points and none of them is below one.
+        if (spend.Points < 1)
+        {
+            return Refuse(state, spend.Actor, entry.Id, entry.SourceRef, lines,
+                $"this spend asks for {spend.Points} points, and Chapters 4 and 5 price every "
+                + "purchase at a whole point or more — nothing is spent and nothing is bought");
+        }
 
         if (state.Adversity < spend.Points)
         {

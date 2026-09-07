@@ -505,6 +505,14 @@ public sealed class Combatant
     /// <para>A throw rather than a no-op on a combatant who holds none, because a spend charged to
     /// a pool that does not exist is a rule applied to the wrong character, and a silent zero would
     /// let the encounter go on reporting the effect it paid for.</para>
+    ///
+    /// <para><b>And a throw the other way, because subtraction has two directions and only one of
+    /// them is a spend.</b> Every price in Chapters 4 and 5 is a whole number of points and none is
+    /// below one, so a negative cost is nothing the book can ask for — but the arithmetic here
+    /// obliges it, and the one purchase whose price is the caller's figure duly minted Resolve out
+    /// of a request for −5 dice. <see cref="Encounter.Step"/> refuses that on the ledger, where an
+    /// intent the rules do not allow belongs; this is the guard behind it, and reaching it is a
+    /// programming error rather than a request.</para>
     /// </summary>
     public Combatant Spending(int points)
     {
@@ -514,6 +522,14 @@ public sealed class Combatant
                 $"{Name} is a {Kind} and holds no Resolve — Ch.2 says only Heroes have any, and "
                 + "Ch.5 gives the GM Adversity to spend on an NPC instead. Spend Adversity, or "
                 + "build this combatant as a Hero.");
+        }
+
+        if (points < 0)
+        {
+            throw new InvalidOperationException(
+                $"a spend of {points} points would put Resolve back into {Name}'s pool. Chapters 4 "
+                + "and 5 price every purchase at a whole point or more, and a purchase priced "
+                + "backwards is one the engine refuses on the ledger before it reaches here.");
         }
 
         if (points > Resolve)

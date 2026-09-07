@@ -1457,6 +1457,106 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A purchase priced below a point is refused, and it used to be paid for backwards.</b>
+    ///
+    /// <para>Every price Chapters 4 and 5 print is a whole number of points and none of them is
+    /// below one — but the number of points is the caller's, and two things read it. p.85's pool
+    /// gate compared the pool with what the intent asked for, and nine of the ten purchases charge
+    /// their own printed price and ignore that figure: so a spend of <c>0</c> points walked through
+    /// the gate on an empty pool and then charged one, leaving the GM on <b>−1 Adversity</b> with a
+    /// seized initiative they had not paid for. And p.84's dice purchase <em>multiplies</em> by the
+    /// figure, so a spend of <c>−5</c> points took a cost of −5 out of a pool, which is five points
+    /// arriving: the GM's pool grew, and a Hero buying −5 dice of their own minted Resolve the same
+    /// way. <c>CannotAfford</c> could not see either, because a pool is always at least a negative
+    /// cost.</para>
+    ///
+    /// <para><b>Neither was reachable only from a test.</b> <c>spend_adversity</c> and
+    /// <c>spend_resolve</c> both read <c>points</c> off the wire as a plain number, so a
+    /// conversation asking for none or for fewer than none is a request this server took.</para>
+    ///
+    /// <para>Each half carries the same purchase at one point beside it, or these would be
+    /// assertions about an engine that had stopped buying anything.</para>
+    /// </summary>
+    [Fact]
+    public void APurchasePricedBelowAPointIsRefusedRatherThanChargedBackwards()
+    {
+        var dice = _play.GetResolve("spend_challenge_roll_dice").Spend!;
+
+        // The control on the data: the page's rate really is a point for a die, which is what makes
+        // a negative figure a negative cost rather than a harmless one.
+        Assert.Equal(1, dice.CostResolve);
+        Assert.Equal(1, dice.DiceGained);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 20, traits, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        // ── Nothing in the pool, and a spend of no points ────────────────────
+        var empty = opened with { Adversity = 0 };
+
+        var free = encounter.Step(empty, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, Points: 0,
+            AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(0, free.State.Adversity);
+        Assert.DoesNotContain("villain", free.State.Seized);
+
+        Assert.Contains(free.Added, l =>
+            l.Text.Contains("asks for 0 points", StringComparison.Ordinal)
+            && l.Text.Contains("whole point or more", StringComparison.Ordinal));
+
+        // The control: the same purchase at the price p.73 prints does go through.
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity - 1, bought.State.Adversity);
+        Assert.Contains("villain", bought.State.Seized);
+
+        // ── A purchase of fewer than no dice, out of each pool ───────────────
+        var rolled = encounter.Step(
+            encounter.Step(
+                encounter.Step(opened, new Attack("hero", "villain", "might")).State,
+                new EndTurn("hero")).State,
+            new Attack("villain", "hero", "might")).State;
+
+        Assert.Equal("villain", rolled.LastAttack!.Actor);
+
+        var minted = encounter.Step(rolled, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, Points: -5,
+            AsResolve: ResolveSpend.ExtraDice));
+
+        Assert.Equal(rolled.Adversity, minted.State.Adversity);
+        Assert.Equal(rolled.LastAttack.AttackPool, minted.State.LastAttack!.AttackPool);
+
+        Assert.Contains(minted.Added, l =>
+            l.Text.Contains("asks for -5 points", StringComparison.Ordinal));
+
+        // The Hero's own pool, on the Hero's own roll: p.84's purchase does not run backwards there
+        // either, and the refusal is the dice entry's rather than p.85's.
+        var heroRolled = encounter.Step(opened, new Attack("hero", "villain", "might")).State;
+
+        var backwards = encounter.Step(
+            heroRolled, new SpendResolve("hero", ResolveSpend.ExtraDice, Points: -5));
+
+        Assert.Equal(3, backwards.State["hero"].Resolve);
+        Assert.Equal(heroRolled.LastAttack!.AttackPool, backwards.State.LastAttack!.AttackPool);
+
+        Assert.Contains(backwards.Added, l =>
+            string.Equals(l.Rule, "spend_challenge_roll_dice", StringComparison.Ordinal)
+            && l.Text.Contains("asked for -5 dice", StringComparison.Ordinal));
+
+        // And the control on that half: one point still buys one die.
+        var one = encounter.Step(heroRolled, new SpendResolve("hero", ResolveSpend.ExtraDice));
+
+        Assert.Equal(2, one.State["hero"].Resolve);
+        Assert.Equal(heroRolled.LastAttack.AttackPool + 1, one.State.LastAttack!.AttackPool);
+    }
+
+    /// <summary>
     /// <b>p.73's seized initiative, bought out of the GM's pool for an NPC.</b>
     ///
     /// <para>It used to answer <c>not yet implemented</c> from that pool, because it charged the
