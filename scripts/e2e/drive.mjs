@@ -119,6 +119,23 @@ function redact(message) {
 }
 
 /**
+ * Print one verdict. **The only place a verdict reaches stdout, and the whole line goes through
+ * `redact` rather than the piece somebody remembered to wrap.**
+ *
+ * Measured, not reasoned about: the first version redacted `error.message` and interpolated the
+ * probe's answer beside it raw, so driving this file at `http://…/?x=1&t=<token>` printed
+ * `&t=<redacted>` in the half that had been wrapped and the token in full in the half that had
+ * not, on one line. That is the same shape as the CI leak this rule was written for — a rule
+ * obeyed at the call sites somebody thought of — and one choke point is what makes it a rule.
+ *
+ * It costs nothing to redact a green verdict or a `NOT RUN` line, and "only the red half is
+ * cleaned" is a rule that holds exactly until something passes.
+ */
+function say(line) {
+    console.log(redact(line));
+}
+
+/**
  * Assert that the work happened.
  *
  * **Distinct from `outcome` on purpose.** "The palette never changed" and "the palette changed to
@@ -606,6 +623,12 @@ if (only.size > 0) {
 const CHECKS = only.size > 0 ? ALL_CHECKS.filter(([name]) => only.has(name)) : ALL_CHECKS;
 
 /**
+ * How long the probe below gives the server to answer at all. See its comment for the bound, and
+ * `Runner.ProbeTimeoutMs`, which is the same figure for the same reason.
+ */
+const PROBE_TIMEOUT_MS = 10000;
+
+/**
  * Whether the server this run is driving has stopped answering — **measured, not inferred from
  * the wording of an exception**.
  *
@@ -620,19 +643,46 @@ const CHECKS = only.size > 0 ? ALL_CHECKS.filter(([name]) => only.has(name)) : A
  * it, contains none of them. So this asks the server directly instead: one request from Node, and
  * a refused connection is a fact about the world rather than a guess about a message.
  *
- * **Only a refusal counts.** A slow answer, a 500, a redirect — all of those are a server that is
- * still there and a check that is entitled to its own verdict. Narrowing it this way is what keeps
- * a twin's honest red from being relabelled: the whole point of a twin is a check failing while
- * the server is perfectly alive.
+ * **An answer counts, whatever it says.** A 500, a redirect, a slow but arriving response — all of
+ * those are a server that is still there and a check that is entitled to its own verdict.
+ * Narrowing it that way is what keeps a twin's honest red from being relabelled: the whole point
+ * of a twin is a check failing while the server is perfectly alive, and `boot-app-never-mounts`
+ * serves `/` perfectly well while never mounting the app.
+ *
+ * **No answer at all counts too, and leaving it out was the half of this that CI has not yet
+ * billed us for.** `docs/guide/testing.md` records the state in as many words: a `workerd` that
+ * has died under a live `wrangler pages dev` does not refuse connections — wrangler keeps the port
+ * and **answers by hanging for ever**, which is why readiness here is the served body rather than
+ * the status code. Against that server every check below spends its full navigation timeout and
+ * reports it as its own `[OUTCOME]`, which is precisely the reporting run 34040527190 was fixed
+ * for, arrived at by the other road. So a probe that does not come back within
+ * `PROBE_TIMEOUT_MS` is a server that has stopped answering, in the plain meaning of the sentence.
+ *
+ * **The bound is what keeps that honest.** Ten seconds for a `GET /` off a local static server
+ * that has already served this run — the measured cost is milliseconds — so it separates "hung"
+ * from "loaded" with three orders of magnitude in hand. And it is only ever asked after a check
+ * has already failed: a site that cannot serve its front page in ten seconds has no verdict worth
+ * reading anyway.
+ *
+ * **`tests/e2e/Runner.cs` classifies identically, deliberately.** Both drivers print the same
+ * sentence for the same fact, including the POSIX spelling of the socket error, because `e2e.sh`
+ * reads both with one `grep` and a reader compares two runs by eye.
  */
 async function serverStoppedAnswering() {
     try {
-        await fetch(`${base}/`, { signal: AbortSignal.timeout(5000) });
+        await fetch(`${base}/`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
         return null;
     } catch (error) {
-        // `fetch` wraps the real reason; `cause.code` is where Node puts `ECONNREFUSED`.
+        // `fetch` wraps the real reason; `cause.code` is where Node puts `ECONNREFUSED`, and
+        // `AbortSignal.timeout` arrives as a `TimeoutError` either directly or as the cause.
         const code = error?.cause?.code ?? error?.code ?? '';
         if (code === 'ECONNREFUSED' || code === 'ECONNRESET') return `${base}/ answered ${code}`;
+
+        const name = error?.name ?? error?.cause?.name ?? '';
+        if (name === 'TimeoutError' || name === 'AbortError') {
+            return `${base}/ did not answer within ${PROBE_TIMEOUT_MS}ms`;
+        }
+
         return null;
     }
 }
@@ -658,21 +708,20 @@ async function run(name, check, page) {
 
     try {
         const detail = await check(page);
-        console.log(`E2E CHECK ${name}: PASS — ${detail} (${Date.now() - started}ms)`);
+        say(`E2E CHECK ${name}: PASS — ${detail} (${Date.now() - started}ms)`);
         return 'pass';
     } catch (error) {
         const gone = await serverStoppedAnswering();
 
         if (gone) {
-            console.log(`E2E CHECK ${name}: FAIL — [HARNESS] the server stopped answering `
+            say(`E2E CHECK ${name}: FAIL — [HARNESS] the server stopped answering `
                 + `(${gone}), so this verdict is about the server and not about ${name}. `
-                + `What the check saw first: ${redact(error.message)} (${Date.now() - started}ms)`);
+                + `What the check saw first: ${error?.message} (${Date.now() - started}ms)`);
             return 'server-gone';
         }
 
         const kind = error instanceof ControlFailed ? 'CONTROL' : 'OUTCOME';
-        console.log(
-            `E2E CHECK ${name}: FAIL — [${kind}] ${redact(error.message)} (${Date.now() - started}ms)`);
+        say(`E2E CHECK ${name}: FAIL — [${kind}] ${error?.message} (${Date.now() - started}ms)`);
         return 'fail';
     }
 }
@@ -718,8 +767,8 @@ try {
 }
 
 for (const name of notRun) {
-    console.log(`E2E CHECK ${name}: NOT RUN — the server stopped answering before this check`);
+    say(`E2E CHECK ${name}: NOT RUN — the server stopped answering before this check`);
 }
 
-console.log(`E2E RAN ${ran} CHECKS, ${passed} PASSED`);
+say(`E2E RAN ${ran} CHECKS, ${passed} PASSED`);
 process.exit(passed === CHECKS.length ? 0 : 1);

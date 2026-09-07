@@ -97,16 +97,22 @@ public static class Runner
 
         foreach (var name in notRun)
         {
-            Console.WriteLine(
-                $"E2E CHECK {name}: NOT RUN — the server stopped answering before this check");
+            Say($"E2E CHECK {name}: NOT RUN — the server stopped answering before this check");
         }
 
-        Console.WriteLine($"E2E RAN {ran} CHECKS, {passed} PASSED");
+        Say($"E2E RAN {ran} CHECKS, {passed} PASSED");
         return passed == checks.Count ? 0 : 1;
     }
 
     /// <summary>How one check ended. <see cref="ServerGone"/> stops the run — see the loop.</summary>
     private enum Kind { Passed, Failed, ServerGone }
+
+    /// <summary>
+    /// How long <see cref="ServerStoppedAnswering"/> gives the server to answer at all. The same
+    /// figure as <c>scripts/e2e/drive.mjs</c>'s <c>PROBE_TIMEOUT_MS</c>, for the same reason; that
+    /// probe's own comment carries the argument for it.
+    /// </summary>
+    private const int ProbeTimeoutMs = 10_000;
 
     /// <summary>
     /// One request, asked of the server rather than of an exception's wording: has it stopped
@@ -125,17 +131,43 @@ public static class Runner
     /// render timeout containing none of them. So this asks the server: a refused connection is a
     /// fact about the world, not a guess about a message.</para>
     ///
-    /// <para><b>Only a refusal counts, and the narrowness is what protects the twins.</b> A slow
-    /// answer, a 500, a redirect — each is a server that is still there and a check that is
-    /// entitled to its own verdict. A deliberately-broken twin's whole point is a check failing
-    /// while the server is perfectly alive, and relabelling that as <c>[HARNESS]</c> would turn
-    /// every negative control into a run <c>e2e.sh</c> refuses to count.</para>
+    /// <para><b>An answer counts, whatever it says, and that narrowness is what protects the
+    /// twins.</b> A 500, a redirect, a slow but arriving response — each is a server that is still
+    /// there and a check that is entitled to its own verdict. A deliberately-broken twin's whole
+    /// point is a check failing while the server is perfectly alive, and relabelling that as
+    /// <c>[HARNESS]</c> would turn every negative control into a run <c>e2e.sh</c> refuses to
+    /// count.</para>
+    ///
+    /// <para><b>No answer at all counts too, and leaving it out was the half of this that CI has
+    /// not yet billed us for.</b> <c>docs/guide/testing.md</c> records the state in as many words:
+    /// a <c>workerd</c> that has died under a live <c>wrangler pages dev</c> does not refuse
+    /// connections — wrangler keeps the port and <b>answers by hanging for ever</b>, which is why
+    /// readiness in <c>e2e.sh</c> is the served body rather than the status code. Against that
+    /// server every check below spends its full <see cref="Harness.NavigationTimeoutMs"/> and
+    /// reports it as its own <c>[OUTCOME]</c> — which is the reporting run 34040527190 was fixed
+    /// for, reached by the other road. So a probe that does not come back within
+    /// <see cref="ProbeTimeoutMs"/> is a server that has stopped answering, in the plain meaning
+    /// of the sentence.</para>
+    ///
+    /// <para><b>The bound is what keeps that honest</b>: ten seconds for a <c>GET /</c> off a local
+    /// static server that has already served this run, whose measured cost is milliseconds. And it
+    /// is only ever asked after a check has already failed — a site that cannot serve its front
+    /// page in ten seconds has no verdict worth reading anyway.</para>
+    ///
+    /// <para><b>The socket error is printed in its POSIX spelling</b>, which is what
+    /// <c>scripts/e2e/drive.mjs</c> gets from Node and prints. Two drivers describing one fact in
+    /// two vocabularies is how a reader comparing two runs concludes they saw different things.
+    /// </para>
     /// </summary>
     private static async Task<string?> ServerStoppedAnswering(string baseUrl)
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            using var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromMilliseconds(ProbeTimeoutMs),
+            };
+
             using var response = await client.GetAsync($"{baseUrl}/");
             return null;
         }
@@ -145,15 +177,41 @@ public static class Runner
                       is System.Net.Sockets.SocketError.ConnectionRefused
                       or System.Net.Sockets.SocketError.ConnectionReset)
         {
-            return $"{baseUrl}/ answered {socket.SocketErrorCode}";
+            var code = socket.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionRefused
+                ? "ECONNREFUSED"
+                : "ECONNRESET";
+
+            return $"{baseUrl}/ answered {code}";
+        }
+        catch (Exception error) when (error is OperationCanceledException or TimeoutException)
+        {
+            // `HttpClient.Timeout` cancels the request, and nothing else here cancels anything —
+            // so this is the hanging server above and not somebody else's cancellation.
+            return $"{baseUrl}/ did not answer within {ProbeTimeoutMs}ms";
         }
         catch (Exception)
         {
-            // Anything else — a timeout, a DNS answer, a protocol error — is not the state this
-            // is looking for, and guessing would relabel an honest red as a harness fault.
+            // Anything else — a DNS answer, a protocol error — is not the state this is looking
+            // for, and guessing would relabel an honest red as a harness fault.
             return null;
         }
     }
+
+    /// <summary>
+    /// Print one verdict. <b>The only place a verdict reaches stdout, and the whole line goes
+    /// through <see cref="Redact"/> rather than the piece somebody remembered to wrap.</b>
+    ///
+    /// <para>Measured, not reasoned about: the first version redacted <c>error.Message</c> and
+    /// interpolated the probe's answer beside it raw, so a driver pointed at a base URL carrying a
+    /// token printed <c>&amp;t=&lt;redacted&gt;</c> in the half that had been wrapped and the token
+    /// in full in the half that had not — on one line, in one verdict. That is the same shape as
+    /// the CI leak the rule was written for: a rule obeyed at the call sites somebody thought of.
+    /// One choke point is what makes it a rule.</para>
+    ///
+    /// <para>It costs nothing to redact a green verdict or a <c>NOT RUN</c> line, and "only the red
+    /// half is cleaned" is a rule that holds exactly until something passes.</para>
+    /// </summary>
+    private static void Say(string line) => Console.WriteLine(Redact(line));
 
     /// <summary>
     /// A verdict message fit to print: no raw sign-in token in it, and one line.
@@ -226,7 +284,7 @@ public static class Runner
         try
         {
             var detail = await check.Run(harness);
-            Console.WriteLine($"E2E CHECK {check.Name}: PASS — {detail} ({Elapsed(started)}ms)");
+            Say($"E2E CHECK {check.Name}: PASS — {detail} ({Elapsed(started)}ms)");
             return Kind.Passed;
         }
         catch (Exception error)
@@ -240,10 +298,9 @@ public static class Runner
 
             if (gone is not null)
             {
-                Console.WriteLine(
-                    $"E2E CHECK {check.Name}: FAIL — [HARNESS] the server stopped answering "
+                Say($"E2E CHECK {check.Name}: FAIL — [HARNESS] the server stopped answering "
                     + $"({gone}), so this verdict is about the server and not about "
-                    + $"{check.Name}. What the check saw first: {Redact(error.Message)} "
+                    + $"{check.Name}. What the check saw first: {error.Message} "
                     + $"({Elapsed(started)}ms)");
                 return Kind.ServerGone;
             }
@@ -261,8 +318,7 @@ public static class Runner
                 _ => "HARNESS",
             };
 
-            Console.WriteLine(
-                $"E2E CHECK {check.Name}: FAIL — [{kind}] {Redact(error.Message)} "
+            Say($"E2E CHECK {check.Name}: FAIL — [{kind}] {error.Message} "
                 + $"({Elapsed(started)}ms)");
             return Kind.Failed;
         }
