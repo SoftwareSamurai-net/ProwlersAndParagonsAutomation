@@ -128,7 +128,10 @@ public sealed class PlayEnginePropertyTests
     [MemberData(nameof(Seeds))]
     public void AStepNeverChangesTheStateItWasGiven(int seed)
     {
-        var table = TableRules.Book with { FatalDamage = true, WoundPenalties = true };
+        var table = TableRules.Book with
+        {
+            FatalDamage = true, WoundPenalties = true, HardTargets = true
+        };
         var encounter = new Encounter(_play, new SeededDice(seed), table);
 
         var state = encounter.Begin(Party(), visibility: Visibility.Poor) with { Table = table };
@@ -170,6 +173,11 @@ public sealed class PlayEnginePropertyTests
 
         // And every band of p.75's cover, including the one that refuses before anything is rolled.
         Assert.Equal(Enum.GetValues<Cover>().Order(), policy.Covers.Order());
+
+        // p.80's Hard Targets is inside the property too: somebody in the fight is a machine, and
+        // the generator both aims at a weak point and does not.
+        Assert.Contains(state.Combatants.Values, c => c.HardTarget);
+        Assert.Equal([false, true], policy.WeakPoints.Order());
 
         // The light really was bad and somebody really was invisible, or the paragraph above
         // describes a fight this property did not run.
@@ -369,7 +377,11 @@ public sealed class PlayEnginePropertyTests
                 },
                 ["toughness", "agility"], size: 0.2, invisible: true),
 
-            Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 6, "threat")
+            // <b>A machine, so p.80's Hard Targets is inside the property rather than beside
+            // it</b>: their passive defence doubles while that setting is on, and an attacker may
+            // buy the doubling off at four dice.
+            Combatant.Minions(
+                "minions", "the Minions", threat: 4, groupSize: 6, "threat", hardTarget: true)
         ];
     }
 }

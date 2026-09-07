@@ -2859,6 +2859,110 @@ public sealed class McpPlayServerTests
             new PlayRulesRepository(new InMemoryRulesSource(files)));
     }
 
+
+    // ── p.80's Hard Targets, over the wire ────────────────────────────────
+
+    /// <summary>
+    /// <b>A combatant's <c>hard_target</c> flag crosses the wire and doubles their passive
+    /// defence.</b>
+    ///
+    /// <para>Driven through the tools rather than asserted about the reader, for the reason every
+    /// fixture in this section is: a field the reader does not have is a field the SDK drops in
+    /// silence, which is exactly how p.79's <c>team</c> flag was lost. The control is the same
+    /// fight with the flag left off, whose defence pool is the rank on the sheet.</para>
+    ///
+    /// <para>Subdual, so <c>lethal_and_subdual</c> leaves the Toughness whole and the only thing
+    /// moving the pool is the doubling under test.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACombatantsHardTargetFlagCrossesTheWireAndDoublesTheirPassiveDefence() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Swing(bool hard)
+            {
+                var fight = TwoSides();
+                if (hard) fight[1]!["hard_target"] = true;
+
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["hard_targets"] = true },
+                    ["seed"] = 80
+                });
+
+                var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                        ["trait_id"] = "might", ["damage"] = "subdual", ["type"] = "unarmed"
+                    }
+                });
+
+                return turn;
+            }
+
+            // The control: the flag off is the rank on the sheet, and no line cites the rule.
+            var soft = await Swing(hard: false);
+
+            Assert.Contains("toughness 5d", RollLine(soft), StringComparison.Ordinal);
+            Assert.False(Cites(soft, "gritty_hard_targets"));
+
+            var machine = await Swing(hard: true);
+
+            Assert.Contains("toughness 10d", RollLine(machine), StringComparison.Ordinal);
+            Assert.True(Cites(machine, "gritty_hard_targets"));
+
+            // And what the caller sent comes back, so a reader of the state can see what was read.
+            var villain = machine["state"]!["combatants"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "villain", StringComparison.Ordinal));
+
+            Assert.True(villain!["hard_target"]!.GetValue<bool>());
+        });
+
+    /// <summary>
+    /// <b>An attack's <c>vulnerable_part</c> crosses the wire, costs the printed dice and cancels
+    /// the doubling.</b>
+    ///
+    /// <para>Both halves are read off one answer: the attack pool falls by
+    /// <c>penalty_dice_to_negate_it</c> and the defence pool falls back to the rank on the sheet. A
+    /// reader that had dropped the flag would leave both at the doubled figures.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAttacksVulnerablePartCrossesTheWireAndCancelsTheDoubling() =>
+        await WithClient(async client =>
+        {
+            var penalty = _play.GetGritty("gritty_hard_targets").HardTargets!.PenaltyDiceToNegateIt;
+
+            var fight = TwoSides();
+            fight[1]!["hard_target"] = true;
+
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = fight,
+                ["table"] = new JsonObject { ["hard_targets"] = true },
+                ["seed"] = 80
+            });
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                    ["trait_id"] = "might", ["damage"] = "subdual", ["type"] = "unarmed",
+                    ["vulnerable_part"] = true
+                }
+            });
+
+            var line = RollLine(turn);
+
+            Assert.Contains($"might {8 + penalty}d", line, StringComparison.Ordinal);
+            Assert.Contains("toughness 5d", line, StringComparison.Ordinal);
+            Assert.DoesNotContain("toughness 10d", line, StringComparison.Ordinal);
+        });
+
     /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
     /// reader — enough to open a fight for the tests that are about something else.

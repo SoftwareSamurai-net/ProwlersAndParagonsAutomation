@@ -112,6 +112,12 @@ public sealed class PlayTableRulesTests
     /// report would print the setting, the numbers would not carry it, and nothing would say so. So
     /// every switch is announced when the fight opens, and the ones this slice does not apply are
     /// announced differently.</para>
+    ///
+    /// <para><b>The unapplied one is the Gear Limit</b>, deliberately: it is the switch this engine
+    /// cannot apply <em>at all</em> — a fight here has no equipment in it, so there is no Trait
+    /// brought to bear through gear for a limit to cap — where every other member of that list is
+    /// one a later slice may take off it and leave this fixture asserting something no longer true.
+    /// </para>
     /// </summary>
     [Fact]
     public void ASwitchThatIsOnButNotYetAppliedIsAnnouncedAsSuch()
@@ -119,7 +125,7 @@ public sealed class PlayTableRulesTests
         var table = TableRules.Book with
         {
             ToughMinions = true,     // applied
-            HardTargets = true       // recorded, not yet applied
+            RaisedGearLimit = true   // recorded, not yet applied
         };
 
         var encounter = new Encounter(_play, new SeededDice(11), table);
@@ -135,7 +141,7 @@ public sealed class PlayTableRulesTests
         Assert.DoesNotContain("not yet implemented", applied.Text, StringComparison.Ordinal);
 
         var pending = Assert.Single(state.Ledger.Lines,
-            l => string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal));
+            l => string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal));
         Assert.Contains("not yet implemented", pending.Text, StringComparison.Ordinal);
 
         // The list of unapplied switches is a real subset of the settings, not a stale name list.

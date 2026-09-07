@@ -56,6 +56,13 @@ public static class CombatantFactory
     /// turns one on. The half of that sentence which <em>is</em> a capability — the Powers that
     /// compensate for not seeing — is read off the sheet, below.
     /// </param>
+    /// <param name="hardTarget">
+    /// Whether this character is one of p.80's hard targets — a machine, a vehicle or a thick
+    /// inanimate object — whose passive defence rank the Hard Targets setting doubles. <b>The
+    /// caller's too</b>, and for the same reason as the two above: Chapter 2 has no such flag,
+    /// nothing on a sheet says a character is a machine, and the same battlesuit is a vehicle in
+    /// one GM's game and a person in armour in another's.
+    /// </param>
     public static Combatant From(
         CharacterSheet sheet,
         RulesRepository rules,
@@ -65,7 +72,8 @@ public static class CombatantFactory
         string? id = null,
         string? side = null,
         double size = Combatant.SameSize,
-        bool invisible = false)
+        bool invisible = false,
+        bool hardTarget = false)
     {
         ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(rules);
@@ -92,16 +100,16 @@ public static class CombatantFactory
         {
             CombatantKind.Hero => Combatant.Hero(
                 id ?? name, name, edge, health, derived.CalculateResolve(sheet), traits, defences,
-                side ?? Combatant.HeroSide, size, invisible, powers),
+                side ?? Combatant.HeroSide, size, invisible, powers, hardTarget),
             CombatantKind.Villain => Combatant.Villain(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers),
+                size, invisible, powers, hardTarget),
             CombatantKind.Foe => Combatant.Foe(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers),
+                size, invisible, powers, hardTarget),
             CombatantKind.Extra => Combatant.Extra(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers),
+                size, invisible, powers, hardTarget),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown kind of combatant.")
         };
     }

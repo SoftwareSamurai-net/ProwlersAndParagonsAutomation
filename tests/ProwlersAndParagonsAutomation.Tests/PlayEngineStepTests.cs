@@ -3875,7 +3875,8 @@ public sealed class PlayEngineStepTests
         string defenceTrait, int defenceRank, double attackerSize = Combatant.SameSize,
         double targetSize = Combatant.SameSize, bool attackerInvisible = false,
         bool targetInvisible = false, IReadOnlySet<string>? attackerPowers = null,
-        IReadOnlySet<string>? targetPowers = null, int attackRank = 8)
+        IReadOnlySet<string>? targetPowers = null, int attackRank = 8,
+        bool targetHardTarget = false)
     {
         var attacker = Combatant.Hero(
             "hero", "the Hero", edge: 9, health: 12, resolve: 0,
@@ -3887,7 +3888,7 @@ public sealed class PlayEngineStepTests
             "villain", "the Villain", edge: 7, health: 12,
             new Dictionary<string, int>(StringComparer.Ordinal) { [defenceTrait] = defenceRank },
             [defenceTrait], side: "villains", size: targetSize, invisible: targetInvisible,
-            powers: targetPowers);
+            powers: targetPowers, hardTarget: targetHardTarget);
 
         return (attacker, target);
     }
@@ -3906,12 +3907,13 @@ public sealed class PlayEngineStepTests
     /// real reading rather than a saturated one.</para>
     /// </summary>
     private (int Thrown, IReadOnlyList<LedgerLine> Lines) Exchange(
-        Combatant attacker, Combatant target, Attack attack, Visibility light = Visibility.Clear)
+        Combatant attacker, Combatant target, Attack attack, Visibility light = Visibility.Clear,
+        TableRules? table = null)
     {
         const int Plenty = 300;
 
         var dice = new ScriptedDice([.. Enumerable.Repeat(4, Plenty)]);
-        var encounter = new Encounter(_play, dice);
+        var encounter = new Encounter(_play, dice, table);
         var state = encounter.Begin([attacker, target], visibility: light);
 
         // Begin makes no roll with random initiative off, so everything the source hands out from
@@ -4936,6 +4938,262 @@ public sealed class PlayEngineStepTests
             Prose(File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "mcp-play", "PLAY-POLICY.md"))),
             StringComparison.Ordinal);
     }
+
+
+    // ── p.80's Hard Targets ──────────────────────────────────────────────────
+
+    /// <summary>The Hard Targets table setting, and nothing else.</summary>
+    private static readonly TableRules HardTargetsOn = TableRules.Book with { HardTargets = true };
+
+    /// <summary>
+    /// <b>A hard target's passive defence answers at twice its rank, and its active one does
+    /// not.</b>
+    ///
+    /// <para>p.80 says "double a hard target's passive defense rank" and says nothing about the
+    /// dodging kind: a tank is no harder to duck for being a tank. Both halves are driven, and the
+    /// factor is read as a difference rather than typed — the doubled pool has to be exactly one
+    /// whole rank more than the undoubled one.</para>
+    ///
+    /// <para><b>The switch off is the baseline and is measured first.</b> A setting that is off has
+    /// to change nothing, which is what makes every balance figure this engine produces a figure
+    /// about the game the book prints; the same combatant declared a hard target in a fight that
+    /// did not take the setting throws exactly the dice they would have thrown anyway.</para>
+    /// </summary>
+    [Fact]
+    public void AHardTargetsPassiveDefenceDoublesAndItsActiveDefenceDoesNot()
+    {
+        const int Rank = 6;
+
+        // Subdual, so `lethal_and_subdual` leaves the Toughness whole and the only thing moving the
+        // defence pool is the doubling under test.
+        var blow = new Attack("hero", "villain", "might", DamageKind.Subdual);
+
+        var (attacker, soft) = Pair("toughness", Rank);
+        var open = Exchange(attacker, soft, blow, table: HardTargetsOn);
+
+        var (_, machine) = Pair("toughness", Rank, targetHardTarget: true);
+        var doubled = Exchange(attacker, machine, blow, table: HardTargetsOn);
+
+        Assert.Equal(open.Thrown + Rank, doubled.Thrown);
+
+        // The switch off changes nothing at all, for the same combatant.
+        var off = Exchange(attacker, machine, blow);
+
+        Assert.Equal(open.Thrown, off.Thrown);
+        Assert.DoesNotContain(off.Lines, l =>
+            string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal));
+
+        // And the active kind never moves: a dodging machine dodges at its own rank.
+        var (dodgeAttacker, dodger) = Pair("agility", Rank);
+        var dodge = Exchange(dodgeAttacker, dodger, blow, table: HardTargetsOn);
+
+        var (_, dodgingMachine) = Pair("agility", Rank, targetHardTarget: true);
+        var machineDodge = Exchange(dodgeAttacker, dodgingMachine, blow, table: HardTargetsOn);
+
+        Assert.Equal(dodge.Thrown, machineDodge.Thrown);
+    }
+
+    /// <summary>
+    /// <b>The doubling multiplies the rank before the printed halving, not after it.</b>
+    ///
+    /// <para>p.80 doubles a <em>rank</em>; p.75's table and <c>lethal_and_subdual</c> then halve
+    /// what answers this attack. Both directions are computed and the wrong one is required to be
+    /// wrong, because on an odd rank they differ: a Toughness of 7 against a lethal blow is 14 and
+    /// then 7 the page's way round, and 4 — the Glossary rounds a half up — and then 8 the other,
+    /// which is a die more than p.80 allows.</para>
+    /// </summary>
+    [Fact]
+    public void AHardTargetsRankIsDoubledBeforeThePrintedHalvingAndNotAfter()
+    {
+        const int Odd = 7;
+
+        // Lethal, so p.75 halves the Toughness — and odd, so the two orders disagree.
+        var blow = new Attack("hero", "villain", "might");
+
+        var (attacker, machine) = Pair("toughness", Odd, targetHardTarget: true);
+        var hard = Exchange(attacker, machine, blow, table: HardTargetsOn);
+
+        var (_, soft) = Pair("toughness", Odd);
+        var open = Exchange(attacker, soft, blow, table: HardTargetsOn);
+
+        // The fixture's own control: the halving really is in play, so this is a statement about
+        // the order of the two operations and not about a rank nothing touched.
+        Assert.Equal(Halved(Odd), open.Thrown - AttackPool);
+        Assert.NotEqual(Odd, Halved(Odd));
+
+        Assert.Equal(AttackPool + Halved(Odd * 2), hard.Thrown);
+        Assert.NotEqual(AttackPool + (Halved(Odd) * 2), hard.Thrown);
+    }
+
+    /// <summary>The attack rank <see cref="Pair"/> gives its attacker, which is the whole pool in the open.</summary>
+    private const int AttackPool = 8;
+
+    /// <summary>
+    /// <b>Aiming at a vulnerable part costs exactly the dice p.80 prints and cancels the
+    /// doubling.</b>
+    ///
+    /// <para>The penalty is read off <c>penalty_dice_to_negate_it</c> rather than restated, and the
+    /// negation is measured against the doubled exchange beside it — so the two halves of the
+    /// sentence are driven separately: the attack pool falls by the printed figure, and the defence
+    /// pool falls back to the rank on the sheet.</para>
+    /// </summary>
+    [Fact]
+    public void AimingAtAVulnerablePartCostsThePrintedDiceAndCancelsTheDoubling()
+    {
+        const int Rank = 6;
+
+        var rule = _play.GetGritty("gritty_hard_targets").HardTargets!;
+
+        // The control on the reading: a penalty of nothing would make every equality below hold of
+        // an engine that applied no rule at all.
+        Assert.NotEqual(0, rule.PenaltyDiceToNegateIt);
+
+        var blow = new Attack("hero", "villain", "might", DamageKind.Subdual);
+        var weakPoint = blow with { VulnerablePart = true };
+
+        var (attacker, machine) = Pair("toughness", Rank, targetHardTarget: true);
+
+        var doubled = Exchange(attacker, machine, blow, table: HardTargetsOn);
+        var aimed = Exchange(attacker, machine, weakPoint, table: HardTargetsOn);
+
+        // The doubling is gone — one whole rank off — and the attacker paid the printed dice for it.
+        Assert.Equal(doubled.Thrown - Rank + rule.PenaltyDiceToNegateIt, aimed.Thrown);
+
+        var line = Assert.Single(aimed.Lines, l =>
+            string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal));
+
+        Assert.Contains(rule.NegationAvailableAgainst, line.Text, StringComparison.Ordinal);
+        Assert.Contains("GM's call", line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A declaration that buys nothing says so and is not charged for.</b>
+    ///
+    /// <para>Two ways to reach it: the target is not a hard target, or the table never took the
+    /// setting. Neither takes the four dice — an attacker cannot pay to negate a doubling that is
+    /// not there — and both write a line saying which of the two it was, because a flag accepted
+    /// and quietly ignored is the worst of the three possible behaviours.</para>
+    /// </summary>
+    [Fact]
+    public void AVulnerablePartDeclarationThatNegatesNothingSaysSoAndCostsNothing()
+    {
+        var blow = new Attack("hero", "villain", "might", DamageKind.Subdual);
+        var weakPoint = blow with { VulnerablePart = true };
+
+        var (attacker, soft) = Pair("toughness", 6);
+        var (_, machine) = Pair("toughness", 6, targetHardTarget: true);
+
+        var open = Exchange(attacker, soft, blow, table: HardTargetsOn);
+
+        var atFlesh = Exchange(attacker, soft, weakPoint, table: HardTargetsOn);
+        var switchOff = Exchange(attacker, machine, weakPoint);
+
+        Assert.Equal(open.Thrown, atFlesh.Thrown);
+        Assert.Equal(open.Thrown, switchOff.Thrown);
+
+        Assert.Contains("is none of", Line(atFlesh, "gritty_hard_targets"), StringComparison.Ordinal);
+        Assert.Contains(
+            "did not take Hard Targets", Line(switchOff, "gritty_hard_targets"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The Penetrating recommendation is named on the ledger and not applied.</b>
+    ///
+    /// <para>p.80 closes by advising a table that vehicle-scale weapons and the strongest
+    /// characters should carry the Penetrating Pro. That is advice about how a character is built,
+    /// which is the <em>first</em> engine's question and one <c>play/</c> may not answer — so it is
+    /// quoted rather than applied, and the line says as much in as many words.</para>
+    /// </summary>
+    [Fact]
+    public void ThePenetratingRecommendationIsQuotedRatherThanApplied()
+    {
+        var rule = _play.GetGritty("gritty_hard_targets").HardTargets!;
+
+        var (attacker, machine) = Pair("toughness", 6, targetHardTarget: true);
+        var hit = Exchange(
+            attacker, machine, new Attack("hero", "villain", "might", DamageKind.Subdual),
+            table: HardTargetsOn);
+
+        var line = Line(hit, "gritty_hard_targets");
+
+        Assert.Contains(rule.RecommendedProForVehicleScaleWeapons, line, StringComparison.Ordinal);
+        Assert.Contains("is not applied", line, StringComparison.Ordinal);
+        Assert.Contains(rule.AppliesTo, line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>An entry that has stopped saying "doubled" is a rule this engine refuses to apply.</b>
+    ///
+    /// <para>The factor is not in the data and cannot be: <c>passive_defense_rank</c> is a printed
+    /// word, so the engine reads the word and supplies the 2 — the same shape as
+    /// <c>seize_initiative_gm_alternative</c>'s "doubles", and recorded as a reading for the same
+    /// reason. A silent fallback to 2 against an entry somebody had corrected would apply a rule
+    /// the book no longer prints, which is the failure this whole store exists to prevent.</para>
+    ///
+    /// <para>The control is the same exchange against the shipped file, which resolves and cites
+    /// the entry — so the throw is about the wording and not about an exchange that never ran.</para>
+    /// </summary>
+    [Fact]
+    public void AHardTargetsEffectThisEngineNoLongerRecognisesIsAThrow()
+    {
+        const string Printed = "\"passive_defense_rank\": \"doubled\"";
+        const string Reworded = "\"passive_defense_rank\": \"sturdier than these rules suggest\"";
+
+        var (attacker, machine) = Pair("toughness", 6, targetHardTarget: true);
+        var blow = new Attack("hero", "villain", "might", DamageKind.Subdual);
+
+        // The control: against the shipped bytes this resolves and the rule is cited.
+        var shipped = Exchange(attacker, machine, blow, table: HardTargetsOn);
+
+        Assert.Contains(shipped.Lines, l =>
+            string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal));
+
+        var reworded = SubstitutedPlayRules.With(PlayRulesRepository.GrittyFile, Printed, Reworded);
+        var encounter = new Encounter(reworded, new ScriptedDice([.. Enumerable.Repeat(4, 300)]), HardTargetsOn);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            encounter.Step(encounter.Begin([attacker, machine]), blow));
+
+        Assert.Contains("gritty_hard_targets", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("sturdier than these rules suggest", thrown.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A wall is not a combatant, so Hard Targets never doubles a cover's Structure.</b>
+    ///
+    /// <para>p.80 plainly covers "thick, inanimate objects", and a wall being shot through is one —
+    /// but the declaration this engine takes is made on a <em>combatant</em>, and the Structure is
+    /// a bare number the caller supplied for one attack. So the number stands as sent, and a caller
+    /// who wants a doubled wall doubles it. Driven rather than asserted in a comment: the target's
+    /// own doubled defence is the greater here, and a Structure that had doubled too would have
+    /// answered instead.</para>
+    /// </summary>
+    [Fact]
+    public void HardTargetsNeverDoublesACoversStructure()
+    {
+        const int Rank = 3;
+        const int Structure = 5;
+
+        var (attacker, machine) = Pair("toughness", Rank, targetHardTarget: true);
+
+        var through = new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, CoverStructure: Structure);
+
+        var shot = Exchange(attacker, machine, through, table: HardTargetsOn);
+
+        // Their own Toughness doubles to 6 and answers; a Structure doubled to 10 would have.
+        Assert.Equal(AttackPool + (Rank * 2), shot.Thrown);
+        Assert.NotEqual(AttackPool + (Structure * 2), shot.Thrown);
+
+        Assert.Contains(
+            "is the greater, so that answers instead",
+            Line(shot, "modifier_cover"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
+    private static string Line((int Thrown, IReadOnlyList<LedgerLine> Lines) exchange, string ruleId) =>
+        Assert.Single(exchange.Lines, l => string.Equals(l.Rule, ruleId, StringComparison.Ordinal)).Text;
 
     /// <summary>
     /// Markdown with its emphasis and its hard wrapping taken out, so a sentence is looked for as a

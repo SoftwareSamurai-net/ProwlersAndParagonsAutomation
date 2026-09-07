@@ -66,7 +66,7 @@ internal sealed class RandomPolicy : IPolicy
         {
             0 => new Attack(
                 actor.Id, target, rolled, Damage(), Row(),
-                AllOut: Coin(), Area: Coin(), Cover: Behind()),
+                AllOut: Coin(), Area: Coin(), Cover: Behind(), VulnerablePart: WeakPoint()),
             1 => new Attack(
                 actor.Id, target, rolled, Damage(), Row(),
                 Effect: "Ensnare", Cover: Behind(), CoverStructure: Pick(9)),
@@ -89,6 +89,22 @@ internal sealed class RandomPolicy : IPolicy
 
     /// <summary>Every band of cover this policy has put on an attack, for a fixture's control.</summary>
     public HashSet<Cover> Covers { get; } = [];
+
+    /// <summary>Both answers p.80's <c>vulnerable_part</c> declaration takes, for the same control.</summary>
+    public HashSet<bool> WeakPoints { get; } = [];
+
+    // <b>Its own counter and cycled, for the reason the cover band is</b>, and without lengthening
+    // the intent cycle: a flag chosen off a die is one some seed will not reach, and the branch
+    // that costs four dice and cancels a doubling is exactly the one a purity property wants inside
+    // it.
+    private int _nextWeakPoint;
+
+    private bool WeakPoint()
+    {
+        var aimed = _nextWeakPoint++ % 2 == 0;
+        WeakPoints.Add(aimed);
+        return aimed;
+    }
 
     // <b>Cycled rather than rolled, and its own counter</b>, for the reason the intent kinds above
     // are: a band chosen off a die is a band some seed will not reach, and `Cover.Complete` is the

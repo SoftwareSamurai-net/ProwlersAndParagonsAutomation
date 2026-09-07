@@ -194,13 +194,23 @@ page one of the run and do not move the numbers:
 | `CloseRangePenalty` | `gritty_close_range` |
 | `TheDrop` | `gritty_the_drop` |
 | `FriendlyFire` | `gritty_friendly_fire` |
-| `HardTargets` | `gritty_hard_targets` |
 | `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other five — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost` and the
-initiative variant beside them — are applied.
+The other six — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`,
+`HardTargets` and the initiative variant beside them — are applied.
+
+**`hard_targets` needs you to say which combatants are hard.** Send `"hard_target": true` on a
+combatant — a machine, a vehicle, a thick inanimate object — and every **passive** defence of
+theirs answers at twice its rank while that setting is on. Nothing derives it: no character sheet
+says a character is a machine, and the same battlesuit is a vehicle in one game and a person in
+armour in another. An attacker may aim at the weak points instead by sending
+`"vulnerable_part": true` on the attack, which costs four dice and cancels the doubling for that
+one shot. Whether the thing is complex enough to *have* a weak point is your call, and the ledger
+line says so. p.80's advice that vehicle-scale weapons and the strongest characters should carry
+the Penetrating Pro is named on the ledger and **not applied**: it is about how a character is
+built, which is the other server's question.
 
 **No spend refuses by name any more, and that is a claim held to the engine.** Every `kind` either
 `spend_resolve` or `spend_adversity` accepts is resolved: `extra_dice`, `reroll`,

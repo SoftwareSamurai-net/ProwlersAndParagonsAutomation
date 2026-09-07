@@ -109,12 +109,13 @@ Three properties of it are load-bearing:
 | `CloseRangePenalty` | `gritty_close_range` |
 | `TheDrop` | `gritty_the_drop` |
 | `FriendlyFire` | `gritty_friendly_fire` |
-| `HardTargets` | `gritty_hard_targets` |
 | `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, and the initiative variant beside them.
+The other six gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, and the initiative variant beside them.
+
+**p.80's Hard Targets is two rules that meet on one roll, and each half lives where its fact is.** `Combatant.HardTarget` is the caller's word — Chapter 2 has no flag that says a character is a machine, and the same battlesuit is a vehicle in one GM's game and a person in armour in another's, which is the same argument `Size` and `Invisible` are here on. `Attack.VulnerablePart` is a **declaration on one attack** and not a state of the target, because the page prices it that way: the attacker accepts `penalty_dice_to_negate_it` on *their* roll, and the next character to swing at the same machine may decline to. The doubling multiplies the rank **before** either printed halving — the page doubles a *rank*, and doubling afterwards would put an odd one through the round-up half first and hand back a die more than p.80 allows. Active defences never move, because the page says passive; a `CoverStructure` does not either, because the declaration is made on a combatant and a wall is not one. `recommended_pro_for_vehicle_scale_weapons` is named on the ledger and **not applied**: the Penetrating Pro is advice about how characters are built, and `play/` holds no opinion about Pros.
 
 **p.85's first Adversity purchase is applied**, and it is the one that is not a rule of its own: "whatever a point of Resolve could have done, on behalf of any NPC" is the Resolve purchases with the GM's money behind them. `SpendAdversity` carries which one — a point spent on nothing in particular would be a point spent on nothing — the pool pays, and the NPC's non-existent Resolve is never touched. `Encounter.AdversityBuys` is the list of the ones it runs, kept as one list so the gate and the dispatch cannot drift; the rest refuse by name, because they still charge the buyer's own pool and an NPC has none. **Who it may be bought for is `npc_kinds` and is read**, the way p.85's other two eligibility lists are: a Hero is refused with nothing spent. That sentence is what makes this a purchase at all, and it was the half nothing read — every one of the six purchases was reachable for a Hero, so a point of the GM's pool bought a Hero the die their own Resolve would have bought, which is the one thing a two-pool economy exists to make impossible. The other three Adversity spends are rules of their own, and each is a scene rather than a roll — see below.
 

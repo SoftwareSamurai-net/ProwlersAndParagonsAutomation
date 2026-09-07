@@ -386,6 +386,10 @@ public sealed partial class Encounter
         modifier += CoverPenalty(state, actor, attack, lines);
         modifier += VisibilityPenalty(state, actor, state[attack.Target], "attack", lines);
 
+        // p.80's Hard Targets, on the attacking half: the price of aiming at a weak point. The
+        // doubling it buys off is applied on the other side of the roll, in ChooseDefence.
+        modifier += HardTargetNegation(state, actor, attack, lines);
+
         modifier += WoundPenalty(state, actor, lines);
 
         return modifier;
@@ -662,6 +666,112 @@ public sealed partial class Encounter
             .FirstOrDefault(printed => combatant.Powers.Contains(Normalise(printed)));
     }
 
+    // ── The Gritty Combat Rules, pp.79-81 ─────────────────────────────────
+
+    /// <summary>
+    /// p.80's Hard Targets, on the attacking half of the exchange:
+    /// <c>penalty_dice_to_negate_it</c> for an attacker who aims at
+    /// <c>negation_available_against</c> instead of at the thing as a whole.
+    ///
+    /// <para><b>A declaration that buys nothing says so rather than costing nothing in
+    /// silence.</b> <see cref="Attack.VulnerablePart"/> on a target who is not a hard target, or in
+    /// a fight that never took the setting, is a caller believing they paid for something; the
+    /// penalty is not taken and the line says which of the two reasons it was. A flag accepted and
+    /// quietly ignored is the shape of defect this whole engine is written against.</para>
+    ///
+    /// <para><b>Whether the target is complex enough to <em>have</em> a weak point is the GM's, and
+    /// the line says so.</b> The page offers the negation "against the vulnerable parts of a
+    /// complex machine or vehicle" — narrower than the doubling, which covers thick inanimate
+    /// objects as well — and <see cref="Combatant.HardTarget"/> is one flag rather than two. A
+    /// second flag for "complex" would be a distinction nothing on a sheet backs, so this engine
+    /// applies the negation wherever the doubling applies and hands the narrower question back
+    /// rather than deciding it. <c>docs/guide/play-engine.md</c> records the reading.</para>
+    /// </summary>
+    private int HardTargetNegation(
+        EncounterState state, Combatant actor, Attack attack, List<LedgerLine> lines)
+    {
+        if (!attack.VulnerablePart) return 0;
+
+        var entry = _play.GetGritty("gritty_hard_targets");
+        var rule = entry.HardTargets!;
+        var target = state[attack.Target];
+
+        if (!state.Table.HardTargets || !target.HardTarget)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"{actor.Name} aims at a vulnerable part of {target.Name} and there is nothing to "
+                + "negate: "
+                + (state.Table.HardTargets
+                    ? $"{target.Name} is none of {rule.AppliesTo}"
+                    : "this table did not take Hard Targets")
+                + $". The {Dice(rule.PenaltyDiceToNegateIt)} was not taken"));
+
+            return 0;
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{actor.Name} aims at {rule.NegationAvailableAgainst}: {Dice(rule.PenaltyDiceToNegateIt)}, "
+            + $"and {target.Name}'s passive defence is not {rule.PassiveDefenseRank}. Whether this "
+            + "one is complex enough to have a weak point is the GM's call, not this engine's"));
+
+        return rule.PenaltyDiceToNegateIt;
+    }
+
+    /// <summary>
+    /// What p.80's Hard Targets multiplies a passive defence rank by:
+    /// <c>passive_defense_rank</c>, which is the printed word "doubled".
+    ///
+    /// <para><b>The word is read and the factor is supplied here</b>, in the same shape as
+    /// <c>seize_initiative_gm_alternative</c>'s "doubles" and for the same reason: the entry states
+    /// an effect in prose rather than a multiplier, so an entry that has stopped saying it is a rule
+    /// this engine cannot apply and it throws rather than going on doubling.</para>
+    ///
+    /// <para><b>It multiplies the rank before either printed halving, and the order is not
+    /// arithmetic.</b> The page doubles a hard target's passive defence <em>rank</em>, which is the
+    /// figure on the sheet; the table's <c>1/2 Toughness</c> and <c>lethal_and_subdual</c>'s lethal
+    /// clause then halve what the rules say answers this attack. Doubling afterwards would put an
+    /// odd rank through <see cref="Halve"/> first and hand back one die more than the page allows —
+    /// a Toughness of 7 halves to 4 and doubles to 8, where the page's own order gives 14 and then
+    /// 7.</para>
+    ///
+    /// <para><b>Active defences never double</b>, because the page says passive: dodging a tank is
+    /// no harder for the tank being a tank. And a <see cref="Attack.CoverStructure"/> is left alone
+    /// too — a wall is plainly one of the "thick, inanimate objects" the rule names, but the
+    /// declaration is made on a <em>combatant</em> and a wall is not one. The Structure is a number
+    /// the caller supplies, so a caller who wants a doubled wall doubles the number.</para>
+    /// </summary>
+    private int HardTargetFactor(
+        EncounterState state, Combatant target, Attack attack, List<LedgerLine> lines)
+    {
+        if (!state.Table.HardTargets || !target.HardTarget || attack.VulnerablePart) return 1;
+
+        var entry = _play.GetGritty("gritty_hard_targets");
+        var rule = entry.HardTargets!;
+
+        if (!rule.PassiveDefenseRank.Contains("double", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"gritty_hard_targets now says a hard target's passive defence rank is "
+                + $"'{rule.PassiveDefenseRank}'. This engine reads the printed word \"doubled\" and "
+                + "supplies the factor of 2 itself, because the entry states the effect in prose "
+                + "rather than as a multiplier; a rule that no longer says it is a rule this engine "
+                + "cannot apply. See docs/guide/play-engine.md's readings table.");
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{target.Name} is one of {rule.AppliesTo}, so every passive defence of theirs answers "
+            + $"at a {rule.PassiveDefenseRank} rank; the active ones do not move. p.80 also "
+            + $"recommends the {rule.RecommendedProForVehicleScaleWeapons} Pro on vehicle-scale "
+            + $"weapons and the {rule.RecommendedProForThePhysicalAttacksOfPowerfulSuperhumanCharacters} "
+            + "Pro on the physical attacks of powerful superhuman characters, which is advice about "
+            + "how characters are built rather than a rule of this fight, and is not applied"));
+
+        return 2;
+    }
+
     /// <summary>
     /// Which Trait answers an attack, and what pool it throws.
     ///
@@ -729,6 +839,10 @@ public sealed partial class Encounter
 
         var candidates = DefenceCandidates(target, attack, lines, state);
 
+        // p.80's Hard Targets, on the defending half: a machine's passive defences answer at twice
+        // their rank, and the doubling is applied to the rank before either printed halving.
+        var hard = HardTargetFactor(state, target, attack, lines);
+
         var best = ("", 0, false);
         var guarded = new HashSet<string>(StringComparer.Ordinal);
 
@@ -739,6 +853,8 @@ public sealed partial class Encounter
 
             var rank = target.Rank(trait);
             if (rank <= 0) continue;
+
+            if (!active) rank *= hard;
 
             // p.75, twice over: the row may print "1/2 Toughness", and a lethal attack halves a
             // Toughness whatever row it came from. Halve once if either says so.
@@ -755,7 +871,7 @@ public sealed partial class Encounter
             {
                 // p.78's guard on going all-out: an opponent who could not penetrate the passive
                 // defence at its full rank still cannot, so for them it is not halved at all.
-                if (active || CouldPenetrate(state[attack.Actor], attack, target.Rank(trait)))
+                if (active || CouldPenetrate(state[attack.Actor], attack, target.Rank(trait) * hard))
                 {
                     rank = Halve(rank);
                 }
@@ -783,7 +899,8 @@ public sealed partial class Encounter
         }
 
         if (attack.Area && best.Item3) DodgingAnAreaAttack(state, target, lines);
-        if (guarded.Contains(best.Item1)) StillCannotPenetrate(state, target, best.Item1, lines);
+        if (guarded.Contains(best.Item1))
+            StillCannotPenetrate(state, target, best.Item1, target.Rank(best.Item1) * hard, lines);
 
         var pool = best.Item2 + WoundPenalty(state, target, lines);
 
@@ -1019,14 +1136,14 @@ public sealed partial class Encounter
 
     /// <summary>The ledger line for an attack that p.78's guard has kept out.</summary>
     private void StillCannotPenetrate(
-        EncounterState state, Combatant target, string trait, List<LedgerLine> lines)
+        EncounterState state, Combatant target, string trait, int rank, List<LedgerLine> lines)
     {
         var entry = _play.GetCombat("going_all_out");
 
         lines.Add(new LedgerLine(
             state.Page, target.Id, entry.Id, entry.SourceRef,
             $"{target.Name} went all-out, so every defence of theirs is halved — but an opponent who "
-            + $"could not penetrate their {trait} of {target.Rank(trait)} "
+            + $"could not penetrate their {trait} of {rank} "
             + $"{entry.AllOutAttack!.OpponentsWhoCouldNotPenetrateYourPassiveDefense}, so this one "
             + "meets it at its full rank"));
     }

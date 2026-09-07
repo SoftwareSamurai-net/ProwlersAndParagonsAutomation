@@ -75,7 +75,6 @@ public sealed partial class Encounter
         nameof(TableRules.CloseRangePenalty),
         nameof(TableRules.TheDrop),
         nameof(TableRules.FriendlyFire),
-        nameof(TableRules.HardTargets),
         nameof(TableRules.SlowHealing),
         nameof(TableRules.RaisedGearLimit),
         nameof(TableRules.GearLimitRank)
