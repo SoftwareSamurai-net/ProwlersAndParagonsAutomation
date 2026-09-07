@@ -278,6 +278,60 @@ on the ledger rather than left silent: the daily healing rate by Toughness, the 
 after-battle healing roll, and the Medicine Talent's once-a-week limit. Those are yours to keep
 track of between scenes — do not narrate a character healing here.
 
+**A `grab` needs you to say what is being grabbed, and a full one puts it in the winner's hands for
+the page.** p.76 aims a grab at an object and a hold at a person, so `"move": "grab"` takes an
+`"item"` — any words you like — and a grab naming nothing is refused with nothing rolled, because a
+grab of nothing is the page's own definition of a hold. A partial grab records what the two of them
+are fighting over and comes back on the state under `grapples`; a full one moves it, and the winner's
+`holding` says what they have, the page they took it on, and whether they have swung it yet.
+
+**And the target has to be holding it, which means saying so when you open the fight.** p.76 takes
+an item "away from your opponent", so a grab is aimed at something somebody has — and this server
+has no inventory to look one up in, so a combatant at `start_encounter` takes a `"holding"` field:
+the one handheld thing that character walks in with, in your own words. **A grab for an item its
+target is not recorded as holding is refused with nothing rolled**, and the refusal says what they
+*are* holding. So a fight opened with nobody carrying anything is a fight in which no grab can
+land — if the Villain has a sword, say `"holding": "the sword"` on the Villain. An item somebody
+walked in with reports `carried_in: true` and no `won_on_page`, because p.76's one page is a limit
+on what a grab wins and nothing takes a weapon off somebody who simply brought one.
+
+**While a partial grab stands, either of them may go on rolling for the contested object.** That is
+the page's own way out — "you each get to make opposed Might rolls on your turn to act to try
+gaining control" — and it is the one grab this server allows for an item the target is not holding,
+because a half-measure leaves the object where it was and the character who owned it is rolling
+against somebody who has not got it either.
+
+**What the page gives the winner is one page, and this server applies it as state.** Send
+`"item"` on an attack to use it, or the `toss` intent to throw it away — either is refused by name
+unless that is exactly what the actor is holding — an opening `holding` and a full grab are the two
+ways anything reaches anybody's hands here, and an item this server does not know about is one you
+would otherwise be conjuring into the fight by naming it. **Neither spends the turn**: that is p.76's "in effect, a
+free action", and the actor still has their ordinary action afterwards. Anything still held at the
+end of the page it was won on is tossed aside and nobody has it — an item that *was* used stays
+where it is, and what becomes of it after that is yours. **And a character who has been put out of
+the fight lets go of whatever they are holding when the page turns**, whoever won it and whenever:
+nobody can grapple a defeated target, so an object left on a body would be out of the fight for
+good. Where it landed is yours.
+
+**Three things about a grab are yours and the ledger says which.** What losing the item means for
+the loser's own attacks: no figure of theirs is changed, because an attack here names a Trait and
+nothing in this repository's rules data says which Trait a weapon backs — so if the sword mattered,
+say so yourself. Where a tossed item landed, for the same reason there is no scenery here. Naming an item on an attack **changes no figure at all**: not the
+pool, not the row of the table, not the damage. Do not narrate it as a bonus.
+
+**Either of them may end a partial grab by letting go: send `toss` naming the contested object.**
+p.76 prints that exit in the same paragraph as the deadlock, and it works for the character who is
+not holding the thing as well as for the one who is — the grab record goes and both of them have
+their active defences against everybody else back. Nobody comes out of it in control of the object:
+only a full grab is that. Left alone, a partial grab ends only when somebody rolls three net
+successes, and until then neither character can dodge anybody but each other.
+
+**While a partial grab stands, neither of them may attack with the contested object.** That is
+p.76's "they can't use it, but neither can you", and an attack naming it is refused by name for
+either party, with nothing rolled — including the one who walked in with it, who is still recorded
+as holding it. Attacking with anything else is untouched: what the deadlock takes is the use of that
+object and both characters' active defences against anybody but each other.
+
 **`friendly_fire` needs nothing from you.** Whether a target is "engaged in close combat or
 otherwise bunched up" is worked out from the range bands you already set: anyone at Close Range
 with the target who is not you is somebody a stray round can find. A ranged attack into that costs

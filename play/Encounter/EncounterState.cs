@@ -58,7 +58,25 @@ public enum GrappleKind
 /// <param name="Held">The other one.</param>
 /// <param name="Move">A grab or a hold. An escape is not a state; it ends one.</param>
 /// <param name="Kind">Partial or full.</param>
-public sealed record Grapple(string Holder, string Held, GrappleMove Move, GrappleKind Kind);
+/// <param name="Item">
+/// What the two of them have hold of, for a grab, and null for a hold.
+///
+/// <para><b>One field records it for both characters, because p.76's partial grab is symmetrical.</b>
+/// "They can't use it, but neither can you" is a statement about the pair, and a copy on each of them
+/// would be two places for one fact to rot in. <see cref="Holder"/> and <see cref="Held"/> are named
+/// on this record, so a reader looking either character up finds the same item.</para>
+///
+/// <para><b>What reads "neither can use it" is the rule that was already here, and no more than
+/// that.</b> An attack in this engine names a Trait and — since this slice — optionally an item its
+/// actor is <em>holding</em>; there is no field on a roll that says which weapon backs it, so "you
+/// cannot use it" cannot be enforced against an attack the way a page could enforce it at a table.
+/// What is enforced is the clause p.76 attaches to the same deadlock and this engine can see: neither
+/// character has an active defence against anyone else while it lasts. Inventing a second reading
+/// would be inventing a mechanic the sheet does not back — <c>docs/guide/play-engine.md</c> records
+/// it.</para>
+/// </param>
+public sealed record Grapple(
+    string Holder, string Held, GrappleMove Move, GrappleKind Kind, string? Item = null);
 
 /// <summary>A character's own defences halved by something they chose to do.</summary>
 /// <param name="UntilPage">The last page on which the penalty still applies.</param>

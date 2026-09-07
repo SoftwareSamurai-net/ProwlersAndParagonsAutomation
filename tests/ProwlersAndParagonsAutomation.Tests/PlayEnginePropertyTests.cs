@@ -29,11 +29,87 @@ public sealed class PlayEnginePropertyTests
 
     private const int MaxPages = 25;
 
+    /// <summary>
+    /// The seeds every property here is driven with, as figures — so a fixture that has to sweep
+    /// the whole range rather than be parameterised over it walks the same list rather than a
+    /// second copy of it.
+    /// </summary>
+    private static IEnumerable<int> SeedRange => Enumerable.Range(1, 25);
+
     public static TheoryData<int> Seeds()
     {
         var data = new TheoryData<int>();
-        for (var seed = 1; seed <= 25; seed++) data.Add(seed);
+        foreach (var seed in SeedRange) data.Add(seed);
         return data;
+    }
+
+    /// <summary>
+    /// <b>p.76's full grab is reached somewhere in the seed range, and this is where that is
+    /// measured rather than assumed.</b>
+    ///
+    /// <para><see cref="AStepNeverChangesTheStateItWasGiven"/> cannot claim it. A full grab needs
+    /// three net successes on a Might contest between characters of the same Might, so no seed can
+    /// be made to produce one — and the control there that a toss dropped what its actor was
+    /// holding is satisfied by the combatants who <em>open</em> the fight holding something, whether
+    /// or not a grab ever landed. Read as a claim about the band it would be a control that cannot
+    /// fail for the reason it appears to be about, which is this repository's most common guard
+    /// fault: a feature that did not run mistaken for a feature that worked.</para>
+    ///
+    /// <para>So the band is measured once, over the whole range, and the failure message names the
+    /// count. <b>The driver here is deliberately narrower</b> than the property's — no toss hook, no
+    /// GM purchases, no Resolve — because its subject is not purity: it is whether the generator and
+    /// the engine between them still reach the three branches that only a full grab opens, which are
+    /// the item changing hands, an attack made with it, and the page turn taking it away.</para>
+    /// </summary>
+    [Fact]
+    public void AFullGrabIsReachedSomewhereInTheSeedRange()
+    {
+        var landed = new List<int>();
+        var aimedAtAHolder = new List<int>();
+
+        foreach (var seed in SeedRange)
+        {
+            var encounter = new Encounter(_play, new SeededDice(seed));
+            var state = encounter.Begin(Party());
+            var policy = new RandomPolicy(new SeededDice(seed * 7919));
+
+            for (var i = 0; i < 60 && !state.Over; i++)
+            {
+                if (state.Current is not { } actor)
+                {
+                    state = encounter.Step(state, new EndPage("")).State;
+                    continue;
+                }
+
+                state = encounter.Step(state, policy.Choose(state, actor)).State;
+
+                if (state.Grapples.Any(g => g.Move == GrappleMove.Grab && g.Kind == GrappleKind.Full)
+                    && !landed.Contains(seed))
+                {
+                    landed.Add(seed);
+                }
+
+                state = encounter.Step(state, new EndTurn(actor.Id)).State;
+            }
+
+            if (policy.GrabbedWhatTheyHeld.Contains(true)) aimedAtAHolder.Add(seed);
+        }
+
+        // The first control, and the one the guard above turns on: the generator aims a grab at a
+        // combatant who is actually holding something. Without it every grab in every fixture here
+        // is the refusal, and the band below could never be reached at all.
+        Assert.True(
+            aimedAtAHolder.Count > 0,
+            "no seed aimed a grab at a combatant who was holding anything, so every grab in the "
+            + "property was refused before a die was thrown — see Party(), which is what puts the "
+            + "objects in the fight.");
+
+        Assert.True(
+            landed.Count > 0,
+            $"no seed in 1..25 landed a full grab. {aimedAtAHolder.Count} of them aimed one at a "
+            + "combatant who was holding something, so the generator is reaching the move; what is "
+            + "not being reached is p.76's three-net-success band, and the branches that only a "
+            + "full grab opens are outside every property here.");
     }
 
     /// <summary>
@@ -153,6 +229,11 @@ public sealed class PlayEnginePropertyTests
 
             state = StepAndCheck(encounter, state, policy.Choose(state, actor), ref moved);
 
+            // p.76's toss, on every turn — see the hook's own comment for why it is not another
+            // branch of the cycle. It names what the actor is holding when they are holding
+            // anything, so both the drop and the refusal are inside the property.
+            state = StepAndCheck(encounter, state, policy.Tosses(state[actor.Id]), ref moved);
+
             if (policy.AfterRoll(state, state[actor.Id]) is { } follow)
                 state = StepAndCheck(encounter, state, follow, ref moved);
 
@@ -181,7 +262,8 @@ public sealed class PlayEnginePropertyTests
         Assert.Equal(
             [
                 nameof(Attack), nameof(BreakFree), nameof(GrappleIntent), nameof(Hold),
-                nameof(Move), nameof(SpendAdversity), nameof(SpendResolve), nameof(Stabilise)
+                nameof(Move), nameof(SpendAdversity), nameof(SpendResolve), nameof(Stabilise),
+                nameof(Toss)
             ],
             policy.Emitted.Order(StringComparer.Ordinal));
 
@@ -189,6 +271,23 @@ public sealed class PlayEnginePropertyTests
 
         // And every band of p.75's cover, including the one that refuses before anything is rolled.
         Assert.Equal(Enum.GetValues<Cover>().Order(), policy.Covers.Order());
+
+        // p.76's grab and the item it wins, on both sides of each of its refusals: a grab that names
+        // an object and one that names none, a grab aimed at what its target is holding and at what
+        // they are not, an attack made with an item and one made with nothing, and a toss of what
+        // the actor is holding as well as of what they are not.
+        Assert.Equal([false, true], policy.GrabbedItems.Order());
+        Assert.Equal([false, true], policy.SwungItems.Order());
+        Assert.Contains(true, policy.TossedWhatTheyHeld);
+        Assert.Contains(false, policy.TossedWhatTheyHeld);
+
+        // <b>What no seed can promise is said here rather than implied.</b> A full grab needs three
+        // net successes on a Might contest between characters of the same Might, and across this
+        // range exactly one seed lands one — so `TossedWhatTheyHeld` carrying true is satisfied by
+        // the combatants who open the fight holding something, whether or not a grab ever landed.
+        // It is a control on the generator reaching the branch, not on the engine reaching the
+        // band, and the band is measured once over the whole range by
+        // AFullGrabIsReachedSomewhereInTheSeedRange below.
 
         // p.80's Hard Targets is inside the property too: somebody in the fight is a machine, and
         // the generator both aims at a weak point and does not.
@@ -416,7 +515,29 @@ public sealed class PlayEnginePropertyTests
         Assert.Contains(result.Added, l => l.Text.Contains("holds no Resolve", StringComparison.Ordinal));
     }
 
-    /// <summary>Three Heroes against a Villain, a Foe and a group of Minions.</summary>
+    /// <summary>
+    /// Three Heroes against a Villain, a Foe and a group of Minions — <b>one of them holding
+    /// something</b>.
+    ///
+    /// <para><b>The items are here because a full grab is not something a seed can promise.</b> p.76
+    /// needs three net successes on a Might contest, the generator reaches a grab on one turn in ten
+    /// and names an object on half of those, and across twenty-five seeds exactly one fight lands
+    /// one — so the branches that <em>read</em> <see cref="Combatant.Holding"/> (the toss that drops
+    /// an item, the attack made with one) sat outside a property whose whole subject is every branch
+    /// of <c>Step</c>.</para>
+    ///
+    /// <para><b>One item was not enough once a grab had to be aimed at somebody who has one.</b> The
+    /// toss hook fired on every turn, so the Hero who opened with the sword threw it away on their
+    /// first, and every grab for the rest of the fight was refused before a die was thrown. Three
+    /// combatants walk in holding something and the hook now tosses on one turn in three, which is
+    /// what makes <see cref="AFullGrabIsReachedSomewhereInTheSeedRange"/> reach the band at all.
+    /// </para>
+    ///
+    /// <para><b>And it is no longer a construction the wire cannot express</b>, which it was when
+    /// this was written: <c>start_encounter</c> takes a <c>holding</c> on a combatant, because p.76
+    /// aims a grab at an opponent who has something and nothing else could say that anybody did.
+    /// </para>
+    /// </summary>
     private static List<Combatant> Party()
     {
         var heroes = Enumerable.Range(1, 3).Select(i => Combatant.Hero(
@@ -429,7 +550,13 @@ public sealed class PlayEnginePropertyTests
             // <b>A Blast, whose own Ch.2 Range is <c>ranged</c></b>, so p.79's Close Range rule is
             // inside the property rather than beside it: the generator rolls that Trait on a Power
             // row and the pair opens at Close.
-            rangedPowers: new HashSet<string>(StringComparer.Ordinal) { "blast" }));
+            rangedPowers: new HashSet<string>(StringComparer.Ordinal) { "blast" }))
+            .Select((hero, i) => i == 0 ? hero.Carrying("the sword") : hero)
+            .ToList();
+
+        // The control on that construction: exactly one Hero is holding something, so the toss
+        // branches below are reached from a fact rather than from a hope.
+        Assert.Single(heroes, hero => hero.Holding is not null);
 
         return
         [
@@ -444,7 +571,7 @@ public sealed class PlayEnginePropertyTests
                 },
                 // <b>And with a weapon levelled</b>, so p.79's Drop reaches the order of action
                 // inside the property rather than beside it.
-                ["toughness", "agility"], size: 5, ready: true),
+                ["toughness", "agility"], size: 5, ready: true).Carrying("the wand"),
 
             // A fifth of their size, which is the band at the other end — and invisible, which p.75
             // makes equivalent to no visibility for whoever is facing them.
@@ -454,7 +581,7 @@ public sealed class PlayEnginePropertyTests
                 {
                     ["might"] = 7, ["toughness"] = 5, ["agility"] = 4
                 },
-                ["toughness", "agility"], size: 0.2, invisible: true),
+                ["toughness", "agility"], size: 0.2, invisible: true).Carrying("the club"),
 
             // <b>A machine, so p.80's Hard Targets is inside the property rather than beside
             // it</b>: their passive defence doubles while that setting is on, and an attacker may
