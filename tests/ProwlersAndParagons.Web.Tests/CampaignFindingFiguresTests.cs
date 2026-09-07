@@ -275,4 +275,41 @@ public sealed class CampaignFindingFiguresTests
         Assert.Contains("The game charges 12 HP for Immortality.", said, StringComparison.Ordinal);
         Assert.DoesNotContain("caps at", said, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// <b>The one arm where a figure would be an invention, and the mirror image of everything
+    /// above.</b>
+    ///
+    /// <para>A game that has switched an optional rule on and set neither a cap nor a price
+    /// produces <c>CAMPAIGN_HOUSE_RULES_NOT_COPIED</c> carrying nothing at all: thirteen switches
+    /// are not a figure, which is why the join sentence says the rules came with it and lets the
+    /// panel say which. So <c>Ranks</c> falls through to <c>_ =&gt; ""</c> here <em>correctly</em>,
+    /// and this is the only scenario in this class that says so — every other one is about an arm
+    /// that was missing.</para>
+    ///
+    /// <para><b>It cannot use the figures loop, and the reason is that loop's own control.</b> A
+    /// finding carrying nothing satisfies <c>AssertEveryFigureIsOnScreen</c> completely, which is
+    /// exactly what its <c>carried.Count &gt; 0</c> guard exists to catch — so the assertion here
+    /// is the other side of it: nothing carried, and the sentence alone on screen. A cap or a
+    /// price appearing beside it would be a true number given for a false reason.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyCopyOfSwitchesAloneCarriesNoFigureAndPrintsNone()
+    {
+        var (finding, said) = await Drawn(
+            new Campaign(CampaignId, "Pinnacle City", "standard", null, false,
+                new CampaignTable { FatalDamage = true }),
+            sheet =>
+            {
+                sheet.CampaignId = CampaignId;
+                sheet.SelectedTierId = "standard";
+            });
+
+        Assert.Equal("CAMPAIGN_HOUSE_RULES_NOT_COPIED", finding.Code);
+        Assert.Empty(Figures(finding));
+
+        // The sentence and nothing but the sentence. Asserted as equality rather than as three
+        // absences, because `Ranks` borrowing an arm would append something this cannot predict.
+        Assert.Equal(finding.Message, said.Trim());
+    }
 }

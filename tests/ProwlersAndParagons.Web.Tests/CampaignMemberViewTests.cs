@@ -285,6 +285,92 @@ public sealed class CampaignMemberViewTests
     }
 
     /// <summary>
+    /// <b>A rule the game switched on after the join is reported too, and nothing checked it.</b>
+    ///
+    /// <para>The third arm of <c>CAMPAIGN_HOUSE_RULES_NOT_COPIED</c>: a table that is not the book
+    /// against a character carrying no table at all, with no cap and no price missing beside it.
+    /// The cap arm and the price arm each had a fixture and this one had none — replacing
+    /// <c>switchesMissing</c> with <c>false</c> left the whole browser suite green, so a game that
+    /// switched Fatal Damage on after somebody joined said nothing to that player on any
+    /// screen.</para>
+    ///
+    /// <para><b>And carrying no figure is the assertion rather than an omission.</b> The other two
+    /// arms print the table's cap and the table's price because those are the numbers that went
+    /// missing; a game that has set only switches has neither, and thirteen of them enumerated in a
+    /// finding is not a sentence anybody finishes — the same reason the join message says the
+    /// rules came with it and lets the panel say which. A cap or a price appearing in this
+    /// paragraph would be a figure given for a reason that is not there, which is the fault
+    /// <c>Ranks</c> exists to keep out.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACharacterThatJoinedBeforeTheTableSwitchedARuleOnIsToldItPlaysTheBook()
+    {
+        var (ctx, page) = await AMemberOf();
+        await using var _ = ctx;
+
+        // The control: the join happened, and there was nothing at all to copy at the time — so
+        // the finding below is about the switches and cannot be the cap's or the price's arm.
+        Assert.Equal(CampaignId, ctx.Session.Sheet.CampaignId);
+        Assert.Null(ctx.Session.Sheet.CampaignTable);
+        Assert.Null(ctx.Session.Sheet.TraitCapRank);
+        Assert.Null(ctx.Session.Sheet.ImmortalityCost);
+        Assert.DoesNotContain("joined before the game set its house rules", page.Markup,
+            StringComparison.Ordinal);
+
+        // The GM switches one optional rule on, and sets neither a cap nor a price.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        ctx.Api.Campaign(CampaignId, "Pinnacle City",
+            StoredCampaign.Write(new Campaign(
+                CampaignId, "Pinnacle City", "standard", null, false,
+                new CampaignTable { FatalDamage = true })));
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var after = ctx.Render<Campaigns>();
+
+        // The control on the finding: a member computes one only from the live read, so this says
+        // the table really was fetched and really does differ from what the character carries.
+        Assert.Contains("House rules at the table now", after.Markup, StringComparison.Ordinal);
+        Assert.Contains("Fatal Damage", after.Markup, StringComparison.Ordinal);
+
+        // The finding's own paragraph, not the page: the list above prints the switch's name for
+        // its own reasons, and a substring search over the markup would pass without a finding.
+        var said = after.FindAll("p")
+            .Select(e => e.TextContent)
+            .SingleOrDefault(t => t.Contains("joined before the game set its house rules",
+                StringComparison.Ordinal));
+
+        Assert.True(said is not null,
+            "The game switched an optional rule on and the character carries no table, which is "
+            + "CAMPAIGN_HOUSE_RULES_NOT_COPIED's third arm — and no element on /campaign carries "
+            + "its sentence, so the state reaches no reader. See CampaignJoin.Inspect's "
+            + "`switchesMissing`.");
+
+        // No cap and no price, because neither is what went missing. `Ranks` falls through to its
+        // empty arm here and that is correct — the numbers in the panel below are the table's own
+        // list saying what it has decided, not figures this sentence is entitled to borrow.
+        Assert.DoesNotContain("caps at", said!, StringComparison.Ordinal);
+        Assert.DoesNotContain("charges", said!, StringComparison.Ordinal);
+        Assert.DoesNotContain("HP", said!, StringComparison.Ordinal);
+
+        // The remedy, and nothing repaired: the join is still the only writer.
+        Assert.Contains("Join again", after.Markup, StringComparison.Ordinal);
+        Assert.Null(ctx.Session.Sheet.CampaignTable);
+
+        // **The positive control.** The same game, joined after it had switched Fatal Damage on,
+        // so the character carries the table and nothing is missing. Without it, a page that had
+        // stopped drawing findings at all would satisfy every absence above and this fixture would
+        // be measuring a screen rather than a state.
+        var (took, tookPage) = await AMemberOf(new CampaignTable { FatalDamage = true });
+        await using var control = took;
+
+        Assert.True(took.Session.Sheet.CampaignTable?.FatalDamage);
+        Assert.Contains("House rules on this character", tookPage.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("joined before the game set its house rules", tookPage.Markup,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>The other direction is drawn as rows and is deliberately not a finding.</b>
     ///
     /// <para>The GM clears the table's house rules and the character keeps the copy it took. That
