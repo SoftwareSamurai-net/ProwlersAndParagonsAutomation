@@ -527,4 +527,87 @@ public sealed class PowerDataTests
 
         Assert.Equal("charges:3_per_scene ×2, charges:1_per_scene", line);
     }
+
+    // ── The one price the book hands to the table ─────────────────────────────
+
+    /// <summary>
+    /// <b>Immortality's <c>campaign_cost_min</c> and <c>campaign_cost_max</c> are a
+    /// transcription of its own printed sentence, and this reads the sentence back.</b>
+    ///
+    /// <para>Ch.2 p.31: "In a game where Heroes can die, GMs should charge more for this —
+    /// somewhere between 6 and 12 Hero Points." That prose is the source. The structured pair
+    /// exists so <c>CharacterValidator</c> can bound a campaign's house price without a figure
+    /// being written into C#, which would be a price this repository had invented — but a range
+    /// stated in two places is a range that can drift, so the two are held together here rather
+    /// than hoped to agree.</para>
+    ///
+    /// <para><b>The numbers are read out of the description, never asserted as literals beside
+    /// it.</b> Asserting <c>Assert.Equal(6, min)</c> and <c>Assert.Contains("6", description)</c>
+    /// would pass just as happily over an entry whose prose had been rewritten to say 8 — the
+    /// digit is still in the string. The regular expression takes the two numbers the sentence
+    /// actually names and compares those.</para>
+    /// </summary>
+    [Fact]
+    public void ImmortalitysCampaignCostRangeIsWhatItsOwnDescriptionSays()
+    {
+        var immortality = _f.Rules.GetPower("immortality")!;
+
+        var stated = Regex.Match(
+            immortality.Description,
+            @"between\s+(?<min>\d+)\s+and\s+(?<max>\d+)\s+Hero\s+Points",
+            RegexOptions.IgnoreCase, TimeSpan.FromSeconds(5));
+
+        Assert.True(stated.Success,
+            "Immortality's description no longer prints the range a GM may re-price it into. "
+            + "The structured campaign_cost_min/max are a transcription of that sentence, so "
+            + "either the sentence has lost the rulebook's words or the entry has changed: "
+            + $"'{immortality.Description}'");
+
+        var min = int.Parse(stated.Groups["min"].Value, CultureInfo.InvariantCulture);
+        var max = int.Parse(stated.Groups["max"].Value, CultureInfo.InvariantCulture);
+
+        Assert.Equal(min, immortality.CampaignCostMin);
+        Assert.Equal(max, immortality.CampaignCostMax);
+
+        // The book's own numbers, so a rewrite that moved both the prose and the pair together
+        // is still caught. p.31 says 6 and 12.
+        Assert.Equal(6, min);
+        Assert.Equal(12, max);
+
+        // A range that does not sit above the printed price would not be "charge more for this".
+        Assert.True(immortality.CostFlat < min,
+            $"The book's flat {immortality.CostFlat} HP has to be below the range a table may "
+            + $"raise it into, and the range starts at {min}.");
+        Assert.True(min < max, "The range's ends are the wrong way round.");
+    }
+
+    /// <summary>
+    /// <b>Immortality is the only entry that hands its price to the table, and the count is the
+    /// assertion.</b>
+    ///
+    /// <para>A second entry gaining the pair would be this project inventing a house-rule surface
+    /// the book does not print for it — the same failure <c>available_pros</c> was, one field
+    /// over. <c>CharacterValidator</c> and <c>CostCalculator</c> would then charge a house price
+    /// for it with nothing having decided that they should.</para>
+    ///
+    /// <para><b>The positive control is that the set is not empty.</b> A test asserting "no more
+    /// than one" passes over a data file that has lost the field entirely, which is the state
+    /// where every other assertion in this slice quietly stops testing anything.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyImmortalityHandsItsPriceToTheTable()
+    {
+        var handed = _f.Rules.Powers.Where(p => p.HasCampaignCostRange).Select(p => p.Id).ToList();
+
+        Assert.Equal(["immortality"], handed);
+
+        // Half a range is worse than none: `HasCampaignCostRange` reads false, so nothing would
+        // charge it, and the entry would still look as though a table could re-price it.
+        var halves = _f.Rules.Powers
+            .Where(p => (p.CampaignCostMin is null) != (p.CampaignCostMax is null))
+            .Select(p => p.Id)
+            .ToList();
+
+        Assert.Empty(halves);
+    }
 }

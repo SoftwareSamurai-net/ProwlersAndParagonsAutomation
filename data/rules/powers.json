@@ -1941,6 +1941,8 @@
     "max_rank": 0,
     "dice_per_rank": 1,
     "description": "You cannot die, or cannot stay dead, and you will not die of age. In a game where Heroes can die, GMs should charge more for this — somewhere between 6 and 12 Hero Points.",
+    "campaign_cost_min": 6,
+    "campaign_cost_max": 12,
     "prerequisite": null,
     "power_cons": [
       {
