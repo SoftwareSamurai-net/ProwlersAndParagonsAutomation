@@ -169,6 +169,76 @@ else
                     }
                 </Field>
 
+                @* **The one price the book hands to the table.** Ch.2 p.31 prices Immortality at
+                   3 HP and then says a GM in a game where Heroes can die should charge between 6
+                   and 12. It is copied onto a character that carries no price of its own when it
+                   joins, exactly as the cap is — and unlike the cap it is Hero Points, so it moves
+                   what every character in the game with the Power costs.
+
+                   The bounds are read off the Power's own entry rather than typed here, for the
+                   same reason no cost anywhere in this app is written into a component. *@
+                <Field Label="@($"{ImmortalityName} costs")" For="campaign-immortality">
+                    <input id="campaign-immortality" type="number" min="1" max="99"
+                           value="@_immortality"
+                           @onchange="e => _immortality = Number(e.Value?.ToString())" />
+                    <p class="small muted">@ImmortalityHint</p>
+
+                    @* Said, and not refused — the same choice the Trait Cap box makes one field
+                       up, and for the same two reasons: a GM may type a figure before reading the
+                       range, and the engine reports the same mistake one level down rather than
+                       repairing it, so the two answers cannot disagree. *@
+                    @if (LoosePrice is { } loosePrice)
+                    {
+                        <p class="small muted" role="status">@loosePrice</p>
+                    }
+                </Field>
+
+                @* **The optional rules, adopted from a list.** p.79 introduces the ten Gritty
+                   Combat Rules as optional and tells a table to review them before taking any, so
+                   every one of these is off until a GM says otherwise — which is the book as
+                   printed, and what a campaign that never opens this form is playing.
+
+                   **Checkboxes rather than the two-card idiom**, which is for a boolean whose
+                   single control has to label itself with either the state or the action and did
+                   both by turns. A checkbox's label is the rule and its box is the answer, so
+                   neither reading is ambiguous — and thirteen pairs of cards is twenty-six
+                   controls for a menu somebody is picking from. Same idiom as the Gear editor's
+                   paired-weapon box. *@
+                <fieldset class="house-rules">
+                    <legend class="others-head">Optional rules</legend>
+
+                    <p class="small muted">
+                        Off is the book as printed. Every player in the game sees what is on here,
+                        and a character joining takes them.
+                    </p>
+
+                    @foreach (var rule in OptionalRules)
+                    {
+                        <label class="house-rule">
+                            <input type="checkbox" checked="@IsAdopted(rule.Key)"
+                                   @onchange="e => SetRule(rule.Key, e.Value is true)" />
+                            <span>@rule.Name</span>
+                            <span class="small muted">@rule.Page</span>
+                        </label>
+                    }
+
+                    @* Only where the switch that reads it is on. p.80 offers 9 and 12 and says the
+                       ladder is open-ended, so this is a number rather than a second choice — and
+                       a rank left behind under a switch nobody turned on is not a rule this table
+                       adopted, which is why it is drawn inside the switch rather than beside it. *@
+                    @if (_table.RaisedGearLimit)
+                    {
+                        <Field Label="Gear Limit" For="campaign-gear-limit">
+                            <input id="campaign-gear-limit" type="number" min="1" max="30"
+                                   value="@_table.GearLimitRank"
+                                   @onchange="e => SetGearLimit(Number(e.Value?.ToString()))" />
+                            <p class="small muted">
+                                The highest rank mundane equipment carries. p.80 offers 9 and 12.
+                            </p>
+                        </Field>
+                    }
+                </fieldset>
+
                 <div class="inline">
                     <button type="button" class="btn primary" @onclick="Save">Save</button>
                     <button type="button" class="btn quiet" @onclick="() => _editing = null">Cancel</button>
@@ -201,6 +271,35 @@ else
         @if (Finding is { } finding)
         {
             <p class="small muted" role="status">@finding.Message @Ranks(finding)</p>
+        }
+
+        @* **The house rules in force for the character on screen, where a player will look for
+           them.** The read-only half of the GM's form above: every member sees what the table has
+           decided and only the GM can change it.
+
+           **Read off the character rather than off the campaign, and that is not a shortcut.** A
+           player cannot read a campaign's payload at all — the server scopes it to the account
+           that owns it, which is why `Inspect` answers `UNKNOWN_CAMPAIGN` to a member — so the
+           campaign's own copy is not a thing this panel could draw. What the character carries
+           *is* the answer for that character: it was copied in on joining, it is what the engine
+           prices from, and it is what travels to a fight. So the heading says whose it is.
+
+           **Nothing at all for a character playing the book**, which is a heading over thirteen
+           "no"s and true of every game — the same question `CampaignTable.IsTheBook` answers for
+           the printed sheet. *@
+        @if (HouseRules is { Count: > 0 } house)
+        {
+            <p class="others-head">House rules on this character</p>
+            <ul class="house-rules-read">
+                @foreach (var line in house)
+                {
+                    <li class="small">@line</li>
+                }
+            </ul>
+            <p class="small muted">
+                Set by whoever runs the game and copied onto the character when it joined. Only the
+                GM can change them.
+            </p>
         }
 
         @if (_playing is null)
@@ -375,6 +474,16 @@ else
     private string? _tierId;
     private int? _traitCap;
 
+    /// <summary>
+    /// The optional rules the campaign being edited has turned on. <b>Never null while a form is
+    /// open</b> — a campaign that has adopted nothing is <see cref="CampaignTable.Book"/>, which
+    /// is the same game, so there is no third state for the form to represent.
+    /// </summary>
+    private CampaignTable _table = CampaignTable.Book;
+
+    /// <summary>What this table charges for Immortality, or null for the book's price.</summary>
+    private int? _immortality;
+
     /// <summary>What went wrong with the last save, or null. Cleared at the start of each one.</summary>
     private string? _problem;
 
@@ -482,6 +591,104 @@ else
                 ? null
                 : $"That is above the {tier.Name} tier's {tier.TraitCapRank}d. A house cap "
                   + "tightens a tier's ceiling and never loosens it.";
+        }
+    }
+
+    /// <summary>
+    /// The optional rules a GM can adopt, in the book's order, with the name and page each is
+    /// printed under.
+    ///
+    /// <para><b>Named here rather than in the markup</b>, because <c>WebPresentationTests</c> bars
+    /// a page from printing a type this project declares — a reader is owed the rulebook's words
+    /// and never a C# identifier, and a page that names one has almost always leaked something
+    /// else beside it.</para>
+    /// </summary>
+    private static IReadOnlyList<(string Key, string Name, string Page)> OptionalRules =>
+        HouseRuleFormatter.All;
+
+    /// <summary>Whether the form's draft has this rule turned on.</summary>
+    private bool IsAdopted(string key) => HouseRuleFormatter.IsOn(_table, key);
+
+    /// <summary>The Power's printed name, so the field is labelled the way the book names it.</summary>
+    private string ImmortalityName => Session.Rules.GetPower("immortality")?.Name ?? "Immortality";
+
+    /// <summary>
+    /// What the entry says a table may charge, read off the entry.
+    ///
+    /// <para><b>The figures are the data's and not this component's.</b> A range typed into a hint
+    /// would be a fourth copy of a sentence the rulebook prints once, and the one nothing checks
+    /// — the other three are the prose, the structured pair beside it, and the validator's own
+    /// message, all held together by <c>PowerDataTests</c>.</para>
+    /// </summary>
+    private string ImmortalityHint =>
+        Session.Rules.GetPower("immortality") is { CampaignCostMin: { } min, CampaignCostMax: { } max, CostFlat: { } book }
+            ? $"The book charges {book} HP. In a game where Heroes can die, it says to charge "
+              + $"between {min} and {max}. Leave it empty for the book's price."
+            : "Leave it empty for the book's price.";
+
+    /// <summary>
+    /// What is wrong with the price typed in, or null. <b>Said, and not refused</b> — the same
+    /// choice <see cref="LooseCap"/> makes, so a GM who types a figure before reading the range
+    /// is told rather than silently ignored, and the engine reports the same mistake one level
+    /// down under <c>IMMORTALITY_COST_OUTSIDE_RANGE</c>.
+    /// </summary>
+    private string? LoosePrice
+    {
+        get
+        {
+            if (_immortality is not { } price) return null;
+            if (Session.Rules.GetPower("immortality")
+                is not { CampaignCostMin: { } min, CampaignCostMax: { } max }) return null;
+
+            return price >= min && price <= max
+                ? null
+                : $"The rulebook puts a table's price between {min} and {max}. Every character "
+                  + "here with the Power will be charged what you type, and told it is outside "
+                  + "the range.";
+        }
+    }
+
+    /// <summary>
+    /// The house rules in force for the character on screen, as lines to print, or empty when
+    /// there is nothing to say.
+    ///
+    /// <para><b>Read off the character, not off the campaign, and the reason is the server.</b> A
+    /// campaign's payload is scoped to the account that owns it — a player cannot fetch the game
+    /// they are in, which is why <c>CampaignJoin.Inspect</c> answers <c>UNKNOWN_CAMPAIGN</c> to a
+    /// member — so the campaign's own copy is not something this panel could draw for the person
+    /// who most needs it. The character's copy is the answer anyway: it was written on joining, it
+    /// is what the engine prices from, and it is what travels to a fight.</para>
+    ///
+    /// <para><b>Only for a character that is in a game.</b> A sheet still carrying a table's rules
+    /// while naming no campaign is a finding rather than a list to print, and <c>Finding</c> above
+    /// says so.</para>
+    ///
+    /// <para><b>Empty for a character playing the book</b>, because a list of thirteen "no"s is
+    /// true of every game and tells a reader less than its absence does.</para>
+    /// </summary>
+    private IReadOnlyList<string> HouseRules
+    {
+        get
+        {
+            var sheet = Session.Sheet;
+            var lines = new List<string>();
+
+            if (sheet.CampaignId is null) return lines;
+
+            if (sheet.TraitCapRank is { } cap) lines.Add($"Trait Cap {cap}d");
+
+            if (sheet.ImmortalityCost is { } price)
+                lines.Add($"{ImmortalityName} costs {price} HP");
+
+            if (sheet.CampaignTable is { IsTheBook: false } table)
+            {
+                lines.AddRange(HouseRuleFormatter.On(table));
+
+                if (table is { RaisedGearLimit: true, GearLimitRank: { } rank })
+                    lines.Add($"Gear Limit {rank}d");
+            }
+
+            return lines;
         }
     }
 
@@ -677,6 +884,8 @@ else
         _name = "";
         _tierId = null;
         _traitCap = null;
+        _table = CampaignTable.Book;
+        _immortality = null;
         _problem = null;
     }
 
@@ -696,10 +905,33 @@ else
         _name = campaign.Name;
         _tierId = campaign.TierId;
         _traitCap = campaign.TraitCapRank;
+
+        // A campaign written before any of this existed carries no block, and the book is what it
+        // was playing — so the form opens on the same answer rather than on an empty third state.
+        _table = campaign.Table ?? CampaignTable.Book;
+        _immortality = campaign.ImmortalityCost;
         _problem = null;
 
         StateHasChanged();
     });
+
+    /// <summary>
+    /// Turn one optional rule on or off in the form's draft.
+    ///
+    /// <para><b>Turning the Gear Limit off drops the rank with it.</b> A figure kept behind an
+    /// unadopted switch is a setting the next reader has to guess about — it does not print on the
+    /// sheet and it does not apply in a fight, so keeping it would only mean a GM turning the
+    /// switch back on and silently getting a number they had forgotten typing.</para>
+    /// </summary>
+    private void SetRule(string key, bool on)
+    {
+        _table = HouseRuleFormatter.With(_table, key, on);
+
+        if (key == nameof(CampaignTable.RaisedGearLimit) && !on)
+            _table = _table with { GearLimitRank = null };
+    }
+
+    private void SetGearLimit(int? rank) => _table = _table with { GearLimitRank = rank };
 
     /// <summary>
     /// Write the campaign down, and say so when it went nowhere.
@@ -714,8 +946,18 @@ else
 
         _problem = null;
 
-        var landed = await Store.SaveAsync(
-            editing with { Name = _name, TierId = _tierId, TraitCapRank = _traitCap });
+        // **The book is stored as null**, so a campaign whose GM opened this form and turned
+        // nothing on is byte-identical to one written before the form existed. They are the same
+        // game, and a stored block of thirteen falses would be a difference `CampaignDiff` and
+        // `Inspect` would then have to be careful not to report.
+        var landed = await Store.SaveAsync(editing with
+        {
+            Name = _name,
+            TierId = _tierId,
+            TraitCapRank = _traitCap,
+            Table = _table.IsTheBook ? null : _table,
+            ImmortalityCost = _immortality
+        });
 
         if (!landed)
         {
@@ -848,20 +1090,39 @@ else
     /// somebody may have spent Hero Points on. That is not a thing to leave a player to discover
     /// on the sheet.</para>
     /// </summary>
-    private static string Took(CampaignJoinResult result, Campaign campaign) => result switch
-    {
-        { TookTier: true, TookTraitCap: true } =>
-            $" Its tier and its {campaign.TraitCapRank}d Trait Cap are now yours,"
-            + " and Resolve is measured from the cap.",
+    private static string Took(CampaignJoinResult result, Campaign campaign) =>
+        (result switch
+        {
+            { TookTier: true, TookTraitCap: true } =>
+                $" Its tier and its {campaign.TraitCapRank}d Trait Cap are now yours,"
+                + " and Resolve is measured from the cap.",
 
-        { TookTier: true } => " Its tier is now yours.",
+            { TookTier: true } => " Its tier is now yours.",
 
-        { TookTraitCap: true } =>
-            $" Its {campaign.TraitCapRank}d Trait Cap is now yours,"
-            + " and Resolve is measured from it.",
+            { TookTraitCap: true } =>
+                $" Its {campaign.TraitCapRank}d Trait Cap is now yours,"
+                + " and Resolve is measured from it.",
 
-        _ => "",
-    };
+            _ => "",
+        }) + TookHouseRules(result);
+
+    /// <summary>
+    /// What a join took of the table's own rules, or nothing.
+    ///
+    /// <para><b>A sentence rather than a list, and that is the whole reason it is one flag and not
+    /// thirteen.</b> The tier and the cap each move a figure a player can point at, so each is
+    /// named with its number. The optional rules are a list somebody goes and reads, and a join
+    /// message enumerating thirteen switches is not a message anybody finishes — so it says the
+    /// game's rules came with the character and points at where they are printed.</para>
+    ///
+    /// <para><b>It is appended rather than folded into the four cases above</b>, because the two
+    /// are independent: a character can take a cap and no rules, rules and no cap, or both, and
+    /// folding them would be eight cases saying what two sentences say.</para>
+    /// </summary>
+    private static string TookHouseRules(CampaignJoinResult result) =>
+        result.TookHouseRules
+            ? " Its house rules came with it — they are listed under this game below."
+            : "";
 
     /// <summary>
     /// The character this page just put back on screen, or null when it did not have to.

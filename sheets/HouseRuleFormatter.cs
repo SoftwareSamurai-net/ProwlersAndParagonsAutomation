@@ -98,6 +98,39 @@ public static class HouseRuleFormatter
         return [.. Entries.Where(e => IsOn(table, e.Key)).Select(e => e.Name)];
     }
 
+    /// <summary>
+    /// The same table with one switch set, by the key <see cref="All"/> uses.
+    ///
+    /// <para><b>The other direction of <see cref="IsOn"/>, and here beside it on purpose.</b> A
+    /// form has to turn a switch on by name, and a second place mapping a key to a property is a
+    /// second place for one of thirteen to be wired to the wrong one. An unknown key throws, for
+    /// the reason <see cref="IsOn"/> does: a misspelling that silently changed nothing is a
+    /// control that looks broken.</para>
+    /// </summary>
+    public static CampaignTable With(CampaignTable table, string key, bool on)
+    {
+        ArgumentNullException.ThrowIfNull(table);
+
+        return key switch
+        {
+            nameof(CampaignTable.ActiveDefensesCost) => table with { ActiveDefensesCost = on },
+            nameof(CampaignTable.CloseRangePenalty) => table with { CloseRangePenalty = on },
+            nameof(CampaignTable.TheDrop) => table with { TheDrop = on },
+            nameof(CampaignTable.FatalDamage) => table with { FatalDamage = on },
+            nameof(CampaignTable.FriendlyFire) => table with { FriendlyFire = on },
+            nameof(CampaignTable.HardTargets) => table with { HardTargets = on },
+            nameof(CampaignTable.RaisedGearLimit) => table with { RaisedGearLimit = on },
+            nameof(CampaignTable.SlowHealing) => table with { SlowHealing = on },
+            nameof(CampaignTable.ToughMinions) => table with { ToughMinions = on },
+            nameof(CampaignTable.WoundPenalties) => table with { WoundPenalties = on },
+            nameof(CampaignTable.GmAlternativeToSeizingInitiative) =>
+                table with { GmAlternativeToSeizingInitiative = on },
+            nameof(CampaignTable.CheckingYourSwing) => table with { CheckingYourSwing = on },
+            nameof(CampaignTable.RandomInitiative) => table with { RandomInitiative = on },
+            _ => throw new ArgumentOutOfRangeException(nameof(key), key, "No such table setting.")
+        };
+    }
+
     /// <summary>The printed name of one switch, by key.</summary>
     public static string NameOf(string key) =>
         Entries.FirstOrDefault(e => e.Key == key).Name
