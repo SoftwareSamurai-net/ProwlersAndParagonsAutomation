@@ -828,6 +828,101 @@ test('only the member reads it: a stranger, the GM of that very row, and nobody 
             'the `m.id = ?` half of `campaignForMember` answered a membership id nobody holds');
     });
 
+/**
+ * Count the statements one call prepares, so "refused before any query" is a measurement.
+ *
+ * Every request prepares at least one — the session lookup — so what a test reads here is a
+ * difference between two calls rather than an absolute. Wrapping the binding the harness handed
+ * the server is the only place both halves of that are visible.
+ */
+function counting(app) {
+    const real = app.env.DB;
+    const counted = { n: 0 };
+
+    app.env.DB = {
+        prepare: (sql) => {
+            counted.n += 1;
+            return real.prepare(sql);
+        },
+        raw: real.raw,
+    };
+
+    return async (fn) => {
+        const before = counted.n;
+        const response = await fn();
+        return { statements: counted.n - before, response };
+    };
+}
+
+test('the four refusals are one answer: same bytes, same statements, and none of them a query',
+    async () => {
+        // **All four are the same fact from outside, and that is the security property.** A
+        // membership belonging to somebody else, one this account is the GM of, an id nobody
+        // holds, and a campaign the GM has deleted: a caller who could tell any two of those
+        // apart would have an oracle for whether an `m_…` exists and whose it is. The route gives
+        // one sentence to all four, and this pins the body **and** the number of statements each
+        // costs — a split that showed up as one extra round trip would be the same oracle with a
+        // stopwatch in front of it.
+        const { app, gm, player, membership } = await aTable();
+        const stranger = await signIn(app, 'stranger@example.test');
+
+        const cost = counting(app);
+
+        // The positive control first: a read that works, so the refusals below are measured
+        // against a route that answers somebody rather than against one that answers nobody.
+        const allowed = await cost(() => liveTable(app, player.cookie, membership));
+
+        assert.equal(allowed.response.status, 200);
+
+        // **Refused before any query**, measured rather than asserted: a malformed id costs the
+        // session lookup and nothing else, which is one statement fewer than any answer that
+        // reached `campaignForMember`.
+        for (const bad of ['m_short', `${mid()}0`, mid().replace('m_', 'g_'), 'm_' + '0'.repeat(21)]) {
+            const refused = await cost(() => liveTable(app, player.cookie, bad));
+
+            assert.equal(refused.response.status, 400,
+                `'${bad}' is not the membership id shape and must not be read as one`);
+            // Strictly fewer than a call that reached `campaignForMember`, rather than a fixed
+            // number: what is being held is that the shape check short-circuits the query, and
+            // pinning the session lookup's own count here would make this test fail on a change
+            // to sign-in that it says nothing about.
+            assert.ok(refused.statements < allowed.statements,
+                `'${bad}' reached the database before its shape was refused: `
+                + `${refused.statements} statements against ${allowed.statements}`);
+        }
+
+        const four = [
+            ['a stranger', () => liveTable(app, stranger.cookie, membership)],
+            ['the GM of that very row', () => liveTable(app, gm.cookie, membership)],
+            ['an id nobody holds', () => liveTable(app, player.cookie, mid(9))],
+            // Last, because the campaign has to go before it, which is measured separately below.
+            ['a campaign the GM deleted', () => liveTable(app, player.cookie, membership)],
+        ];
+
+        let words = null;
+
+        for (const [who, call] of four) {
+            if (who === 'a campaign the GM deleted') {
+                assert.equal((await app.call(`/api/campaigns/${gid()}`,
+                    { method: 'DELETE', cookie: gm.cookie })).status, 204);
+            }
+
+            const seen = await cost(call);
+
+            assert.equal(seen.response.status, 404, `${who} was not refused`);
+            assert.equal(seen.statements, allowed.statements,
+                `${who} costs a different number of statements from a read that works`);
+
+            const body = await seen.response.text();
+
+            words ??= body;
+            assert.equal(body, words, `${who} is told something the other three are not`);
+        }
+
+        // And the sentence is a sentence, not an empty body every refusal trivially matches.
+        assert.match(words, /membership/);
+    });
+
 test('a campaign the GM deleted answers the same refusal as one that was never the caller’s',
     async () => {
         const { app, gm, player, membership } = await aTable();
