@@ -3702,6 +3702,120 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>The sheet that carried no table is named whether or not the caller also passed one.</b>
+    ///
+    /// <para><b>The clause is spelled twice and only one of the two was covered.</b>
+    /// <c>TryAgreeTable</c> ends in two branches — sheets alone, and sheets plus an agreeing
+    /// <c>table</c> argument — and each appends the "carries no table" clause to its own sentence.
+    /// Every fixture over the second branch handed in sheets that all carried one, so deleting the
+    /// clause from it passed the entire suite: a fight opened with `table` set and a sandbox
+    /// Villain in it would say nothing about the Villain, and the policy's instruction not to
+    /// narrate that character as having agreed to the house rules would have nothing behind
+    /// it.</para>
+    ///
+    /// <para>Driven as a theory over both branches, because the point is that the two sentences
+    /// make the same promise — and the source is asserted alongside so the case really is the
+    /// branch it claims to be.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(false, "sheets")]
+    [InlineData(true, "sheets_and_call")]
+    public async Task ASheetCarryingNoTableIsNamedWithOrWithoutATableOnTheCall(
+        bool alsoOnTheCall, string source) =>
+        await WithClient(async client =>
+        {
+            var arguments = new Dictionary<string, object?>
+            {
+                ["combatants"] = OneOfThemInACampaign()
+            };
+
+            if (alsoOnTheCall)
+            {
+                arguments["table"] = new JsonObject
+                {
+                    ["fatal_damage"] = true,
+                    ["wound_penalties"] = true
+                };
+            }
+
+            var answer = await Call(client, "start_encounter", arguments);
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            // The control: this really is the branch the case is about.
+            Assert.Equal(source, TableOf(answer)["source"]!.GetValue<string>());
+
+            Assert.Contains("'villain'", PageOneOnTheTable(answer), StringComparison.Ordinal);
+            Assert.Contains("carries no table", PageOneOnTheTable(answer), StringComparison.Ordinal);
+
+            Assert.Contains("'villain'",
+                TableOf(answer)["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>A measurement is <em>run</em> under the sheets' table, and not merely echoed with it.</b>
+    ///
+    /// <para><b>This is the one place the positive control the rest of the slice leans on does not
+    /// reach.</b> Every other fixture proves the switches crossed by finding
+    /// <c>Encounter.Begin</c>'s ledger line for them — but <c>run_encounters</c> answers with no
+    /// ledger at all, so the only fixture over it could assert nothing but the echo. An echo is
+    /// this server repeating what it read: a build that read the sheets, echoed them faithfully and
+    /// then constructed each of its thirty encounters with <c>TableRules.Book</c> would satisfy
+    /// every assertion there was, and the rate somebody quoted off it would be a rate about the
+    /// wrong game. That is exactly the "accepted, applied to nothing, and unannounced" this server
+    /// refuses everywhere else.</para>
+    ///
+    /// <para><b>The observable is structural rather than a die roll</b>, which this file may not
+    /// assert. Without Fatal Damage a combatant's Health floors at the <c>damage</c> entry's
+    /// <c>defeated_at_health</c>, so no mean can be below it; with it on, the floor is the negative
+    /// of full Health and a fight only <em>ends</em> when the losing side is at or past that — so
+    /// any run ending in a defeat rather than at the page limit drives a mean below zero. Both
+    /// halves run in the same call, so the negative is proof the switch reached the engine rather
+    /// than proof of a lucky seed.</para>
+    /// </summary>
+    [Fact]
+    public async Task AMeasurementIsRunUnderTheSheetsTableAndNotOnlyEchoedWithIt() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Measure(JsonNode combatants) =>
+                await Call(client, "run_encounters", new Dictionary<string, object?>
+                {
+                    ["combatants"] = combatants,
+                    ["runs"] = PlayTools.FewestRuns,
+                    ["seed"] = 41
+                });
+
+            static IEnumerable<double> MeanHealth(JsonNode report) =>
+                report["by_combatant"]!.AsArray()
+                    .Select(c => c!["mean_health_remaining"])
+                    .Where(h => h is not null)
+                    .Select(h => h!.GetValue<double>());
+
+            var fatal = await Measure(UnderOneTable(new JsonObject { ["FatalDamage"] = true }));
+
+            Assert.True(fatal["ok"]!.GetValue<bool>(), fatal.ToJsonString());
+            Assert.True(TableOf(fatal)["fatal_damage"]!.GetValue<bool>());
+            Assert.Equal("sheets", TableOf(fatal)["source"]!.GetValue<string>());
+
+            // The control: the runs ended in defeats rather than all at the page limit, so a fight
+            // really was pushed past the floor.
+            Assert.True(fatal["draw_rate"]!.GetValue<double>() < 1.0,
+                "every run drew at the page limit, so nothing was driven past the defeat floor.");
+
+            // The engine really was constructed with it: no mean below zero is reachable under the
+            // book's floor, and Fatal Damage moves that floor to the negative of full Health.
+            Assert.Contains(MeanHealth(fatal), h => h < 0);
+
+            // And the mirror, which is what makes the line above a measurement rather than a
+            // quirk: the same fight with no block on the sheets cannot produce one.
+            var book = await Measure(TwoSides());
+
+            Assert.Equal("book", TableOf(book)["source"]!.GetValue<string>());
+            Assert.All(MeanHealth(book), h => Assert.True(h >= 0,
+                $"a run under the book left a mean Health of {h}, which its floor forbids."));
+        });
+
+    /// <summary>
     /// The keys the play policy tells a conversation to read off an echoed table, which are the
     /// keys the echo has to have. The four <c>source</c> values are not listed here — they are
     /// driven out of the server and compared with the document both ways.
