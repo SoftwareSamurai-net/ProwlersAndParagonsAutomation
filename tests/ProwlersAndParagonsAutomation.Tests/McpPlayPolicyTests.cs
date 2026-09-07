@@ -336,9 +336,18 @@ public sealed class McpPlayPolicyTests
     /// single failure this whole server is built to make impossible.</para>
     ///
     /// <para><b>Every value of the enum is driven, not only the ones named</b>, so a purchase the
-    /// GM could name and the table has forgotten fails here rather than being found by a caller. And
-    /// both answers have to occur: a table saying "not yet implemented" of everything, or of
-    /// nothing, would satisfy a comparison that only ever checked one of them.</para>
+    /// GM could name and the table has forgotten fails here rather than being found by a caller.
+    /// </para>
+    ///
+    /// <para><b>Every row says <c>bought</c> now, so the two-valued control has moved, and this
+    /// paragraph is where it says where to.</b> It used to be this table itself — four rows one way
+    /// and six the other — and a comparison whose right-hand side has one value cannot tell a
+    /// working classifier from one that has stopped recognising the phrase at all. The case left in
+    /// this engine is <see cref="Encounter.SwitchesNotYetApplied"/>: a run with the Gear Limit on
+    /// says <c>not yet implemented</c> on page one and a run with an applied setting on does not, so
+    /// the substring test is watched answering both ways at the end of this test. Should that pair
+    /// ever go one-valued too, this guard is asserting nothing and wants a new control before it is
+    /// worth reading.</para>
     /// </summary>
     [Fact]
     public void EveryPurchaseTheGmsPoolMayNameAnswersTheWayThePolicySaysItDoes()
@@ -376,9 +385,34 @@ public sealed class McpPlayPolicyTests
                     : "bought";
         }
 
-        // The control: both answers have to have occurred, or the comparison below is vacuous.
-        Assert.Contains("bought", answered.Values, StringComparer.Ordinal);
-        Assert.Contains("not yet implemented", answered.Values, StringComparer.Ordinal);
+        // The control: every purchase was driven, and the classifier that sorted them can still see
+        // its own phrase. That second half is no longer this table's to supply — every row answers
+        // "bought" — so it is driven off Encounter.SwitchesNotYetApplied instead, which is the one
+        // two-valued case this engine has left: the Gear Limit is announced as not yet implemented
+        // on page one and an applied setting is not.
+        Assert.Equal(
+            Enum.GetValues<ResolveSpend>().Select(k => PlayTools.Wire(k.ToString())).Order(StringComparer.Ordinal),
+            answered.Keys.Order(StringComparer.Ordinal));
+
+        var unapplied = new Encounter(_f.Play, new SeededDice(21), TableRules.Book with { RaisedGearLimit = true })
+            .Begin([hero, villain]);
+
+        var applied = new Encounter(_f.Play, new SeededDice(21), TableRules.Book with { FatalDamage = true })
+            .Begin([hero, villain]);
+
+        Assert.True(
+            unapplied.Ledger.Lines.Any(l => l.Text.Contains("not yet implemented", StringComparison.Ordinal)),
+            "the Gear Limit switch is what is left of the 'not yet implemented' classifier this test "
+            + "sorts on, and a run that turns it on did not say it. With every row of the table "
+            + "reading 'bought', nothing else here can tell a working classifier from one that has "
+            + "stopped recognising the phrase.");
+
+        Assert.DoesNotContain(applied.Ledger.Lines, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+
+        // And that run really did turn a setting on, or the two above are two silent runs agreeing.
+        Assert.Contains(applied.Ledger.Lines, l =>
+            l.Text.Contains("table setting FatalDamage is on", StringComparison.Ordinal));
 
         foreach (var (purchase, says) in claimed.OrderBy(row => row.Key, StringComparer.Ordinal))
         {

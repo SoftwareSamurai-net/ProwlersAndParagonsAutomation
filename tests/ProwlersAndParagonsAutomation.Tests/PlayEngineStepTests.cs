@@ -1311,6 +1311,11 @@ public sealed class PlayEngineStepTests
     /// name on a list. It is not a rule of its own — "whatever a point of Resolve could have done, on
     /// behalf of any NPC" is the Resolve purchases with different money behind them — so the intent
     /// names which one, the GM's pool pays, and the NPC's non-existent Resolve is never touched.</para>
+    ///
+    /// <para><b>All ten are bought now, and the tail of this fixture drives the change.</b> Four of
+    /// them charged the buyer's own Resolve and so answered <c>not yet implemented</c> from the GM's
+    /// pool; seizing the initiative is the one of those four that needs nothing to have happened
+    /// first, so it is the one that fits here — the others have their own fixtures.</para>
     /// </summary>
     [Fact]
     public void AdversityBuysAnNpcTheDiceResolveWouldHaveBought()
@@ -1358,14 +1363,18 @@ public sealed class PlayEngineStepTests
         Assert.Contains(spent.Added, l =>
             l.Text.Contains("the GM spends 2 Adversity on the Villain", StringComparison.Ordinal));
 
-        // The four purchases that still charge the buyer's own pool refuse by name, and the GM's
-        // pool is not touched for one — that is the whole of what is left unimplemented in p.85.
-        var unbought = encounter.Step(state, new SpendAdversity(
+        // And the four that used to refuse are bought too. Seizing needs no roll, so it is the one
+        // that can be driven from here: the pool pays, the Villain's Resolve stays at nothing, and
+        // p.73's own effect lands on the state rather than only on the line.
+        var seized = encounter.Step(state, new SpendAdversity(
             "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
 
-        Assert.Contains(unbought.Added, l =>
+        Assert.Equal(opening - 1, seized.State.Adversity);
+        Assert.Equal(0, seized.State["villain"].Resolve);
+        Assert.Contains("villain", seized.State.Seized);
+
+        Assert.DoesNotContain(seized.Added, l =>
             l.Text.Contains("not yet implemented", StringComparison.Ordinal));
-        Assert.Equal(opening, unbought.State.Adversity);
     }
 
     /// <summary>
@@ -1445,6 +1454,695 @@ public sealed class PlayEngineStepTests
             "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.ExtraDice));
 
         Assert.Equal(opening - 1, onAnNpc.State.Adversity);
+    }
+
+    /// <summary>
+    /// <b>A purchase priced below a point is refused, and it used to be paid for backwards.</b>
+    ///
+    /// <para>Every price Chapters 4 and 5 print is a whole number of points and none of them is
+    /// below one — but the number of points is the caller's, and two things read it. p.85's pool
+    /// gate compared the pool with what the intent asked for, and nine of the ten purchases charge
+    /// their own printed price and ignore that figure: so a spend of <c>0</c> points walked through
+    /// the gate on an empty pool and then charged one, leaving the GM on <b>−1 Adversity</b> with a
+    /// seized initiative they had not paid for. And p.84's dice purchase <em>multiplies</em> by the
+    /// figure, so a spend of <c>−5</c> points took a cost of −5 out of a pool, which is five points
+    /// arriving: the GM's pool grew, and a Hero buying −5 dice of their own minted Resolve the same
+    /// way. <c>CannotAfford</c> could not see either, because a pool is always at least a negative
+    /// cost.</para>
+    ///
+    /// <para><b>Neither was reachable only from a test.</b> <c>spend_adversity</c> and
+    /// <c>spend_resolve</c> both read <c>points</c> off the wire as a plain number, so a
+    /// conversation asking for none or for fewer than none is a request this server took.</para>
+    ///
+    /// <para>Each half carries the same purchase at one point beside it, or these would be
+    /// assertions about an engine that had stopped buying anything.</para>
+    /// </summary>
+    [Fact]
+    public void APurchasePricedBelowAPointIsRefusedRatherThanChargedBackwards()
+    {
+        var dice = _play.GetResolve("spend_challenge_roll_dice").Spend!;
+
+        // The control on the data: the page's rate really is a point for a die, which is what makes
+        // a negative figure a negative cost rather than a harmless one.
+        Assert.Equal(1, dice.CostResolve);
+        Assert.Equal(1, dice.DiceGained);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 20, traits, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        // ── Nothing in the pool, and a spend of no points ────────────────────
+        var empty = opened with { Adversity = 0 };
+
+        var free = encounter.Step(empty, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, Points: 0,
+            AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(0, free.State.Adversity);
+        Assert.DoesNotContain("villain", free.State.Seized);
+
+        Assert.Contains(free.Added, l =>
+            l.Text.Contains("asks for 0 points", StringComparison.Ordinal)
+            && l.Text.Contains("whole point or more", StringComparison.Ordinal));
+
+        // The control: the same purchase at the price p.73 prints does go through.
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity - 1, bought.State.Adversity);
+        Assert.Contains("villain", bought.State.Seized);
+
+        // ── A purchase of fewer than no dice, out of each pool ───────────────
+        var rolled = encounter.Step(
+            encounter.Step(
+                encounter.Step(opened, new Attack("hero", "villain", "might")).State,
+                new EndTurn("hero")).State,
+            new Attack("villain", "hero", "might")).State;
+
+        Assert.Equal("villain", rolled.LastAttack!.Actor);
+
+        var minted = encounter.Step(rolled, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, Points: -5,
+            AsResolve: ResolveSpend.ExtraDice));
+
+        Assert.Equal(rolled.Adversity, minted.State.Adversity);
+        Assert.Equal(rolled.LastAttack.AttackPool, minted.State.LastAttack!.AttackPool);
+
+        Assert.Contains(minted.Added, l =>
+            l.Text.Contains("asks for -5 points", StringComparison.Ordinal));
+
+        // The Hero's own pool, on the Hero's own roll: p.84's purchase does not run backwards there
+        // either, and the refusal is the dice entry's rather than p.85's.
+        var heroRolled = encounter.Step(opened, new Attack("hero", "villain", "might")).State;
+
+        var backwards = encounter.Step(
+            heroRolled, new SpendResolve("hero", ResolveSpend.ExtraDice, Points: -5));
+
+        Assert.Equal(3, backwards.State["hero"].Resolve);
+        Assert.Equal(heroRolled.LastAttack!.AttackPool, backwards.State.LastAttack!.AttackPool);
+
+        Assert.Contains(backwards.Added, l =>
+            string.Equals(l.Rule, "spend_challenge_roll_dice", StringComparison.Ordinal)
+            && l.Text.Contains("asked for -5 dice", StringComparison.Ordinal));
+
+        // And the control on that half: one point still buys one die.
+        var one = encounter.Step(heroRolled, new SpendResolve("hero", ResolveSpend.ExtraDice));
+
+        Assert.Equal(2, one.State["hero"].Resolve);
+        Assert.Equal(heroRolled.LastAttack.AttackPool + 1, one.State.LastAttack!.AttackPool);
+    }
+
+    /// <summary>
+    /// <b>p.73's seized initiative, bought out of the GM's pool for an NPC.</b>
+    ///
+    /// <para>It used to answer <c>not yet implemented</c> from that pool, because it charged the
+    /// buyer's own Resolve and an NPC has none. It goes through <c>Charge(fromAdversity: true)</c>
+    /// now, and everything p.73 prints about the purchase is unchanged by which pool paid: the place
+    /// at the front, the duration that refuses the second purchase, and the GM's alternative, which
+    /// doubles an effective Edge instead.</para>
+    ///
+    /// <para><b>The effect is read off the order rather than off the line</b>, because a ledger line
+    /// saying somebody went first and an order that has not moved is the one failure this engine's
+    /// ledger rules exist to prevent. So the page is turned and the order is looked at, twice: under
+    /// the book, where a seizer precedes everybody whatever their Edge, and under the GM's
+    /// alternative, with figures only the doubling wins on.</para>
+    ///
+    /// <para><b>A Hero is refused, and so is a group of Minions.</b> The first is p.85's
+    /// <c>npc_kinds</c>; the second is p.73's own <c>minions_have_an_edge</c> and <c>minions_act</c>,
+    /// which leave a Minion group nothing either form of this purchase could give them — see the
+    /// readings table in <c>docs/guide/play-engine.md</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolSeizesTheInitiativeForAnNpcAndNotForAHeroOrAMob()
+    {
+        var rule = _play.GetCombat("seizing_initiative").SeizeInitiative!;
+        var tie = _play.GetCombat("edge_ties").TieBreak!;
+
+        // The controls on the data: the price this fixture's arithmetic uses, and the two fields the
+        // Minion refusal is read off.
+        Assert.Equal(1, rule.CostResolve);
+        Assert.False(tie.MinionsHaveAnEdge);
+        Assert.Contains("after everyone else", tie.MinionsAct, StringComparison.Ordinal);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 20, traits, ["toughness"]);
+        var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat");
+
+        var encounter = new Encounter(_play, new SeededDice(19));
+        var opened = encounter.Begin([hero, villain, mob], challengeLevel: 2);
+
+        // The controls on the fixture: two points in the pool, and the Hero in front to start with,
+        // so a Villain at the front below is this purchase and not the order it opened in.
+        Assert.True(opened.Adversity >= 2, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.Equal("hero", opened.TurnOrder[0]);
+
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        // The pool paid exactly once, and the Villain's Resolve is the field this asserts: a Villain
+        // holds none at all, so a purchase charged to one would be a throw rather than a wrong count.
+        Assert.Equal(opened.Adversity - rule.CostResolve, bought.State.Adversity);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+        Assert.False(bought.State["villain"].HoldsResolve);
+
+        // p.85 beside p.73: the announcement cites the Chapter 5 page and the purchase its own.
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.85", StringComparison.Ordinal)
+            && l.Text.Contains("the GM spends 1 Adversity on the Villain", StringComparison.Ordinal));
+
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, "seizing_initiative", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.73", StringComparison.Ordinal));
+
+        // The effect lands where p.73 puts it: at the front of the next page's order.
+        var turned = encounter.Step(bought.State, new EndPage("")).State;
+
+        Assert.Equal("villain", turned.TurnOrder[0]);
+
+        // And it lasts the rest of the fight, so the second purchase is refused with nothing spent.
+        var again = encounter.Step(turned, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(turned.Adversity, again.State.Adversity);
+        Assert.Contains(again.Added, l =>
+            l.Text.Contains("has already seized the initiative", StringComparison.Ordinal));
+
+        // A Hero is not an NPC: nothing spent, and nobody seized.
+        var onAHero = encounter.Step(opened, new SpendAdversity(
+            "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity, onAHero.State.Adversity);
+        Assert.Equal(3, onAHero.State["hero"].Resolve);
+        Assert.DoesNotContain("hero", onAHero.State.Seized);
+
+        // A Minion group is an NPC, and p.73 leaves this purchase nothing to give them.
+        var onTheMob = encounter.Step(opened, new SpendAdversity(
+            "mob", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity, onTheMob.State.Adversity);
+        Assert.DoesNotContain("mob", onTheMob.State.Seized);
+
+        Assert.Contains(onTheMob.Added, l =>
+            string.Equals(l.Rule, "edge_ties", StringComparison.Ordinal)
+            && l.Text.Contains("no Edge at all", StringComparison.Ordinal)
+            && l.Text.Contains(tie.MinionsAct, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The GM's alternative to seizing, bought out of the GM's pool.</b>
+    ///
+    /// <para>p.73 offers a table a different effect for the same point: the buyer's effective Edge
+    /// doubles rather than their going first outright. Driven separately from the fixture above
+    /// because the two are different answers to the same purchase, and the figures here are chosen
+    /// so that only the doubling wins — a Villain on 5 against a Hero on 9 goes second unless the 5
+    /// has become 10.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsAlternativeToSeizingIsBoughtOutOfTheGmsPoolToo()
+    {
+        var alternative = _play.GetCombat("seize_initiative_gm_alternative");
+
+        // The control on the data: the effect this fixture's arithmetic reads as a doubling.
+        Assert.Contains("doubles", alternative.GmAlternative!.Effect, StringComparison.Ordinal);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 20, traits, ["toughness"]);
+
+        var encounter = new Encounter(
+            _play, new SeededDice(19), TableRules.Book with { GmAlternativeToSeizingInitiative = true });
+
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        // The controls: a pool to spend, and the Hero ahead on the undoubled figures.
+        Assert.True(opened.Adversity >= 1, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.Equal("hero", opened.TurnOrder[0]);
+
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity - 1, bought.State.Adversity);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+
+        // The line names the alternative's own entry rather than the purchase's.
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, "seize_initiative_gm_alternative", StringComparison.Ordinal)
+            && l.Text.Contains(alternative.GmAlternative.Effect, StringComparison.Ordinal));
+
+        // And a doubled 5 goes ahead of an undoubled 9.
+        var turned = encounter.Step(bought.State, new EndPage("")).State;
+
+        Assert.Equal("villain", turned.TurnOrder[0]);
+    }
+
+    /// <summary>
+    /// <b>The fourfold reading, reached out of the GM's pool, in a fight with a Minion group in
+    /// it.</b>
+    ///
+    /// <para><see cref="BothDoublingsCompoundOnAReadyCharacterWhoSeizesTheInitiative"/> holds the
+    /// composition itself and holds it between two Heroes buying with their own Resolve, because
+    /// that is the only way either of them could buy it before this slice. <b>The buyer p.85 wrote
+    /// the purchase for is an NPC</b>, and an NPC reaches p.73's seize down a different branch, in
+    /// a fight where the other two things this engine's order sorts on are live: a Minion group,
+    /// which <c>minions_act</c> puts outside the whole comparison, and p.79's Drop, which p.73
+    /// declines to give that group anything to double.</para>
+    ///
+    /// <para>The figures are the composition's: a Villain on 5 against a Hero on 9, both ready, so
+    /// the Drop makes it 10 against 18 and the Hero leads — and the alternative doubles the 10 to 20
+    /// against a figure the seize itself never touches. The first assertion is the control, and the
+    /// second is the reading.</para>
+    ///
+    /// <para><b>And the Minions stay last through both</b>, which is the interaction worth driving:
+    /// <c>minions_act</c> is the outermost key of this order, so a ready group that the Drop could
+    /// not double and a purchase that the same page refuses them leave them exactly where p.73 puts
+    /// them.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolReachesBothDoublingsWithAMinionGroupInTheFight()
+    {
+        var table = TableRules.Book with { TheDrop = true, GmAlternativeToSeizingInitiative = true };
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero(
+            "hero", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"], ready: true);
+
+        var villain = Combatant.Villain(
+            "villain", "the Villain", edge: 5, health: 10, traits, ["toughness"], ready: true);
+
+        // Ready as well, and p.73 gives them no Edge for the Drop to double — the line saying so is
+        // asserted below, because a group quietly doubled would still sort last and say nothing.
+        var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat", ready: true);
+
+        // <b>And somebody with nothing levelled, because p.79's Drop is held against a person.</b>
+        // A fight in which everybody is ready is a fight in which nobody has the drop on anybody,
+        // and the entry says so on page one rather than doubling every figure for nothing.
+        var foe = Combatant.Foe("foe", "the Foe", edge: 3, health: 6, traits, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(19), table);
+        var opened = encounter.Begin([hero, villain, mob, foe], challengeLevel: 2);
+
+        // The controls on the fixture: a pool, the Drop doubling the two who have an Edge, and
+        // nothing to double for the group.
+        Assert.True(opened.Adversity >= 1, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.Equal(18, opened.EffectiveEdge["hero"]);
+        Assert.Equal(10, opened.EffectiveEdge["villain"]);
+
+        Assert.Contains(opened.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("the Minions", StringComparison.Ordinal)
+            && l.Text.Contains("nothing here to double", StringComparison.Ordinal));
+
+        // One doubling is not enough: the Hero leads on 18 against the Villain's doubled 10.
+        Assert.Equal(["hero", "villain", "foe", "mob"], opened.TurnOrder);
+
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity - 1, bought.State.Adversity);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+
+        // Both together are: 5 doubled by the Drop and doubled again by the GM's alternative goes
+        // ahead of a figure the purchase never touched — and the Minions are still last.
+        var turned = encounter.Step(bought.State, new EndPage("")).State;
+
+        Assert.Equal(["villain", "hero", "foe", "mob"], turned.TurnOrder);
+
+        // And the group cannot buy its way out of that placement, off the page that made it.
+        var onTheMob = encounter.Step(turned, new SpendAdversity(
+            "mob", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(turned.Adversity, onTheMob.State.Adversity);
+        Assert.DoesNotContain("mob", onTheMob.State.Seized);
+        Assert.Equal(
+            ["villain", "hero", "foe", "mob"],
+            encounter.Step(onTheMob.State, new EndPage("")).State.TurnOrder);
+    }
+
+    /// <summary>
+    /// <b>p.76's instant recovery, bought out of the GM's pool for an NPC who has just gone down.</b>
+    ///
+    /// <para>Every limit the page prints survives the change of pool. The Health it brings back is
+    /// <c>after_a_damaging_defeat_restores_health</c>, read off the entry; <c>limit_per_scene</c> is
+    /// counted on the character rather than on the pool, so a Villain bought back onto their feet is
+    /// not bought back a second time out of the GM's money; and the purchase is refused where there
+    /// is nothing to recover from.</para>
+    ///
+    /// <para><b>A group of Minions is refused, off p.77.</b> A group has no Health to bring back and
+    /// cannot be carrying an effect to shake off, because an effect against a group takes bodies out
+    /// of it instead.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolBringsAnNpcRoundAndNotAMob()
+    {
+        var entry = _play.GetCombat("instant_recovery");
+        var rule = entry.InstantRecovery!;
+
+        // The controls on the data: the price, the Health it restores, and the once-a-scene limit.
+        Assert.Equal(1, rule.CostResolve);
+        Assert.Equal(1, rule.LimitPerScene);
+        Assert.True(rule.AfterADamagingDefeatRestoresHealth > 0);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        // <b>The Hero is on the floor beside the Villain, and that is what makes the refusal below
+        // worth anything.</b> A Hero on their feet is refused this purchase for having nothing to
+        // recover from, so a fixture built that way passes whether or not p.85's eligibility list is
+        // read at all — which was watched: deleting the npc_kinds gate left it green.
+        var hero = Combatant
+            .Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"])
+            .WithHealth(0);
+
+        var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat");
+
+        var villain = Combatant
+            .Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+            .WithHealth(0);
+
+        var encounter = new Encounter(_play, new SeededDice(23));
+        var opened = encounter.Begin([hero, villain, mob], challengeLevel: 2);
+
+        // The controls on the fixture: two points to spend, and the Villain really is down.
+        Assert.True(opened.Adversity >= 2, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.True(opened["villain"].Defeated(_play.GetCombat("damage").Damage!.DefeatedAtHealth));
+
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        // The pool paid once, the Villain's own pool is untouched, and they are on their feet with
+        // the Health the entry names.
+        Assert.Equal(opened.Adversity - rule.CostResolve, bought.State.Adversity);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+        Assert.Equal(rule.AfterADamagingDefeatRestoresHealth, bought.State["villain"].CurrentHealth);
+        Assert.False(bought.State["villain"].Defeated(_play.GetCombat("damage").Damage!.DefeatedAtHealth));
+
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.85", StringComparison.Ordinal));
+
+        Assert.Contains(bought.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.76", StringComparison.Ordinal)
+            && l.Text.Contains("the GM spends 1 Adversity on the Villain", StringComparison.Ordinal));
+
+        // The limit is the character's and the pool cannot buy round it: knocked down again, the
+        // second purchase is refused with nothing spent.
+        var downAgain = bought.State.With(bought.State["villain"].WithHealth(0));
+
+        var twice = encounter.Step(downAgain, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(downAgain.Adversity, twice.State.Adversity);
+        Assert.Contains(twice.Added, l =>
+            l.Text.Contains("has already taken 1 instant recovery this scene", StringComparison.Ordinal));
+
+        // A Hero is not an NPC — and this one is down, so the refusal is p.85's list and not the
+        // purchase declining to help somebody who is fine.
+        var onAHero = encounter.Step(opened, new SpendAdversity(
+            "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(opened.Adversity, onAHero.State.Adversity);
+        Assert.Equal(3, onAHero.State["hero"].Resolve);
+        Assert.Equal(0, onAHero.State["hero"].CurrentHealth);
+        Assert.Equal(0, onAHero.State["hero"].InstantRecoveriesUsed);
+
+        // And a Minion group has neither half of what this purchase gives back.
+        var onTheMob = encounter.Step(opened, new SpendAdversity(
+            "mob", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(opened.Adversity, onTheMob.State.Adversity);
+        Assert.Equal(4, onTheMob.State["mob"].GroupSize);
+
+        Assert.Contains(onTheMob.Added, l =>
+            string.Equals(l.Rule, "attacking_minions", StringComparison.Ordinal)
+            && l.Text.Contains("no Health to bring back", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>p.76's once-a-scene is counted per character, and the two pools do not share a count.</b>
+    ///
+    /// <para>The fixture above drives the limit down one pool: a Villain bought back onto their feet
+    /// is not bought back a second time out of the GM's money. <b>What it cannot say is that the
+    /// limit is the character's rather than the purchase's</b> — a count kept on the encounter, or
+    /// on the pool that paid, would satisfy every assertion there and would refuse a Villain the
+    /// recovery a Hero had already taken. p.76 puts the sentence on the buyer: "you can only use
+    /// instant recovery once per scene".</para>
+    ///
+    /// <para>So a Hero spends their own Resolve and comes round, and then the GM's pool brings a
+    /// Villain round in the same scene — and the second purchase against each of them is refused
+    /// while the other's count stands where it was.</para>
+    /// </summary>
+    [Fact]
+    public void TheOnceASceneLimitIsTheCharactersAndNotThePools()
+    {
+        var rule = _play.GetCombat("instant_recovery").InstantRecovery!;
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        Assert.Equal(1, rule.LimitPerScene);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant
+            .Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"])
+            .WithHealth(floor);
+
+        var villain = Combatant
+            .Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+            .WithHealth(floor);
+
+        var encounter = new Encounter(_play, new SeededDice(23));
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        // The controls on the fixture: a pool to spend, and both of them really down.
+        Assert.True(opened.Adversity >= 2, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.True(opened["hero"].Defeated(floor));
+        Assert.True(opened["villain"].Defeated(floor));
+
+        // The Hero's own point, out of their own pool.
+        var heroUp = encounter.Step(opened, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.Equal(2, heroUp["hero"].Resolve);
+        Assert.Equal(opened.Adversity, heroUp.Adversity);
+        Assert.Equal(1, heroUp["hero"].InstantRecoveriesUsed);
+        Assert.Equal(0, heroUp["villain"].InstantRecoveriesUsed);
+
+        // And the GM's, for the Villain, in the same scene: a count kept anywhere but on the
+        // character would refuse this one because the Hero had already taken theirs.
+        var both = encounter.Step(heroUp, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(heroUp.Adversity - rule.CostResolve, both.State.Adversity);
+        Assert.Equal(rule.AfterADamagingDefeatRestoresHealth, both.State["villain"].CurrentHealth);
+        Assert.Equal(1, both.State["villain"].InstantRecoveriesUsed);
+        Assert.Equal(1, both.State["hero"].InstantRecoveriesUsed);
+
+        // And each of them is refused a second, on their own count and with nothing spent.
+        var down = both.State
+            .With(both.State["hero"].WithHealth(floor))
+            .With(both.State["villain"].WithHealth(floor));
+
+        var heroAgain = encounter.Step(down, new SpendResolve("hero", ResolveSpend.InstantRecovery));
+
+        Assert.Equal(2, heroAgain.State["hero"].Resolve);
+        Assert.Contains(heroAgain.Added, l =>
+            l.Text.Contains("has already taken 1 instant recovery this scene", StringComparison.Ordinal));
+
+        var villainAgain = encounter.Step(down, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(down.Adversity, villainAgain.State.Adversity);
+        Assert.Contains(villainAgain.Added, l =>
+            l.Text.Contains("has already taken 1 instant recovery this scene", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>p.79's Fatal Damage rescue and its stabilisation, both bought out of the GM's pool.</b>
+    ///
+    /// <para>The two are driven together because the page ties them together:
+    /// <c>resolve_also_stabilises_if_necessary</c> makes the rescue do both, so a fixture that
+    /// bought the rescue and never looked at the clock would leave half the entry unchecked. The
+    /// rescue's own arithmetic is the interpretation's — one point <em>above</em> the threshold,
+    /// which is what the worked example computes — and is unchanged by which pool paid.</para>
+    ///
+    /// <para><b>A group of Minions is refused for both, off p.77.</b> The threshold is the negative
+    /// of a full Health and the clock starts when lethal damage takes a Health past it;
+    /// <c>minions_have_health</c> is false, so a group is never at either.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolBuysAnNpcBackFromAFatalBlowAndStopsTheClock()
+    {
+        var entry = _play.GetGritty("gritty_fatal_damage");
+        var fatal = entry.FatalDamage!;
+
+        // The controls on the data: the two prices, and the clause that makes the rescue steady them.
+        Assert.Equal(1, fatal.CostResolveToAvoid);
+        Assert.Equal(1, fatal.CostResolveToStabiliseImmediately);
+        Assert.True(fatal.ResolveAlsoStabilisesIfNecessary);
+
+        var table = TableRules.Book with { FatalDamage = true };
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        // <b>The Hero is past their own threshold and bleeding too</b>, for the reason the instant
+        // recovery fixture says: a Hero nowhere near the line is refused both of these purchases by
+        // the purchases themselves, so a fixture built that way would pass with p.85's eligibility
+        // list deleted. Watched: it was, and it did.
+        var hero = Combatant
+            .Hero("hero", "the Hero", edge: 9, health: 4, resolve: 3, traits, ["toughness"])
+            .WithHealth(-5).Bleeding(dying: true);
+
+        var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat");
+
+        // A Health of 4 puts the fatal threshold at -4; this one is at -5, past it and bleeding.
+        var villain = Combatant
+            .Villain("villain", "the Villain", edge: 5, health: 4, traits, ["toughness"])
+            .WithHealth(-5).Bleeding(dying: true);
+
+        var encounter = new Encounter(_play, new SeededDice(23), table);
+        var opened = encounter.Begin([hero, villain, mob], challengeLevel: 2);
+
+        // The controls on the fixture: a pool, and a Villain who is both past the line and on the
+        // clock, so the two halves below are each about something that was true first.
+        Assert.True(opened.Adversity >= 2, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.Equal(-5, opened["villain"].CurrentHealth);
+        Assert.True(opened["villain"].Dying);
+
+        var rescued = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.AvoidFatalDamage));
+
+        // One point out of the pool, none out of a Resolve the Villain does not have, and the blow
+        // is bought back to one point above the threshold of -4.
+        Assert.Equal(opened.Adversity - fatal.CostResolveToAvoid, rescued.State.Adversity);
+        Assert.Equal(0, rescued.State["villain"].Resolve);
+        Assert.Equal(-3, rescued.State["villain"].CurrentHealth);
+
+        // And the same point steadied them, which is the clause the page attaches to the rescue.
+        Assert.False(rescued.State["villain"].Dying);
+
+        Assert.Contains(rescued.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.79", StringComparison.Ordinal)
+            && l.Text.Contains("the GM spends 1 Adversity on the Villain against a fatal blow", StringComparison.Ordinal));
+
+        Assert.Contains(rescued.Added, l =>
+            l.Text.Contains("the same point steadies the Villain", StringComparison.Ordinal));
+
+        Assert.Contains(rescued.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.85", StringComparison.Ordinal));
+
+        // p.79's other purchase, on its own: a point stops the clock and moves no Health.
+        var steadied = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.Stabilise));
+
+        Assert.Equal(opened.Adversity - fatal.CostResolveToStabiliseImmediately, steadied.State.Adversity);
+        Assert.Equal(0, steadied.State["villain"].Resolve);
+        Assert.False(steadied.State["villain"].Dying);
+        Assert.Equal(-5, steadied.State["villain"].CurrentHealth);
+
+        Assert.Contains(steadied.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.79", StringComparison.Ordinal)
+            && l.Text.Contains("the GM spends 1 Adversity on the Villain to stabilise at once", StringComparison.Ordinal));
+
+        Assert.Contains(steadied.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.85", StringComparison.Ordinal));
+
+        // A Hero is not an NPC, for either of them.
+        foreach (var purchase in new[] { ResolveSpend.AvoidFatalDamage, ResolveSpend.Stabilise })
+        {
+            var onAHero = encounter.Step(opened, new SpendAdversity(
+                "hero", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
+
+            Assert.Equal(opened.Adversity, onAHero.State.Adversity);
+            Assert.Equal(3, onAHero.State["hero"].Resolve);
+            Assert.Equal(-5, onAHero.State["hero"].CurrentHealth);
+            Assert.True(onAHero.State["hero"].Dying);
+        }
+
+        // And a Minion group has no Health, so it is at neither the threshold nor the clock — the
+        // refusal is p.77's rather than "is not dying", which is a different thing to be told.
+        foreach (var purchase in new[] { ResolveSpend.AvoidFatalDamage, ResolveSpend.Stabilise })
+        {
+            var onTheMob = encounter.Step(opened, new SpendAdversity(
+                "mob", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
+
+            Assert.Equal(opened.Adversity, onTheMob.State.Adversity);
+
+            Assert.Contains(onTheMob.Added, l =>
+                string.Equals(l.Rule, "attacking_minions", StringComparison.Ordinal)
+                && l.Text.Contains("no dying clock to stop", StringComparison.Ordinal));
+        }
+    }
+
+    /// <summary>
+    /// <b>A Minion refusal quotes the field it was derived from, so an entry that stops saying it is
+    /// a throw and not a ledger line that lies.</b>
+    ///
+    /// <para>Each of the four refusals p.85's first purchase makes of a group of Minions is a claim
+    /// about a printed page, and each makes the claim by interpolating the field it read — "p.77
+    /// gives them no Health at all (minions_have_health is False)". <b>Nothing read the field back
+    /// out.</b> An entry corrected the other way would have gone on refusing and printed its own
+    /// contradiction: a line saying a group has no Health <em>because</em> the field says they have
+    /// one. And <c>minions_act</c> is worse than a wrong sentence, because the order of action reads
+    /// the same phrase — a group that had stopped acting last would have been refused a seized
+    /// initiative on the grounds that the order would not move, while it would.</para>
+    ///
+    /// <para>Each half is driven against the shipped bytes first, or a throw would prove only that
+    /// the substitution machinery works.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("\"minions_have_health\": false", "\"minions_have_health\": true",
+        "minions_have_health", ResolveSpend.InstantRecovery)]
+    [InlineData("\"minions_have_health\": false", "\"minions_have_health\": true",
+        "minions_have_health", ResolveSpend.AvoidFatalDamage)]
+    [InlineData("\"minions_have_health\": false", "\"minions_have_health\": true",
+        "minions_have_health", ResolveSpend.Stabilise)]
+    [InlineData("\"minions_have_an_edge\": false", "\"minions_have_an_edge\": true",
+        "minions_have_an_edge", ResolveSpend.SeizeInitiative)]
+    [InlineData("\"minions_act\": \"after everyone else\"", "\"minions_act\": \"first\"",
+        "minions_act", ResolveSpend.SeizeInitiative)]
+    public void AMinionRefusalWhoseEntryStoppedSayingItIsAThrow(
+        string printed, string reworded, string field, ResolveSpend purchase)
+    {
+        var table = TableRules.Book with { FatalDamage = true };
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        List<Combatant> Fight() =>
+        [
+            Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3, traits, ["toughness"]),
+            Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat")
+        ];
+
+        SpendAdversity Buying() => new(
+            "mob", AdversitySpend.AnythingResolveCan, AsResolve: purchase);
+
+        // The control: against the shipped bytes the purchase is refused, on the ledger, quoting the
+        // field this case is about.
+        var shipped = new Encounter(_play, new SeededDice(23), table);
+        var opened = shipped.Begin(Fight(), challengeLevel: 2);
+        var refused = shipped.Step(opened, Buying());
+
+        Assert.Equal(opened.Adversity, refused.State.Adversity);
+        Assert.Contains(refused.Added, l =>
+            l.Text.Contains("is a group of Minions", StringComparison.Ordinal));
+
+        // And against an entry that has been turned round, the refusal is not made at all.
+        var corrected = SubstitutedPlayRules.With(PlayRulesRepository.CombatFile, printed, reworded);
+        var other = new Encounter(corrected, new SeededDice(23), table);
+        var began = other.Begin(Fight(), challengeLevel: 2);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() => other.Step(began, Buying()));
+
+        Assert.Contains(field, thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("no longer says it", thrown.Message, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -2117,11 +2815,15 @@ public sealed class PlayEngineStepTests
     /// starts refusing goes red here with a message saying it has to be added to the list and to the
     /// two documents that publish it.</para>
     ///
-    /// <para><b>The classifier still has a positive control, driven at the end.</b> It is p.85's
-    /// first purchase naming one of the four Chapter 4 spends that still charge the buyer's own
-    /// pool, which is the one `not yet implemented` line a spend can still produce — and it is
-    /// deliberately kept out of the sorting above, because the entry it cites is applied and is
-    /// rightly not on the list.</para>
+    /// <para><b>The classifier's positive control has moved to the Gear Limit switches, and the
+    /// move is the whole point of writing it down.</b> It used to be p.85's first purchase naming
+    /// one of the four Chapter 4 spends that still charged the buyer's own pool — and those four go
+    /// through the GM's pool now, so <em>no spend of either enum can produce that phrase any more</em>
+    /// and the sort below would be measuring an instrument nobody had checked. The two-valued case
+    /// that is left is <see cref="Encounter.SwitchesNotYetApplied"/>: a run with
+    /// <c>RaisedGearLimit</c> on says <c>not yet implemented</c> on page one and a run with an
+    /// applied setting on does not, so the same substring test is watched answering both ways in the
+    /// same file. Delete that and this test goes green whatever the engine does.</para>
     /// </summary>
     [Fact]
     public void EveryPurchaseEitherRefusesByNameOrResolves()
@@ -2196,19 +2898,26 @@ public sealed class PlayEngineStepTests
             + ". No spend does any more, so a new one has to be added to Encounter.EntriesNotYetApplied, "
             + "to docs/guide/play-engine.md and to mcp-play/PLAY-POLICY.md before this can pass.");
 
-        // The classifier's own control, kept out of the sorting above: p.85's first purchase naming
-        // one of the four that still charge the buyer's own pool is the one `not yet implemented`
-        // line a spend can still produce, and it cites an entry that is applied rather than listed.
-        var buyer = new Encounter(_play, new SeededDice(21));
-        var opened = buyer.Begin([hero, villain], challengeLevel: 3);
+        // <b>The classifier's own control, and it is no longer a spend.</b> Every purchase the GM's
+        // pool may name is bought, so nothing either enum can produce carries that phrase any more —
+        // and a substring test that can only ever answer one way is an instrument nobody has
+        // checked. The two-valued case left in this engine is the Gear Limit switch, announced on
+        // page one, so the same test is driven over both answers here.
+        var unapplied = new Encounter(_play, new SeededDice(21), TableRules.Book with { RaisedGearLimit = true })
+            .Begin([hero, villain]);
 
-        var unbought = buyer.Step(opened, new SpendAdversity(
-            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+        var applied = new Encounter(_play, new SeededDice(21), TableRules.Book with { FatalDamage = true })
+            .Begin([hero, villain]);
 
-        Assert.Contains(unbought.Added, l =>
+        Assert.Contains(unapplied.Ledger.Lines, l =>
             l.Text.Contains("not yet implemented", StringComparison.Ordinal));
 
-        Assert.Equal(opened.Adversity, unbought.State.Adversity);
+        Assert.DoesNotContain(applied.Ledger.Lines, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+
+        // And the settings really did both go on, or the pair above is two silent runs agreeing.
+        Assert.Contains(applied.Ledger.Lines, l =>
+            l.Text.Contains("table setting FatalDamage is on", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -3477,6 +4186,13 @@ public sealed class PlayEngineStepTests
     /// of them can succeed. The positive control is the other half of the same test: with a roll on
     /// the table the announcement is there and the pool has moved, so this is not a check satisfied
     /// by an engine that had stopped announcing anything.</para>
+    ///
+    /// <para><b>Seizing the initiative had to be bought before the loop rather than left out of
+    /// it.</b> It is the one purchase that needs nothing to have happened — a fresh page is exactly
+    /// when a character buys a place at the front — so on an untouched page it succeeds, correctly,
+    /// and the situation this test needs is not "nothing has happened" but "nothing any of these can
+    /// act on". Buying it first is what produces that, and it keeps the purchase inside the loop:
+    /// the second one is refused by p.73's own duration.</para>
     /// </summary>
     [Fact]
     public void TheGmsPoolSaysNothingMovedWhenNothingMoved()
@@ -3496,16 +4212,29 @@ public sealed class PlayEngineStepTests
         var encounter = new Encounter(_play, new SeededDice(31));
         var opened = encounter.Begin([hero, villain], challengeLevel: 2);
 
-        // The control on the fixture: there is a pool to spend, so a refusal below is the purchase's
-        // and not "the GM has 0 Adversity".
-        Assert.True(opened.Adversity > 0);
+        // The control on the fixture: there is a pool to spend twice over, so a refusal below is the
+        // purchase's and not "the GM has 0 Adversity".
+        Assert.True(opened.Adversity > 1, $"the fight opened on {opened.Adversity} Adversity");
+
+        // Seizing the initiative is bought first, because it is the one purchase a page where
+        // nothing has happened is the right moment for. That both makes it a spend this loop can
+        // ask about — the second is refused by the duration p.73 prints — and leaves the page
+        // otherwise as it was.
+        var first = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        var quiet = first.State;
+
+        Assert.True(quiet.Adversity < opened.Adversity,
+            "the GM's pool did not move buying a seized initiative, which needs no roll and nobody "
+            + "down — so the loop below would be measuring a purchase that had stopped working.");
 
         foreach (var purchase in Enum.GetValues<ResolveSpend>())
         {
-            var step = encounter.Step(opened, new SpendAdversity(
+            var step = encounter.Step(quiet, new SpendAdversity(
                 "villain", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
 
-            Assert.True(opened.Adversity == step.State.Adversity,
+            Assert.True(quiet.Adversity == step.State.Adversity,
                 $"the GM's pool moved buying {purchase} on a page where nothing had happened yet.");
 
             Assert.DoesNotContain(step.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
@@ -3524,6 +4253,68 @@ public sealed class PlayEngineStepTests
 
         Assert.Contains(bought.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
         Assert.True(bought.State.Adversity < rolled.Adversity);
+    }
+
+    /// <summary>
+    /// <b>The announcement is read before what it bought, and the position is the whole of what the
+    /// fix above left to check.</b>
+    ///
+    /// <para>p.85's line used to be written before the dispatch, and every one of these purchases can
+    /// refuse — so a refusal left "the GM spends Adversity on X, which buys Y" standing above a line
+    /// saying nothing happened. It is written after the purchase now and <em>inserted</em> at the
+    /// index it would have occupied, so that a reader still meets the announcement first.
+    /// <b>Nothing held the second half.</b> Appending it instead leaves every test in this
+    /// repository green — 4,849 of them — with the ledger reading "the Villain seizes the
+    /// initiative" and then, underneath, the GM paying for it.</para>
+    ///
+    /// <para>That is not cosmetic in a document whose purpose is that any figure in a run traces to
+    /// a printed page: the announcement is the only line naming p.85, and a reader working down the
+    /// page meets the effect with no purchase above it. Two purchases are driven — one that needs
+    /// nothing to have happened, one that needs somebody on the floor — because the insert is one
+    /// index shared by all ten.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(ResolveSpend.SeizeInitiative, "seizing_initiative")]
+    [InlineData(ResolveSpend.InstantRecovery, "instant_recovery")]
+    public void TheGmsAnnouncementIsReadBeforeThePurchaseItPaidFor(ResolveSpend purchase, string bought)
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+
+        // Down, so p.76's purchase has somebody to bring round; p.73's does not mind either way.
+        var villain = Combatant
+            .Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+            .WithHealth(floor);
+
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        var step = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
+
+        // The control: the pool really paid, or the two lines below are being looked for in a
+        // refusal and their order would mean nothing.
+        Assert.True(step.State.Adversity < opened.Adversity,
+            $"the GM's pool did not pay for {purchase}, so there is no announcement to place.");
+
+        var announcement = step.Added
+            .Select((line, at) => (line, at))
+            .Single(l => string.Equals(
+                l.line.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal));
+
+        var effect = step.Added
+            .Select((line, at) => (line, at))
+            .First(l => string.Equals(l.line.Rule, bought, StringComparison.Ordinal));
+
+        Assert.True(
+            announcement.at < effect.at,
+            $"p.85's announcement is at line {announcement.at} of this step and the {bought} line it "
+            + $"paid for is at {effect.at}: a reader working down the ledger meets the effect before "
+            + "anything says the GM bought it. The line is written after the purchase, because a "
+            + "purchase that refuses must not leave an announcement standing above it, and it is "
+            + "inserted at the index it would have occupied for exactly this reason.");
     }
 
     /// <summary>
@@ -3604,7 +4395,14 @@ public sealed class PlayEngineStepTests
             },
             ["toughness", "agility"]);
 
-        var encounter = new Encounter(_play, new SeededDice(6), TableRules.Book with { FatalDamage = true });
+        // <b>The Gear Limit is on so that page one carries the one `not yet implemented` line this
+        // engine can still produce.</b> It used to come off p.85's first purchase naming one of the
+        // four that charged the buyer's own pool; those are bought now, so the switch is where that
+        // control has moved — and the assertions below check the entry it cites is real and cited to
+        // its own page, which is the whole subject of this test.
+        var encounter = new Encounter(
+            _play, new SeededDice(6), TableRules.Book with { FatalDamage = true, RaisedGearLimit = true });
+
         var state = encounter.Begin([hero, villain]);
 
         // Every refusal this slice can produce, and then a whole fight on top of them.
@@ -3624,8 +4422,8 @@ public sealed class PlayEngineStepTests
             new SpendResolve("hero", ResolveSpend.TeamAttack),
             new SpendAdversity("villain", AdversitySpend.Villainy),          // refused: names no act
             new SpendAdversity("villain", AdversitySpend.Misfortune, Points: 999),
-            // The one `not yet implemented` line a spend can still produce, and the control below
-            // is about it: p.85's first purchase naming one that charges the buyer's own pool.
+            // p.85's first purchase, refused by the purchase it names rather than by the pool: the
+            // Villain is not on a clock, so there is nothing to stabilise and nothing is spent.
             new SpendAdversity(
                 "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.Stabilise)
         };
@@ -3639,9 +4437,12 @@ public sealed class PlayEngineStepTests
         Assert.Contains(state.Ledger.Lines, l =>
             l.Text.Contains("holds no Resolve", StringComparison.Ordinal));
         Assert.Contains(state.Ledger.Lines, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal)
+            && string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal));
         Assert.Contains(state.Ledger.Lines, l =>
             l.Text.Contains("is not the Villain's turn", StringComparison.Ordinal));
+        Assert.Contains(state.Ledger.Lines, l =>
+            l.Text.Contains("there is no clock to stop", StringComparison.Ordinal));
 
         var pages = _play.EntryIds()
             .Select(e => e.Id)
@@ -6887,6 +7688,69 @@ public sealed class PlayEngineStepTests
 
         Assert.Contains(nameof(TableRules.RaisedGearLimit), Encounter.SwitchesNotYetApplied);
         Assert.Contains(nameof(TableRules.GearLimitRank), Encounter.SwitchesNotYetApplied);
+    }
+
+    /// <summary>
+    /// <b>Three tests sort ledger lines by whether they say "not yet implemented", and the Gear
+    /// Limit switch is the only thing left in this engine that says it.</b>
+    ///
+    /// <para>They used to key on p.85's first purchase naming one of the four Chapter 4 spends that
+    /// charged the buyer's own pool. Those four are bought out of the GM's pool now, so no spend of
+    /// either enum can produce the phrase, and each of the three moved its control to
+    /// <see cref="Encounter.SwitchesNotYetApplied"/> instead. <b>That leaves all three resting on one
+    /// set, and nothing said so.</b> A substring test whose subject can only ever answer one way is
+    /// an instrument nobody has checked — it passes against a classifier that has stopped
+    /// recognising the phrase at all, which is the shape of guard fault this repository has shipped
+    /// four times.</para>
+    ///
+    /// <para><b>So this is the guard that fires when the last two-valued case goes.</b> The day
+    /// p.80's Gear Limit is applied for real, that set empties, three controls die in the same
+    /// commit and nothing else here would say a word about it. The message names them, because a
+    /// failure that says "the set is empty" sends a reader to delete the assertion rather than to
+    /// the three tests that then have nothing behind them.</para>
+    ///
+    /// <para>The pair below is the instrument itself, driven once in the place that owns it: a run
+    /// with a listed switch on says the phrase on page one and a run with an applied one does not.
+    /// A switch removed from the list and left unapplied fails here rather than in three tests at
+    /// once, each of them saying something else.</para>
+    /// </summary>
+    [Fact]
+    public void TheThreeClassifierTestsRestOnASwitchThisEngineStillDeclines()
+    {
+        Assert.True(
+            Encounter.SwitchesNotYetApplied.Count > 0,
+            "Encounter.SwitchesNotYetApplied is empty, so nothing in this engine writes a `not yet "
+            + "implemented` ledger line any more — and three tests sort on that phrase and have "
+            + "nothing left to prove they can still see it: "
+            + $"{nameof(EveryPurchaseEitherRefusesByNameOrResolves)} and "
+            + $"{nameof(EveryLedgerLineCitesAnEntryThatExistsAndThatEntrysPage)} in this file, and "
+            + "McpPlayPolicyTests.EveryPurchaseTheGmsPoolMayNameAnswersTheWayThePolicySaysItDoes. "
+            + "Each needs a new two-valued control, or the classifier is measuring nothing and "
+            + "should be retired with them.");
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"]);
+
+        // The listed switch, which page one announces as carried by nothing.
+        var unapplied = new Encounter(_play, new SeededDice(21), TableRules.Book with { RaisedGearLimit = true })
+            .Begin([hero, villain]);
+
+        Assert.Contains(unapplied.Ledger.Lines, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal)
+            && string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal));
+
+        // And an applied one, which does not — or "says the phrase" would be true of every run and
+        // the three tests would be sorting a pile with one thing in it.
+        var applied = new Encounter(_play, new SeededDice(21), TableRules.Book with { FatalDamage = true })
+            .Begin([hero, villain]);
+
+        Assert.DoesNotContain(applied.Ledger.Lines, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+
+        Assert.Contains(applied.Ledger.Lines, l =>
+            l.Text.Contains("table setting FatalDamage is on", StringComparison.Ordinal));
     }
 
     /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>

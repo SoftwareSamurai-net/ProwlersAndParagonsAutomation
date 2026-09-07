@@ -4451,6 +4451,296 @@ public sealed class McpPlayServerTests
             Assert.Equal("sheets", TableOf(accepted)["source"]!.GetValue<string>());
         });
 
+
+    /// <summary>
+    /// <b>p.73's seized initiative, bought out of the GM's pool over the wire.</b>
+    ///
+    /// <para>It used to come back as a <c>not yet implemented</c> line, so this is the first of four
+    /// that a caller reading <c>PLAY-POLICY.md</c>'s last table could not previously have. Three
+    /// things have to be true and each is a different failure if it is not: the <c>as_resolve</c>
+    /// field crossed (a dropped one is refused for naming no purchase), the pool paid, and the
+    /// effect is on the public state — a client decides whether to buy a second one by reading
+    /// <c>seized</c> there, and a line saying somebody went first with an order that did not move is
+    /// the failure this whole server exists to make impossible.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheGmsPoolSeizesTheInitiativeOverTheWire() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["challengeLevel"] = 3,
+                ["seed"] = 81
+            });
+
+            var encounter = opened["encounter_id"]!.GetValue<string>();
+            var before = opened["adversity"]!.GetValue<int>();
+
+            // The control: there is a pool, so a pool that has not moved below is the purchase.
+            Assert.True(before >= 1, $"the fight opened on {before} Adversity");
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "anything_resolve_can",
+                    ["as_resolve"] = "seize_initiative"
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            var added = turn["added"]!.AsArray();
+
+            Assert.DoesNotContain(added, l =>
+                l!["text"]!.GetValue<string>().Contains("not yet implemented", StringComparison.Ordinal));
+
+            Assert.Contains(added, l => string.Equals(
+                l!["rule"]!.GetValue<string>(), "adversity_spend_anything_resolve_can", StringComparison.Ordinal));
+
+            Assert.Contains(added, l => string.Equals(
+                l!["rule"]!.GetValue<string>(), "seizing_initiative", StringComparison.Ordinal));
+
+            Assert.Equal(before - 1, turn["state"]!["adversity"]!.GetValue<int>());
+
+            Assert.Equal(
+                ["villain"],
+                turn["state"]!["seized"]!.AsArray().Select(s => s!.GetValue<string>()));
+        });
+
+    /// <summary>
+    /// <b>p.76's instant recovery, bought out of the GM's pool over the wire, for a Villain who has
+    /// been beaten down inside the same fight.</b>
+    ///
+    /// <para>The blow is landed rather than arranged, because the point of a wire test is the whole
+    /// path: a Hero who hits far harder than the Villain can absorb puts them at the defeat figure,
+    /// and the state says so before the purchase is made. What comes back is the Health the entry
+    /// names and a combatant who is no longer defeated.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheGmsPoolBringsAVillainRoundOverTheWire() =>
+        await WithClient(async client =>
+        {
+            var restored = _play.GetCombat("instant_recovery").InstantRecovery!.AfterADamagingDefeatRestoresHealth;
+
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = Lopsided(heroMight: 40, villainToughness: 1),
+                ["challengeLevel"] = 3,
+                ["seed"] = 81
+            });
+
+            var encounter = opened["encounter_id"]!.GetValue<string>();
+            var before = opened["adversity"]!.GetValue<int>();
+
+            Assert.True(before >= 1, $"the fight opened on {before} Adversity");
+
+            var struck = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                    ["trait_id"] = "might"
+                }
+            });
+
+            // The control: the Villain really is down, so the purchase below is bringing somebody
+            // round rather than being refused for there being nothing to recover from.
+            Assert.True(Fighter(struck, "villain")["defeated"]!.GetValue<bool>(),
+                "the Villain survived the opening blow, so this fixture is not about a recovery");
+
+            var bought = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "anything_resolve_can",
+                    ["as_resolve"] = "instant_recovery"
+                }
+            });
+
+            Assert.True(bought["ok"]!.GetValue<bool>());
+
+            Assert.DoesNotContain(bought["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains("not yet implemented", StringComparison.Ordinal));
+
+            Assert.Contains(bought["added"]!.AsArray(), l => string.Equals(
+                l!["rule"]!.GetValue<string>(), "instant_recovery", StringComparison.Ordinal));
+
+            Assert.Equal(before - 1, bought["state"]!["adversity"]!.GetValue<int>());
+            Assert.Equal(restored, Fighter(bought, "villain")["health"]!.GetValue<int>());
+            Assert.False(Fighter(bought, "villain")["defeated"]!.GetValue<bool>());
+        });
+
+    /// <summary>
+    /// <b>p.79's two Fatal Damage purchases, both bought out of the GM's pool over the wire.</b>
+    ///
+    /// <para>Two fights rather than one, because the two states are different and neither can be
+    /// reached from the other: a Villain on the clock is one a lethal blow took past nothing but not
+    /// past the killing line, and a Villain with a blow to buy back is one it took past that line —
+    /// which stops the clock rather than starting it. Both are landed rather than arranged, and the
+    /// control on each is the state before the purchase.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheGmsPoolStopsTheClockAndBuysBackAFatalBlowOverTheWire() =>
+        await WithClient(async client =>
+        {
+            // <b>On the clock.</b> A Villain built to take punishment, hit hard enough to go below
+            // nothing and not hard enough to reach the negative of their full Health.
+            var (dying, bleeding, pool) = await StruckDown(client, heroMight: 32, villainToughness: 20);
+
+            Assert.True(Fighter(bleeding, "villain")["dying"]!.GetValue<bool>(),
+                $"the Villain is on {Fighter(bleeding, "villain")["health"]} of "
+                + $"{Fighter(bleeding, "villain")["full_health"]} and is not bleeding out, so there "
+                + "is no clock for this purchase to stop");
+
+            var steadied = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = dying,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "anything_resolve_can",
+                    ["as_resolve"] = "stabilise"
+                }
+            });
+
+            Assert.True(steadied["ok"]!.GetValue<bool>());
+
+            Assert.DoesNotContain(steadied["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains("not yet implemented", StringComparison.Ordinal));
+
+            Assert.Contains(steadied["added"]!.AsArray(), l => string.Equals(
+                l!["rule"]!.GetValue<string>(), "gritty_fatal_damage", StringComparison.Ordinal));
+
+            Assert.Equal(pool - 1, steadied["state"]!["adversity"]!.GetValue<int>());
+            Assert.False(Fighter(steadied, "villain")["dying"]!.GetValue<bool>());
+
+            // The Health did not move, which is what separates this purchase from the rescue below.
+            Assert.Equal(
+                Fighter(bleeding, "villain")["health"]!.GetValue<int>(),
+                Fighter(steadied, "villain")["health"]!.GetValue<int>());
+
+            // <b>Past the killing line.</b> The same Villain, hit twice as hard.
+            var (killed, gone, second) = await StruckDown(client, heroMight: 80, villainToughness: 20);
+
+            var full = Fighter(gone, "villain")["full_health"]!.GetValue<int>();
+            var floor = -full;
+
+            Assert.True(Fighter(gone, "villain")["health"]!.GetValue<int>() <= floor,
+                $"the Villain is on {Fighter(gone, "villain")["health"]} Health and the fatal "
+                + $"threshold is {floor}, so there is no blow for this purchase to buy back");
+
+            var rescued = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = killed,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "anything_resolve_can",
+                    ["as_resolve"] = "avoid_fatal_damage"
+                }
+            });
+
+            Assert.True(rescued["ok"]!.GetValue<bool>());
+
+            Assert.DoesNotContain(rescued["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains("not yet implemented", StringComparison.Ordinal));
+
+            Assert.Equal(second - 1, rescued["state"]!["adversity"]!.GetValue<int>());
+
+            // p.79's worked example is one point above the threshold, which is the reading the
+            // entry's interpretation carries and the engine follows.
+            Assert.Equal(floor + 1, Fighter(rescued, "villain")["health"]!.GetValue<int>());
+        });
+
+    /// <summary>
+    /// Opens a lopsided fight and lands one lethal blow, answering with the encounter's id, the turn
+    /// that landed it and the pool as it stands.
+    /// </summary>
+    private static async Task<(string Encounter, JsonNode Struck, int Pool)> StruckDown(
+        McpClient client, int heroMight, int villainToughness)
+    {
+        var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+        {
+            ["combatants"] = Lopsided(heroMight, villainToughness),
+            ["table"] = new JsonObject { ["fatal_damage"] = true },
+            ["challengeLevel"] = 3,
+            ["seed"] = 81
+        });
+
+        var encounter = opened["encounter_id"]!.GetValue<string>();
+
+        var struck = await Call(client, "take_turn", new Dictionary<string, object?>
+        {
+            ["encounterId"] = encounter,
+            ["intent"] = new JsonObject
+            {
+                ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                ["trait_id"] = "might", ["damage"] = "lethal"
+            }
+        });
+
+        return (encounter, struck, opened["adversity"]!.GetValue<int>());
+    }
+
+    /// <summary>One combatant off a turn's public state, by id.</summary>
+    private static JsonNode Fighter(JsonNode turn, string id) =>
+        turn["state"]!["combatants"]!.AsArray().Single(c =>
+            string.Equals(c!["id"]!.GetValue<string>(), id, StringComparison.Ordinal))!;
+
+    /// <summary>
+    /// A Hero who hits harder than the Villain can absorb, for the p.76 and p.79 wire tests.
+    ///
+    /// <para>The figures are arguments because the three fights want three different answers: a
+    /// Villain beaten to the defeat figure, one taken past nothing and left on the clock, and one
+    /// taken past the negative of their full Health. Nothing here is a legal character and nothing
+    /// needs to be — whether a character is legal is the other server's question, and this one only
+    /// reads the sheet.</para>
+    /// </summary>
+    private static JsonArray Lopsided(int heroMight, int villainToughness) =>
+    [
+        new JsonObject
+        {
+            ["kind"] = "hero",
+            ["id"] = "hero",
+            ["side"] = "heroes",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Hero",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject
+                {
+                    ["might"] = heroMight, ["toughness"] = 5, ["willpower"] = 4
+                }
+            }
+        },
+        new JsonObject
+        {
+            ["kind"] = "villain",
+            ["id"] = "villain",
+            ["side"] = "villains",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Villain",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject
+                {
+                    ["might"] = 8, ["toughness"] = villainToughness, ["willpower"] = 4
+                }
+            }
+        }
+    ];
+
     /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
     /// reader — enough to open a fight for the tests that are about something else.
