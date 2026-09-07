@@ -28,11 +28,23 @@
 # Quoting a server's log without quoting a sign-in token out of it.
 #
 # **Every failure arm of `start_server` prints the tail of a wrangler log, and that log is a request
-# log.** Stage two drives `/signin?t=<raw token>`, so the line for that navigation carries the
+# log.** Stage two drives `/signin?t=<raw token>`, so the line for that navigation would carry the
 # bearer secret itself — and a failure tail is the one part of this harness that is copied into a
 # CI run's public output, an issue, or a chat window. The token is single-use and local to a
 # throwaway D1, so this is not a breach; printing a credential into a log because nobody thought
 # about it is a habit, and the habit is what is being fixed.
+#
+# **"Would": the pinned wrangler does not, and that is a fact about a version rather than about this
+# harness.** Measured on a full run of both drivers on 2026-09-07 — `wrangler@4.127.0`'s
+# `pages dev` request log records the *pathname* and drops the query, so every sign-in navigation
+# appears as `GET /signin 200 OK` and there was not one `?t=` in any of the fourteen server logs a
+# run produces. Do not read that as a reason to take the redactor out. It is one version bump from
+# being untrue; the same tail path now also quotes wrangler's own debug log, whose contents are
+# whatever wrangler chose to log; and the directory these logs sit in is uploaded whole as a CI
+# artifact (`redact_in_place` below). **What it does mean is that a clean run proves nothing here** —
+# `REDACTED_TAIL` in `scripts/test-kill-tree.sh` proves it against a *planted* token, and has to,
+# because a corpus that happens to contain no secret and a redactor that does nothing look
+# identical from the outside.
 #
 # `[?&]t=` and not a bare `t=`, so a word ending in `t=` inside a message is left alone. The value
 # is base64url — `A-Za-z0-9_-` — which is what `scripts/e2e/seed.mjs` mints and what
@@ -58,11 +70,13 @@ redacted_tail() {
 #
 # **The tail is not the only thing that leaves this machine any more.** `build.yml` uploads
 # `.e2e/logs/` as an artifact when a drive fails, so that the *whole* of a dead wrangler's debug log
-# can be downloaded rather than only its last forty lines — and a wrangler server log is a request
-# log of a run that drove `/signin?t=<raw token>`. The two failure arms have gone through
+# can be downloaded rather than only its last forty lines. The two failure arms have gone through
 # `redacted_tail` since the day they were written precisely so a CI log could be pasted anywhere;
-# an artifact of the same bytes unredacted would hand back what those arms were careful not to
-# print.
+# an artifact of the same bytes unredacted hands back whatever those arms were careful not to
+# print, by the other door. The measurement above applies here too — the pinned wrangler logs no
+# query string, so a run today has nothing to redact — and so does its conclusion: that is a
+# property of one version, and this directory now also holds wrangler's own debug logs and both
+# drivers' output.
 #
 # **Called from `e2e.sh`'s EXIT trap, beside deleting `.e2e/seed.json`, and for the same reason.**
 # That file is removed at the end of the run that minted its tokens rather than at the start of the

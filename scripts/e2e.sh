@@ -554,9 +554,10 @@ fi
 # **And the logs are redacted where they lie, for the same reason and a second one.** Every failure
 # arm here quotes a wrangler log through `redacted_tail`, because a tail is what gets pasted into a
 # CI run's public output — and `build.yml` now uploads the whole of `.e2e/logs/` as an artifact when
-# a drive fails, so the *file* travels as well as the tail. A server log is a request log of a run
-# that drove `/signin?t=<raw token>`; leaving the raw value in the artifact would hand back exactly
-# what those arms are careful not to print. Nothing needs it to debug a failure.
+# a drive fails, so the *file* travels as well as the tail. Leaving a raw sign-in token in the
+# artifact would hand back exactly what those arms are careful not to print, and nothing needs it
+# to debug a failure. See `redacted_tail`'s comment for what a run today actually contains, and why
+# that is not a reason to skip this.
 #
 # After `stop_server`, so a server still writing to its log cannot append a line behind the rewrite.
 cleanup() {
