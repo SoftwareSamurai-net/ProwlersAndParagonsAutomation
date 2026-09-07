@@ -4439,6 +4439,77 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>Which defence answers a shot through cover: the greater of the two, a tie to the target's
+    /// own, and the comparison made before p.75's size band.</b>
+    ///
+    /// <para><b>The tie was free.</b> <c>structure &gt; best.Pool</c> and
+    /// <c>structure &gt;= best.Pool</c> gave the same answer to every fixture in this class, and
+    /// they are not the same rule: at a tie the target keeps an <em>active</em> defence, which
+    /// p.75's size band moves and a wall's Structure never does. The line said "their agility at 6d
+    /// is the greater" in that case, which is not true of two equal figures — a ledger line that
+    /// lied about the comparison it had just made.</para>
+    ///
+    /// <para><b>And the comparison is made before the size band</b>, which the guide records as a
+    /// reading: a defender whose Agility would out-roll the wall once their +2d is on still answers
+    /// with the wall, because "the best defense available" is settled on the two figures as they
+    /// stand. Driven here so that the reading is a behaviour rather than a sentence — and so that
+    /// changing the order later is a red test rather than a silent change of answer.</para>
+    /// </summary>
+    [Fact]
+    public void ATieOverCoverGoesToTheTargetsOwnDefenceAndIsSettledBeforeTheSizeBand()
+    {
+        var entry = _play.GetCombat("modifier_cover");
+        var bonus = BandDice("modifier_size", b => b.AttackerRelativeSize, "at least 5 times your size");
+
+        // Structure 6 against an Agility of 6: equal, so the target keeps their own — and keeps it
+        // active, which the size band below is the proof of.
+        var (attacker, target) = Pair("agility", 6, attackRank: 10);
+
+        var open = Exchange(attacker, target, new Attack("hero", "villain", "might"));
+        Assert.Equal(10 + 6, open.Thrown);
+
+        var tied = Exchange(attacker, target, new Attack(
+            "hero", "villain", "might", CoverStructure: 6));
+
+        Assert.Equal(10 + 6, tied.Thrown);
+
+        var line = Assert.Single(tied.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Contains("matches it", line.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("is the greater", line.Text, StringComparison.Ordinal);
+
+        // One more and the wall answers, which is the control that 6 against 6 was a tie and not a
+        // Structure the engine had dropped on the floor.
+        var taken = Exchange(attacker, target, new Attack(
+            "hero", "villain", "might", CoverStructure: 7));
+
+        Assert.Equal(10 + 7, taken.Thrown);
+        Assert.Contains("it is the greater", Assert.Single(
+            taken.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)).Text,
+            StringComparison.Ordinal);
+
+        // The reading: a five-times-sized attacker would put the dodge at 6 + the band, above the
+        // wall's 7 — and the wall still answers, because the comparison happened before the band.
+        var (giant, small) = Pair("agility", 6, attackerSize: 5, targetSize: 1, attackRank: 10);
+
+        var dodged = Exchange(giant, small, new Attack("hero", "villain", "might"));
+
+        // The control on the reading: with no wall in the way the band really is worth this much,
+        // and it really would beat the 7.
+        Assert.Equal(10 + 6 + bonus, dodged.Thrown);
+        Assert.True(6 + bonus > 7, "the fixture's size band no longer beats the Structure it is set against");
+
+        var behindTheWall = Exchange(giant, small, new Attack(
+            "hero", "villain", "might", CoverStructure: 7));
+
+        Assert.Equal(10 + 7, behindTheWall.Thrown);
+
+        // And no size band was written, because the defence that answered is passive.
+        Assert.DoesNotContain(behindTheWall.Lines, l =>
+            string.Equals(l.Rule, "modifier_size", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// <b>A −3d on a 2d pool reaches p.67's floor, and one die is thrown that scores only on a
     /// six.</b>
     ///

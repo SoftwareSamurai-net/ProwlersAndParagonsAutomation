@@ -830,6 +830,14 @@ public sealed partial class Encounter
     /// still a thing the caller declared and a thing the engine considered; saying nothing about it
     /// would leave a reader unable to tell that from a Structure the engine had dropped on the
     /// floor.</para>
+    ///
+    /// <para><b>The comparison is made here, before p.75's size band.</b> That is a reading and the
+    /// guide's table records it: p.75 says a defender "always use[s] the best defense available",
+    /// and whether "best" means the greater rank or the greater roll is a question the page does not
+    /// put, because none of its own modifiers touch a wall. Comparing before the band is the reading
+    /// that keeps which defence answers a fact about the two figures rather than about how big the
+    /// attacker happens to be — and it can leave a dodger with the smaller roll, so the ledger line
+    /// says which comparison it made.</para>
     /// </summary>
     private (string Trait, int Pool, bool Active) TheCoverAnswers(
         EncounterState state, Combatant target, int structure,
@@ -839,16 +847,29 @@ public sealed partial class Encounter
 
         if (!entry.Cover!.TargetMayUseTheCoversStructureAsAPassiveDefense) return best;
 
+        // <b>A tie is not "the greater", and the line used to say it was.</b> `structure > best.Pool`
+        // leaves a Structure equal to the target's own defence unused — which is right, because the
+        // one they keep may be an active defence and p.75's size band moves one of those — but the
+        // line reported it as the target's figure being greater, which at a tie is false. What the
+        // ledger says now is which of the three comparisons actually held.
         var takes = structure > best.Pool;
+
+        var own = best.Trait.Length == 0
+            ? "nothing of their own"
+            : $"their {best.Trait} at {best.Pool}d";
+
+        var comparison =
+            takes ? $"it is the greater and it is what answers, ahead of {own}"
+            : best.Trait.Length == 0 ? "and they have nothing of their own either, so nothing answers the roll"
+            : structure == best.Pool ? $"{own} matches it, so their own answers and stays active"
+            : $"{own} is the greater, so that answers instead";
 
         lines.Add(new LedgerLine(
             state.Page, target.Id, entry.Id, entry.SourceRef,
             $"the attack comes through the cover, so p.75 lets {target.Name} answer with "
-            + $"{CoversStructure} of {structure}d as a passive defence: "
-            + (takes
-                ? $"it is the greater and it is what answers, ahead of "
-                  + $"{(best.Trait.Length == 0 ? "nothing of their own" : $"their {best.Trait} at {best.Pool}d")}"
-                : $"their {best.Trait} at {best.Pool}d is the greater, so that answers instead")));
+            + $"{CoversStructure} of {structure}d as a passive defence: {comparison}. The two are "
+            + "compared as they stand here, before p.75's size band, which moves an active defence "
+            + "and never a wall"));
 
         return takes ? (CoversStructure, structure, false) : best;
     }
