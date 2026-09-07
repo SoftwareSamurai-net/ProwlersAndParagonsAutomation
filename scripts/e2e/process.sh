@@ -28,11 +28,23 @@
 # Quoting a server's log without quoting a sign-in token out of it.
 #
 # **Every failure arm of `start_server` prints the tail of a wrangler log, and that log is a request
-# log.** Stage two drives `/signin?t=<raw token>`, so the line for that navigation carries the
+# log.** Stage two drives `/signin?t=<raw token>`, so the line for that navigation would carry the
 # bearer secret itself — and a failure tail is the one part of this harness that is copied into a
 # CI run's public output, an issue, or a chat window. The token is single-use and local to a
 # throwaway D1, so this is not a breach; printing a credential into a log because nobody thought
 # about it is a habit, and the habit is what is being fixed.
+#
+# **"Would": the pinned wrangler does not, and that is a fact about a version rather than about this
+# harness.** Measured on a full run of both drivers on 2026-09-07 — `wrangler@4.127.0`'s
+# `pages dev` request log records the *pathname* and drops the query, so every sign-in navigation
+# appears as `GET /signin 200 OK` and there was not one `?t=` in any of the fourteen server logs a
+# run produces. Do not read that as a reason to take the redactor out. It is one version bump from
+# being untrue; the same tail path now also quotes wrangler's own debug log, whose contents are
+# whatever wrangler chose to log; and the directory these logs sit in is uploaded whole as a CI
+# artifact (`redact_in_place` below). **What it does mean is that a clean run proves nothing here** —
+# `REDACTED_TAIL` in `scripts/test-kill-tree.sh` proves it against a *planted* token, and has to,
+# because a corpus that happens to contain no secret and a redactor that does nothing look
+# identical from the outside.
 #
 # `[?&]t=` and not a bare `t=`, so a word ending in `t=` inside a message is left alone. The value
 # is base64url — `A-Za-z0-9_-` — which is what `scripts/e2e/seed.mjs` mints and what
@@ -41,19 +53,79 @@
 # Here rather than in `scripts/e2e.sh` because this is the file that can be sourced, and therefore
 # the only part of the harness's shell that can be tested: `scripts/test-kill-tree.sh` drives it.
 
+# redact — the substitution itself, as a filter. **One copy, and that is the point of extracting
+# it**: there are three callers now (the tail below, the error block further down, and
+# `redact_in_place`), and three copies of a regular expression is three places for one of them to
+# quietly stop matching while the other two keep the rule looking enforced.
+redact() {
+  sed 's/\([?&]t=\)[A-Za-z0-9_-][A-Za-z0-9_-]*/\1<redacted>/g'
+}
+
 # redacted_tail <file> [lines]
 redacted_tail() {
-  tail -"${2:-30}" "$1" | sed 's/\([?&]t=\)[A-Za-z0-9_-][A-Za-z0-9_-]*/\1<redacted>/g'
+  tail -"${2:-30}" "$1" | redact
+}
+
+# redact_in_place <dir> — rewrite every file under a directory through `redact`.
+#
+# **The tail is not the only thing that leaves this machine any more.** `build.yml` uploads
+# `.e2e/logs/` as an artifact when a drive fails, so that the *whole* of a dead wrangler's debug log
+# can be downloaded rather than only its last forty lines. The two failure arms have gone through
+# `redacted_tail` since the day they were written precisely so a CI log could be pasted anywhere;
+# an artifact of the same bytes unredacted hands back whatever those arms were careful not to
+# print, by the other door. The measurement above applies here too — the pinned wrangler logs no
+# query string, so a run today has nothing to redact — and so does its conclusion: that is a
+# property of one version, and this directory now also holds wrangler's own debug logs and both
+# drivers' output.
+#
+# **Called from `e2e.sh`'s EXIT trap, beside deleting `.e2e/seed.json`, and for the same reason.**
+# That file is removed at the end of the run that minted its tokens rather than at the start of the
+# next one, because a working tree holding credentials for however long that is, is a habit. The
+# logs are the other half of it. Nothing needs the raw value to debug a failure, so nothing is lost
+# by the local copy being redacted too.
+#
+# **It can never fail the run.** It is on the cleanup path, and `stop_server`'s comment says why
+# that matters: a non-zero return from the EXIT trap replaces the script's real exit status, so a
+# tidying problem would overwrite the code that says why a red run was red.
+redact_in_place() {
+  local dir="$1" files f tmp
+
+  [ -n "$dir" ] && [ -d "$dir" ] || return 0
+
+  # **The list is taken whole before anything is rewritten.** Each file is redacted through a
+  # sibling temporary, and streaming `find` into the loop would hand the loop its own temporaries.
+  files="$(find "$dir" -type f 2>/dev/null)" || return 0
+
+  while IFS= read -r f; do
+    [ -n "$f" ] && [ -f "$f" ] || continue
+    tmp="$f.redacting"
+
+    if redact < "$f" > "$tmp" 2>/dev/null; then
+      mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
+    else
+      rm -f "$tmp" 2>/dev/null || true
+    fi
+  done <<EOF
+$files
+EOF
+
+  return 0
 }
 
 # ------------------------------------------------------------------------------------------------
 # The server currently running, if any. `stop_server` reads the first two and is also the EXIT
 # trap, so it has to be able to run against a script that never started one. `server_log` is where
 # that server's output went, which is what `say_server_state` quotes.
+#
+# `server_debug_dir` is the *other* log: the directory `start_server` points `WRANGLER_LOG_PATH` at,
+# which is where wrangler keeps its own debug log — and that file, not the one above, is where a
+# fatal error's stack goes. See `start_server` in scripts/e2e.sh for the mechanism and the
+# measurement, and `say_wrangler_debug_log` below for what is done with it.
 
 server_pid=''
 server_port=0
 server_log=''
+server_debug_dir=''
 
 # ------------------------------------------------------------------------------------------------
 # WHETHER THE SERVER OUTLIVED THE DRIVE, AND WHAT IT SAID ON THE WAY OUT.
@@ -170,6 +242,101 @@ capture_server_state() {
   return 0
 }
 
+# ------------------------------------------------------------------------------------------------
+# WHAT A DEAD WRANGLER SAID, WHICH IS IN TWO PLACES AND NEITHER OF THEM WAS THE 40-LINE TAIL.
+#
+# **CI run `34120157313` is the second death this harness has seen, and the first one it had the
+# instruments to describe.** Twin `html-lang-dropped` on port 8793: the server was ALREADY DEAD with
+# exit status 1, and its last forty lines were a request log with this in the middle of them —
+#
+#     ✘ [ERROR]
+#
+#     If you think this is a bug then please create an issue at …
+#     Note that there is a newer version of Wrangler available (4.129.0). …
+#     🪵  Logs were written to "/home/runner/.config/.wrangler/logs/wrangler-….log"
+#
+# — an error with an **empty message**, followed by more `GET /css/theme.css 304` lines. Two things
+# were wrong with reading that. The cause was buried in the middle of a request log rather than
+# stated, and it *had* no message: wrangler's `handle-errors.ts` sends `exception.message` to
+# `logger.error` and `exception.stack` to `logger.debug`, and the default level never prints a
+# debug line. The stack was in the file the last line names, and nothing collected it.
+#
+# `start_server` now points `WRANGLER_LOG_PATH` at a directory of the harness's own, so that file
+# is under `.e2e/` rather than under `$HOME`. These two functions are what read it back.
+
+# newest_debug_log <dir> — the newest `*.log` in a directory, or nothing.
+#
+# **Newest and not all of them, because a directory can hold more than one.** wrangler names a file
+# per invocation, and a server that is started, dies and is started again leaves two — the older one
+# describing a run that is not the one being asked about. `-nt` is a bash builtin comparison, so
+# this needs no `stat`, whose flags differ between BSD and GNU.
+newest_debug_log() {
+  local dir="$1" newest='' f
+
+  [ -n "$dir" ] && [ -d "$dir" ] || return 1
+
+  for f in "$dir"/*.log; do
+    [ -f "$f" ] || continue
+    if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then
+      newest="$f"
+    fi
+  done
+
+  [ -n "$newest" ] || return 1
+  printf '%s\n' "$newest"
+}
+
+# say_wrangler_debug_log — quote the tail of the debug log belonging to the server that died.
+#
+# **Redacted, like every other thing this harness prints out of a log.** wrangler's own request
+# lines do not appear to reach this file in 4.127.0 — measured, they go through `logger.console`,
+# which bypasses `doLog` and therefore the file — but "the version we pinned does not currently log
+# a URL there" is not a reason to print a file unredacted. It is one version bump from being wrong,
+# and the cost of being wrong is a bearer token in a public CI log.
+#
+# **Says so when there is none, rather than being silent.** A missing debug log means the stack that
+# stdout withheld was not collected, which is a fact about this harness and not about the server —
+# and the shape of failure this repository keeps having is exactly an absence read as an all-clear.
+say_wrangler_debug_log() {
+  local newest
+
+  if newest="$(newest_debug_log "$server_debug_dir")"; then
+    echo "::error::and the last 40 lines of wrangler's own debug log, $newest — this is where the"\
+" stack goes, because handle-errors.ts sends it to logger.debug and stdout never prints one:"
+    redacted_tail "$newest" 40
+    return 0
+  fi
+
+  echo "::error::there is no wrangler debug log for this server (looked in"\
+" ${server_debug_dir:-<none was recorded>}), so whatever stack it kept off stdout was not"\
+" collected. WRANGLER_LOG_PATH is what puts one there — see start_server in scripts/e2e.sh."
+  return 0
+}
+
+# wrangler_error_block <log> — the fatal error out of a server's stdout log, redacted. 1 if there
+# is none.
+#
+# **`grep -F '[ERROR]'` and never a pattern containing the `✘`.** That glyph is three bytes, and
+# what `grep`'s `.` makes of them depends on the locale — the same trap `drive_twin`'s em-dash
+# `case` and the Windows console note in `tests/e2e/Program.cs` are already about. The bracketed
+# word beside it is ASCII and says the same thing.
+#
+# **The *last* occurrence, and twenty lines from it.** wrangler prints one fatal error and then
+# exits, so a later one is the one that killed it; twenty lines is the message, the blank line, the
+# issue-tracker sentence, the version note and the `Logs were written to` path, with room for a
+# multi-line message.
+wrangler_error_block() {
+  local log="$1" first
+
+  [ -n "$log" ] && [ -s "$log" ] || return 1
+
+  first="$(grep -n -F '[ERROR]' "$log" 2>/dev/null | tail -1 | cut -d: -f1)"
+  [ -n "$first" ] || return 1
+
+  sed -n "${first},$((first + 19))p" "$log" | redact
+  return 0
+}
+
 # say_server_state <what-ended> — the one line run 34040527190 needed, and the log behind it.
 #
 # **`redacted_tail` and never `tail`**, for the reason its own comment gives: this is a request log
@@ -190,6 +357,16 @@ say_server_state() {
 
   if [ -z "$server_log" ] || [ ! -s "$server_log" ]; then
     echo "::error::there is no server log to quote (${server_log:-none was recorded})."
+
+    # **The other log is still worth asking for, because the two fail independently.** A server
+    # killed before it wrote a line of stdout may well have written the startup half of its debug
+    # log, which names the configuration it came up with. Only when it is gone: a live server's
+    # debug log under every twin's verdict is the burial this arm exists to avoid.
+    case "$server_state" in
+      *ALIVE*) ;;
+      *) say_wrangler_debug_log ;;
+    esac
+
     return 0
   fi
 
@@ -199,6 +376,25 @@ say_server_state() {
 " what went wrong is above and not in it."
       ;;
     *)
+      # **The cause first, then the request log — and the ordering is the whole of this arm.**
+      # Run 34120157313's `✘ [ERROR]` was inside the forty lines below, four lines from the top,
+      # with request logging either side of it; a reader scanning a wall of `304 Not Modified`
+      # has no reason to stop there. Quoted on its own it is the first thing after the state
+      # line. It is quoted **whatever the forty lines would have shown**, because a busy server
+      # can push it off the end of them entirely.
+      local error_block
+      if error_block="$(wrangler_error_block "$server_log")"; then
+        echo "::error::wrangler logged a fatal error before it went. Its message is frequently"\
+" empty here — the exception's stack goes to logger.debug, which stdout never prints:"
+        printf '%s\n' "$error_block"
+      else
+        echo "::error::its log carries no '[ERROR]' line, so wrangler did not report a fatal error"\
+" on the way out — this is a death from outside the process (a signal, an OOM kill) rather than"\
+" wrangler refusing to continue. The exit status in the state line above is what separates them."
+      fi
+
+      say_wrangler_debug_log
+
       echo "::error::the last 40 lines of $server_log, with sign-in tokens redacted:"
       redacted_tail "$server_log" 40
       ;;

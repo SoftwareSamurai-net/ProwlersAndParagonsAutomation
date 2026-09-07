@@ -606,6 +606,7 @@ jobs:
         run: ./scripts/test-kill-tree.sh
 
       - name: Drive the assembled app in a browser
+        id: e2e_node
         # **The first thing in this repository that runs the application.** Everything above is a
         # part of it: `dotnet test` drives the engine, bUnit renders components, the proof
         # harnesses drive markup and CSS over `file://`, and the pixel diff compares pictures of
@@ -646,6 +647,7 @@ jobs:
         run: ./scripts/e2e.sh
 
       - name: Drive the assembled app again, with Playwright and axe
+        id: e2e_dotnet
         # **The second driver, and four of its nine checks are things the other cannot do.** The
         # other five are a port, run here as well because a port is a claim until it has a
         # record: PROGRESS.md item 10 states the condition under which `scripts/e2e/` is deleted,
@@ -684,3 +686,38 @@ jobs:
           echo "Driving with $chrome"
 
           PP_E2E_CHROME="$chrome" ./scripts/e2e.sh --driver dotnet
+
+      - name: Upload the e2e harness's logs
+        # **Forty lines of a stack is not a stack.** When a server dies mid-drive,
+        # `say_server_state` prints the fatal error block, the tail of wrangler's own debug log and
+        # the tail of the request log — enough to say *what* died, and not always enough to say
+        # why. CI run 34120157313 is the case in point: `✘ [ERROR]` with an empty message and a
+        # path to a debug log that lived under `$HOME` on a runner which no longer exists. This
+        # step is what makes the whole of that file downloadable instead.
+        #
+        # **`include-hidden-files: true` is not optional and the step above it says why.** The path
+        # is `.e2e/`, upload-artifact excludes dot-prefixed paths by default, and
+        # `if-no-files-found` defaults to `warn` — so without both of these a failing run would log
+        # "No files were found with the provided path" and go green, which is what the
+        # visual-regression upload did on every failing run for as long as it existed. Both
+        # defaults are v7's own, re-read on `actions/upload-artifact@v7`'s `action.yml` rather than
+        # remembered from v4.
+        #
+        # **Gated on the two drives' outcomes rather than on `failure()`.** A job that fails at
+        # `dotnet test` never reaches `scripts/e2e.sh`, so there is no `.e2e/logs/` to find — and
+        # `if-no-files-found: error` would then add a second, misleading red step to a run that had
+        # already failed somewhere else entirely. Same shape as the visual-regression upload's own
+        # `steps.visual.outcome` gate.
+        #
+        # **The logs carry no raw sign-in token by the time this runs.** `scripts/e2e.sh`'s EXIT
+        # trap puts the whole directory through `redact_in_place` — the same substitution every
+        # failure tail goes through — because an artifact is a copy of the bytes those tails are
+        # careful not to print. `REDACTED_TAIL` in `scripts/test-kill-tree.sh` holds that.
+        if: ${{ !cancelled() && (steps.e2e_node.outcome == 'failure' || steps.e2e_dotnet.outcome == 'failure') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs
+          path: .e2e/logs/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

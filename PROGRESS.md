@@ -1934,6 +1934,22 @@ the mechanism of each beside the bUnit dispatch trap.
   wall-clock tripwire that was itself a flake at 6.6× margin with a control whose only clock is on
   the side that must fail.
 
+**The second death came on 2026-09-07, and this time the guard caught its shape.** Run
+34120157313 on `main`, the Playwright twin `html-lang-dropped`: exit status 1, an empty `✘ [ERROR]`
+on stdout, and wrangler pointing at its own debug log under `$HOME` on a runner that no longer
+existed. Read out of the pinned 4.127.0's source: the logger writes every level to that file
+unconditionally and the error handler sends the message to stdout and the stack to the file — so
+the empty line was the message and the cause was in the file nobody had. Every e2e server now
+writes its debug log under `.e2e/logs/wrangler/<name>/` through `WRANGLER_LOG_PATH`, a dead server's
+report leads with the error block and the `Logs were written to` path, then the newest debug log's
+tail, then the request tail, all redacted, and a failed drive uploads the whole directory as a CI
+artifact. A ninth kill-tree case holds it, watched red eleven ways. Two facts came out of measuring
+rather than reasoning: the pinned wrangler logs a request's pathname and drops its query, so no
+server log ever carried a sign-in token and only the planted-token test proves the redactor; and
+the artifact step is a workflow, which nothing here can execute — it is proved by the next failing
+run, not by this entry. The rerun passed, twice in ~75 runs is the rate, and wrangler 4.128 and
+4.129's notes name no relevant fix; the deploy's pin stays.
+
 **What the reviews added, because the first fixes were themselves checks nobody had broken.** The
 orchestrator's inverted-aliveness mutation *hung* the kill-tree suite for eleven minutes instead of
 turning it red — `wait` on a live child blocks — so `capture_server_state` is bounded and the suite
