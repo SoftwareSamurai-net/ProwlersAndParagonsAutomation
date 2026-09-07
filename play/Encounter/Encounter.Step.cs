@@ -73,7 +73,8 @@ public sealed partial class Encounter
 
     // ── Attacks ──────────────────────────────────────────────────────────────
 
-    private EncounterState ResolveAttack(EncounterState state, Attack attack, List<LedgerLine> lines)
+    private EncounterState ResolveAttack(
+        EncounterState state, Attack attack, List<LedgerLine> lines, bool strayShot = false)
     {
         if (NotTheirTurn(state, attack.Actor, lines)) return state;
         if (OutOfTheFight(state, attack.Actor, "actor", lines)) return state;
@@ -99,7 +100,7 @@ public sealed partial class Encounter
         if (attack.Charge && ChargeRefused(state, actor, attack, lines) is { } refused) return refused;
         if (attack.Team && TeamAttackRefused(state, actor, target, lines) is { } spent) return spent;
 
-        var pool = rank + AttackModifiers(state, actor, attack, lines);
+        var pool = rank + AttackModifiers(state, actor, attack, strayShot, lines);
         var attackRoll = _counter.Roll(pool, _dice);
 
         state = CommitToTheAttack(state, actor, attack);
@@ -130,7 +131,11 @@ public sealed partial class Encounter
                 after, actor, target, attack, attackRoll.Successes, defenceRoll.Successes, lines);
         }
 
-        return after with { LastAttack = resolved };
+        after = after with { LastAttack = resolved };
+
+        // p.80's Friendly Fire, last: a shot into a melee that landed nothing has to go somewhere,
+        // and where it goes is a second attack resolved for real. A stray round never sends another.
+        return strayShot ? after : TheShotGoesWide(after, actor, attack, resolved, lines);
     }
 
     /// <summary>
@@ -292,7 +297,8 @@ public sealed partial class Encounter
     /// own defences until after their next turn, which is recorded here rather than in the ledger's
     /// prose — see <see cref="EncounterState.DefencesHalved"/>.</para>
     /// </summary>
-    private int AttackModifiers(EncounterState state, Combatant actor, Attack attack, List<LedgerLine> lines)
+    private int AttackModifiers(
+        EncounterState state, Combatant actor, Attack attack, bool strayShot, List<LedgerLine> lines)
     {
         var modifier = 0;
 
@@ -389,6 +395,10 @@ public sealed partial class Encounter
         // p.80's Hard Targets, on the attacking half: the price of aiming at a weak point. The
         // doubling it buys off is applied on the other side of the roll, in ChooseDefence.
         modifier += HardTargetNegation(state, actor, attack, lines);
+
+        // p.80's Friendly Fire: four dice for shooting into a scrum, and nothing at all for the
+        // round that has already gone wide.
+        modifier += FriendlyFire(state, actor, attack, strayShot, lines);
 
         modifier += WoundPenalty(state, actor, lines);
 
@@ -897,6 +907,143 @@ public sealed partial class Encounter
             + $"{nameof(RangeBand.Close)} between them, so this engine cannot establish the rule's "
             + "own condition and will not apply the penalty on nothing. See "
             + "docs/guide/play-engine.md's readings table.");
+    }
+
+    /// <summary>
+    /// Everybody else in the melee p.80's Friendly Fire rule is about: the characters at Close
+    /// Range with the target, who are neither the target nor the attacker and are still in the
+    /// fight.
+    ///
+    /// <para><b>"Engaged in close combat or otherwise bunched up with other characters" is derived
+    /// from the range bands rather than declared</b>, and it can be, because p.73's bands are
+    /// pairwise: a target at Close Range with somebody who is not the person shooting at them is a
+    /// target with somebody else close enough to catch a stray round. That is the whole of what the
+    /// clause needs, and nothing on a sheet or in an intent could say it better.</para>
+    ///
+    /// <para><b>Defeated characters are not in the melee</b>, for the reason they are not the actor
+    /// or the target of anything: a body on the floor is not somebody a shot can go wide into, and
+    /// the second attack this list feeds would be refused against one anyway.</para>
+    ///
+    /// <para>Ordered by id, because the second attack picks out of it with a die and a run has to
+    /// give the same answer twice.</para>
+    /// </summary>
+    private List<Combatant> Melee(EncounterState state, Combatant actor, Attack attack)
+    {
+        if (!state.Table.FriendlyFire || !IsARangedAttack(actor, attack)) return [];
+
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        return
+        [
+            .. state.Combatants.Values
+                .Where(c => !string.Equals(c.Id, actor.Id, StringComparison.Ordinal)
+                            && !string.Equals(c.Id, attack.Target, StringComparison.Ordinal)
+                            && !c.Defeated(floor)
+                            && state.RangeBetween(c.Id, attack.Target) == RangeBand.Close)
+                .OrderBy(c => c.Id, StringComparer.Ordinal)
+        ];
+    }
+
+    /// <summary>
+    /// p.80's Friendly Fire, on the attack roll: <c>penalty_dice</c> for shooting into a scrum, and
+    /// <c>second_attack_penalty_dice</c> — which is nothing — for the shot that went wide.
+    ///
+    /// <para><b>Both figures are the entry's and the second is applied rather than assumed away.</b>
+    /// "This time at no penalty" is a printed number, and reading it is what keeps a later edit of
+    /// the file from leaving a stray round quietly cheaper or dearer than the page says.</para>
+    /// </summary>
+    private int FriendlyFire(
+        EncounterState state, Combatant actor, Attack attack, bool strayShot, List<LedgerLine> lines)
+    {
+        var melee = Melee(state, actor, attack);
+
+        if (melee.Count == 0) return 0;
+
+        var entry = _play.GetGritty("gritty_friendly_fire");
+        var rule = entry.FriendlyFire!;
+        var target = state[attack.Target];
+
+        if (strayShot)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"this is the shot that went wide, and p.80 makes it {Dice(rule.SecondAttackPenaltyDice)} "
+                + $"— {actor.Name} attacks {target.Name} at no penalty"));
+
+            return rule.SecondAttackPenaltyDice;
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{rule.AppliesWhen}: {target.Name} is at Close Range with "
+            + $"{string.Join(", ", melee.Select(c => c.Name))}, so {actor.Name}'s attack is "
+            + $"{Dice(rule.PenaltyDice)}"));
+
+        return rule.PenaltyDice;
+    }
+
+    /// <summary>
+    /// p.80's other half: a shot into a melee that landed nothing "must" go somewhere, so a second
+    /// attack is resolved for real against another character in the tangle.
+    ///
+    /// <para><b>It is resolved and not announced</b>, which is the whole difference between this
+    /// rule being applied and this rule being reported. The stray round goes through
+    /// <see cref="ResolveAttack"/> like any other attack — it rolls, it is defended against, and it
+    /// does damage or a special effect — and the one thing it may not do is trigger a third, which
+    /// is what <c>strayShot</c> carries.</para>
+    ///
+    /// <para><b>The GM's random choice comes off <see cref="IDiceSource"/></b>, because a seeded run
+    /// has to give the same fight twice and a policy that reached for its own randomness would make
+    /// a balance figure unreproducible from the seed printed beside it. The face is on the ledger,
+    /// so the choice is auditable rather than merely random.</para>
+    ///
+    /// <para><b>What the stray shot carries is the weapon, and what it drops is everything that was
+    /// a fact about the first shot.</b> The Trait, the row of p.75's table, the damage kind, the
+    /// special effect and the thrown-weapon declaration are properties of what is being fired;
+    /// cover and its Structure are a line of sight to somebody else, and going all-out, charging,
+    /// an area attack, a team attack and aiming at a weak point are all things the attacker
+    /// declared about the target they meant to hit. The line says so.</para>
+    /// </summary>
+    private EncounterState TheShotGoesWide(
+        EncounterState state, Combatant actor, Attack attack, ResolvedAttack resolved,
+        List<LedgerLine> lines)
+    {
+        var melee = Melee(state, actor, attack);
+
+        if (melee.Count == 0) return state;
+
+        var entry = _play.GetGritty("gritty_friendly_fire");
+        var rule = entry.FriendlyFire!;
+        var net = resolved.AttackSuccesses - resolved.DefenceSuccesses;
+
+        if (net > rule.SecondAttackTriggeredAtNetSuccesses) return state;
+
+        var face = _dice.Roll(1)[0];
+        var unlucky = melee[(face - 1) % melee.Count];
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{net} net successes is {rule.SecondAttackTriggeredAtNetSuccesses} or fewer, so the "
+            + $"shot goes somewhere: p.80 asks for a second attack against {rule.SecondAttackIsAgainst}, "
+            + $"selected {rule.SecondTargetSelected} by the {rule.SecondTargetSelectedBy.ToUpperInvariant()} — "
+            + $"a die came up {face} against {melee.Count} of them, which is {unlucky.Name}. It is the "
+            + "same weapon at a different person: what the attacker declared about the first shot — "
+            + "cover, going all-out, charging, an area or team attack, a weak point — was about that "
+            + "target and does not come with it"));
+
+        var stray = attack with
+        {
+            Target = unlucky.Id,
+            Cover = Cover.None,
+            CoverStructure = null,
+            AllOut = false,
+            Charge = false,
+            Area = false,
+            Team = false,
+            VulnerablePart = false
+        };
+
+        return ResolveAttack(state, stray, lines, strayShot: true);
     }
 
     /// <summary>

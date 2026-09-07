@@ -3084,6 +3084,71 @@ public sealed class McpPlayServerTests
             Assert.Equal(before!["edge"]!.GetValue<int>() * 2, hero["edge"]!.GetValue<int>());
         });
 
+
+    // ── p.80's Friendly Fire, over the wire ───────────────────────────────
+
+    /// <summary>
+    /// <b>The <c>friendly_fire</c> setting crosses the wire, costs the printed dice, and sends a
+    /// second attack that really happens.</b>
+    ///
+    /// <para>Nothing is declared for this rule — whether a target is bunched up is derived from the
+    /// range bands — so what is driven is the setting itself and the effect it has on a third
+    /// combatant's Health. The control is the same fight with the setting off, whose pool is the
+    /// rank on the sheet and whose bystander is untouched.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheFriendlyFireSettingCrossesTheWireAndItsSecondAttackReallyHappens() =>
+        await WithClient(async client =>
+        {
+            var penalty = _play.GetGritty("gritty_friendly_fire").FriendlyFire!.PenaltyDice;
+
+            async Task<JsonNode> Fire(bool setting)
+            {
+                var fight = TwoSides();
+
+                fight.Add(new JsonObject
+                {
+                    ["kind"] = "extra",
+                    ["id"] = "bystander",
+                    ["side"] = "villains",
+                    ["character"] = new JsonObject
+                    {
+                        ["Name"] = "the Bystander",
+                        ["SelectedTierId"] = "standard",
+                        ["AbilityRanks"] = new JsonObject { ["toughness"] = 3, ["willpower"] = 3 }
+                    }
+                });
+
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["friendly_fire"] = setting },
+                    ["seed"] = 80
+                });
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                        ["trait_id"] = "might", ["type"] = "ranged_weapon"
+                    }
+                });
+            }
+
+            // The control: the setting off is the rank on the sheet, and no line cites the rule.
+            var quiet = await Fire(setting: false);
+
+            Assert.Contains("might 8d", RollLine(quiet), StringComparison.Ordinal);
+            Assert.False(Cites(quiet, "gritty_friendly_fire"));
+
+            var into = await Fire(setting: true);
+
+            Assert.Contains($"might {8 + penalty}d", RollLine(into), StringComparison.Ordinal);
+            Assert.True(Cites(into, "gritty_friendly_fire"));
+        });
+
     /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
     /// reader — enough to open a fight for the tests that are about something else.

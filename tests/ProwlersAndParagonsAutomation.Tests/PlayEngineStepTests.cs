@@ -5606,6 +5606,248 @@ public sealed class PlayEngineStepTests
         Assert.Contains("goes first, whatever their Edge", thrown.Message, StringComparison.Ordinal);
     }
 
+
+    // ── p.80's Friendly Fire ─────────────────────────────────────────────────
+
+    /// <summary>The Friendly Fire table setting, and nothing else.</summary>
+    private static readonly TableRules FriendlyFireOn = TableRules.Book with { FriendlyFire = true };
+
+    /// <summary>
+    /// A shooter, the person they are shooting at, and however many other characters are in the
+    /// tangle with the target — all of them at Close Range, which is where a fight opens.
+    /// </summary>
+    private static List<Combatant> Scrum(int bystanders)
+    {
+        var fight = new List<Combatant>
+        {
+            Combatant.Hero(
+                "hero", "the Hero", edge: 12, health: 10, resolve: 0,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 }, ["toughness"]),
+            Combatant.Villain(
+                "villain", "the Villain", edge: 7, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 }, ["toughness"])
+        };
+
+        for (var i = 1; i <= bystanders; i++)
+        {
+            fight.Add(Combatant.Extra(
+                $"bystander{i}", $"Bystander {i}", edge: 3, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 },
+                ["toughness"], side: "villains"));
+        }
+
+        return fight;
+    }
+
+    /// <summary>One shot into a scrum, and everything the engine did about it.</summary>
+    private (int Thrown, IReadOnlyList<LedgerLine> Lines, EncounterState State) Shoot(
+        IReadOnlyList<Combatant> fight, TableRules? table, params int[] faces)
+    {
+        var dice = new ScriptedDice(faces);
+        var encounter = new Encounter(_play, dice, table);
+        var state = encounter.Begin(fight);
+
+        Assert.Equal(faces.Length, dice.Remaining);
+
+        var step = encounter.Step(
+            state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+        return (faces.Length - dice.Remaining, step.Added, step.State);
+    }
+
+    /// <summary>
+    /// <b>Shooting into a melee costs exactly the dice p.80 prints, and shooting at somebody alone
+    /// costs nothing.</b>
+    ///
+    /// <para>"Engaged in close combat or otherwise bunched up with other characters" is derived
+    /// from p.73's range bands rather than declared, so the fixture drives it by putting a
+    /// bystander in the fight and taking them out again — the same shooter, the same target, the
+    /// same band.</para>
+    ///
+    /// <para><b>The switch off is the baseline and is measured first.</b></para>
+    /// </summary>
+    [Fact]
+    public void ShootingIntoAMeleeCostsExactlyTheDiceThePagePrints()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+
+        // The control on the reading: a penalty of nothing would make the equalities below hold of
+        // an engine that applied no rule at all.
+        Assert.NotEqual(0, rule.PenaltyDice);
+
+        // Faces of 6 so the shot lands and no second attack is triggered — this fixture is about
+        // the penalty, and the stray round is the one below.
+        int[] plenty = [.. Enumerable.Repeat(6, 60)];
+
+        var alone = Shoot(Scrum(bystanders: 0), FriendlyFireOn, plenty);
+        var crowd = Shoot(Scrum(bystanders: 1), FriendlyFireOn, plenty);
+
+        Assert.Equal(alone.Thrown + rule.PenaltyDice, crowd.Thrown);
+        Assert.DoesNotContain(alone.Lines, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal));
+
+        // The switch off changes nothing, in the same crowd.
+        var off = Shoot(Scrum(bystanders: 1), table: null, plenty);
+
+        Assert.Equal(alone.Thrown, off.Thrown);
+        Assert.DoesNotContain(off.Lines, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A close combat attack into the same scrum costs nothing</b>, because p.80 prices a ranged
+    /// one. Derived off p.75's table by the row's printed type, the same reading p.79's Close Range
+    /// rule uses — so this is one fixture holding both.
+    /// </summary>
+    [Fact]
+    public void FriendlyFireIsPricedOnARangedAttackAndNotOnAFist()
+    {
+        int[] plenty = [.. Enumerable.Repeat(6, 60)];
+
+        var dice = new ScriptedDice(plenty);
+        var encounter = new Encounter(_play, dice, FriendlyFireOn);
+        var state = encounter.Begin(Scrum(bystanders: 1));
+
+        var punch = encounter.Step(state, new Attack("hero", "villain", "might"));
+
+        // The control: the attack really was resolved.
+        Assert.Contains(punch.Added, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(punch.Added, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A shot that lands nothing sends a second attack, and the second attack is resolved rather
+    /// than announced.</b>
+    ///
+    /// <para>This is the half of the rule a ledger line on its own would have got wrong: the page
+    /// says "you must make a second attack", and an engine that wrote the sentence and rolled
+    /// nothing would leave the bystander untouched while the record said otherwise. So the fixture
+    /// checks the bystander's Health, not the prose — and requires the stray round to have been
+    /// thrown, defended against and applied.</para>
+    ///
+    /// <para>The faces are scripted so that the first shot lands nothing and the second one lands:
+    /// the shooter throws its pool of ones, the target defends, and then the stray round's pool
+    /// comes up sixes against a defence of ones.</para>
+    /// </summary>
+    [Fact]
+    public void AShotThatLandsNothingSendsASecondAttackThatIsActuallyResolved()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        // p.75's Ranged Weapon row halves a Toughness, so the defence pool is half the rank.
+        var soak = Halved(4);
+
+        // 8d Might less the printed penalty, all missing; then the target's soak, likewise; then
+        // one die for the GM's pick; then the stray round's whole 8d, of which two land; then the
+        // bystander's soak, missing.
+        int[] faces =
+        [
+            .. Enumerable.Repeat(1, 8 + rule.PenaltyDice),
+            .. Enumerable.Repeat(1, soak),
+            3,
+            4, 4, .. Enumerable.Repeat(1, 6),
+            .. Enumerable.Repeat(1, soak)
+        ];
+
+        var shot = Shoot(Scrum(bystanders: 1), FriendlyFireOn, faces);
+
+        // The control: every scripted face was consumed, so the engine made exactly the rolls this
+        // fixture accounts for — the first attack, the defence, the pick, and the stray round.
+        Assert.Equal(faces.Length, shot.Thrown);
+
+        var bystander = shot.State["bystander1"];
+
+        Assert.True(
+            bystander.CurrentHealth < bystander.FullHealth,
+            "the stray round was announced and never landed: the bystander is untouched");
+
+        // Two successes against nothing, at the printed rate.
+        Assert.Equal(bystander.FullHealth - (2 * rate), bystander.CurrentHealth);
+
+        var sent = Assert.Single(shot.Lines, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal)
+            && l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        Assert.Contains(rule.SecondAttackIsAgainst, sent.Text, StringComparison.Ordinal);
+        Assert.Contains(rule.SecondTargetSelected, sent.Text, StringComparison.Ordinal);
+        Assert.Contains("a die came up 3", sent.Text, StringComparison.Ordinal);
+
+        // And the stray round itself was at no penalty, which is the entry's own second figure.
+        Assert.Contains(shot.Lines, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal)
+            && l.Text.Contains("went wide", StringComparison.Ordinal)
+            && l.Text.Contains(rule.SecondAttackPenaltyDice.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A shot that landed something sends nothing</b>, which is the other side of the entry's
+    /// own <c>second_attack_triggered_at_net_successes</c>. Driven at the threshold rather than
+    /// past it: the same fixture, with the first shot beating the defence by one.
+    /// </summary>
+    [Fact]
+    public void AShotThatLandedSomethingSendsNoSecondAttack()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+
+        Assert.Equal(0, rule.SecondAttackTriggeredAtNetSuccesses);
+
+        // One success on the attack — one four is one under play_meta's map — against a defence
+        // that scores nothing.
+        int[] faces =
+        [
+            4, .. Enumerable.Repeat(1, 8 + rule.PenaltyDice - 1),
+            .. Enumerable.Repeat(1, Halved(4))
+        ];
+
+        var shot = Shoot(Scrum(bystanders: 1), FriendlyFireOn, faces);
+
+        // The control: every face was consumed and no more were asked for, so no second attack was
+        // rolled — which is the thing under test rather than an absence in the prose.
+        Assert.Equal(faces.Length, shot.Thrown);
+
+        var bystander = shot.State["bystander1"];
+
+        Assert.Equal(bystander.FullHealth, bystander.CurrentHealth);
+        Assert.DoesNotContain(shot.Lines, l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A stray round never sends another one.</b>
+    ///
+    /// <para>p.80 asks for "a second attack", not for a cascade, and the guard is worth driving
+    /// because the second attack goes through the whole of <see cref="Encounter.Step"/>'s attack
+    /// path — including the rule that sent it. Two bystanders, both shots missing everything, and
+    /// the dice source is handed exactly the faces two attacks need: a third would throw.</para>
+    /// </summary>
+    [Fact]
+    public void AStrayRoundNeverSendsAnotherStrayRound()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+
+        int[] faces =
+        [
+            .. Enumerable.Repeat(1, 8 + rule.PenaltyDice),    // the first attack, missing
+            .. Enumerable.Repeat(1, Halved(4)),               // the target's defence
+            2,                                                // the GM's pick
+            .. Enumerable.Repeat(1, 8),                       // the stray round, at no penalty
+            .. Enumerable.Repeat(1, Halved(4))                // the bystander's defence
+        ];
+
+        var shot = Shoot(Scrum(bystanders: 2), FriendlyFireOn, faces);
+
+        // The control: ScriptedDice throws when it runs out, so consuming exactly this many faces
+        // is the assertion that a third attack was never rolled.
+        Assert.Equal(faces.Length, shot.Thrown);
+
+        Assert.Single(shot.Lines, l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+    }
+
     /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
     private static string Line((int Thrown, IReadOnlyList<LedgerLine> Lines) exchange, string ruleId) =>
         Assert.Single(exchange.Lines, l => string.Equals(l.Rule, ruleId, StringComparison.Ordinal)).Text;

@@ -106,12 +106,15 @@ Three properties of it are load-bearing:
 
 | Setting | Entry |
 |---|---|
-| `FriendlyFire` | `gritty_friendly_fire` |
 | `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other eight gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, `CloseRangePenalty`, `TheDrop`, and the initiative variant beside them.
+The other nine gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, `CloseRangePenalty`, `TheDrop`, `FriendlyFire`, and the initiative variant beside them.
+
+**p.80's Friendly Fire needs no field at all, because the fight already knows.** "A target engaged in close combat or otherwise bunched up with other characters" is derived from p.73's range bands, which are pairwise: a target at Close Range with somebody who is not the person shooting at them is a target with somebody else close enough to catch a stray round. Defeated characters are not in the melee, for the reason they are not the actor or target of anything.
+
+**The second attack is resolved, not announced**, which is the whole difference between this rule being applied and this rule being reported: the stray round goes through `ResolveAttack` like any other attack — it rolls, it is defended against, and it does damage or a special effect — and the one thing it may not do is trigger a third. The GM's random choice comes off `IDiceSource` so that a seeded run gives the same fight twice, and the face is on the ledger so the choice is auditable rather than merely random. **What the stray shot carries is the weapon and what it drops is the first shot's declarations**: the Trait, p.75's row, the damage kind, the effect and `CloseRangeOnly` are properties of what is being fired; cover and its Structure are a line of sight to somebody else, and all-out, charge, area, team and `VulnerablePart` are things the attacker said about the target they meant to hit. `second_attack_penalty_dice` is read and applied rather than assumed away — "this time at no penalty" is a printed number.
 
 **p.79's Drop is pairwise in the book and exact as one global order, and that is the finding that made it applicable at all.** An order depends only on how each *pair* compares, and there are three kinds of pair: two ready characters both double, and 2a against 2b orders exactly as a against b — which is right, because neither has the drop on the other; two unready characters double neither, right for the same reason; and a ready character against an unready one doubles exactly one of them, which is the rule as printed. So doubling every holder's `EncounterState.EffectiveEdge` once produces the same order as comparing every pair under p.79's own sentence, with no case left over. `Combatant.Ready` is the caller's word and it is the sharper version of `Invisible`'s argument: carrying a gun is a capability and having it levelled is a state, nothing in Chapters 3–5 levels one, and p.79 hands the question to the GM in as many words — `final_say` is on the entry and on the ledger.
 

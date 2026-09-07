@@ -131,7 +131,7 @@ public sealed class PlayEnginePropertyTests
         var table = TableRules.Book with
         {
             FatalDamage = true, WoundPenalties = true, HardTargets = true,
-            CloseRangePenalty = true, TheDrop = true
+            CloseRangePenalty = true, TheDrop = true, FriendlyFire = true
         };
         var encounter = new Encounter(_play, new SeededDice(seed), table);
 

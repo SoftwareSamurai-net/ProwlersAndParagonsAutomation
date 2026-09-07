@@ -72,7 +72,6 @@ public sealed partial class Encounter
     /// </summary>
     public static IReadOnlySet<string> SwitchesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        nameof(TableRules.FriendlyFire),
         nameof(TableRules.SlowHealing),
         nameof(TableRules.RaisedGearLimit),
         nameof(TableRules.GearLimitRank)

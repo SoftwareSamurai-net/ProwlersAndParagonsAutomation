@@ -191,14 +191,23 @@ page one of the run and do not move the numbers:
 
 | Setting | Entry |
 |---|---|
-| `FriendlyFire` | `gritty_friendly_fire` |
 | `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other eight — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`,
-`HardTargets`, `close_range_penalty`, `the_drop` and the initiative variant beside them — are
-applied.
+The other nine — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`,
+`HardTargets`, `close_range_penalty`, `the_drop`, `friendly_fire` and the initiative variant beside
+them — are applied.
+
+**`friendly_fire` needs nothing from you.** Whether a target is "engaged in close combat or
+otherwise bunched up" is worked out from the range bands you already set: anyone at Close Range
+with the target who is not you is somebody a stray round can find. A ranged attack into that costs
+four dice, and **a shot that lands nothing sends a second attack, resolved for real** — the GM's
+random pick comes off the same seeded dice as everything else and the die face is on the ledger, so
+the choice is reproducible and auditable. That second attack is the same weapon at a different
+person: what you declared about the first shot — cover, all-out, charge, area, team, a weak point —
+was about that target and does not travel. Read its outcome off the ledger like any other attack;
+do not narrate the stray round as a miss.
 
 **`the_drop` needs you to say who has a weapon or Power aimed and ready.** Send `"ready": true` on
 a combatant and their effective Edge is doubled for the order of action, against everyone who has
