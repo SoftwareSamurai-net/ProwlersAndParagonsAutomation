@@ -2506,6 +2506,10 @@ public sealed partial class Encounter
         var actor = state[toss.Actor];
         var item = toss.Item?.Trim() ?? "";
 
+        // p.76's printed exit from the deadlock, and it is the same intent because it is the same
+        // act: "you can exit grappling combat at any time by letting go of the object."
+        if (LettingGo(state, actor, item, lines) is { } loosed) return loosed;
+
         if (UsingWhatTheyDoNotHold(state, actor, item, lines) is { } empty) return empty;
 
         var entry = _play.GetCombat("grab");
@@ -2520,6 +2524,75 @@ public sealed partial class Encounter
             + "holds it now; where it landed is the GM's"));
 
         return state.With(actor.Dropped());
+    }
+
+    /// <summary>
+    /// p.76's exit from a partial grab: "you can exit grappling combat at any time by letting go of
+    /// the object" — and the state that ends with it.
+    ///
+    /// <para><b>Without this a partial grab was a deadlock nothing could end.</b> The half-measure
+    /// takes both characters' active defences away against everybody else and is otherwise settled
+    /// only by somebody rolling three net successes; the character who had walked in with the object
+    /// could toss it and stay tangled, and the one grabbing at it could not toss it at all, because
+    /// a toss was refused unless the actor was holding what they named. So a fight in which neither
+    /// ever rolled a full grab was a fight in which two characters could not dodge anybody for the
+    /// rest of it — which is exactly the defect a full grab replacing a partial one the other way
+    /// round was, reached by another route.</para>
+    ///
+    /// <para><b>Nobody gains control of it, and that is the half worth stating.</b> Only a full grab
+    /// is "control of the object"; treating a concession as one would be inventing a fourth outcome
+    /// for a table that prints three. The character who let go is not holding it, whoever else had
+    /// hold of it is not either, and where it landed is the GM's — the same silence a toss already
+    /// keeps.</para>
+    ///
+    /// <para>It ends only the grab between these two over this object. A hold is untouched: p.77
+    /// gets out of one of those with an escape, and letting go of an item is not one.</para>
+    /// </summary>
+    private EncounterState? LettingGo(
+        EncounterState state, Combatant actor, string item, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("grab");
+        var grab = entry.Grab!;
+
+        var contest = state.Grapples.FirstOrDefault(g =>
+            g.Move == GrappleMove.Grab
+            && g.Kind == GrappleKind.Partial
+            && string.Equals(g.Item, item, StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(g.Holder, actor.Id, StringComparison.Ordinal)
+                || string.Equals(g.Held, actor.Id, StringComparison.Ordinal)));
+
+        if (contest is null) return null;
+
+        var other = string.Equals(contest.Holder, actor.Id, StringComparison.Ordinal)
+            ? contest.Held
+            : contest.Holder;
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{actor.Name} lets go of {item}, and "
+            + $"{nameof(grab.MayExitByLettingGoOfTheObject)} is "
+            + $"{grab.MayExitByLettingGoOfTheObject} — so the partial grab with "
+            + $"{state[other].Name} is over and both of them have their active defences against "
+            + "everybody else back. Nobody has control of it: a full grab is "
+            + $"{grab.FullMeans} and this was not one, so where it landed is the GM's"));
+
+        // Whoever was recorded as holding it is not any more — which is only ever the character who
+        // walked into the fight with it, since a partial grab moves nothing.
+        var after = state with
+        {
+            Grapples = [.. state.Grapples.Where(g => !ReferenceEquals(g, contest))]
+        };
+
+        foreach (var id in new[] { actor.Id, other })
+        {
+            if (after[id].Holding is { } held
+                && string.Equals(held.Name, item, StringComparison.OrdinalIgnoreCase))
+            {
+                after = after.With(after[id].Dropped());
+            }
+        }
+
+        return after;
     }
 
     private EncounterState ResolveBreakFree(EncounterState state, BreakFree free, List<LedgerLine> lines)

@@ -3587,6 +3587,92 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>Either party may let go of the contested object, which ends the deadlock and gives both of
+    /// them their active defences back.</b>
+    ///
+    /// <para>p.76 prints the exit in the same paragraph as the deadlock: "you can exit grappling
+    /// combat at any time by letting go of the object." Without it a partial grab was a state nothing
+    /// could end — the half-measure takes both characters' active defences away against everybody
+    /// else and is otherwise settled only by three net successes, the character who walked in with
+    /// the object could toss it and stay tangled, and the one grabbing at it could not toss it at
+    /// all, because a toss was refused unless the actor held what they named.</para>
+    ///
+    /// <para><b>The active defences are driven rather than asserted about the record</b>: a third
+    /// party attacks each of them before and after, and the ledger line p.76 writes for the blocked
+    /// defence is required to be there and then not to be. That is what makes this a fixture about
+    /// the fight rather than about a list.</para>
+    ///
+    /// <para>Both directions are driven, because they are different code: the character holding the
+    /// object drops it, and the one who never had it lets go of something they were not holding —
+    /// which the ordinary toss refuses by name.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("held")]
+    [InlineData("holder")]
+    public void EitherPartyMayLetGoOfTheContestedObject(string quitter)
+    {
+        var partial = new ScriptedDice([.. FacesFor(10, 2), .. FacesFor(10, 0)]);
+        var opening = new Encounter(_play, partial);
+
+        var deadlock = opening.Step(
+            opening.Begin(ArmedWrestlers()),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword")).State;
+
+        Assert.Equal(GrappleKind.Partial, Assert.Single(deadlock.Grapples).Kind);
+
+        // The positive control, and it is about the fight rather than about the record: the
+        // bystander swings at each of them and p.76 takes the active defence away.
+        Assert.True(NoActiveDefenceLine(deadlock, "held"));
+        Assert.True(NoActiveDefenceLine(deadlock, "holder"));
+
+        var encounter = new Encounter(_play, new SeededDice(21));
+
+        var loosed = encounter.Step(
+            deadlock with { TurnIndex = deadlock.TurnOrder.ToList().IndexOf(quitter) },
+            new Toss(quitter, "the sword"));
+
+        Assert.Contains(loosed.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("lets go of the sword", StringComparison.Ordinal)
+            && l.Text.Contains("MayExitByLettingGoOfTheObject is True", StringComparison.Ordinal));
+
+        // Both of them can dodge again — asserted first, because it is the consequence the page
+        // attaches to the exit and the record is only how this engine spells it.
+        Assert.False(NoActiveDefenceLine(loosed.State, "held"));
+        Assert.False(NoActiveDefenceLine(loosed.State, "holder"));
+
+        // And the deadlock is over, with nobody in control of the object: only a full grab is that.
+        Assert.Empty(loosed.State.Grapples);
+        Assert.Null(loosed.State["held"].Holding);
+        Assert.Null(loosed.State["holder"].Holding);
+
+        // And letting go is free, the way p.76's use and toss are: the quitter still has their turn.
+        Assert.Equal(quitter, loosed.State.Current!.Id);
+    }
+
+    /// <summary>
+    /// Whether p.76 takes <paramref name="who"/>'s active defence away against a third party, driven
+    /// by having the bystander actually swing at them.
+    /// </summary>
+    private bool NoActiveDefenceLine(EncounterState state, string who)
+    {
+        var dice = new ScriptedDice([.. FacesFor(6, 2), .. FacesFor(10, 1)]);
+
+        var swung = new Encounter(_play, dice).Step(
+            state with { TurnIndex = state.TurnOrder.ToList().IndexOf("bystander") },
+            new Attack("bystander", who, "might"));
+
+        // The control on the control: the attack really was resolved, so "no line" means the
+        // defence was allowed rather than that nothing happened.
+        Assert.Contains(swung.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        return swung.Added.Any(l =>
+            l.Text.Contains("no active defence against anybody else", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// <b>Neither party may attack with the object a partial grab is over, which is the clause p.76
     /// prints and this engine could not see until an attack could name an item.</b>
     ///

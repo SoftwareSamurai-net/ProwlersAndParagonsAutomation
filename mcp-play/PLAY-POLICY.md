@@ -316,6 +316,13 @@ nothing in this repository's rules data says which Trait a weapon backs — so i
 say so yourself. Where a tossed item landed, for the same reason there is no scenery here. Naming an item on an attack **changes no figure at all**: not the
 pool, not the row of the table, not the damage. Do not narrate it as a bonus.
 
+**Either of them may end a partial grab by letting go: send `toss` naming the contested object.**
+p.76 prints that exit in the same paragraph as the deadlock, and it works for the character who is
+not holding the thing as well as for the one who is — the grab record goes and both of them have
+their active defences against everybody else back. Nobody comes out of it in control of the object:
+only a full grab is that. Left alone, a partial grab ends only when somebody rolls three net
+successes, and until then neither character can dodge anybody but each other.
+
 **While a partial grab stands, neither of them may attack with the contested object.** That is
 p.76's "they can't use it, but neither can you", and an attack naming it is refused by name for
 either party, with nothing rolled — including the one who walked in with it, who is still recorded
