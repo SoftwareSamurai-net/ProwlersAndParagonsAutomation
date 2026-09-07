@@ -191,7 +191,7 @@ public sealed class McpPlayServerTests
     /// </summary>
     private static readonly string[] ArgumentsThePolicyUndertakesToName =
     [
-        "combatants", "table", "challengeLevel", "seed", "openingRange",
+        "combatants", "table", "challengeLevel", "seed", "openingRange", "visibility",
         "encounterId", "intent", "runs", "policy", "maxPages"
     ];
 
@@ -706,6 +706,327 @@ public sealed class McpPlayServerTests
             Assert.DoesNotContain(lines, l =>
                 l!["text"]!.GetValue<string>()
                     .Contains("was not a team attack", StringComparison.Ordinal));
+        });
+
+    // ── p.75's three modifiers, over the wire ─────────────────────────────
+
+    /// <summary>
+    /// The <c>attacks_and_defenses</c> line of one turn's answer, which carries both pools.
+    ///
+    /// <para>Every fixture below reads its pool out of this rather than off a state field, because
+    /// the pool is what a modifier moves and the ledger is where this server publishes it.</para>
+    /// </summary>
+    private static string RollLine(JsonNode turn)
+    {
+        // <b>By the sentence and not only by the rule id.</b> `attacks_and_defenses` is cited twice
+        // on a turn that missed — once for the exchange and once for "the attack misses, or hits
+        // with no effect" — so selecting on the id alone finds two lines and throws, which reads as
+        // a fixture fault rather than as the two lines it is.
+        var line = turn["added"]!.AsArray().SingleOrDefault(l =>
+            string.Equals(l!["rule"]!.GetValue<string>(), "attacks_and_defenses", StringComparison.Ordinal)
+            && l["text"]!.GetValue<string>().Contains("defends with", StringComparison.Ordinal));
+
+        Assert.True(line is not null, "the turn resolved no attack: " + turn.ToJsonString());
+
+        return line!["text"]!.GetValue<string>();
+    }
+
+    /// <summary>Whether a turn's answer cites one rule at all.</summary>
+    private static bool Cites(JsonNode turn, string rule) =>
+        turn["added"]!.AsArray().Any(l =>
+            string.Equals(l!["rule"]!.GetValue<string>(), rule, StringComparison.Ordinal));
+
+    /// <summary>A fight of two whose only defence is an Agility, so the defence chosen is active.</summary>
+    private static JsonArray TwoSidesDodging()
+    {
+        var fight = TwoSides();
+
+        foreach (var entry in fight)
+        {
+            entry!["character"]!["AbilityRanks"] =
+                new JsonObject { ["might"] = 8, ["agility"] = 6 };
+        }
+
+        return fight;
+    }
+
+    /// <summary>
+    /// <b>The scene's <c>visibility</c> crosses the wire, moves the pool, and comes back inside
+    /// <c>table</c>.</b>
+    ///
+    /// <para>The placement is the half worth driving. The play policy tells every conversation that
+    /// a rate is quoted with four things and one of them is <c>table</c>; a fight in the dark is a
+    /// different game by up to three dice on every roll in it, so the figure has to travel with the
+    /// thing a quoter is already told to carry. This asserts it on both tools.</para>
+    ///
+    /// <para>The control is the same fight in clear air, whose pool is the Hero's own rank — an
+    /// argument the SDK had dropped would leave both answers identical, which is exactly the way
+    /// the <c>team</c> flag was lost.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheScenesVisibilityCrossesTheWireAndComesBackInsideTheTable() =>
+        await WithClient(async client =>
+        {
+            var band = _play.GetCombat("modifier_visibility").Visibility!.Bands
+                .Single(b => string.Equals(b.Visibility, "poor", StringComparison.Ordinal))
+                .Dice;
+
+            Assert.NotEqual(0, band);
+
+            async Task<JsonNode> Attack(string? light)
+            {
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = TwoSides(),
+                    ["seed"] = 75,
+                    ["visibility"] = light
+                });
+
+                Assert.Equal(light ?? "clear", opened["table"]!["visibility"]!.GetValue<string>());
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero",
+                        ["target"] = "villain", ["trait_id"] = "might"
+                    }
+                });
+            }
+
+            // The control: in clear air the pool is the rank on the sheet and nothing cites p.75.
+            var clear = await Attack(null);
+
+            Assert.Contains("might 8d", RollLine(clear), StringComparison.Ordinal);
+            Assert.False(Cites(clear, "modifier_visibility"));
+
+            var dim = await Attack("poor");
+
+            Assert.Contains($"might {8 + band}d", RollLine(dim), StringComparison.Ordinal);
+            Assert.True(Cites(dim, "modifier_visibility"));
+
+            // And a measurement carries it, in the same object as the switches.
+            var measured = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["visibility"] = "none"
+            });
+
+            Assert.True(measured["ok"]!.GetValue<bool>());
+            Assert.Equal("none", measured["table"]!["visibility"]!.GetValue<string>());
+        });
+
+    /// <summary>
+    /// <b>A combatant's <c>size</c> crosses the wire and moves the defender's active defence.</b>
+    ///
+    /// <para>Both halves are asserted: the figure comes back on the public state, so a caller can
+    /// see what was read, and the defence pool moves by the band p.75 prints — because a field
+    /// echoed and not applied is the "accepted and quietly ignored" this server refuses a table
+    /// setting for.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACombatantsSizeCrossesTheWireAndMovesTheDefendersActiveDefence() =>
+        await WithClient(async client =>
+        {
+            var band = _play.GetCombat("modifier_size").Size!.Bands
+                .Single(b => string.Equals(
+                    b.AttackerRelativeSize, "at least 5 times your size", StringComparison.Ordinal))
+                .Dice;
+
+            Assert.NotEqual(0, band);
+
+            async Task<JsonNode> Attack(JsonArray fight)
+            {
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["seed"] = 75
+                });
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero",
+                        ["target"] = "villain", ["trait_id"] = "might"
+                    }
+                });
+            }
+
+            // The control: the same size on both, which is the default and no band at all.
+            var even = await Attack(TwoSidesDodging());
+
+            Assert.Contains("agility 6d", RollLine(even), StringComparison.Ordinal);
+            Assert.False(Cites(even, "modifier_size"));
+
+            var giant = TwoSidesDodging();
+            giant[0]!["size"] = 5;
+
+            var stomped = await Attack(giant);
+
+            Assert.Contains($"agility {6 + band}d", RollLine(stomped), StringComparison.Ordinal);
+            Assert.True(Cites(stomped, "modifier_size"));
+
+            // The figure a caller passed comes back, so they can see what was read.
+            var hero = stomped["state"]!["combatants"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            Assert.Equal(5d, hero!["size"]!.GetValue<double>());
+        });
+
+    /// <summary>
+    /// <b>A combatant's <c>invisible</c> flag crosses the wire and costs whoever faces them.</b>
+    ///
+    /// <para>p.75 makes an invisible opponent equivalent to no visibility, so an attack on one in
+    /// clear air still loses the worst band there is. Driven in clear air deliberately: the scene's
+    /// own light is the other field, and a fixture that set both could not tell which one moved the
+    /// pool.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACombatantsInvisibleFlagCrossesTheWireAndCostsWhoeverFacesThem() =>
+        await WithClient(async client =>
+        {
+            var band = _play.GetCombat("modifier_visibility").Visibility!.Bands
+                .Single(b => string.Equals(b.Visibility, "none", StringComparison.Ordinal))
+                .Dice;
+
+            var fight = TwoSides();
+            fight[1]!["invisible"] = true;
+
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = fight,
+                ["seed"] = 75
+            });
+
+            // The control: the scene itself is clear, so anything below is the flag's doing.
+            Assert.Equal("clear", opened["table"]!["visibility"]!.GetValue<string>());
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "hero",
+                    ["target"] = "villain", ["trait_id"] = "might"
+                }
+            });
+
+            Assert.Contains($"might {8 + band}d", RollLine(turn), StringComparison.Ordinal);
+            Assert.True(Cites(turn, "modifier_visibility"));
+
+            var villain = turn["state"]!["combatants"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "villain", StringComparison.Ordinal));
+
+            Assert.True(villain!["invisible"]!.GetValue<bool>());
+        });
+
+    /// <summary>
+    /// <b>An attack's <c>cover</c> crosses the wire and costs the band p.75 prints.</b>
+    ///
+    /// <para>Driven through <c>take_turn</c> rather than asserted about the reader, because the
+    /// field of an intent is exactly what the policy's spelling guard cannot see — the guard is
+    /// scoped to tool arguments, and this is how the <c>team</c> flag was dropped in silence.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAttacksCoverBandCrossesTheWireAndCostsTheDiceItPrints() =>
+        await WithClient(async client =>
+        {
+            var band = _play.GetCombat("modifier_cover").Cover!.Bands
+                .Single(b => string.Equals(b.Cover, "heavy", StringComparison.Ordinal))
+                .Dice;
+
+            Assert.NotEqual(0, band);
+
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 75
+            });
+
+            var id = opened["encounter_id"]!.GetValue<string>();
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = id,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                    ["trait_id"] = "might", ["cover"] = "heavy"
+                }
+            });
+
+            Assert.Contains($"might {8 + band}d", RollLine(turn), StringComparison.Ordinal);
+
+            var line = turn["added"]!.AsArray().Single(l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "modifier_cover", StringComparison.Ordinal));
+
+            Assert.Equal(
+                _play.GetCombat("modifier_cover").SourceRef,
+                line!["source_ref"]!.GetValue<string>());
+
+            Assert.Contains("heavy", line["text"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>An attack's <c>cover_structure</c> crosses the wire, and it is what turns a target who
+    /// cannot be hit into one who can.</b>
+    ///
+    /// <para>Complete cover is refused with nothing rolled; the same attack with the obstacle's
+    /// Structure named goes through, and the defence roll that answers it is the Structure's rather
+    /// than the Villain's own Toughness. That last assertion is the one that matters: a field read
+    /// and echoed onto a ledger line without moving a pool would be a clause this server advertised
+    /// and did not apply.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAttacksCoverStructureCrossesTheWireAndAnswersTheAttack() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 75
+            });
+
+            var id = opened["encounter_id"]!.GetValue<string>();
+
+            async Task<JsonNode> Through(int? structure) =>
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                        ["trait_id"] = "might", ["cover"] = "complete",
+                        ["cover_structure"] = structure
+                    }
+                });
+
+            // Hidden altogether, with no obstacle named: refused, and no attack was resolved.
+            var hidden = await Through(null);
+
+            Assert.True(hidden["ok"]!.GetValue<bool>());
+            Assert.True(Cites(hidden, "modifier_cover"));
+            Assert.DoesNotContain(hidden["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains("defends with", StringComparison.Ordinal));
+
+            // A Structure of 7, under the Hero's 8d Might: the attack goes through, and the
+            // obstacle's own 7d answers it. Seven is chosen because no other figure in this fight
+            // is one — the Villain's Toughness of 5 is halved to 3 against a lethal attack — so
+            // "7d" in the defence half of the line can only be the Structure.
+            var through = await Through(7);
+
+            Assert.Contains("the cover's Structure 7d", RollLine(through), StringComparison.Ordinal);
+
+            // And a Structure the attack cannot get through is refused with nothing rolled.
+            var stopped = await Through(8);
+
+            Assert.True(Cites(stopped, "modifier_cover"));
+            Assert.DoesNotContain(stopped["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains("defends with", StringComparison.Ordinal));
         });
 
     /// <summary>
@@ -1369,6 +1690,148 @@ public sealed class McpPlayServerTests
                 var rate = combatant!["defeat_rate"]!.GetValue<double>();
                 Assert.InRange(rate, 0.0, 1.0);
             }
+        });
+
+    /// <summary>
+    /// <b>A measurement is reproducible from its own echo, and two of p.75's three modifiers are
+    /// not the scene's.</b>
+    ///
+    /// <para>The scene's light rides back inside <c>table</c> so that a rate quoted with the four
+    /// things carries it. <c>size</c> and <c>invisible</c> cannot ride there: they are facts about a
+    /// character, and <c>table</c> is a fact about the fight. They were echoed on
+    /// <c>start_encounter</c>'s turn order and on the held public state and <b>nowhere in a
+    /// <c>run_encounters</c> answer at all</b> — so a run against a five-times-sized attacker came
+    /// back looking exactly like a run in which everybody was the same size, while every active
+    /// defence in it had moved by two dice.</para>
+    ///
+    /// <para>Driven, and with the control that the values are the ones this call sent rather than
+    /// the defaults: the same call without them is asserted to echo the defaults, so a server that
+    /// hard-coded either figure cannot satisfy both.</para>
+    /// </summary>
+    [Fact]
+    public async Task RunEncountersEchoesEachCombatantsSizeAndInvisibility() =>
+        await WithClient(async client =>
+        {
+            var fight = TwoSides();
+
+            fight[0]!["size"] = 5.0;
+            fight[1]!["invisible"] = true;
+
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = fight,
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = 75
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>());
+
+            var rows = answer["by_combatant"]!.AsArray()
+                .ToDictionary(c => c!["id"]!.GetValue<string>(), c => c!, StringComparer.Ordinal);
+
+            Assert.Equal(5.0, rows["hero"]["size"]!.GetValue<double>());
+            Assert.False(rows["hero"]["invisible"]!.GetValue<bool>());
+
+            Assert.Equal(Combatant.SameSize, rows["villain"]["size"]!.GetValue<double>());
+            Assert.True(rows["villain"]["invisible"]!.GetValue<bool>());
+
+            // The control: the same fight said nothing about either, and the echo says so — so the
+            // figures above are this call's and not a constant printed on every answer.
+            var plain = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = 75
+            });
+
+            Assert.True(plain["ok"]!.GetValue<bool>());
+
+            foreach (var row in plain["by_combatant"]!.AsArray())
+            {
+                Assert.Equal(Combatant.SameSize, row!["size"]!.GetValue<double>());
+                Assert.False(row["invisible"]!.GetValue<bool>());
+            }
+
+            // And the control that the two fields were not merely carried through an echo: the same
+            // seed against the same characters gives a different measurement, so what was echoed is
+            // something the run actually used.
+            Assert.NotEqual(
+                plain["mean_pages"]!.GetValue<double>(),
+                answer["mean_pages"]!.GetValue<double>());
+        });
+
+    /// <summary>
+    /// <b>Every shape of a size p.75 cannot make a ratio of is refused by name, and nothing else
+    /// is.</b>
+    ///
+    /// <para>The roster of refusal codes drives <c>BAD_SIZE</c> once, with a zero. A zero is the
+    /// one that is obviously dangerous — it divides, and the infinity that comes out satisfies
+    /// every band there is — but it is one of several: a negative size inverts the comparison, a
+    /// string or a flag is not a figure at all, and a literal too large for a <c>double</c> is an
+    /// infinity arriving by another door. Each is driven here, because a reader of the guard has no
+    /// way to tell a case it handles from one it happens to reach through a different branch.</para>
+    ///
+    /// <para><b>The accepted half is the control</b>, and it is what stops this being a test that a
+    /// server refusing every size would pass: the fixture below opens a fight on a size on each
+    /// side of 1 and gets it back echoed as sent.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("-0.5")]
+    [InlineData("\"big\"")]
+    [InlineData("true")]
+    [InlineData("[]")]
+    [InlineData("{}")]
+    [InlineData("1e400")]
+    public async Task ASizeThatCannotBeARatioIsRefusedByName(string literal) =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = WithRawSize(JsonNode.Parse(literal))
+            });
+
+            Assert.False(answer["ok"]!.GetValue<bool>(), $"a size of {literal} opened a fight");
+
+            Assert.Equal("BAD_SIZE", answer["problem"]!["code"]!.GetValue<string>());
+
+            // The refusal names the page whose bands it could not be a ratio for, rather than
+            // reading as a schema complaint about a number.
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Contains("p.75", message, StringComparison.Ordinal);
+            Assert.Contains("ratio", message, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>The control on the fixture above: a real size above zero is taken, on either side of 1.</b>
+    ///
+    /// <para>Without this, a server that refused every <c>"size"</c> it was ever sent would satisfy
+    /// every case of <see cref="ASizeThatCannotBeARatioIsRefusedByName"/>. It is also the other
+    /// half of the echo: the figure that comes back is the one that went out, so a server that
+    /// accepted the value and then dropped it cannot pass either.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(0.2)]
+    [InlineData(1.0)]
+    [InlineData(5.0)]
+    [InlineData(180.0)]
+    public async Task ARealSizeAboveZeroIsTakenAndEchoedAsSent(double size) =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = WithSize(size)
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), $"a size of {size} was refused");
+
+            var hero = Assert.Single(
+                answer["turn_order"]!.AsArray(),
+                c => string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            Assert.Equal(size, hero!["size"]!.GetValue<double>());
         });
 
     /// <summary>
@@ -2095,6 +2558,16 @@ public sealed class McpPlayServerTests
                 ["openingRange"] = "sideways"
             })),
 
+            ["NO_SUCH_VISIBILITY"] = new(client => Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["visibility"] = "gloomy"
+            })),
+
+            // p.75's size bands are a ratio, so a zero divides and the infinity it yields satisfies
+            // every band there is — refused rather than taken as the default.
+            ["BAD_SIZE"] = new(client => Open(client, WithSize(0))),
+
             ["ENCOUNTER_WOULD_NOT_OPEN"] = new(
                 client => Call(client, "start_encounter", new Dictionary<string, object?>
                 {
@@ -2168,6 +2641,12 @@ public sealed class McpPlayServerTests
             {
                 ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
                 ["trait_id"] = "might", ["type"] = "wizardry"
+            })),
+
+            ["NO_SUCH_COVER"] = new(client => Turn(client, new JsonObject
+            {
+                ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                ["trait_id"] = "might", ["cover"] = "a hedge"
             })),
 
             ["NO_SUCH_MOVE"] = new(client => Turn(client, new JsonObject
@@ -2304,6 +2783,22 @@ public sealed class McpPlayServerTests
     {
         var fight = TwoSides();
         fight[0]!["character"]!["SelectedTierId"] = tier;
+        return fight;
+    }
+
+    /// <summary>The fight with one combatant given a size p.75's bands cannot be a ratio of.</summary>
+    private static JsonArray WithSize(double size)
+    {
+        var fight = TwoSides();
+        fight[0]!["size"] = size;
+        return fight;
+    }
+
+    /// <summary>The same, for a <c>"size"</c> that is not a number at all.</summary>
+    private static JsonArray WithRawSize(JsonNode? size)
+    {
+        var fight = TwoSides();
+        fight[0]!["size"] = size;
         return fight;
     }
 

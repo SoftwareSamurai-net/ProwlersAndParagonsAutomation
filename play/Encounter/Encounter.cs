@@ -90,19 +90,15 @@ public sealed partial class Encounter
     /// and quietly implemented since, fails — and drives every purchase through <see cref="Step"/> to
     /// be sure the ones listed really do refuse and the ones not listed really do not.</para>
     ///
-    /// <para>What is left on it is the three situational modifiers on p.75. Nothing on an
-    /// <see cref="Attack"/> can express cover, relative size or bad light, so there is nothing to
-    /// apply them to; they are listed rather than silently absent because a reader of a balance run
-    /// needs to know the figure was measured in clear air, in the open, against somebody the same
-    /// size.</para>
+    /// <para><b>It is empty, and it is kept rather than deleted.</b> p.75's three situational
+    /// modifiers were the last three on it and are now applied — an <see cref="Attack"/> says what
+    /// the target is behind, a <see cref="Combatant"/> says how big they are and whether they can be
+    /// seen, and an <see cref="EncounterState"/> says what the light is like. What the field is
+    /// worth empty is the guard around it: <c>PlayEngineStepTests</c> requires the guide and the
+    /// play policy to agree with it in both directions, so the next entry this engine declines to
+    /// apply cannot be added here and left out of the two documents that publish it.</para>
     /// </summary>
-    public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
-    {
-        // p.75's three situational modifiers: no intent can express any of them.
-        "modifier_cover",
-        "modifier_size",
-        "modifier_visibility"
-    };
+    public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal);
 
     // ── Beginning ────────────────────────────────────────────────────────────
 
@@ -118,10 +114,17 @@ public sealed partial class Encounter
     /// <param name="combatants">Everyone in the fight.</param>
     /// <param name="challengeLevel">The scene's Challenge Level, or 0 for a scene without one.</param>
     /// <param name="opening">The range class the GM says the fight opens in.</param>
+    /// <param name="visibility">
+    /// What the light is like (p.75). <see cref="Encounter.Visibility.Clear"/> by default, which is
+    /// no modifier — so a caller who says nothing gets the fight in clear air the guide says every
+    /// figure here was measured in. Anything else is announced on page one, the way a table setting
+    /// that is on is.
+    /// </param>
     public EncounterState Begin(
         IEnumerable<Combatant> combatants,
         int challengeLevel = 0,
-        RangeBand opening = RangeBand.Close)
+        RangeBand opening = RangeBand.Close,
+        Visibility visibility = Visibility.Clear)
     {
         ArgumentNullException.ThrowIfNull(combatants);
 
@@ -155,6 +158,21 @@ public sealed partial class Encounter
                     : $"table setting {name} is on"));
         }
 
+        // <b>Bad light is announced on page one, for the reason a table setting that is on is.</b>
+        // Every roll in this fight is going to be a die or three short of the pool the sheets say,
+        // and a reader of the run needs the reason at the top rather than inferred from thirty
+        // ledger lines further down.
+        if (visibility != Visibility.Clear)
+        {
+            var light = _play.GetCombat("modifier_visibility");
+            var band = VisibilityBand(visibility);
+
+            lines.Add(new LedgerLine(
+                1, "", light.Id, light.SourceRef,
+                $"the visibility here is {band.Visibility}, which is {Dice(band.Dice)} on "
+                + $"{light.Visibility!.Affects} made in it"));
+        }
+
         var order = TurnOrder(everyone, edges, [], [], lines, page: 1);
 
         return new EncounterState
@@ -178,6 +196,7 @@ public sealed partial class Encounter
             TeamAttacked = [],
             Villainy = [],
             Table = Table,
+            Visibility = visibility,
             Ledger = new Ledger(lines),
             Over = false
         };

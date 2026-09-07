@@ -245,7 +245,10 @@ lives there, and nothing about it is repeated here.
   refuse — driven through `Step` rather than compared with a list, because a document's account of
   what the code does is a claim about the code and a claim nothing checks goes stale.
 - **`run_encounters` refuses fewer than 30 runs rather than answering with a caveat**, and prints N,
-  the seeds, the policy's own `Name` and every table switch in the same object as the rates. A
+  the seeds, the policy's own `Name` and every table switch in the same object as the rates —
+  **including the scene's `visibility`, which is echoed *inside* `table` rather than beside it**,
+  because the play policy tells every conversation to quote a rate with those four things and a
+  fight in the dark is up to three dice a roll away from the same fight in daylight. A
   caveat beside a number is read by nobody; the number is what gets quoted. **The policy is a guess
   about how people play and not a rule** — that is `IPolicy`'s own doc comment, and it is why the
   name is in the report.

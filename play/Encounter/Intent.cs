@@ -45,6 +45,56 @@ public enum AttackType
     MentalPower
 }
 
+/// <summary>
+/// How much of a target is behind something (p.75's MODIFIERS).
+///
+/// <para><b>It is a property of one attack and not of the fight</b>, because it is: the page prices
+/// cover by how much of the target it hides <em>from the attacker</em>, and the same wall hides a
+/// character from one shooter and nobody else. <see cref="Complete"/> carries no band — the printed
+/// table stops at "almost full" — and what the page says about a completely hidden target is that
+/// you cannot hit one, which is a refusal made before anything is rolled rather than a penalty.
+/// </para>
+/// </summary>
+public enum Cover
+{
+    /// <summary>Nothing in the way. The default, and what every measurement here is taken in.</summary>
+    None,
+
+    /// <summary>The page's first band.</summary>
+    Light,
+
+    /// <summary>The page's second.</summary>
+    Heavy,
+
+    /// <summary>The page's third, and the last one the table prices.</summary>
+    AlmostFull,
+
+    /// <summary>
+    /// Hidden altogether. p.75: you cannot hit one — unless the attack goes through the cover, which
+    /// is what <see cref="Attack.CoverStructure"/> declares.
+    /// </summary>
+    Complete
+}
+
+/// <summary>
+/// What the light is like, which p.75 costs on attack rolls and on active defence rolls alike.
+///
+/// <para><b>It is a property of the scene and lives on the state</b> — the fog is the same fog for
+/// everybody in it. What is <em>not</em> the scene's is an opponent nobody can see, which p.75 makes
+/// a fact about a pair: <see cref="Combatant.Invisible"/> carries that half.</para>
+/// </summary>
+public enum Visibility
+{
+    /// <summary>Clear air. The default, and what every measurement here is taken in.</summary>
+    Clear,
+
+    /// <summary>Dim lighting, fog, smoke.</summary>
+    Poor,
+
+    /// <summary>Blindness or darkness — and what an invisible opponent counts as.</summary>
+    None
+}
+
 /// <summary>Which of the three grappling moves p.76 gives rules to.</summary>
 public enum GrappleMove
 {
@@ -152,6 +202,30 @@ public abstract record Intent(string Actor);
 /// "you all have to target the same enemy" are clauses the ledger names rather than rules it
 /// applies — see <c>docs/guide/play-engine.md</c>.</para>
 /// </param>
+/// <param name="Cover">
+/// p.75: how much of the target is behind something, which costs the attacker one, two or three
+/// dice — and which, at <see cref="Encounter.Cover.Complete"/>, means there is nothing to shoot at
+/// unless the attack goes through the obstacle.
+///
+/// <para><b>It is on the attack because cover is a fact about a line of sight and not about the
+/// scene.</b> The same wall hides a character from the shooter in front of it and from nobody
+/// behind it, so a field on the fight would be a claim about everybody at once.</para>
+/// </param>
+/// <param name="CoverStructure">
+/// The Structure rank of the obstacle, where the attack is being sent <em>through</em> it rather
+/// than at whatever of the target is exposed — p.75's "if your attack rank exceeds the cover's
+/// Structure, you can attack through it".
+///
+/// <para><b>Supplying it is the declaration.</b> Two printed consequences follow and both are
+/// applied: the attack rank has to be greater than the Structure or nothing is rolled, and the
+/// target may answer with the Structure as a passive defence. A caller who means to shoot at the
+/// exposed part of a partly-covered target leaves it out and pays the band alone; a completely
+/// hidden target cannot be hit without it.</para>
+///
+/// <para>This engine has no scenery, so the number is the caller's — the same way the knockback's
+/// solid object and the lure's "whatever lies directly behind you" are things it has nothing to
+/// look up. <c>docs/guide/play-engine.md</c> records it.</para>
+/// </param>
 public sealed record Attack(
     string Actor,
     string Target,
@@ -162,7 +236,9 @@ public sealed record Attack(
     bool AllOut = false,
     bool Charge = false,
     bool Area = false,
-    bool Team = false) : Intent(Actor);
+    bool Team = false,
+    Cover Cover = Cover.None,
+    int? CoverStructure = null) : Intent(Actor);
 
 /// <summary>
 /// Closing with or opening from one other combatant (p.74).

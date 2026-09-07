@@ -56,10 +56,20 @@ internal sealed class RandomPolicy : IPolicy
         var trait = actor.TraitRanks.Keys.Order(StringComparer.Ordinal).ToList();
         var rolled = trait.Count == 0 ? "might" : trait[Pick(trait.Count)];
 
+        // <b>p.75's cover rides on two of the attack branches rather than adding two of its own</b>,
+        // and the reason is arithmetic: the cycle's length is what decides how many turns a fight
+        // has to last for every branch to be reached, and lengthening it from ten to twelve pushed
+        // the fourth Adversity purchase past the end of one seed's fight. Both halves of the clause
+        // are still here — an attack merely behind cover, and one going through it, which is what a
+        // Structure declares.
         Intent intent = Cycle(10) switch
         {
-            0 => new Attack(actor.Id, target, rolled, Damage(), Row(), AllOut: Coin(), Area: Coin()),
-            1 => new Attack(actor.Id, target, rolled, Damage(), Row(), Effect: "Ensnare"),
+            0 => new Attack(
+                actor.Id, target, rolled, Damage(), Row(),
+                AllOut: Coin(), Area: Coin(), Cover: Behind()),
+            1 => new Attack(
+                actor.Id, target, rolled, Damage(), Row(),
+                Effect: "Ensnare", Cover: Behind(), CoverStructure: Pick(9)),
             2 => new Attack(actor.Id, target, rolled, Damage(), Row(), Charge: true),
             3 => new Attack(actor.Id, target, rolled, Damage(), Row(), Team: true),
             4 => new Move(actor.Id, target, Closer: Coin()),
@@ -71,8 +81,22 @@ internal sealed class RandomPolicy : IPolicy
         };
 
         Emitted.Add(intent.GetType().Name);
+
+        if (intent is Attack behind) Covers.Add(behind.Cover);
+
         return intent;
     }
+
+    /// <summary>Every band of cover this policy has put on an attack, for a fixture's control.</summary>
+    public HashSet<Cover> Covers { get; } = [];
+
+    // <b>Cycled rather than rolled, and its own counter</b>, for the reason the intent kinds above
+    // are: a band chosen off a die is a band some seed will not reach, and `Cover.Complete` is the
+    // one that refuses — the branch a purity property most wants inside it.
+    private int _nextCover;
+
+    private Cover Behind() =>
+        (Cover)(_nextCover++ % Enum.GetValues<Cover>().Length);
 
     /// <summary>Every Resolve purchase this policy has emitted, for a fixture's positive control.</summary>
     public HashSet<ResolveSpend> Purchases { get; } = [];
