@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Layout;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -34,6 +36,9 @@ public sealed class AutosaveOrderTests
 {
     private const string Typed = "Account Bound H";
     private const string Finished = "Account Bound Hero";
+
+    private const string AlphaId = "c_alpha";
+    private const string BravoId = "c_bravo";
 
     /// <summary>
     /// <b>The account ends up holding what was on screen, not what was on screen two keystrokes
@@ -195,6 +200,83 @@ public sealed class AutosaveOrderTests
         Assert.Equal(Finished, await NameHeld(ctx));
     }
 
+    /// <summary>
+    /// <b>No bytes land under an id they were not built for, when the reader switches character
+    /// while a write is open.</b>
+    ///
+    /// <para><b>This is the hazard coalescing introduces and nothing else in the file asks about.</b>
+    /// The old subscription wrote once per edit and each write carried the sheet it fired on. The
+    /// pump re-reads the live sheet <em>after</em> the previous write returns — which is the whole
+    /// point of it — so between those two moments the reader may have opened somebody else
+    /// entirely. The coalesced write then has a sheet from one character and a pointer that may
+    /// name another, and the two are read at different instants.</para>
+    ///
+    /// <para><b>The invariant, and it holds in both directions.</b> The write already at the wire
+    /// carries the first character's bytes and its address was fixed before the switch, so it lands
+    /// on the first character. The coalesced write reads the sheet <em>and</em> resolves the pointer
+    /// after it, so both are the second character. Neither writes one character's bytes over the
+    /// other's row, which is the only failure here that would cost somebody a character rather than
+    /// a keystroke.</para>
+    ///
+    /// <para><b>Switched through the manager's own control</b>, because "open another character" is
+    /// two lines — <c>Store.OpenAsync</c> then <c>Session.Open</c> — and a test that ran them by
+    /// hand would go on passing over a manager that had stopped doing one of them.</para>
+    /// </summary>
+    [Fact]
+    public async Task SwitchingCharacterWhileAWriteIsOpenPutsNeitherOverTheOther()
+    {
+        await using var ctx = SignedIn();
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        await Store(account, AlphaId, "Alpha");
+        await Store(account, BravoId, "Bravo");
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(AlphaId);
+
+        // Put Alpha on screen silently, so the first write this test sees is the edit below and
+        // not the opening of the fixture.
+        var alpha = await account.LoadAsync();
+        ctx.Session.RestoreBeforeFirstRender(alpha!.Value.Sheet, alpha.Value.Mode, AlphaId);
+
+        var layout = ctx.Render<MainLayout>();
+        var held = HoldEachWrite(ctx);
+
+        await Type(layout, ctx, "Alpha edited");
+        await held.Reached(1).WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
+
+        // The switch, made while that write is still at the wire.
+        var manager = ctx.Render<ProwlersAndParagonsAutomation.Web.Components.CharacterManager>();
+
+        await manager.FindAll(".open-target")
+            .First(b => b.TextContent.Contains("Bravo", StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        // Two controls on the act: the switch really landed on the sheet, and the write it was
+        // supposed to overtake really had not finished. Without the second this asserts nothing
+        // about an interleaving.
+        Assert.Equal("Bravo", ctx.Session.Sheet.Name);
+        Assert.Equal(1, held.SoFar);
+
+        held.Let(1);
+
+        await held.Reached(2).WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
+
+        held.Let(2);
+
+        // The addresses, in order: the write that was open went to the character it was built
+        // from, and the coalesced one went to the character now on screen.
+        await layout.WaitForAssertionAsync(() => Assert.Equal(BravoId, held.IdOf(2)));
+        Assert.Equal(AlphaId, held.IdOf(1));
+
+        // And the bytes: neither row is holding the other character.
+        await layout.WaitForAssertionAsync(async () =>
+        {
+            Assert.Equal("Alpha edited", (await account.LoadAsync(AlphaId))!.Value.Sheet.Name);
+            Assert.Equal("Bravo", (await account.LoadAsync(BravoId))!.Value.Sheet.Name);
+        });
+    }
+
     // ── That the real app is wired to any of this ─────────────────────────────────────────────
 
     /// <summary>
@@ -328,7 +410,26 @@ public sealed class AutosaveOrderTests
         private readonly Dictionary<int, TaskCompletionSource> _release = [];
         private readonly Lock _gate = new();
 
+        private readonly Dictionary<int, string> _ids = [];
+
         public Task Reached(int nth) => Slot(_reached, nth).Task;
+
+        /// <summary>Which character's row the nth write was addressed to.</summary>
+        public void WrittenAt(int nth, string id)
+        {
+            lock (_gate) _ids[nth] = id;
+        }
+
+        public string? IdOf(int nth)
+        {
+            lock (_gate) return _ids.GetValueOrDefault(nth);
+        }
+
+        /// <summary>How many writes have reached the wire.</summary>
+        public int SoFar
+        {
+            get { lock (_gate) return _ids.Count; }
+        }
 
         public void Let(int nth) => Slot(_release, nth).TrySetResult();
 
@@ -358,7 +459,13 @@ public sealed class AutosaveOrderTests
         var gates = new GatedWrites();
         var seen = 0;
 
-        ctx.Api.BeforeStoringCharacter = _ => gates.Arrive(Interlocked.Increment(ref seen));
+        ctx.Api.BeforeStoringCharacter = id =>
+        {
+            var nth = Interlocked.Increment(ref seen);
+            gates.WrittenAt(nth, id);
+
+            return gates.Arrive(nth);
+        };
 
         return gates;
     }
@@ -374,6 +481,14 @@ public sealed class AutosaveOrderTests
             ctx.Session.Sheet.Name = name;
             ctx.Session.NotifyChanged();
         });
+
+    /// <summary>One named character on the account, put there rather than typed.</summary>
+    private static async Task Store(ApiCharacterStore account, string id, string name)
+    {
+        var sheet = new CharacterSheet { Name = name, SelectedTierId = "street_level" };
+
+        Assert.Equal(SaveOutcome.Saved, await account.SaveAsync(id, name, sheet, SheetMode.Hero));
+    }
 
     /// <summary>
     /// The name the <em>account</em> holds, read back through the app's own store — which is what
