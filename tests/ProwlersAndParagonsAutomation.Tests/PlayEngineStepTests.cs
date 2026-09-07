@@ -1767,6 +1767,7 @@ public sealed class PlayEngineStepTests
 
         Assert.Contains(rescued.Added, l =>
             string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.79", StringComparison.Ordinal)
             && l.Text.Contains("the GM spends 1 Adversity on the Villain against a fatal blow", StringComparison.Ordinal));
 
         Assert.Contains(rescued.Added, l =>
@@ -1787,7 +1788,12 @@ public sealed class PlayEngineStepTests
 
         Assert.Contains(steadied.Added, l =>
             string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.79", StringComparison.Ordinal)
             && l.Text.Contains("the GM spends 1 Adversity on the Villain to stabilise at once", StringComparison.Ordinal));
+
+        Assert.Contains(steadied.Added, l =>
+            string.Equals(l.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal)
+            && l.SourceRef.Contains("p.85", StringComparison.Ordinal));
 
         // A Hero is not an NPC, for either of them.
         foreach (var purchase in new[] { ResolveSpend.AvoidFatalDamage, ResolveSpend.Stabilise })
