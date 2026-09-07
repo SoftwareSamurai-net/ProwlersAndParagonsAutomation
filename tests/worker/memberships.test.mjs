@@ -732,6 +732,41 @@ test('a member reads the game’s live table, including changes made after they 
     assert.equal(seen.payload, moved);
 });
 
+test('the live table discloses no byte a join has not already handed the same player', async () => {
+    // **The claim the route is built on, checked rather than asserted in a comment.** The whole
+    // argument for answering the campaign's payload verbatim — rather than a table-only projection
+    // — is that `join` already hands these exact bytes to this exact account, so the route widens
+    // no disclosure. That is a fact about two handlers that a later hand can break from either
+    // side: narrow `join` to lift a tier out and this becomes the wider of the two, and the
+    // argument in `memberships.js` and in the guide would be quietly false.
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+
+    const player = await signIn(app, 'player@example.test');
+    const joined = await join(app, player.cookie, { code: await joinCodeFor(app, gm.cookie) });
+
+    assert.equal(joined.status, 200);
+
+    const redeemed = await joined.json();
+    const seen = await (await liveTable(app, player.cookie, redeemed.id)).json();
+
+    // Byte for byte, at the one moment the two are answering the same campaign — nothing has
+    // moved between the join and the read.
+    assert.equal(seen.payload, redeemed.payload,
+        'the live table answers different bytes from the join that authorised it');
+
+    // And every key the table sends is a key the join already sent. A *subset*, deliberately: the
+    // join carries `id`, `label` and `pendingVersion` on top of these two, so the direction that
+    // matters is this one. It fails if either handler grows a key the other has not got.
+    for (const key of Object.keys(seen)) {
+        assert.ok(key in redeemed,
+            `the live table sends '${key}', which a join does not: ` +
+            `${JSON.stringify(Object.keys(redeemed))}`);
+    }
+});
+
 test('the live table answers the campaign and nothing else, by key set', async () => {
     const { app, gm, player, membership } = await aTable();
 
