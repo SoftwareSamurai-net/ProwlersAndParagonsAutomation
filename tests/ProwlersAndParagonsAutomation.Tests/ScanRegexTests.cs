@@ -19,9 +19,17 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// </remarks>
 public sealed class ScanRegexTests
 {
-    /// <summary>The credential scan's own pattern, which is what the sighting was about.</summary>
-    private const string CredentialPattern =
-        @"(re_[A-Za-z0-9_]{16,})|(sk_live_[A-Za-z0-9]+)|([A-Za-z0-9_\-]{24,}\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,})";
+    /// <summary>
+    /// The credential scan's own pattern, which is what the sighting was about — <b>the real one,
+    /// not a copy of it</b>.
+    /// </summary>
+    /// <remarks>
+    /// This file used to hold its own transcription of the pattern. Two copies of the string that
+    /// decides whether a committed key is found is exactly the drift this repository pins
+    /// everywhere else: the scan could be edited into something quadratic again and every
+    /// assertion here would go on passing, about a string nothing runs.
+    /// </remarks>
+    private const string CredentialPattern = AccountsContractTests.SuspiciousPattern;
 
     /// <summary>The two stylesheet scanners that cost ~640ms each under backtracking.</summary>
     private const string StylesheetPattern = @"([^{}]+)\{([^{}]*animation:\s*rise[^{}]*)\}";
@@ -173,11 +181,25 @@ public sealed class ScanRegexTests
     }
 
     /// <summary>
-    /// The blob the linearity control runs on: 192k of unbroken token characters, the shape a
-    /// minified bundle or a base64 payload has, and the shape whose cost under backtracking is
-    /// quadratic in its length.
+    /// The blob the linearity control runs on: 192k of alternating <c>A-</c>, the shape a base64url
+    /// payload has, and the shape whose cost under backtracking is quadratic in its length.
     /// </summary>
-    private static string PathologicalBlob => new('A', 192_000);
+    /// <remarks>
+    /// <para><b>It is not a solid run of token characters, and the reason is worth keeping.</b>
+    /// It was, until the credential pattern gained word-boundary anchors. A <c>\b</c> means the
+    /// engine only starts a match attempt at a boundary, and a solid run of <c>A</c> has exactly
+    /// one of those — so the very input the original sighting was reasoned about dropped from
+    /// 13.7s to 23ms and stopped being pathological at all. This control went <em>red</em> saying
+    /// so, which is the only reason anybody noticed.</para>
+    ///
+    /// <para><c>-</c> is inside the pattern's third character class and is not a word character,
+    /// so <c>A-A-A-…</c> is a fresh boundary every second character: 192k of it costs 15.9s under
+    /// backtracking, anchored or not. That is a realistic shape rather than a contrived one —
+    /// base64url is full of <c>-</c> — and it is why the anchors are not a substitute for the
+    /// linear engine.</para>
+    /// </remarks>
+    private static string PathologicalBlob =>
+        string.Concat(Enumerable.Repeat("A-", 96_000));
 
     /// <summary>
     /// The linear engine is not merely requested but actually pays off, on the input that

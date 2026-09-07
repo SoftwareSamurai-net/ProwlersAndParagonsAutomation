@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
@@ -1308,8 +1310,9 @@ public sealed class AccountsContractTests
     public void NoKeyOrTokenIsInTheRepository()
     {
         var offenders = ScannedForSecrets()
-            .Where(f => Suspicious.IsMatch(File.ReadAllText(f)))
-            .Select(Path.GetFileName)
+            .SelectMany(f => Suspicious.Matches(File.ReadAllText(f))
+                .Where(m => !IsKnownNotACredential(m.Value))
+                .Select(m => $"{Path.GetFileName(f)} ({m.Value})"))
             .ToList();
 
         Assert.True(offenders.Count == 0,
@@ -1321,19 +1324,28 @@ public sealed class AccountsContractTests
         // the shape this repository has shipped four times. So each alternative is handed a
         // string it must catch. Delete one alternative from the pattern and this goes red naming
         // it, rather than the scan quietly passing over a live key.
-        (string Shape, string Planted)[] mustBeCaught =
-        [
-            ("the mail provider's key", "re_ab12CD34ef56GH78ij90"),
-            ("a live card-processor key", "sk_live_ab12CD34ef56GH78"),
-            ("a signed token",
-                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r"),
-        ];
-
-        foreach (var (shape, planted) in mustBeCaught)
+        //
+        // These literals are inside the scanned corpus — this file is a `tests/` file and `tests/`
+        // is scanned. That is deliberate, and `PlantedByTheControlsBelow` is what stops them
+        // reporting themselves. It holds these exact strings and nothing else, so a real key left
+        // in a test fixture is still caught.
+        foreach (var (shape, planted) in MustBeCaught)
         {
             Assert.True(Suspicious.IsMatch(planted),
                 $"the scan no longer recognises {shape}, so the absence asserted above is not "
                 + "evidence that no such credential is committed. Planted: " + planted);
+
+            // And the *general* exclusion is narrow enough to let it through. Widening the
+            // identifier-path rule to quiet some future false positive is the one edit that could
+            // switch this scan off while leaving every assertion here green, because a match that
+            // is discarded and a match that never happened look identical from the outside.
+            //
+            // The exact-string allowlist is not checked here for the obvious reason: excluding
+            // these three strings is what it is for. What stops *it* growing is that it is a list
+            // of literals, so anything added to it has to be typed out by somebody.
+            Assert.False(IsSnakeCaseIdentifierPath(planted),
+                $"the identifier-path exclusion now swallows {shape}, so a committed one would be "
+                + "scanned, matched and then discarded. Planted: " + planted);
         }
 
         // And the corpus really is code that handles a key, so the scan is pointed somewhere a
@@ -1341,14 +1353,96 @@ public sealed class AccountsContractTests
         Assert.Contains("RESEND_API_KEY", ServerSource(), StringComparison.Ordinal);
     }
 
+    /// <summary>One planted credential per alternative, which the scan must catch.</summary>
+    private static readonly (string Shape, string Planted)[] MustBeCaught =
+    [
+        ("the mail provider's key", "re_ab12CD34ef56GH78ij90"),
+        ("a live card-processor key", "sk_live_ab12CD34ef56GH78"),
+        ("a signed token",
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r"),
+    ];
+
     /// <summary>
-    /// Every file the credential scan reads: the whole account server, and everything under
-    /// <c>web/</c> that is not build output.
+    /// The two things this pattern matches that are not credentials, excluded by what was
+    /// <em>matched</em> rather than by which file it was in.
     /// </summary>
-    private static IEnumerable<string> ScannedForSecrets() =>
-        ServerFiles()
-            .Concat(Directory.EnumerateFiles(Path.Combine(RulesFixture.RepoRoot, "web"), "*.cs",
-                SearchOption.AllDirectories).Where(NotBuildOutput));
+    /// <remarks>
+    /// <para><b>A path exclusion would be the wrong shape.</b> Skipping a file is a standing
+    /// permission to commit a key into it; skipping a known non-credential string is not.</para>
+    ///
+    /// <para>The first is <b>a snake_case identifier path</b>. The token alternative is three
+    /// runs of <c>[A-Za-z0-9_-]</c> separated by dots, and a rule id like
+    /// <c>defining_moment_one_shot.one_shot_variant.ordinary_games_option</c> is exactly that
+    /// shape — ten of them in <c>PlayRulesDataTests</c> alone. They are told apart from a signed
+    /// token by case: <b>a JWT's first segment is base64url of a JSON header and always carries
+    /// capitals</b> (every one begins <c>eyJ</c>), so an all-lowercase dotted run is an
+    /// identifier. The exclusion requires a dot, so it can never reach the <c>re_</c> or
+    /// <c>sk_live_</c> alternatives — a real mail-provider key that happened to be all lower
+    /// case is still caught.</para>
+    ///
+    /// <para>The second is <b>the planted controls in this file</b>, by exact string. They have
+    /// to live in the corpus, because the corpus is what makes the absence above mean anything
+    /// and excluding this file would put the scan's own blind spot in the one place a reader
+    /// would never look for it.</para>
+    /// </remarks>
+    private static bool IsKnownNotACredential(string matched) =>
+        IsSnakeCaseIdentifierPath(matched)
+        || MustBeCaught.Any(m => string.Equals(m.Planted, matched, StringComparison.Ordinal));
+
+    /// <summary>
+    /// A dotted run of lower-case identifier characters — a rule id, not a signed token. Separate
+    /// from the allowlist above because the control in the test asserts against this one alone.
+    /// </summary>
+    private static bool IsSnakeCaseIdentifierPath(string matched) =>
+        matched.Contains('.', StringComparison.Ordinal)
+        && matched.All(c => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '_' or '.');
+
+    /// <summary>
+    /// Every file the credential scan reads.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>This used to be <c>worker/*.js</c> plus <c>web/**/*.cs</c>, and the test is
+    /// called <c>NoKeyOrTokenIsInTheRepository</c>.</b> What it actually read was two directories
+    /// partially. It did not read <c>functions/</c> — which is the other half of the account
+    /// server, the Cloudflare Pages function that fronts the worker, named beside <c>worker/</c>
+    /// everywhere in the guides. It did not read a single one of the 62 <c>.razor</c> files or
+    /// the five <c>.js</c> files under <c>web/</c>, all of which ship to a browser. It did not
+    /// read <c>scripts/probe-mail.mjs</c>, which exists to send mail with the owner's own
+    /// credentials. And it did not read <c>tests/</c>, so a key pasted into a fixture was
+    /// invisible to the guard whose whole subject is keys pasted into files.</para>
+    ///
+    /// <para><b>Widening it is only affordable because the scan is linear now.</b> The corpus
+    /// goes from 1.36MB to 6.47MB and costs ~66ms; under the backtracking engine the same sweep
+    /// is the thing that timed out. That is the argument for the engine change cashed in — a
+    /// wall-clock cap does not merely flake, it prices you out of scanning your own
+    /// repository.</para>
+    ///
+    /// <para>What is still not read is data and prose: <c>data/</c>, <c>docs/</c> and the
+    /// markdown at the root. Measured rather than assumed — the pattern finds 25 rule ids in
+    /// them, and quieting those needs either a path exclusion or a narrower token alternative,
+    /// which are both worse than the gap. A credential does not belong in a rules file, and if
+    /// one ever lands there this is the paragraph that says why nothing noticed.</para>
+    /// </remarks>
+    private static IEnumerable<string> ScannedForSecrets()
+    {
+        (string Root, string[] Extensions)[] roots =
+        [
+            ("worker", [".js", ".mjs"]),
+            ("functions", [".js", ".mjs"]),
+            ("web", [".cs", ".razor", ".js", ".mjs", ".html", ".css", ".json", ".txt"]),
+            ("scripts", [".js", ".mjs", ".sh"]),
+            ("tests", [".cs", ".json"]),
+        ];
+
+        return roots
+            .Select(r => (Directory: Path.Combine(RulesFixture.RepoRoot, r.Root), r.Extensions))
+            .Where(r => Directory.Exists(r.Directory))
+            .SelectMany(r => Directory
+                .EnumerateFiles(r.Directory, "*", SearchOption.AllDirectories)
+                .Where(NotBuildOutput)
+                .Where(f => r.Extensions.Contains(Path.GetExtension(f), StringComparer.Ordinal)))
+            .OrderBy(f => f, StringComparer.Ordinal);
+    }
 
     /// <summary>
     /// What a committed credential looks like: the mail provider's key, a live card-processor
@@ -1382,10 +1476,35 @@ public sealed class AccountsContractTests
     /// <c>re_</c> or <c>sk_live</c> would skip the token alternative entirely — it has no fixed
     /// prefix to filter on — so it would buy nothing measurable against 7ms while costing the one
     /// shape hardest to spot by eye.</para>
+    ///
+    /// <para><b>Built through <see cref="ScanRegex.Build"/> rather than spelling the options out
+    /// here</b>, which is what the testing guide tells everybody else to do. Spelled by hand,
+    /// this pattern would be the one scan in the repository that the factory's guards say nothing
+    /// about: <c>ScanRegexTests</c> proves the factory hands out the linear engine, and a scan
+    /// that bypasses the factory is not covered by that however carefully it repeats the
+    /// argument.</para>
+    ///
+    /// <para><b>Each alternative is anchored on a word boundary</b>, which costs nothing on the
+    /// linear engine and is what makes the corpus above affordable. Unanchored, the <c>re_</c>
+    /// alternative matches inside any word that contains those three characters — a rule id ending
+    /// "…per_page" and beginning with the letters of "more" is a match, not a mail key, and there
+    /// were 25 of that shape once <c>tests/</c> came into range.</para>
+    ///
+    /// <para><b>The anchor turned out to do more than that, and the linearity control had to be
+    /// re-aimed because of it.</b> A word boundary means the engine only <em>starts</em> a match
+    /// attempt at a boundary, so on a solid run of token characters — 192k of <c>A</c>, the shape
+    /// the sighting was reasoned about — there is exactly one start instead of 192,000, and the
+    /// backtracking cost collapses from 13.7s to 23ms. That does <b>not</b> make the linear engine
+    /// unnecessary: <c>-</c> is inside the third alternative's character class and is <em>not</em>
+    /// a word character, so an alternating run like <c>A-A-A-…</c> is a fresh boundary at every
+    /// second character and stays quadratic — 15.9s at 192k, anchored or not. Base64url and plenty
+    /// of real token formats are full of <c>-</c>. The anchor removes one pathological shape; the
+    /// engine removes the class.</para>
     /// </remarks>
-    private static readonly Regex Suspicious = new(
-        @"(re_[A-Za-z0-9_]{16,})|(sk_live_[A-Za-z0-9]+)|([A-Za-z0-9_\-]{24,}\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,})",
-        RegexOptions.NonBacktracking, Regex.InfiniteMatchTimeout);
+    internal const string SuspiciousPattern =
+        @"(\bre_[A-Za-z0-9_]{16,})|(\bsk_live_[A-Za-z0-9]+)|(\b[A-Za-z0-9_\-]{24,}\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,})";
+
+    private static readonly Regex Suspicious = ScanRegex.Build(SuspiciousPattern);
 
     /// <summary>
     /// The setup document names every binding and secret the server actually reads.
