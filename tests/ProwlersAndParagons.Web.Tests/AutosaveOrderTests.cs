@@ -277,6 +277,71 @@ public sealed class AutosaveOrderTests
         });
     }
 
+    /// <summary>
+    /// <b>The store's refusals survive being reached from inside the pump's loop.</b>
+    ///
+    /// <para><c>PROGRESS.md</c> items 26 and 27 are two writes the account's store declines rather
+    /// than makes — an empty sheet over a real character, and anything at all over a character this
+    /// browser could not read — and both are reported in <c>.save-status</c>, because a write
+    /// declined in silence leaves somebody typing into a sheet that is not being kept. Every test
+    /// of either drives the <em>first</em> write after the state arises. The coalesced write is a
+    /// second trip round a loop, and nothing had asked whether a refusal there still reaches a
+    /// reader or still declines to write.</para>
+    ///
+    /// <para><b>It is the interleaving that makes it the coalesced one.</b> A rename is put on the
+    /// wire and held there; the sheet is emptied down to a bare tier behind it, which is
+    /// <see cref="CharacterSession.IsWorthKeeping"/> true and
+    /// <see cref="CharacterSession.HasNothingOnIt"/> true — the exact pair item 26's guard exists
+    /// for — and that edit can only be sent by the pump going round again. The rename lands, the
+    /// second trip is refused, the account keeps the rename, and the shell says so.</para>
+    /// </summary>
+    [Fact]
+    public async Task ARefusalOnTheCoalescedWriteIsStillReportedAndStillWritesNothing()
+    {
+        await using var ctx = SignedIn();
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        await Store(account, AlphaId, "Jetstream");
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(AlphaId);
+
+        var stored = await account.LoadAsync();
+        ctx.Session.RestoreBeforeFirstRender(stored!.Value.Sheet, stored.Value.Mode, AlphaId);
+
+        var layout = ctx.Render<MainLayout>();
+        var held = HoldEachWrite(ctx);
+
+        await Type(layout, ctx, "Jetstream renamed");
+        await held.Reached(1).WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
+
+        // Emptied down to a bare tier while that rename is still at the wire, so the only thing
+        // that can carry this edit is the pump's next trip round.
+        await layout.InvokeAsync(() =>
+        {
+            ctx.Session.StartAgain(offerUndo: false);
+            ctx.Session.Sheet.SelectedTierId = "street_level";
+            ctx.Session.NotifyChanged();
+        });
+
+        // The controls on the state: the sheet really is the pair item 26 refuses, and the write
+        // it has to be refused on really has not started yet.
+        Assert.True(CharacterSession.IsWorthKeeping(ctx.Session.Sheet));
+        Assert.True(ctx.Session.HasNothingOnIt(ctx.Session.Sheet));
+        Assert.Equal(1, held.SoFar);
+
+        held.Let(1);
+
+        await layout.WaitForAssertionAsync(() => Assert.Contains(
+            "Jetstream renamed was not overwritten",
+            layout.Find(".save-status").TextContent,
+            StringComparison.Ordinal));
+
+        // And it declined rather than wrote: no second body reached the wire, and the account is
+        // still holding the rename the first one carried.
+        Assert.Equal(1, held.SoFar);
+        Assert.Equal("Jetstream renamed", (await account.LoadAsync(AlphaId))!.Value.Sheet.Name);
+    }
+
     // ── That the real app is wired to any of this ─────────────────────────────────────────────
 
     /// <summary>
