@@ -5804,6 +5804,59 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A bystander the target is not close to is not in the melee, and the band is what decides
+    /// it.</b>
+    ///
+    /// <para>"Engaged in close combat or otherwise bunched up with other characters" is derived
+    /// from p.73's range bands rather than declared, and every fixture for that derivation opened
+    /// the fight where the bands put everybody at Close — so the presence of a third character and
+    /// the band they were standing in were never told apart. <b>A rule that had counted anybody in
+    /// the fight at all would have passed every one of them.</b></para>
+    ///
+    /// <para>Here the same three characters open a class further out, the shooter walks up to the
+    /// target, and the bystander stays where they were. The shot then costs exactly what a shot at
+    /// somebody standing alone costs — read off the dice rather than off the prose — and no stray
+    /// round is sent.</para>
+    /// </summary>
+    [Fact]
+    public void ABystanderTheTargetIsNotCloseToIsNotInTheMelee()
+    {
+        int[] plenty = [.. Enumerable.Repeat(6, 80)];
+
+        // The two figures this is measured between: nobody else in the fight, and somebody else
+        // standing in the tangle. They have to differ, or the assertion below means nothing.
+        var alone = Shoot(Scrum(bystanders: 0), FriendlyFireOn, plenty);
+        var crowd = Shoot(Scrum(bystanders: 1), FriendlyFireOn, plenty);
+
+        Assert.NotEqual(alone.Thrown, crowd.Thrown);
+
+        var dice = new ScriptedDice(plenty);
+        var encounter = new Encounter(_play, dice, FriendlyFireOn);
+        var state = encounter.Begin(Scrum(bystanders: 1), opening: RangeBand.Distant);
+
+        // The shooter walks up to the target, which p.74 gives them two pages' worth of; the
+        // bystander does not move, so they are a class further out than the melee.
+        state = encounter.Step(state, new Move("hero", "villain")).State;
+        state = encounter.Step(state, new Move("hero", "villain")).State;
+
+        Assert.Equal(RangeBand.Close, state.RangeBetween("hero", "villain"));
+        Assert.Equal(RangeBand.Distant, state.RangeBetween("bystander1", "villain"));
+
+        var before = dice.Remaining;
+
+        var step = encounter.Step(
+            state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+        Assert.Equal(alone.Thrown, before - dice.Remaining);
+
+        Assert.DoesNotContain(step.Added, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal));
+
+        Assert.Equal(
+            step.State["bystander1"].FullHealth, step.State["bystander1"].CurrentHealth);
+    }
+
+    /// <summary>
     /// <b>A close combat attack into the same scrum costs nothing</b>, because p.80 prices a ranged
     /// one. Derived off p.75's table by the row's printed type, the same reading p.79's Close Range
     /// rule uses — so this is one fixture holding both.
