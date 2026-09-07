@@ -70,16 +70,17 @@ their behalf.
 **The GM's pool is Adversity**, opened at one point per Hero per issue plus the scene's Challenge
 Level multiplied by the number of Heroes. `spend_adversity` with kind `anything_resolve_can` buys,
 for an NPC, whatever a point of Resolve could have bought — and it has to name *which* purchase in
-`as_resolve`, because a point spent on nothing in particular is a point spent on nothing. **It runs the
-purchases the last table of this document marks bought**; every other purchase it may name is
-recognised and answered with a `not yet implemented` line. The table at the end of this document says which is
-which, and it is the only place to read that from.
+`as_resolve`, because a point spent on nothing in particular is a point spent on nothing. **It runs
+all ten of a Hero's purchases**, which the last table of this document lists and holds to the engine
+— read it there rather than from this sentence.
 
 **For an NPC, and never for a Hero.** p.85 spends the GM's pool "on behalf of any NPC whether
 they're Villains, Foes, Minions, or Extras", and a Hero named as the `actor` of an
 `anything_resolve_can` is refused with nothing spent. The two pools are the whole of that side of
 the economy: a Hero buys their own dice with their own Resolve, and a point of Adversity that
-bought one for them would be the GM paying to help the party.
+bought one for them would be the GM paying to help the party. **A group of Minions is on p.85's list
+and four of the ten still refuse one**, because p.73 gives a Minion group no Edge and p.77 gives it
+no Health — the last table's second paragraph says which four and why.
 
 ## Whose game is this: the table comes with the sheets
 
@@ -243,8 +244,10 @@ turned one of these table settings on without saying that the numbers do not car
 
 **`Encounter.EntriesNotYetApplied` is empty**, and that is a claim held to the engine rather than a
 sentence: no rule of Chapters 3–5 that this server names is left unapplied. p.75's cover, size and
-visibility were the last three on that list and are applied now — see **Modifiers** below. What is
-still not modelled is the table settings under it, and what `anything_resolve_can` may name.
+visibility were the last three on that list and are applied now — see **Modifiers** below. **What is
+still not modelled is the table settings under it, and nothing else**: `anything_resolve_can` used
+to be the other half of this sentence and buys all ten of a Hero's purchases now, so the two Gear
+Limit switches below are the whole of what a run can be told is not carried.
 
 **`Encounter.SwitchesNotYetApplied`** — table settings you may turn on, which are announced on
 page one of the run and do not move the numbers:
@@ -317,9 +320,10 @@ built, which is the other server's question.
 `spend_resolve` or `spend_adversity` accepts is resolved: `extra_dice`, `reroll`,
 `seize_initiative`, `instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold`,
 `knockback`, `luring` and `team_attack` for a Hero, and `suppress_flaw`, `misfortune`, `villainy`
-and `anything_resolve_can` for the GM. **What is still answered with a `not yet implemented` line
-is what `anything_resolve_can` may *name*** — four of a Hero's ten purchases, in the last table of
-this document, which is the one place to read that from.
+and `anything_resolve_can` for the GM. **And what `anything_resolve_can` may *name* is now every one
+of the ten too** — the last table of this document says so, row by row, and is the one place to read
+that from. **Nothing a spend can produce carries a `not yet implemented` line any more.** What still
+does is a table setting: the Gear Limit, announced on page one of a run that turns it on.
 
 That does not make every spend a spend that always happens. A resolved spend still refuses on the
 ledger when the fight is not in a state for it — no roll on the table, nobody down under an effect,
@@ -385,22 +389,34 @@ waiting until the end of the page, and all of them having to name the same enemy
 keep track of.
 
 **What `anything_resolve_can` may name** — the ten above are a *Hero's* purchases, and the GM's
-pool does not yet buy all ten. p.85's first purchase is the Resolve purchases with different money
-behind them, and the ones this engine runs from the GM's pool are the ones marked bought below; the
-rest still charge the buyer's own pool, which an NPC has none of, so they are recognised and
-answered with a `not yet implemented` line, exactly like the table above. **The two columns
-disagreeing with the engine is the failure this table exists to prevent** — an earlier version of
-this document advertised every purchase as the GM's, four of them refused, and a model reading it had no way to tell
-a purchase that had happened from one that had not:
+pool now buys **all ten**. p.85's first purchase is the Resolve purchases with different money
+behind them, so the point leaves Adversity, the NPC's non-existent Resolve is never touched, and
+every purchase keeps the limits its own page prints: a seize lasts the rest of the fight and doubles
+an Edge instead where the GM has taken the alternative, an instant recovery is once a scene and is
+refused to somebody still bleeding out, the Fatal Damage rescue stabilises into the bargain, and a
+stabilise needs somebody actually on the clock. **The two columns disagreeing with the engine is the
+failure this table exists to prevent** — an earlier version of this document advertised every
+purchase as the GM's while four of them refused, and a model reading it had no way to tell a
+purchase that had happened from one that had not. The table stays now that every row reads alike,
+because that sameness is the claim, and a row that stops being true has to fail somewhere:
+
+**A group of Minions is the one NPC four of them refuse.** p.85 spends on behalf of any NPC and a
+Minion group is on its list, but four purchases have nothing for one when it arrives, so each
+refuses by name and spends nothing. `seize_initiative`: p.73 gives a Minion group no Edge to double
+and has them act after everyone else, so neither form of the purchase moves them. `instant_recovery`,
+`avoid_fatal_damage` and `stabilise`: p.77 gives a Minion group no Health, so there is no defeat to
+come round from, no fatal threshold to buy back from and no dying clock to stop — a group is
+defeated by the bodies taken out of it, and an effect against one takes bodies too. Spend the point
+on the Villain, the Foe or the Extra instead.
 
 | `as_resolve` | What the GM's pool does with it |
 |---|---|
 | `extra_dice` | bought |
 | `reroll` | bought |
-| `seize_initiative` | not yet implemented |
-| `instant_recovery` | not yet implemented |
-| `avoid_fatal_damage` | not yet implemented |
-| `stabilise` | not yet implemented |
+| `seize_initiative` | bought |
+| `instant_recovery` | bought |
+| `avoid_fatal_damage` | bought |
+| `stabilise` | bought |
 | `keeping_hold` | bought |
 | `knockback` | bought |
 | `luring` | bought |

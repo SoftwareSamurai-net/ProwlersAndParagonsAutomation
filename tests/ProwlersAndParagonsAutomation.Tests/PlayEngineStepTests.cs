@@ -1311,6 +1311,11 @@ public sealed class PlayEngineStepTests
     /// name on a list. It is not a rule of its own — "whatever a point of Resolve could have done, on
     /// behalf of any NPC" is the Resolve purchases with different money behind them — so the intent
     /// names which one, the GM's pool pays, and the NPC's non-existent Resolve is never touched.</para>
+    ///
+    /// <para><b>All ten are bought now, and the tail of this fixture drives the change.</b> Four of
+    /// them charged the buyer's own Resolve and so answered <c>not yet implemented</c> from the GM's
+    /// pool; seizing the initiative is the one of those four that needs nothing to have happened
+    /// first, so it is the one that fits here — the others have their own fixtures.</para>
     /// </summary>
     [Fact]
     public void AdversityBuysAnNpcTheDiceResolveWouldHaveBought()
@@ -1358,14 +1363,18 @@ public sealed class PlayEngineStepTests
         Assert.Contains(spent.Added, l =>
             l.Text.Contains("the GM spends 2 Adversity on the Villain", StringComparison.Ordinal));
 
-        // The four purchases that still charge the buyer's own pool refuse by name, and the GM's
-        // pool is not touched for one — that is the whole of what is left unimplemented in p.85.
-        var unbought = encounter.Step(state, new SpendAdversity(
+        // And the four that used to refuse are bought too. Seizing needs no roll, so it is the one
+        // that can be driven from here: the pool pays, the Villain's Resolve stays at nothing, and
+        // p.73's own effect lands on the state rather than only on the line.
+        var seized = encounter.Step(state, new SpendAdversity(
             "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
 
-        Assert.Contains(unbought.Added, l =>
+        Assert.Equal(opening - 1, seized.State.Adversity);
+        Assert.Equal(0, seized.State["villain"].Resolve);
+        Assert.Contains("villain", seized.State.Seized);
+
+        Assert.DoesNotContain(seized.Added, l =>
             l.Text.Contains("not yet implemented", StringComparison.Ordinal));
-        Assert.Equal(opening, unbought.State.Adversity);
     }
 
     /// <summary>
@@ -2117,11 +2126,15 @@ public sealed class PlayEngineStepTests
     /// starts refusing goes red here with a message saying it has to be added to the list and to the
     /// two documents that publish it.</para>
     ///
-    /// <para><b>The classifier still has a positive control, driven at the end.</b> It is p.85's
-    /// first purchase naming one of the four Chapter 4 spends that still charge the buyer's own
-    /// pool, which is the one `not yet implemented` line a spend can still produce — and it is
-    /// deliberately kept out of the sorting above, because the entry it cites is applied and is
-    /// rightly not on the list.</para>
+    /// <para><b>The classifier's positive control has moved to the Gear Limit switches, and the
+    /// move is the whole point of writing it down.</b> It used to be p.85's first purchase naming
+    /// one of the four Chapter 4 spends that still charged the buyer's own pool — and those four go
+    /// through the GM's pool now, so <em>no spend of either enum can produce that phrase any more</em>
+    /// and the sort below would be measuring an instrument nobody had checked. The two-valued case
+    /// that is left is <see cref="Encounter.SwitchesNotYetApplied"/>: a run with
+    /// <c>RaisedGearLimit</c> on says <c>not yet implemented</c> on page one and a run with an
+    /// applied setting on does not, so the same substring test is watched answering both ways in the
+    /// same file. Delete that and this test goes green whatever the engine does.</para>
     /// </summary>
     [Fact]
     public void EveryPurchaseEitherRefusesByNameOrResolves()
@@ -2196,19 +2209,26 @@ public sealed class PlayEngineStepTests
             + ". No spend does any more, so a new one has to be added to Encounter.EntriesNotYetApplied, "
             + "to docs/guide/play-engine.md and to mcp-play/PLAY-POLICY.md before this can pass.");
 
-        // The classifier's own control, kept out of the sorting above: p.85's first purchase naming
-        // one of the four that still charge the buyer's own pool is the one `not yet implemented`
-        // line a spend can still produce, and it cites an entry that is applied rather than listed.
-        var buyer = new Encounter(_play, new SeededDice(21));
-        var opened = buyer.Begin([hero, villain], challengeLevel: 3);
+        // <b>The classifier's own control, and it is no longer a spend.</b> Every purchase the GM's
+        // pool may name is bought, so nothing either enum can produce carries that phrase any more —
+        // and a substring test that can only ever answer one way is an instrument nobody has
+        // checked. The two-valued case left in this engine is the Gear Limit switch, announced on
+        // page one, so the same test is driven over both answers here.
+        var unapplied = new Encounter(_play, new SeededDice(21), TableRules.Book with { RaisedGearLimit = true })
+            .Begin([hero, villain]);
 
-        var unbought = buyer.Step(opened, new SpendAdversity(
-            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+        var applied = new Encounter(_play, new SeededDice(21), TableRules.Book with { FatalDamage = true })
+            .Begin([hero, villain]);
 
-        Assert.Contains(unbought.Added, l =>
+        Assert.Contains(unapplied.Ledger.Lines, l =>
             l.Text.Contains("not yet implemented", StringComparison.Ordinal));
 
-        Assert.Equal(opened.Adversity, unbought.State.Adversity);
+        Assert.DoesNotContain(applied.Ledger.Lines, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+
+        // And the settings really did both go on, or the pair above is two silent runs agreeing.
+        Assert.Contains(applied.Ledger.Lines, l =>
+            l.Text.Contains("table setting FatalDamage is on", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -3477,6 +3497,13 @@ public sealed class PlayEngineStepTests
     /// of them can succeed. The positive control is the other half of the same test: with a roll on
     /// the table the announcement is there and the pool has moved, so this is not a check satisfied
     /// by an engine that had stopped announcing anything.</para>
+    ///
+    /// <para><b>Seizing the initiative had to be bought before the loop rather than left out of
+    /// it.</b> It is the one purchase that needs nothing to have happened — a fresh page is exactly
+    /// when a character buys a place at the front — so on an untouched page it succeeds, correctly,
+    /// and the situation this test needs is not "nothing has happened" but "nothing any of these can
+    /// act on". Buying it first is what produces that, and it keeps the purchase inside the loop:
+    /// the second one is refused by p.73's own duration.</para>
     /// </summary>
     [Fact]
     public void TheGmsPoolSaysNothingMovedWhenNothingMoved()
@@ -3496,16 +3523,29 @@ public sealed class PlayEngineStepTests
         var encounter = new Encounter(_play, new SeededDice(31));
         var opened = encounter.Begin([hero, villain], challengeLevel: 2);
 
-        // The control on the fixture: there is a pool to spend, so a refusal below is the purchase's
-        // and not "the GM has 0 Adversity".
-        Assert.True(opened.Adversity > 0);
+        // The control on the fixture: there is a pool to spend twice over, so a refusal below is the
+        // purchase's and not "the GM has 0 Adversity".
+        Assert.True(opened.Adversity > 1, $"the fight opened on {opened.Adversity} Adversity");
+
+        // Seizing the initiative is bought first, because it is the one purchase a page where
+        // nothing has happened is the right moment for. That both makes it a spend this loop can
+        // ask about — the second is refused by the duration p.73 prints — and leaves the page
+        // otherwise as it was.
+        var first = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        var quiet = first.State;
+
+        Assert.True(quiet.Adversity < opened.Adversity,
+            "the GM's pool did not move buying a seized initiative, which needs no roll and nobody "
+            + "down — so the loop below would be measuring a purchase that had stopped working.");
 
         foreach (var purchase in Enum.GetValues<ResolveSpend>())
         {
-            var step = encounter.Step(opened, new SpendAdversity(
+            var step = encounter.Step(quiet, new SpendAdversity(
                 "villain", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
 
-            Assert.True(opened.Adversity == step.State.Adversity,
+            Assert.True(quiet.Adversity == step.State.Adversity,
                 $"the GM's pool moved buying {purchase} on a page where nothing had happened yet.");
 
             Assert.DoesNotContain(step.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
@@ -3604,7 +3644,14 @@ public sealed class PlayEngineStepTests
             },
             ["toughness", "agility"]);
 
-        var encounter = new Encounter(_play, new SeededDice(6), TableRules.Book with { FatalDamage = true });
+        // <b>The Gear Limit is on so that page one carries the one `not yet implemented` line this
+        // engine can still produce.</b> It used to come off p.85's first purchase naming one of the
+        // four that charged the buyer's own pool; those are bought now, so the switch is where that
+        // control has moved — and the assertions below check the entry it cites is real and cited to
+        // its own page, which is the whole subject of this test.
+        var encounter = new Encounter(
+            _play, new SeededDice(6), TableRules.Book with { FatalDamage = true, RaisedGearLimit = true });
+
         var state = encounter.Begin([hero, villain]);
 
         // Every refusal this slice can produce, and then a whole fight on top of them.
@@ -3624,8 +3671,8 @@ public sealed class PlayEngineStepTests
             new SpendResolve("hero", ResolveSpend.TeamAttack),
             new SpendAdversity("villain", AdversitySpend.Villainy),          // refused: names no act
             new SpendAdversity("villain", AdversitySpend.Misfortune, Points: 999),
-            // The one `not yet implemented` line a spend can still produce, and the control below
-            // is about it: p.85's first purchase naming one that charges the buyer's own pool.
+            // p.85's first purchase, refused by the purchase it names rather than by the pool: the
+            // Villain is not on a clock, so there is nothing to stabilise and nothing is spent.
             new SpendAdversity(
                 "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.Stabilise)
         };
@@ -3639,9 +3686,12 @@ public sealed class PlayEngineStepTests
         Assert.Contains(state.Ledger.Lines, l =>
             l.Text.Contains("holds no Resolve", StringComparison.Ordinal));
         Assert.Contains(state.Ledger.Lines, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal)
+            && string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal));
         Assert.Contains(state.Ledger.Lines, l =>
             l.Text.Contains("is not the Villain's turn", StringComparison.Ordinal));
+        Assert.Contains(state.Ledger.Lines, l =>
+            l.Text.Contains("there is no clock to stop", StringComparison.Ordinal));
 
         var pages = _play.EntryIds()
             .Select(e => e.Id)
