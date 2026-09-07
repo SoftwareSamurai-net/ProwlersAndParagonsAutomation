@@ -26,21 +26,40 @@ public sealed class McpPlayStdioTests
                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
 
     /// <summary>
-    /// The four trees the published binary is built out of: its own sources, both engines, and the
-    /// arguments the two servers share. A change in any of them is a change in what
-    /// <c>mcp-play-server/</c> should contain.
+    /// The five trees the published binary is built out of: its own sources, both engines, the
+    /// arguments the two servers share, and the rules data the project files copy beside it. A
+    /// change in any of them is a change in what <c>mcp-play-server/</c> should contain.
+    ///
+    /// <para><c>data/rules</c> earns its place for the same reason as the other four, not a weaker
+    /// one: <c>ProwlersAndParagons.McpPlay.csproj</c> copies both <c>data/rules/*.json</c> (the
+    /// character rules, non-recursive) and <c>data/rules/play/*.json</c> beside the binary, and the
+    /// server reads that copy at runtime — <see cref="ProwlersAndParagonsAutomation.Mcp.RulesLocation"/>
+    /// and <see cref="ProwlersAndParagonsAutomation.McpPlay.PlayRulesLocation"/> both walk up from
+    /// the binary's own directory first. A rule edited in the repository and never republished is
+    /// invisible to a running server in exactly the way a source edit is: this directory has no
+    /// subdirectory but <c>play</c> and no file that is not <c>*.json</c>, so scanning it recursively
+    /// for every file, the same way the other four trees are scanned, covers precisely what both
+    /// globs copy and nothing else.</para>
     /// </summary>
-    private static readonly string[] BuiltFrom = ["mcp-play", "play", "engine", "mcp-shared"];
+    private static readonly string[] BuiltFrom =
+        ["mcp-play", "play", "engine", "mcp-shared", Path.Combine("data", "rules")];
 
     /// <summary>
     /// Every file the published binary is built out of, each with a hash of its <b>content</b>: the
     /// repository-relative path and a SHA-256, one line apiece, in path order.
     ///
     /// <para>Every file rather than <c>*.cs</c>: the policy document is an embedded resource, the
-    /// project files decide what is copied beside the binary, and both are sources of what gets
-    /// published. <c>bin</c> and <c>obj</c> are skipped: build output changes whenever anything is
-    /// compiled, so including it would report the binary as stale immediately after publishing
-    /// it.</para>
+    /// rules under <c>data/rules</c> are JSON, the project files decide what is copied beside the
+    /// binary, and all three are sources of what gets published. <c>bin</c> and <c>obj</c> are
+    /// skipped: build output changes whenever anything is compiled, so including it would report
+    /// the binary as stale immediately after publishing it.</para>
+    ///
+    /// <para><b>The path half of each line is always <c>/</c>-separated</b>, regardless of
+    /// <see cref="Path.DirectorySeparatorChar"/> on the machine that computed it. CI publishes fresh
+    /// on every run and never reads a checked-in record, so this has no effect there — but a record
+    /// written on this developer's Mac and later read on a different machine, or vice versa, has to
+    /// agree on what a path looks like or every line reads as changed. Forcing <c>/</c> is one fixed
+    /// choice rather than "whatever the writer's OS did".</para>
     /// </summary>
     private static string SourceFingerprint() =>
         string.Join('\n', BuiltFrom
@@ -104,6 +123,75 @@ public sealed class McpPlayStdioTests
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// A scratch binary and its <c>.published-from</c> record, in a throwaway directory, so
+    /// <see cref="StaleBecause"/> can be driven directly without touching the real
+    /// <c>mcp-play-server/</c> or waiting on a publish. The "binary" is any file — <c>StaleBecause</c>
+    /// only asks whether it exists.
+    /// </summary>
+    private static string NewScratchBinary(string? record)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "pp-stale-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+
+        var binary = Path.Combine(directory, "binary.dll");
+        File.WriteAllText(binary, "not a real binary, StaleBecause never reads it");
+
+        if (record is not null) File.WriteAllText(PublishedFrom(binary), record);
+
+        return binary;
+    }
+
+    /// <summary>
+    /// The positive control for the three tests beside this one: an unmodified record must read as
+    /// fresh, or every "and this one reads as stale" below is meaningless — a <see cref="StaleBecause"/>
+    /// that always answers non-null would pass them too.
+    /// </summary>
+    [Fact]
+    public void StaleBecauseIsFreshWhenTheRecordMatches()
+    {
+        const string fingerprint = "a.cs 1111\nb.cs 2222\nc.cs 3333";
+        var binary = NewScratchBinary(fingerprint);
+
+        Assert.Null(StaleBecause(binary, fingerprint));
+    }
+
+    /// <summary>
+    /// A file present when the record was written and gone now — the shape of a source deleted
+    /// since the last publish — has to read as stale. Manual controls only ever exercised an edit
+    /// (same set of files, one hash changed); nothing had checked that a deletion is caught at all.
+    /// </summary>
+    [Fact]
+    public void StaleBecauseIsStaleWhenASourceWasDeleted()
+    {
+        const string wasPublishedFrom = "a.cs 1111\nb.cs 2222\nc.cs 3333";
+        const string onDiskNow = "a.cs 1111\nb.cs 2222";
+        var binary = NewScratchBinary(wasPublishedFrom);
+
+        var stale = StaleBecause(binary, onDiskNow);
+
+        Assert.NotNull(stale);
+        Assert.Contains("c.cs", stale);
+    }
+
+    /// <summary>
+    /// A file that was not there when the record was written and is there now — the shape of a
+    /// source added since the last publish — has to read as stale for the same reason a deletion
+    /// does: the record no longer describes the tree on disk.
+    /// </summary>
+    [Fact]
+    public void StaleBecauseIsStaleWhenASourceWasAdded()
+    {
+        const string wasPublishedFrom = "a.cs 1111\nb.cs 2222";
+        const string onDiskNow = "a.cs 1111\nb.cs 2222\nc.cs 3333";
+        var binary = NewScratchBinary(wasPublishedFrom);
+
+        var stale = StaleBecause(binary, onDiskNow);
+
+        Assert.NotNull(stale);
+        Assert.Contains("c.cs", stale);
     }
 
     /// <summary>
@@ -584,10 +672,10 @@ public sealed class McpPlayStdioTests
     /// <para><b>And it publishes when the binary was not built from the code, not only when it is
     /// missing.</b> The check used to be <c>File.Exists</c>, so a <c>mcp-play-server/</c> published
     /// once and never again made this a test of a binary from another week — green while the
-    /// registration, the tools, either engine or the shared arguments had all moved on underneath
-    /// it. What replaced it was a timestamp comparison, which was right about the danger and wrong
-    /// about the instrument; <see cref="StaleBecause"/> carries why, and the question is now about
-    /// the content of the four trees the binary is built out of.</para>
+    /// registration, the tools, either engine, the shared arguments or the rules data had all moved
+    /// on underneath it. What replaced it was a timestamp comparison, which was right about the
+    /// danger and wrong about the instrument; <see cref="StaleBecause"/> carries why, and the
+    /// question is now about the content of the five trees the binary is built out of.</para>
     /// </summary>
     [Fact]
     public async Task TheCheckedInRegistrationSpeaksNothingButTheProtocol()

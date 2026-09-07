@@ -436,13 +436,17 @@ lives there, and nothing about it is repeated here.
 - **The `.mcp.json` launch is tested against a binary built from the code on disk, and it enters
   a tool body.** Two holes in one guard. It published only when `mcp-play-server/` was *missing*, so
   a directory published once and never again made it a test of a binary from another week — green
-  while the registration, the tools, either engine or the shared arguments had all moved on
-  underneath it; it now compares every file under `mcp-play/`, `play/`, `engine/` and `mcp-shared/`
-  (all files, not just `*.cs`: the policy document is an embedded resource and the project files
-  decide what is copied beside the binary) against a fingerprint of the sources the last successful
-  publish was asked to build, recorded in `mcp-play-server/.published-from`; it publishes when they
-  differ, and fails naming the file if they still do — the usual cause being the running server
-  CLAUDE.md says to stop first, whose failed copy deliberately records nothing.
+  while the registration, the tools, either engine, the shared arguments or the rules data had all
+  moved on underneath it; it now compares every file under `mcp-play/`, `play/`, `engine/`,
+  `mcp-shared/` and `data/rules` (all files, not just `*.cs`: the policy document is an embedded
+  resource, `data/rules` is JSON, and the project files decide what is copied beside the binary)
+  against a fingerprint of the sources the last successful publish was asked to build, recorded in
+  `mcp-play-server/.published-from`; it publishes when they differ, and fails naming the file if
+  they still do — the usual cause being the running server CLAUDE.md says to stop first, whose
+  failed copy deliberately records nothing. `data/rules` belongs on that list for the same reason
+  as the code trees, not a weaker one — `ProwlersAndParagons.McpPlay.csproj` copies both the
+  character rules and `data/rules/play` beside the binary, and a rule edited and never republished
+  is invisible to a running server exactly as a stale source file would be.
   **That question is about content, and asking it about modification times was a papercut three
   agents hit in one day.** The build is deterministic, so editing a source and restoring it byte for
   byte — what every mutation check here does — leaves the source newer than the binary while
