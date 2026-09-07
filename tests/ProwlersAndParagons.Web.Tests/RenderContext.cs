@@ -169,25 +169,21 @@ public sealed class RenderContext : BunitContext
             Services.AddSingleton<IJSRuntime>(Storage);
         }
 
+        // The write-through that follows every edit, registered exactly as Program.cs registers
+        // it. Without it the tests cannot see the half of persistence that matters: a save fires
+        // on every change, so anything that clears storage is racing a write nobody awaits.
+        Services.AddScoped<Autosave>();
+
         Session = Services.GetRequiredService<CharacterSession>();
 
-        // Program.cs subscribes this, and it has to be here too or the tests cannot see the
-        // half of persistence that matters: a save fires on every change, so anything that
-        // clears storage is racing a write nobody awaits. Without the subscription a test
-        // asserting on that ordering asserts on nothing.
-        var store = Services.GetRequiredService<ICharacterStore>();
-        Session.Changed += () => _ = SaveThenAnnounce(Session.Version);
-
-        // Mirrors Program.cs: NotifySaved fires once the write-through actually completes,
-        // rather than on the edit that started it, and carries the version that was current
-        // when this particular save began — see CharacterSession.Saved for why. A test
-        // rendering MainLayout's "Saved" text through a real character mutation, rather than by
-        // calling NotifySaved by hand, needs this wired the same way the app wires it.
-        async Task SaveThenAnnounce(int version)
-        {
-            await store.SaveAsync(Session.Sheet, Session.Mode);
-            Session.NotifySaved(version);
-        }
+        // **The same object the app starts, started the same way**, rather than a hand-copy of
+        // Program.cs's subscription. The copy was the shape here before, and a copy can go on
+        // testing an ordering the app has stopped having — the failure the boot mirror in
+        // SessionHoldsThePointerTests needs a source scan to catch. There is nothing left to
+        // mirror: that NotifySaved fires once a write completes, carrying the version current
+        // when that write began, is Autosave's own business now, and one write being open at a
+        // time is the property AutosaveOrderTests drives through here.
+        Services.GetRequiredService<Autosave>().Start();
     }
 
     /// <summary>Loads a sample so a rendered sheet has something in every section.</summary>

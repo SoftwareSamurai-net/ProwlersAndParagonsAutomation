@@ -52,7 +52,8 @@ public sealed class AutosaveOrderTests
         var held = HoldTheFirstWrite(ctx);
 
         await Type(layout, ctx, Typed);
-        await held.Reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        await held.Reached.Task.WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
 
         // The second keystroke, made while the first write is still open at the wire. Everything
         // between the edit and the request is synchronous in this context — FakeLocalStorage and
@@ -83,7 +84,8 @@ public sealed class AutosaveOrderTests
         var held = HoldTheFirstWrite(ctx);
 
         await Type(layout, ctx, Typed);
-        await held.Reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        await held.Reached.Task.WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
 
         await Type(layout, ctx, Finished);
 
@@ -119,7 +121,8 @@ public sealed class AutosaveOrderTests
         var held = HoldTheFirstWrite(ctx);
 
         await Type(layout, ctx, Typed);
-        await held.Reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        await held.Reached.Task.WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
 
         await Type(layout, ctx, Finished);
         await Type(layout, ctx, Finished + "!");
