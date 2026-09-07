@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Web.Layout;
@@ -133,6 +134,79 @@ public sealed class AutosaveOrderTests
 
         await layout.WaitForAssertionAsync(
             async () => Assert.Equal(Finished + "!", await NameHeld(ctx)));
+    }
+
+    // ── That the real app is wired to any of this ─────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>The app really starts the autosave, and not only <see cref="RenderContext"/> does.</b>
+    ///
+    /// <para><b>This is the positive control on everything above it, and it was missing.</b> Every
+    /// test in this file drives <see cref="Autosave"/> through the test context, which starts one
+    /// of its own — so deleting <c>web/Program.cs</c>'s <c>Start()</c> left the whole suite green
+    /// while the deployed application subscribed to nothing and wrote no character anywhere.
+    /// Measured, not reasoned about: with that one line removed, 5,829 tests passed.</para>
+    ///
+    /// <para><b>Which is <c>PROGRESS.md</c> item 10 exactly.</b> That was a feature built, tested,
+    /// reviewed twice and merged while nothing in the application ever wrote to the store it read
+    /// from, because every test reached the store itself. A context that wires the service it is
+    /// testing is the same fault with a shorter fuse: the thing under test is real, and the only
+    /// thing missing is the app asking for it.</para>
+    ///
+    /// <para><b>What it cannot do</b>, said plainly because <c>CLAUDE.md</c> requires it: bUnit
+    /// cannot run the host's startup, so this is a scan for one spelling and it has no opinion
+    /// about the lines around it. A boot that kept the call and unsubscribed on the next line
+    /// would walk through it. It is the cheap catch on the app forgetting to ask, which is the
+    /// failure that actually happened, not a proof that the subscription survives the boot.</para>
+    /// </summary>
+    [Fact]
+    public void TheAppItselfStartsTheAutosave()
+    {
+        Assert.True(StartsTheAutosave.IsMatch(Program()),
+            "`web/Program.cs` no longer starts the autosave, so nothing in the deployed "
+            + "application subscribes to the character's change bell and no edit is written down "
+            + "anywhere. Every test in this file would go on passing: RenderContext starts an "
+            + $"Autosave of its own. Pattern: {StartsTheAutosave}");
+    }
+
+    /// <summary>
+    /// The positive control on the scan above. A pattern that had been loosened until registering
+    /// the service counted as starting it would report a wired app over an unwired one — and
+    /// registering it is exactly what would still be there after the deletion this guards against.
+    /// </summary>
+    [Fact]
+    public void TheScanDoesNotAcceptRegisteringTheAutosaveAsStartingIt()
+    {
+        Assert.DoesNotMatch(StartsTheAutosave, "builder.Services.AddScoped<Autosave>();");
+        Assert.DoesNotMatch(StartsTheAutosave, "host.Services.GetRequiredService<Autosave>();");
+
+        // ...while it still matches the line it is about, so "rejects everything" cannot pass for
+        // "rejects the edit".
+        Assert.Matches(StartsTheAutosave, "host.Services.GetRequiredService<Autosave>().Start();");
+    }
+
+    /// <summary>
+    /// The one line of <c>web/Program.cs</c> that turns <see cref="Autosave"/> from a registered
+    /// service into a subscription: the host resolves it and calls <c>Start()</c> on it.
+    /// </summary>
+    private static readonly Regex StartsTheAutosave = new(
+        @"GetRequiredService<\s*Autosave\s*>\(\s*\)\s*\.\s*Start\(\s*\)\s*;",
+        RegexOptions.None, TimeSpan.FromSeconds(5));
+
+    private static string Program() =>
+        File.ReadAllText(Path.Combine(RepoRoot(), "web", "Program.cs"));
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException(
+            $"Could not locate the repository root (no .sln found above {AppContext.BaseDirectory}).");
     }
 
     // ── The fixture ───────────────────────────────────────────────────────────────────────────
