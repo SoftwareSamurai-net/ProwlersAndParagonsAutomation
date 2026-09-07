@@ -2,6 +2,8 @@ using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Mcp;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>

@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Engine;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>

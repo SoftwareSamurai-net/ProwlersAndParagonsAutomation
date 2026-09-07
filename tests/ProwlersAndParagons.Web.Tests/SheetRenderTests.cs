@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Components;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
@@ -52,8 +54,8 @@ public sealed class SheetRenderTests
         Assert.NotEmpty(onSheet);
         Assert.NotEmpty(onTab);
 
-        var run = new Regex(@"[A-Za-z)\]]\d+d\b", RegexOptions.None, TimeSpan.FromSeconds(5));
-        var backwards = new Regex(@"\b\d+d[A-Za-z(\[]", RegexOptions.None, TimeSpan.FromSeconds(5));
+        var run = ScanRegex.Build(@"[A-Za-z)\]]\d+d\b", RegexOptions.None);
+        var backwards = ScanRegex.Build(@"\b\d+d[A-Za-z(\[]", RegexOptions.None);
 
         foreach (var entry in onSheet.Concat(onTab).Select(e => Collapse(e.TextContent)))
         {
@@ -420,7 +422,7 @@ public sealed class SheetRenderTests
     public void NoRenderedTextShowsASnakeCaseId(SheetMode mode)
     {
         using var ctx = new RenderContext().With(mode);
-        var snake = new Regex(@"\b[a-z]+(_[a-z]+)+\b", RegexOptions.None, TimeSpan.FromSeconds(5));
+        var snake = ScanRegex.Build(@"\b[a-z]+(_[a-z]+)+\b", RegexOptions.None);
 
         foreach (var (name, text) in new[]
                  {
@@ -687,5 +689,5 @@ public sealed class SheetRenderTests
     /// — which is what a browser does — but a missing one stays missing.
     /// </summary>
     private static string Collapse(string text) =>
-        new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(text, " ").Trim();
+        ScanRegex.Build(@"\s+", RegexOptions.None).Replace(text, " ").Trim();
 }

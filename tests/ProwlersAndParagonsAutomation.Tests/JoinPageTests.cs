@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>

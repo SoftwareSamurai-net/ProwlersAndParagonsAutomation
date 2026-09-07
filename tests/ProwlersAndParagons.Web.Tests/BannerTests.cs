@@ -8,6 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using static ProwlersAndParagons.Web.Tests.BusyRenderer;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
@@ -205,17 +207,16 @@ public sealed class BannerTests
         // this string and nothing else.
         Assert.Equal("Search", placeholder);
 
-        var css = new Regex(@"/\*.*?\*/", RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+        var css = ScanRegex.Build(@"/\*.*?\*/", RegexOptions.Singleline)
             .Replace(File.ReadAllText(
                 Path.Combine(RepoRoot(), "web", "wwwroot", "css", "app.css")), " ");
 
-        var rule = new Regex(@"\.palette-open\s+\.palette-field\s*\{([^{}]*)\}",
-            RegexOptions.None, TimeSpan.FromSeconds(5)).Match(css);
+        var rule = ScanRegex.Build(@"\.palette-open\s+\.palette-field\s*\{([^{}]*)\}", RegexOptions.None).Match(css);
 
         Assert.True(rule.Success, "app.css no longer has a rule for `.palette-open .palette-field`.");
 
         // A width in characters, and not `size` back in the markup or a length in px.
-        var width = new Regex(@"width:\s*([0-9.]+)ch", RegexOptions.None, TimeSpan.FromSeconds(5))
+        var width = ScanRegex.Build(@"width:\s*([0-9.]+)ch", RegexOptions.None)
             .Match(rule.Groups[1].Value);
 
         Assert.True(width.Success,
@@ -778,7 +779,7 @@ public sealed class BannerTests
     {
         var css = File.ReadAllText(Path.Combine(RepoRoot(), "web", "wwwroot", "css", "app.css"));
 
-        css = new Regex(@"/\*.*?\*/", RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+        css = ScanRegex.Build(@"/\*.*?\*/", RegexOptions.Singleline)
             .Replace(css, " ");
 
         var at = css.IndexOf("@media print", StringComparison.Ordinal);

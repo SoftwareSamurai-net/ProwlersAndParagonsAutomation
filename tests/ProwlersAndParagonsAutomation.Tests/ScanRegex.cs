@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace ProwlersAndParagonsAutomation.Tests;
+namespace ProwlersAndParagons.Testing;
 
 /// <summary>
 /// The one place a source-scanning test builds a <see cref="Regex"/>.
