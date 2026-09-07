@@ -2236,7 +2236,7 @@ public sealed class PlayEngineStepTests
         Assert.NotEqual(RangeBand.Close, reach);
         Assert.True(rule.CostResolve > 0);
 
-        var (pending, villainStillToAct) = Knocked(targetActsFirst: false);
+        var (pending, villainStillToAct, _) = Knocked(targetActsFirst: false);
 
         Assert.Equal(reach, pending.RangeBetween("hero", "villain"));
         Assert.True((int)pending.RangeBetween("hero", "villain") <= (int)reach,
@@ -2248,7 +2248,7 @@ public sealed class PlayEngineStepTests
         Assert.Empty(pending.LosesNextTurn);
 
         // And where they had already acted, it is the next page's order they are missing from.
-        var (turned, _) = Knocked(targetActsFirst: true);
+        var (turned, _, fight) = Knocked(targetActsFirst: true);
 
         Assert.Equal(2, turned.Page);
         Assert.Equal(["hero"], turned.TurnOrder);
@@ -2256,6 +2256,21 @@ public sealed class PlayEngineStepTests
         Assert.Contains(turned.Ledger.Lines, l =>
             string.Equals(l.Rule, "pages_and_turns", StringComparison.Ordinal)
             && l.Text.Contains("forfeited a turn", StringComparison.Ordinal));
+
+        // <b>And it is one turn, not every turn from here on.</b> p.78 takes the target's next turn
+        // to act; a forfeit left standing on the state would take the page after that as well, and
+        // the one after that, and a combatant nobody ever rolls for is a fight measured short. The
+        // page turn that spends the forfeit has to clear it, so the page after has them back — and
+        // the ledger says it once.
+        var back = fight.Step(fight.Step(turned, new EndTurn("hero")).State, new EndPage("")).State;
+
+        Assert.Equal(3, back.Page);
+        Assert.Equal(["villain", "hero"], back.TurnOrder);
+        Assert.Empty(back.LosesNextTurn);
+
+        Assert.Equal(1, back.Ledger.Lines.Count(l =>
+            string.Equals(l.Rule, "pages_and_turns", StringComparison.Ordinal)
+            && l.Text.Contains("forfeited a turn", StringComparison.Ordinal)));
 
         // The clause this engine cannot apply is named rather than left to be assumed.
         Assert.Contains(pending.Ledger.Lines, l =>
@@ -2272,7 +2287,8 @@ public sealed class PlayEngineStepTests
     /// Whether the target has already had their turn when the blow lands, which decides which turn
     /// the knockback takes off them. The page turns in that case, so the order can be read.
     /// </param>
-    private (EncounterState State, IReadOnlyList<string> OpeningOrder) Knocked(bool targetActsFirst)
+    private (EncounterState State, IReadOnlyList<string> OpeningOrder, Encounter Fight) Knocked(
+        bool targetActsFirst)
     {
         var rule = _play.GetCombat("knockback").Knockback!;
 
@@ -2321,7 +2337,7 @@ public sealed class PlayEngineStepTests
         // The purchase and the page turn roll nothing the page does not.
         Assert.Equal(0, dice.Remaining);
 
-        return (state, opening);
+        return (state, opening, encounter);
     }
 
     /// <summary>
