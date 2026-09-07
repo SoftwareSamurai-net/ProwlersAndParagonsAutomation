@@ -1629,7 +1629,14 @@ public sealed class PlayEngineStepTests
 
         var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
 
-        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        // <b>The Hero is on the floor beside the Villain, and that is what makes the refusal below
+        // worth anything.</b> A Hero on their feet is refused this purchase for having nothing to
+        // recover from, so a fixture built that way passes whether or not p.85's eligibility list is
+        // read at all — which was watched: deleting the npc_kinds gate left it green.
+        var hero = Combatant
+            .Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"])
+            .WithHealth(0);
+
         var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat");
 
         var villain = Combatant
@@ -1673,12 +1680,15 @@ public sealed class PlayEngineStepTests
         Assert.Contains(twice.Added, l =>
             l.Text.Contains("has already taken 1 instant recovery this scene", StringComparison.Ordinal));
 
-        // A Hero is not an NPC.
+        // A Hero is not an NPC — and this one is down, so the refusal is p.85's list and not the
+        // purchase declining to help somebody who is fine.
         var onAHero = encounter.Step(opened, new SpendAdversity(
             "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
 
         Assert.Equal(opened.Adversity, onAHero.State.Adversity);
         Assert.Equal(3, onAHero.State["hero"].Resolve);
+        Assert.Equal(0, onAHero.State["hero"].CurrentHealth);
+        Assert.Equal(0, onAHero.State["hero"].InstantRecoveriesUsed);
 
         // And a Minion group has neither half of what this purchase gives back.
         var onTheMob = encounter.Step(opened, new SpendAdversity(
@@ -1719,7 +1729,14 @@ public sealed class PlayEngineStepTests
         var table = TableRules.Book with { FatalDamage = true };
         var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
 
-        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        // <b>The Hero is past their own threshold and bleeding too</b>, for the reason the instant
+        // recovery fixture says: a Hero nowhere near the line is refused both of these purchases by
+        // the purchases themselves, so a fixture built that way would pass with p.85's eligibility
+        // list deleted. Watched: it was, and it did.
+        var hero = Combatant
+            .Hero("hero", "the Hero", edge: 9, health: 4, resolve: 3, traits, ["toughness"])
+            .WithHealth(-5).Bleeding(dying: true);
+
         var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat");
 
         // A Health of 4 puts the fatal threshold at -4; this one is at -5, past it and bleeding.
@@ -1780,6 +1797,8 @@ public sealed class PlayEngineStepTests
 
             Assert.Equal(opened.Adversity, onAHero.State.Adversity);
             Assert.Equal(3, onAHero.State["hero"].Resolve);
+            Assert.Equal(-5, onAHero.State["hero"].CurrentHealth);
+            Assert.True(onAHero.State["hero"].Dying);
         }
 
         // And a Minion group has no Health, so it is at neither the threshold nor the clock — the

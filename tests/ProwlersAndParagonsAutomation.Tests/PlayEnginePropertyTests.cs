@@ -155,6 +155,11 @@ public sealed class PlayEnginePropertyTests
             if (policy.AfterRoll(state, state[actor.Id]) is { } follow)
                 state = StepAndCheck(encounter, state, follow, ref moved);
 
+            // p.85's first purchase, on every turn, naming the next of a Hero's ten on behalf of an
+            // NPC — see the hook's own comment for why it is not another branch of the cycle.
+            if (policy.GmBuysForAnNpc(state) is { } gm)
+                state = StepAndCheck(encounter, state, gm, ref moved);
+
             state = StepAndCheck(encounter, state, new EndTurn(actor.Id), ref moved);
         }
 
@@ -202,6 +207,13 @@ public sealed class PlayEnginePropertyTests
         // spends as well as its first: each is emitted with the GM's words and without them, so the
         // branch that changes the state and the branch that refuses are both inside the property.
         Assert.Equal(Enum.GetValues<AdversitySpend>().Order(), policy.GmPurchases.Order());
+
+        // <b>And every purchase p.85's first spend may name, out of the GM's pool.</b> That the
+        // party bought all ten with their own Resolve says nothing about the ten the GM's pool now
+        // buys for an NPC: they are different branches, and until this control existed every
+        // anything_resolve_can the generator emitted named nothing and was refused for it — so the
+        // whole of that purchase sat outside a property whose subject is every branch of Step.
+        Assert.Equal(Enum.GetValues<ResolveSpend>().Order(), policy.GmNamed.Order());
     }
 
     private static EncounterState StepAndCheck(

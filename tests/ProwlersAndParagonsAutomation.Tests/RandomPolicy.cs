@@ -133,12 +133,31 @@ internal sealed class RandomPolicy : IPolicy
     /// <summary>Every Adversity purchase this policy has emitted, for the same control.</summary>
     public HashSet<AdversitySpend> GmPurchases { get; } = [];
 
+    /// <summary>
+    /// Every Resolve purchase this policy has named as an <c>as_resolve</c> of p.85's first
+    /// Adversity spend.
+    ///
+    /// <para><b>It is a second set rather than a reuse of <see cref="Purchases"/></b>, because the
+    /// two are different questions: that a Hero bought a reroll says nothing about whether the GM's
+    /// pool ever bought one for an NPC. Every <c>anything_resolve_can</c> this generator emitted
+    /// used to name nothing at all, so all ten went down the one refusal branch and the whole of
+    /// p.85's first purchase was outside the purity property.</para>
+    /// </summary>
+    public HashSet<ResolveSpend> GmNamed { get; } = [];
+
     // <b>Cycled, and half of them carry the GM's words.</b> p.85's three own purchases are refused
     // unless the spend says what the point bought, so a generator that never sent a narration would
     // drive the refusal branch of all three and none of the branches that change the state — which
     // is the half the purity property is about. Its own counter, for the reason AfterRoll has one:
     // sharing one makes every other call advance it and quietly narrows the coverage.
     private int _nextGmPurchase;
+
+    // <b>What p.85's first purchase names is cycled on a counter of its own</b>, for the reason the
+    // purchases above are: a purchase chosen off a die is one some seed will not reach, and the four
+    // this engine wired to the GM's pool last are exactly the ones a probability would miss. It used
+    // to name nothing, so every anything_resolve_can went down the "does not say which purchase"
+    // refusal and none of the ten reached Step from the GM's side at all.
+    private int _nextGmNamed;
 
     private SpendAdversity Adversity(Combatant actor, string target)
     {
@@ -149,6 +168,43 @@ internal sealed class RandomPolicy : IPolicy
         return new SpendAdversity(
             actor.Id, kind, Points: 1 + Pick(2), Target: target,
             Narration: Coin() ? "a hot temper" : null);
+    }
+
+    /// <summary>
+    /// p.85's first purchase, naming the next of a Hero's ten, on behalf of an NPC in the fight.
+    ///
+    /// <para><b>It is a hook of its own rather than another branch of <see cref="Choose"/>, and the
+    /// reason is the arithmetic the cycle comment above states.</b> That cycle is ten long and one
+    /// of its branches is an Adversity spend, which is itself four kinds — so an <c>as_resolve</c>
+    /// cycled inside it would need forty Adversity emissions to come round, where lengthening that
+    /// cycle by two already pushed one seed's fourth Adversity purchase past the end of the fight.
+    /// This fires on every turn instead, so ten purchases come round six times over in a
+    /// sixty-turn run and the coverage is a fact rather than a probability.</para>
+    ///
+    /// <para><b>The buyer is an NPC</b>, because a Hero named as the actor of this purchase is
+    /// refused off p.85's <c>npc_kinds</c> before any of the ten is reached — which would put the
+    /// whole purchase back outside the property while looking like coverage.</para>
+    /// </summary>
+    public SpendAdversity? GmBuysForAnNpc(EncounterState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        var npc = state.Combatants.Values
+            .Where(c => !c.HoldsResolve)
+            .Select(c => c.Id)
+            .Order(StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        if (npc is null) return null;
+
+        var named = (ResolveSpend)(_nextGmNamed++ % Enum.GetValues<ResolveSpend>().Length);
+
+        GmNamed.Add(named);
+        Emitted.Add(nameof(SpendAdversity));
+
+        return new SpendAdversity(
+            npc, AdversitySpend.AnythingResolveCan, AsResolve: named,
+            Target: state.Combatants.Keys.Order(StringComparer.Ordinal).FirstOrDefault());
     }
 
     /// <inheritdoc/>
