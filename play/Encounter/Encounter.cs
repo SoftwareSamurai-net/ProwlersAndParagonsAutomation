@@ -1,5 +1,6 @@
 using ProwlersAndParagonsAutomation.Play.Dice;
 using ProwlersAndParagonsAutomation.Play.Rules;
+using ProwlersAndParagonsAutomation.Play.Rules.Models;
 
 namespace ProwlersAndParagonsAutomation.Play.Encounter;
 
@@ -72,11 +73,6 @@ public sealed partial class Encounter
     /// </summary>
     public static IReadOnlySet<string> SwitchesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        nameof(TableRules.CloseRangePenalty),
-        nameof(TableRules.TheDrop),
-        nameof(TableRules.FriendlyFire),
-        nameof(TableRules.HardTargets),
-        nameof(TableRules.SlowHealing),
         nameof(TableRules.RaisedGearLimit),
         nameof(TableRules.GearLimitRank)
     };
@@ -136,7 +132,7 @@ public sealed partial class Encounter
         var lines = new List<LedgerLine>();
         var heroes = everyone.Values.Count(c => c.Kind == CombatantKind.Hero);
 
-        var edges = Edges(everyone.Values, lines);
+        var edges = Edges([.. everyone.Values], lines);
         var adversity = OpeningAdversity(heroes, challengeLevel, lines);
 
         var ranges = new Dictionary<string, RangeBand>(StringComparer.Ordinal);
@@ -172,6 +168,10 @@ public sealed partial class Encounter
                 $"the visibility here is {band.Visibility}, which is {Dice(band.Dice)} on "
                 + $"{light.Visibility!.Affects} made in it"));
         }
+
+        // p.80's Slow Healing is half a rule about the days after a fight, so page one says which
+        // half this scene is carrying and which half it is not.
+        if (Table.SlowHealing) SlowHealingReaches(lines);
 
         var order = TurnOrder(everyone, edges, [], [], lines, page: 1);
 
@@ -256,7 +256,7 @@ public sealed partial class Encounter
     /// Each combatant's effective Edge: the derived figure, or the successes of an opening Edge roll
     /// where the table has taken p.73's optional random initiative.
     /// </summary>
-    private Dictionary<string, int> Edges(IEnumerable<Combatant> everyone, List<LedgerLine> lines)
+    private Dictionary<string, int> Edges(IReadOnlyList<Combatant> everyone, List<LedgerLine> lines)
     {
         var entry = _play.GetCombat("edge_order");
         var edges = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -278,7 +278,109 @@ public sealed partial class Encounter
                 + $"{roll.Successes}, which stands in as their Edge for this battle"));
         }
 
+        // p.79's Drop, applied to whatever the figure above turned out to be — the derived Edge, or
+        // the successes of the optional opening roll.
+        if (Table.TheDrop) TheDrop([.. everyone], edges, lines);
+
         return edges;
+    }
+
+    /// <summary>
+    /// p.79's Drop: <c>the_drop.effect</c> — "the holder's effective Edge is doubled against them"
+    /// — applied to everyone the caller says has a weapon or Power aimed and ready.
+    ///
+    /// <para><b>A doubling that is pairwise in the book is exact as one global order, and that is
+    /// the finding that made this rule applicable at all.</b> An order depends only on how each
+    /// pair compares, and there are three kinds of pair. Two ready characters both double, and
+    /// <c>2a</c> against <c>2b</c> orders exactly as <c>a</c> against <c>b</c> — which is right,
+    /// because neither has the drop on the other. Two unready characters double neither, which is
+    /// right for the same reason. A ready character against an unready one doubles exactly one of
+    /// them, which is the rule as printed. So doubling every holder's <see cref="EncounterState.EffectiveEdge"/>
+    /// once produces the same order as comparing every pair under p.79's own sentence, and no case
+    /// is left over.</para>
+    ///
+    /// <para><b>The other half of the rule is pairwise and is <em>not</em> expressible, so it is
+    /// named rather than applied.</b> <c>also_held_by</c> gives the drop to a character with a
+    /// ranged weapon "against anyone moving up to them to engage them in close combat" — held
+    /// against one opponent and not against the rest, which a single order cannot carry: doubled
+    /// against one opponent and not another admits cycles, where A beats B, B beats C and C beats A.
+    /// The line says so, and <c>docs/guide/play-engine.md</c> records it beside the clauses
+    /// <c>team_attacks</c> and <c>minions_attacking</c> leave to a person.</para>
+    ///
+    /// <para><b>The factor is the printed word and is not in the data</b>, the same shape as
+    /// <c>seize_initiative_gm_alternative</c>'s "doubles" and <c>gritty_hard_targets</c>' "doubled":
+    /// an entry that has stopped saying it is a rule this engine throws on rather than one it goes
+    /// on applying.</para>
+    /// </summary>
+    private void TheDrop(
+        IReadOnlyList<Combatant> everyone, Dictionary<string, int> edges, List<LedgerLine> lines)
+    {
+        var entry = _play.GetGritty("gritty_the_drop");
+        var rule = entry.TheDrop!;
+
+        lines.Add(new LedgerLine(
+            1, "", entry.Id, entry.SourceRef,
+            $"the other half of p.79's Drop is not applied: it is also held by {rule.AlsoHeldBy}, "
+            + "which is a doubling held against one opponent and not against the rest — and one "
+            + "order of action cannot carry that, since doubled against one and not another admits "
+            + $"a cycle. {rule.FinalSay} has the final say over the whole rule in any case"));
+
+        var holders = everyone.Where(c => c.Ready).ToList();
+        var others = everyone.Where(c => !c.Ready).ToList();
+
+        if (holders.Count == 0 || others.Count == 0)
+        {
+            lines.Add(new LedgerLine(
+                1, "", entry.Id, entry.SourceRef,
+                $"nobody has the drop on anybody: it is held by {rule.HeldBy}, against "
+                + $"{rule.HeldAgainst}, and "
+                + (holders.Count == 0
+                    ? "nobody here has one aimed and ready"
+                    : "everybody here has")));
+
+            return;
+        }
+
+        var factor = DropFactor(rule.Effect);
+        var minionsHaveAnEdge = _play.GetCombat("edge_ties").TieBreak!.MinionsHaveAnEdge;
+
+        foreach (var holder in holders)
+        {
+            if (holder.Kind == CombatantKind.MinionGroup && !minionsHaveAnEdge)
+            {
+                lines.Add(new LedgerLine(
+                    1, holder.Id, entry.Id, entry.SourceRef,
+                    $"{holder.Name} is ready, and p.73 gives a group of Minions no Edge at all — so "
+                    + "there is nothing here to double"));
+
+                continue;
+            }
+
+            var was = edges[holder.Id];
+            edges[holder.Id] = was * factor;
+
+            lines.Add(new LedgerLine(
+                1, holder.Id, entry.Id, entry.SourceRef,
+                $"{holder.Name} is {rule.HeldBy}, so they have the drop on {rule.HeldAgainst}: "
+                + $"{rule.Effect}, {was} to {edges[holder.Id]}"));
+        }
+    }
+
+    /// <summary>
+    /// What p.79's Drop multiplies an Edge by, read out of <c>the_drop.effect</c>'s printed word.
+    /// </summary>
+    private static int DropFactor(string effect)
+    {
+        if (!effect.Contains("double", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"gritty_the_drop's effect now reads '{effect}'. This engine reads the printed word "
+                + "\"doubled\" and supplies the factor of 2 itself, because the entry states an "
+                + "effect in prose rather than a multiplier; a rule that no longer says it is a "
+                + "rule this engine cannot apply. See docs/guide/play-engine.md's readings table.");
+        }
+
+        return 2;
     }
 
     /// <summary>
@@ -363,6 +465,73 @@ public sealed partial class Encounter
 
         return order;
     }
+
+
+    /// <summary>
+    /// p.80's Slow Healing, sorted into the clauses a scene can carry and the clauses it cannot,
+    /// on page one.
+    ///
+    /// <para><b>An <see cref="Encounter"/> is one scene, and half of this rule is about the days
+    /// after it.</b> Three clauses bite inside a fight and are applied: nobody heals on regaining
+    /// consciousness after a defeat, so p.76's instant recovery brings a character round on the
+    /// Health they went down with; such a character may be conscious at or below the defeat figure;
+    /// and in that condition any damage at all puts them back down. A fourth is already true here
+    /// and is named rather than claimed as new — a character may be stabilised as often as
+    /// necessary, and p.79's <see cref="Stabilise"/> has never counted.</para>
+    ///
+    /// <para><b>The rest is between scenes and is said to be</b>, rather than left for a reader to
+    /// discover was missing: the daily rate by Toughness band, the sentence that takes away the
+    /// healing after each battle — which this engine has no intent for in the first place — and the
+    /// Medicine Talent's once-a-week limit and its rate. A rule announced as on and silently applied
+    /// in part is the failure this ledger exists to prevent, so the line names the parts.</para>
+    ///
+    /// <para><b>Two things beside the clauses are the entry's own notes and both are carried.</b>
+    /// The lowest band prints no hourly figure, and the entry's <c>interpretation</c> supplies
+    /// twenty-four as arithmetic rather than as a page reference; and its <c>ambiguity</c> records
+    /// that the Medicine rate halves without the page saying which way. Neither is applied here —
+    /// both are outside the scene — but a reader of a run under this setting should not have to go
+    /// to the file to find them.</para>
+    /// </summary>
+    private void SlowHealingReaches(List<LedgerLine> lines)
+    {
+        var entry = _play.GetGritty("gritty_slow_healing");
+        var rule = entry.SlowHealing!;
+
+        lines.Add(new LedgerLine(
+            1, "", entry.Id, entry.SourceRef,
+            "Slow Healing, inside this scene: nobody heals on regaining consciousness after a "
+            + $"defeat ({rule.HealingOnRegainingConsciousnessAfterADefeat}), so a character brought "
+            + "round is up on the Health they went down with; they may be conscious at or below the "
+            + $"figure that defeats them ({rule.YouMayBeConsciousAtZeroOrNegativeHealth}); and in "
+            + $"that condition any damage at all defeats them ({rule.InThatConditionAnyDamageAtAllDefeatsYou}). "
+            + $"Stabilisation is available as often as necessary ({rule.StabilizationAvailableAsOftenAsNecessary}), "
+            + "which is what this engine already does"));
+
+        var bands = string.Join("; ", rule.Bands.Select(b =>
+            $"{Toughness(b)}: {b.HealthPerDay} a day"
+            + (b.OnePointEveryHours is { } hours
+                ? $" (1 every {hours} hours)"
+                : $" (1 every {entry.Interpretation!.OnePointEveryHoursForTheLowestBand} hours, "
+                  + "which is this project's arithmetic and not a figure p.80 prints)")));
+
+        lines.Add(new LedgerLine(
+            1, "", entry.Id, entry.SourceRef,
+            "and outside it, where this engine cannot follow: the daily rate by Toughness — "
+            + $"{bands} — that there is no healing after each battle ({rule.HealingAfterEachBattle}), "
+            + $"and the Medicine Talent {rule.MedicineHealingLimit} at "
+            + $"{rule.MedicineHealthPerNetSuccesses} point per {rule.MedicineNetSuccessesPerPoint} "
+            + $"net successes. That last rate rounds in a direction the page never states: {entry.Ambiguity}"));
+    }
+
+    /// <summary>One Slow Healing band's Toughness range, in the shape p.80 prints it.</summary>
+    private static string Toughness(GrittyBandModel band) =>
+        (band.MinToughness, band.MaxToughness) switch
+        {
+            (null, { } max) => $"{max}d or less",
+            ({ } min, null) => $"{min}d or greater",
+            ({ } min, { } max) => $"{min}d to {max}d",
+            _ => "any Toughness"
+        };
 
     /// <summary>
     /// What the GM's alternative multiplies an Edge by.

@@ -2859,6 +2859,517 @@ public sealed class McpPlayServerTests
             new PlayRulesRepository(new InMemoryRulesSource(files)));
     }
 
+
+    // ── p.80's Hard Targets, over the wire ────────────────────────────────
+
+    /// <summary>
+    /// <b>A combatant's <c>hard_target</c> flag crosses the wire and doubles their passive
+    /// defence.</b>
+    ///
+    /// <para>Driven through the tools rather than asserted about the reader, for the reason every
+    /// fixture in this section is: a field the reader does not have is a field the SDK drops in
+    /// silence, which is exactly how p.79's <c>team</c> flag was lost. The control is the same
+    /// fight with the flag left off, whose defence pool is the rank on the sheet.</para>
+    ///
+    /// <para>Subdual, so <c>lethal_and_subdual</c> leaves the Toughness whole and the only thing
+    /// moving the pool is the doubling under test.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACombatantsHardTargetFlagCrossesTheWireAndDoublesTheirPassiveDefence() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Swing(bool hard)
+            {
+                var fight = TwoSides();
+                if (hard) fight[1]!["hard_target"] = true;
+
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["hard_targets"] = true },
+                    ["seed"] = 80
+                });
+
+                var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                        ["trait_id"] = "might", ["damage"] = "subdual", ["type"] = "unarmed"
+                    }
+                });
+
+                return turn;
+            }
+
+            // The control: the flag off is the rank on the sheet, and no line cites the rule.
+            var soft = await Swing(hard: false);
+
+            Assert.Contains("toughness 5d", RollLine(soft), StringComparison.Ordinal);
+            Assert.False(Cites(soft, "gritty_hard_targets"));
+
+            var machine = await Swing(hard: true);
+
+            Assert.Contains("toughness 10d", RollLine(machine), StringComparison.Ordinal);
+            Assert.True(Cites(machine, "gritty_hard_targets"));
+
+            // And what the caller sent comes back, so a reader of the state can see what was read.
+            var villain = machine["state"]!["combatants"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "villain", StringComparison.Ordinal));
+
+            Assert.True(villain!["hard_target"]!.GetValue<bool>());
+        });
+
+    /// <summary>
+    /// <b>An attack's <c>vulnerable_part</c> crosses the wire, costs the printed dice and cancels
+    /// the doubling.</b>
+    ///
+    /// <para>Both halves are read off one answer: the attack pool falls by
+    /// <c>penalty_dice_to_negate_it</c> and the defence pool falls back to the rank on the sheet. A
+    /// reader that had dropped the flag would leave both at the doubled figures.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAttacksVulnerablePartCrossesTheWireAndCancelsTheDoubling() =>
+        await WithClient(async client =>
+        {
+            var penalty = _play.GetGritty("gritty_hard_targets").HardTargets!.PenaltyDiceToNegateIt;
+
+            var fight = TwoSides();
+            fight[1]!["hard_target"] = true;
+
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = fight,
+                ["table"] = new JsonObject { ["hard_targets"] = true },
+                ["seed"] = 80
+            });
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                    ["trait_id"] = "might", ["damage"] = "subdual", ["type"] = "unarmed",
+                    ["vulnerable_part"] = true
+                }
+            });
+
+            var line = RollLine(turn);
+
+            Assert.Contains($"might {8 + penalty}d", line, StringComparison.Ordinal);
+            Assert.Contains("toughness 5d", line, StringComparison.Ordinal);
+            Assert.DoesNotContain("toughness 10d", line, StringComparison.Ordinal);
+        });
+
+
+    // ── p.79's Close Range, over the wire ─────────────────────────────────
+
+    /// <summary>
+    /// <b>The <c>close_range_penalty</c> setting costs a dodger the printed dice, and an attack's
+    /// <c>close_range_only</c> turns it off.</b>
+    ///
+    /// <para>Both are driven through the tools rather than asserted about the reader, because the
+    /// field of an intent is exactly what the play policy's spelling guard cannot see — the guard
+    /// is scoped to tool arguments, and this is how p.79's <c>team</c> flag came to be dropped in
+    /// silence. The control is the same shot with the setting off, whose pool is the rank on the
+    /// sheet.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheCloseRangeSettingCrossesTheWireAndItsThrownWeaponExceptionDoesToo() =>
+        await WithClient(async client =>
+        {
+            var penalty = _play.GetGritty("gritty_close_range")
+                .CloseRangePenalty!.PenaltyDiceToActiveDefense;
+
+            async Task<JsonNode> Shoot(bool setting, bool thrown)
+            {
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = TwoSidesDodging(),
+                    ["table"] = new JsonObject { ["close_range_penalty"] = setting },
+                    ["seed"] = 79
+                });
+
+                var intent = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                    ["trait_id"] = "might", ["type"] = "ranged_weapon"
+                };
+
+                if (thrown) intent["close_range_only"] = true;
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = intent
+                });
+            }
+
+            // The control: the setting off is the rank on the sheet, and no line cites the rule.
+            var baseline = await Shoot(setting: false, thrown: false);
+
+            Assert.Contains("agility 6d", RollLine(baseline), StringComparison.Ordinal);
+            Assert.False(Cites(baseline, "gritty_close_range"));
+
+            var shot = await Shoot(setting: true, thrown: false);
+
+            Assert.Contains($"agility {6 + penalty}d", RollLine(shot), StringComparison.Ordinal);
+            Assert.True(Cites(shot, "gritty_close_range"));
+
+            // And the page's own exception, which a reader that had dropped the flag would ignore.
+            var knife = await Shoot(setting: true, thrown: true);
+
+            Assert.Contains("agility 6d", RollLine(knife), StringComparison.Ordinal);
+            Assert.True(Cites(knife, "gritty_close_range"));
+        });
+
+
+    // ── p.79's Drop, over the wire ────────────────────────────────────────
+
+    /// <summary>
+    /// <b>A combatant's <c>ready</c> flag crosses the wire and doubles their Edge for the order of
+    /// action.</b>
+    ///
+    /// <para>Read off the opening answer's turn order, which is the only thing an Edge decides — a
+    /// doubling nothing sorted on would be a field this server published and never used. The
+    /// control is the same fight with the setting off, whose order is the Edges on the sheets.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACombatantsReadyFlagCrossesTheWireAndDoublesTheirEdgeForTheOrder() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Open(bool setting)
+            {
+                var fight = TwoSides();
+
+                // The Hero's Edge is behind the Villain's until the drop doubles it.
+                fight[0]!["character"]!["AbilityRanks"] =
+                    new JsonObject { ["might"] = 8, ["perception"] = 2, ["agility"] = 2 };
+                fight[1]!["character"]!["AbilityRanks"] =
+                    new JsonObject { ["might"] = 8, ["perception"] = 4, ["agility"] = 3 };
+
+                fight[0]!["ready"] = true;
+
+                return await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["the_drop"] = setting },
+                    ["seed"] = 79
+                });
+            }
+
+            static string[] Order(JsonNode opened) =>
+                [.. opened["turn_order"]!.AsArray().Select(c => c!["id"]!.GetValue<string>())];
+
+            // The control: with the setting off the flag changes nothing, and the Villain is first.
+            var off = await Open(setting: false);
+
+            Assert.Equal(["villain", "hero"], Order(off));
+
+            var drawn = await Open(setting: true);
+
+            Assert.Equal(["hero", "villain"], Order(drawn));
+
+            // And the order echoes both the flag the caller sent and the doubled figure it bought,
+            // so a reader can see what was read rather than inferring it from who went first.
+            var hero = drawn["turn_order"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            var before = off["turn_order"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            Assert.True(hero!["ready"]!.GetValue<bool>());
+            Assert.Equal(before!["edge"]!.GetValue<int>() * 2, hero["edge"]!.GetValue<int>());
+        });
+
+
+    /// <summary>
+    /// <b>Both flags cross the wire on a group of Minions too, and both are read there.</b>
+    ///
+    /// <para>A Minion group is not a character sheet, so it takes a different branch out of the
+    /// reader — <c>TryReadMinions</c> rather than <c>CombatantFactory</c> — and a field threaded
+    /// through one and not the other is the same silent loss the <c>ready</c> flag itself arrived
+    /// with. A swarm of machines is the obvious hard target, and p.79's own example of somebody
+    /// with a weapon levelled is a crook, so neither flag is a thing only a Hero can carry.</para>
+    ///
+    /// <para><b>Each is proved by the engine's answer rather than by the echo.</b> The mob's
+    /// hardness is proved by the Threat rank the Hero's attack has to beat; the echo is asserted
+    /// beside it, since a state a conversation reads should say what was read.</para>
+    /// </summary>
+    [Fact]
+    public async Task BothFlagsCrossTheWireOnAGroupOfMinionsAndAreReadThere() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Swarm(bool declared)
+            {
+                var fight = TwoSides();
+                fight.RemoveAt(1);
+
+                var mob = new JsonObject
+                {
+                    ["kind"] = "minions", ["id"] = "mob", ["name"] = "the robots",
+                    ["threat_rank"] = 5, ["count"] = 4, ["side"] = "villains"
+                };
+
+                if (declared)
+                {
+                    mob["hard_target"] = true;
+                    mob["ready"] = true;
+                }
+
+                fight.Add(mob);
+
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["hard_targets"] = true, ["the_drop"] = true },
+                    ["seed"] = 80
+                });
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero", ["target"] = "mob",
+                        ["trait_id"] = "might", ["damage"] = "subdual", ["type"] = "unarmed"
+                    }
+                });
+            }
+
+            // The control: neither flag declared, so the mob answers on the Threat rank it was
+            // opened with and no line cites the rule.
+            var plain = await Swarm(declared: false);
+
+            Assert.Contains("threat 5d", RollLine(plain), StringComparison.Ordinal);
+            Assert.False(Cites(plain, "gritty_hard_targets"));
+
+            var swarm = await Swarm(declared: true);
+
+            // hard_target reached the Minion branch: the Threat answers at twice its rank.
+            Assert.Contains("threat 10d", RollLine(swarm), StringComparison.Ordinal);
+            Assert.True(Cites(swarm, "gritty_hard_targets"));
+
+            var mob = swarm["state"]!["combatants"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "mob", StringComparison.Ordinal));
+
+            Assert.True(mob!["hard_target"]!.GetValue<bool>());
+            Assert.True(mob["ready"]!.GetValue<bool>());
+        });
+
+    /// <summary>
+    /// <b><c>run_encounters</c> echoes each combatant's <c>hard_target</c> and <c>ready</c>.</b>
+    ///
+    /// <para>Same argument as the size and invisibility beside them, and the same defect one level
+    /// on: a rate is quoted with four things and none of them can carry a fact about a character,
+    /// so a run measured against a machine whose passive defences were doubled — or against a side
+    /// holding the drop — came back looking exactly like a run in which neither was true. The
+    /// control is the same call declaring neither, which is required to echo the defaults, so a
+    /// server printing a constant cannot satisfy both.</para>
+    /// </summary>
+    [Fact]
+    public async Task RunEncountersEchoesEachCombatantsHardTargetAndReadiness() =>
+        await WithClient(async client =>
+        {
+            var fight = TwoSides();
+
+            fight[0]!["ready"] = true;
+            fight[1]!["hard_target"] = true;
+
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = fight,
+                ["table"] = new JsonObject { ["hard_targets"] = true, ["the_drop"] = true },
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = 80
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>());
+
+            var rows = answer["by_combatant"]!.AsArray()
+                .ToDictionary(c => c!["id"]!.GetValue<string>(), c => c!, StringComparer.Ordinal);
+
+            Assert.True(rows["hero"]["ready"]!.GetValue<bool>());
+            Assert.False(rows["hero"]["hard_target"]!.GetValue<bool>());
+
+            Assert.True(rows["villain"]["hard_target"]!.GetValue<bool>());
+            Assert.False(rows["villain"]["ready"]!.GetValue<bool>());
+
+            // The control: the same fight said nothing about either, and the echo says so.
+            var quiet = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject { ["hard_targets"] = true, ["the_drop"] = true },
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = 80
+            });
+
+            Assert.True(quiet["ok"]!.GetValue<bool>());
+
+            foreach (var row in quiet["by_combatant"]!.AsArray())
+            {
+                Assert.False(row!["hard_target"]!.GetValue<bool>());
+                Assert.False(row["ready"]!.GetValue<bool>());
+            }
+
+            // And the control that the two were used rather than merely carried through: the same
+            // seed against the same characters measures a different fight.
+            Assert.NotEqual(
+                quiet["mean_pages"]!.GetValue<double>(),
+                answer["mean_pages"]!.GetValue<double>());
+        });
+
+
+    // ── p.80's Friendly Fire, over the wire ───────────────────────────────
+
+    /// <summary>
+    /// <b>The <c>friendly_fire</c> setting crosses the wire, costs the printed dice, and sends a
+    /// second attack that really happens.</b>
+    ///
+    /// <para>Nothing is declared for this rule — whether a target is bunched up is derived from the
+    /// range bands — so what is driven is the setting itself and the effect it has on a third
+    /// combatant's Health. The control is the same fight with the setting off, whose pool is the
+    /// rank on the sheet and whose bystander is untouched.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheFriendlyFireSettingCrossesTheWireAndItsSecondAttackReallyHappens() =>
+        await WithClient(async client =>
+        {
+            var penalty = _play.GetGritty("gritty_friendly_fire").FriendlyFire!.PenaltyDice;
+
+            async Task<JsonNode> Fire(bool setting)
+            {
+                var fight = TwoSides();
+
+                fight.Add(new JsonObject
+                {
+                    ["kind"] = "extra",
+                    ["id"] = "bystander",
+                    ["side"] = "villains",
+                    ["character"] = new JsonObject
+                    {
+                        ["Name"] = "the Bystander",
+                        ["SelectedTierId"] = "standard",
+                        ["AbilityRanks"] = new JsonObject { ["toughness"] = 3, ["willpower"] = 3 }
+                    }
+                });
+
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["friendly_fire"] = setting },
+                    ["seed"] = 80
+                });
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                        ["trait_id"] = "might", ["type"] = "ranged_weapon"
+                    }
+                });
+            }
+
+            // The control: the setting off is the rank on the sheet, and no line cites the rule.
+            var quiet = await Fire(setting: false);
+
+            Assert.Contains("might 8d", RollLine(quiet), StringComparison.Ordinal);
+            Assert.False(Cites(quiet, "gritty_friendly_fire"));
+
+            var into = await Fire(setting: true);
+
+            Assert.Contains($"might {8 + penalty}d", RollLine(into), StringComparison.Ordinal);
+            Assert.True(Cites(into, "gritty_friendly_fire"));
+        });
+
+
+    // ── p.80's Slow Healing, over the wire ────────────────────────────────
+
+    /// <summary>
+    /// <b>The <c>slow_healing</c> setting crosses the wire, and a character brought round under it
+    /// comes back on the wire as standing at the figure that would otherwise have them out.</b>
+    ///
+    /// <para>Nothing is declared for this rule, so what is driven is the setting and the state it
+    /// leaves behind — <c>conscious_at_zero_or_less</c> on the combatant, which is the field a
+    /// conversation needs in order not to narrate a character as unconscious when the engine has
+    /// them on their feet. The control is the same fight with the setting off, where p.76's own
+    /// figure comes back instead.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheSlowHealingSettingCrossesTheWireAndPublishesWhoIsStillStanding() =>
+        await WithClient(async client =>
+        {
+            var restores = _play.GetCombat("instant_recovery")
+                .InstantRecovery!.AfterADamagingDefeatRestoresHealth;
+
+            async Task<JsonNode> Recover(bool setting)
+            {
+                var fight = TwoSides();
+
+                // A Hero with almost nothing to lose, so one blow puts them down and the recovery
+                // below is the thing under test.
+                fight[0]!["character"]!["AbilityRanks"] =
+                    new JsonObject { ["might"] = 1, ["toughness"] = 1, ["willpower"] = 1 };
+
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["slow_healing"] = setting },
+                    ["seed"] = 80
+                });
+
+                var id = opened["encounter_id"]!.GetValue<string>();
+
+                // The Hero passes — the ladder puts them first on a tied Edge — the Villain
+                // flattens them, and then the Hero buys their feet back.
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject { ["kind"] = "end_turn", ["actor"] = "hero" }
+                });
+
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "villain", ["target"] = "hero",
+                        ["trait_id"] = "might"
+                    }
+                });
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "spend_resolve", ["actor"] = "hero",
+                        ["spend"] = "instant_recovery"
+                    }
+                });
+            }
+
+            static JsonNode Hero(JsonNode turn) =>
+                turn["state"]!["combatants"]!.AsArray().Single(c =>
+                    string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal))!;
+
+            // The control: with the setting off, p.76's own figure comes back and nobody is
+            // standing at nothing.
+            var ordinary = Hero(await Recover(setting: false));
+
+            Assert.Equal(restores, ordinary["health"]!.GetValue<int>());
+            Assert.False(ordinary["conscious_at_zero_or_less"]!.GetValue<bool>());
+
+            var slowly = Hero(await Recover(setting: true));
+
+            Assert.True(slowly["health"]!.GetValue<int>() <= 0);
+            Assert.True(slowly["conscious_at_zero_or_less"]!.GetValue<bool>());
+        });
+
     /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
     /// reader — enough to open a fight for the tests that are about something else.

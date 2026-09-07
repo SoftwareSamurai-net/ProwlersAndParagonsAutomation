@@ -191,16 +191,67 @@ page one of the run and do not move the numbers:
 
 | Setting | Entry |
 |---|---|
-| `CloseRangePenalty` | `gritty_close_range` |
-| `TheDrop` | `gritty_the_drop` |
-| `FriendlyFire` | `gritty_friendly_fire` |
-| `HardTargets` | `gritty_hard_targets` |
-| `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other five — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost` and the
-initiative variant beside them — are applied.
+Both are the same rule, and they are listed because the **default** Gear Limit is not applied
+either. p.80 caps the Trait rank you can bring to bear *when using mundane equipment*, and there is
+no equipment in a fight here: an attack names a Trait and never an item, a combatant carries no
+gear, and there is no Weapon Bonus anywhere in this repository's rules data for a limit to bite on.
+So a raised limit could not honestly be applied before the default one, and neither is. Send
+`raised_gear_limit` if you like — page one will say the numbers do not carry it — and cap a
+sword-swinging character's rank yourself.
+
+**Every other gritty rule is applied**: `FatalDamage`, `ToughMinions`, `WoundPenalties`,
+`ActiveDefensesCost`, `HardTargets`, `close_range_penalty`, `the_drop`, `friendly_fire` and
+`slow_healing`, with the initiative variant beside them.
+
+**`slow_healing` is half a rule about the days after a fight, and page one of every run that takes
+it says which half the fight is carrying.** Inside a scene: nobody heals on regaining consciousness
+after a defeat, so `instant_recovery` brings a character round on the Health they went down with; a
+character in that condition **may be walking around at or below zero**, which the state reports and
+the turn order includes; and any damage at all puts them straight back down. Outside it, and named
+on the ledger rather than left silent: the daily healing rate by Toughness, the loss of the
+after-battle healing roll, and the Medicine Talent's once-a-week limit. Those are yours to keep
+track of between scenes — do not narrate a character healing here.
+
+**`friendly_fire` needs nothing from you.** Whether a target is "engaged in close combat or
+otherwise bunched up" is worked out from the range bands you already set: anyone at Close Range
+with the target who is not you is somebody a stray round can find. A ranged attack into that costs
+four dice, and **a shot that lands nothing sends a second attack, resolved for real** — the GM's
+random pick comes off the same seeded dice as everything else and the die face is on the ledger, so
+the choice is reproducible and auditable. That second attack is the same weapon at a different
+person: what you declared about the first shot — cover, all-out, charge, area, team, a weak point —
+was about that target and does not travel. Read its outcome off the ledger like any other attack;
+do not narrate the stray round as a miss.
+
+**`the_drop` needs you to say who has a weapon or Power aimed and ready.** Send `"ready": true` on
+a combatant and their effective Edge is doubled for the order of action, against everyone who has
+not — which is exactly p.79's rule, because an order only ever compares two characters at a time
+and two ready ones double alike. Nothing derives it: carrying a gun is a capability and having it
+levelled is a state, and p.79 gives you the final say over the whole rule in as many words. **The
+other half of the page is not applied and the ledger says so**: a shooter also has the drop on
+anyone closing to engage them, which is held against one opponent and not the rest, and one order
+of action cannot carry that. Keep track of it yourself, the same as a team attack's coordination.
+
+**`close_range_penalty` costs a dodger two dice against a ranged attack made from inside Close
+Range, and it works out on its own which attacks those are.** A Ranged Weapon is one by p.75's own
+row; a Power is one when its Ch.2 Range is `ranged`, which is read off the sheet. A fist or a sword
+never is. **The one thing it cannot see is a thrown weapon**, because a fight here has no equipment
+in it: send `"close_range_only": true` on the attack for the page's own exception — an ordinary
+thrown weapon or anything else that only works up close — and the dodger keeps their dice. Leave it
+off for a gun.
+
+**`hard_targets` needs you to say which combatants are hard.** Send `"hard_target": true` on a
+combatant — a machine, a vehicle, a thick inanimate object — and every **passive** defence of
+theirs answers at twice its rank while that setting is on. Nothing derives it: no character sheet
+says a character is a machine, and the same battlesuit is a vehicle in one game and a person in
+armour in another. An attacker may aim at the weak points instead by sending
+`"vulnerable_part": true` on the attack, which costs four dice and cancels the doubling for that
+one shot. Whether the thing is complex enough to *have* a weak point is your call, and the ledger
+line says so. p.80's advice that vehicle-scale weapons and the strongest characters should carry
+the Penetrating Pro is named on the ledger and **not applied**: it is about how a character is
+built, which is the other server's question.
 
 **No spend refuses by name any more, and that is a claim held to the engine.** Every `kind` either
 `spend_resolve` or `spend_adversity` accepts is resolved: `extra_dice`, `reroll`,
