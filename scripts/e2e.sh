@@ -705,6 +705,26 @@ fi
 echo ""
 echo "All $expected checks passed against the real site."
 
+# **A green run was the one arm still silent about the server, and silence here is a claim.** Every
+# failure arm above says whether the server outlived the drive; this one said nothing, so "all
+# checks passed" and "all checks passed and the server was already dead when the last verdict was
+# printed" produced the same output. The second is not a failure — every verdict printed stands,
+# and a check that could not reach the server does not pass — but it is an anomaly worth hearing
+# about *before* the twins below start failing to reach servers of their own. A `::warning::` and
+# not an `::error::`, deliberately: turning a passing run red here would be a claim about those
+# verdicts that nothing has measured.
+case "$server_state" in
+  *ALIVE*) ;;
+  *)
+    echo ""
+    echo "::warning::…but the server was $server_state. Every verdict above"
+    echo "::warning::stands and this is not counted as a failure. It is said because the same"
+    echo "::warning::shape one check earlier is CI run 34040527190, and because whatever took this"
+    echo "::warning::server may take the twins' servers next."
+    say_server_state "the drive against the real site"
+    ;;
+esac
+
 if [ "$real_only" -eq 1 ]; then
   cat <<'EOF'
 
