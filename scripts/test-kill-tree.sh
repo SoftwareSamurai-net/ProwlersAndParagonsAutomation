@@ -942,6 +942,100 @@ server_state_case() {
       ;;
   esac
 
+  # ----------------------------------------------------------------------------------------------
+  # **A wrong reading has to cost a wrong line, never a hung job.** `wait` on a live child blocks
+  # until that child exits, and the child here is a server nothing has stopped yet — so an
+  # aliveness test that reads a running server as gone does not make `capture_server_state` say
+  # the wrong thing, it makes it say nothing, for ever. Measured before `settled_dead` existed:
+  # inverting that test turned this script into an eleven-minute hang, and no CI log tells a hung
+  # step from a broken runner. It is the exact shape this file's own header warns about, one level
+  # in — a check that cannot fail is worthless, and a check that hangs is worse.
+  #
+  # **The lie goes to the seam and the fixture owns its own child, and both halves are necessary.**
+  # `server_is_live` is replaced rather than the file edited, so this is a fixture and not a
+  # mutation; and it runs in a shell of its own because bash blocks in `wait` only for *its own*
+  # children — asking a subshell to wait on this script's child returns 127 at once and would
+  # prove nothing. The control below is that the helper really did have a live child to block on.
+  local helper_out helper_pid
+
+  helper_out="$dir/lying-capture.out"
+
+  cat > "$dir/lying-capture.sh" <<'HELPER'
+#!/usr/bin/env bash
+# Drives capture_server_state with the one reading that used to hang it. SERVER_STATE in
+# scripts/test-kill-tree.sh is the only caller; see the comment there.
+set -uo pipefail
+. "$1/scripts/e2e/process.sh"
+
+# The seam, wrong the one way that costs: a running process reported as gone.
+server_is_live() { return 1; }
+
+sleep 120 &
+server_pid=$!
+server_port="$2"
+server_log=''
+
+# The control, read with the primitive rather than with the seam this has just replaced: `wait`
+# can only block on a child that is actually running.
+kill -0 "$server_pid" 2>/dev/null && echo "CONTROL the child was alive when it was asked about"
+
+capture_server_state
+echo "STATE $server_state"
+
+kill -9 "$server_pid" 2>/dev/null || true
+HELPER
+
+  bash "$dir/lying-capture.sh" "$root" "$(next_free_port 8918)" > "$helper_out" 2>&1 &
+  helper_pid=$!
+
+  deadline=$((SECONDS + 20))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    live "$helper_pid" || break
+    sleep 1
+  done
+
+  if live "$helper_pid"; then
+    kill_tree "$helper_pid" > /dev/null 2>&1 || true
+    stop_server
+    fail SERVER_STATE "[OUTCOME] capture_server_state never came back when the aliveness test read"\
+" a live server as gone. Unbounded, that branch reaches \`wait\`, which blocks until the child"\
+" exits — and the child is the server this harness has not stopped yet. See settled_dead in"\
+" scripts/e2e/process.sh, and read its bound: this arm also fires if the bound is too long to be"\
+" one."
+    return
+  fi
+
+  wait "$helper_pid" 2>/dev/null || true
+  out="$(cat "$helper_out")"
+
+  case "$out" in
+    *"CONTROL the child was alive"*) ;;
+    *)
+      stop_server
+      fail SERVER_STATE "[CONTROL] the helper had no live child when it called"\
+" capture_server_state, so \`wait\` had nothing to block on and coming back promptly proved"\
+" nothing at all: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *STATE*"ALREADY DEAD"*)
+      stop_server
+      fail SERVER_STATE "[OUTCOME] with the aliveness test wrong it declared a running process"\
+" dead — which it can only have done by reaching \`wait\` and being handed a status. A harness"\
+" that invents an exit status is worse than one that admits it has none: $out"
+      return
+      ;;
+    *STATE*UNREADABLE*) ;;
+    *)
+      stop_server
+      fail SERVER_STATE "[OUTCOME] with the aliveness test wrong it neither hung nor said so. Two"\
+" readings that contradict each other have to be reported as a contradiction: $out"
+      return
+      ;;
+  esac
+
   # **The block's `2>/dev/null` is for bash, not for the fixture.** A shell announces a background
   # job killed by a signal — `84609 Killed: 9  node …` — on its own stderr at the next command it
   # runs, which lands in the middle of this file's verdicts and reads like a failure. Redirecting
@@ -989,7 +1083,8 @@ server_state_case() {
   case "$out" in
     *"ALREADY DEAD"*"the runtime is gone"*)
       pass SERVER_STATE "a live server reads as alive and bound, a SIGKILLed one as dead with"\
-" exit status 137, and say_server_state quotes the log with the token redacted"
+" exit status 137, a live one misread as gone is answered in two seconds rather than waited on"\
+" for ever, and say_server_state quotes the log with the token redacted"
       ;;
     *)
       fail SERVER_STATE "[OUTCOME] say_server_state printed neither the state nor the log's last"\

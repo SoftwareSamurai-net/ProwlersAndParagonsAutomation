@@ -77,13 +77,56 @@ server_log=''
 # printing, called at the moment the drive returns, whatever the verdicts were.
 server_state=''
 
-# capture_server_state — read the running server's fate into `server_state`.
+# server_is_live <pid> — is that process still in the table?
 #
 # **`kill -0` and not `ps`**: a bash background job that has exited is reaped by bash's own SIGCHLD
-# handler, so its pid is gone from the table while bash still remembers the status. That is why the
-# exit status comes from `wait` and why `wait` is only reached once `kill -0` has said the process
-# is not there — waiting on a live one would block until the server was stopped, which is exactly
-# the information this is trying to preserve.
+# handler, so its pid is gone from the table while bash still remembers the status. Measured on
+# bash 3.2: a background job that exited a second ago answers `kill -0` with a failure and `wait`
+# with its real status, so the two together read a dead server correctly.
+#
+# **A function rather than an inline test because it is a seam**, the way `children_of` reads
+# `$proc_root` rather than `/proc`. `scripts/test-kill-tree.sh` replaces it with one that lies —
+# says *gone* about a process that is running — to drive the branch below with a wrong reading,
+# which is the only way to prove that branch cannot hang. Nothing in a real run replaces it.
+server_is_live() {
+  kill -0 "$1" 2>/dev/null
+}
+
+# settled_dead <pid> — wait, *bounded*, for a pid to genuinely leave the process table. 0 if it
+# has, 1 if it is still there when the bound runs out.
+#
+# **This is what stops a wrong reading turning a failed run into a hung CI job**, and it is not
+# hypothetical: inverting `server_is_live`'s test so that a live server takes the dead branch below
+# made `scripts/test-kill-tree.sh` block for eleven minutes and counting, because `wait` on a live
+# child blocks until that child exits — and the child here is a server nothing has stopped yet. A
+# harness that hangs instead of failing is the shape this repository's own guard rules warn about:
+# a hung job is read as an infrastructure fault, and it costs the whole job's time before anybody
+# sees a line of output.
+#
+# **`kill -0` here, deliberately, and not `server_is_live`.** This is a bound and not a second
+# opinion — the loop returns within `server_state_settle_tries` tenths of a second whatever either
+# test says — but writing it against the raw primitive is also what lets the fixture lie to
+# `server_is_live` alone and watch this catch it.
+settled_dead() {
+  local tries=0
+
+  while kill -0 "$1" 2>/dev/null; do
+    if [ "$tries" -ge "${server_state_settle_tries:-20}" ]; then
+      return 1
+    fi
+
+    tries=$((tries + 1))
+    sleep 0.1
+  done
+
+  return 0
+}
+
+# capture_server_state — read the running server's fate into `server_state`.
+#
+# **`wait` is reached only once the pid has been *observed* gone**, first by `server_is_live` and
+# then by `settled_dead`'s bounded confirmation — see both above. Waiting on a live one would block
+# until the server was stopped, which is exactly the information this is trying to preserve.
 #
 # **A status of 127 is bash saying it cannot tell you**, not wrangler's own: `wait` answers 127 for
 # a pid that is not a job of this shell. Said in the message rather than smoothed over, because a
@@ -99,8 +142,14 @@ capture_server_state() {
     return 0
   fi
 
-  if kill -0 "$server_pid" 2>/dev/null; then
+  if server_is_live "$server_pid"; then
     server_state="still ALIVE (pid $server_pid)"
+  elif ! settled_dead "$server_pid"; then
+    # The two readings disagree, so the honest answer is that neither can be trusted — and saying
+    # so costs two seconds, where taking the exit status anyway costs the rest of the job.
+    server_state="UNREADABLE (pid $server_pid is still in the process table although this harness"\
+" read it as gone, which is a bug in capture_server_state; no exit status was taken, because"\
+" waiting on a live child would block until the server was stopped)"
   else
     local status=0
     wait "$server_pid" 2>/dev/null || status=$?
