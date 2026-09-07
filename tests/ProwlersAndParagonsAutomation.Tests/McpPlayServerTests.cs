@@ -768,6 +768,281 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A spend's <c>narration</c> crosses the wire, and what it bought comes back on the public
+    /// state.</b>
+    ///
+    /// <para>p.85's three own purchases each take the GM's own words, because the mechanical half of
+    /// every one of them is a point leaving the pool and the rest is the fiction. A reader that had
+    /// no such field would drop it, and the spend would be refused for want of a thing the caller
+    /// had sent — which is the shape the team flag failed in, and the reason
+    /// <c>PLAY-POLICY.md</c>'s spelling guard cannot catch it: that guard is scoped to <em>tool
+    /// arguments</em>, and the fields of an intent are not among them.</para>
+    ///
+    /// <para>So the words are required to come back on the ledger line, which says the field
+    /// arrived, and <c>flaw_suppressed</c> is required to come back on the combatant, which is the
+    /// half a ledger line cannot show: this purchase leaves state behind, and a client deciding
+    /// whether to buy a second one reads it there.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASuppressedFlawsNarrationCrossesTheWireAndComesBackOnTheState() =>
+        await WithClient(async client =>
+        {
+            var encounter = (await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 81
+            }))["encounter_id"]!.GetValue<string>();
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "suppress_flaw",
+                    ["narration"] = "a hot temper"
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            var added = turn["added"]!.AsArray();
+
+            Assert.Contains(added, l => string.Equals(
+                l!["rule"]!.GetValue<string>(), "adversity_spend_suppress_flaw", StringComparison.Ordinal));
+
+            // The field arrived: without it the spend is refused for naming no Flaw at all.
+            Assert.Contains(added, l =>
+                l!["text"]!.GetValue<string>().Contains("a hot temper", StringComparison.Ordinal));
+
+            var villain = turn["state"]!["combatants"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "villain", StringComparison.Ordinal));
+
+            Assert.Equal("a hot temper", villain!["flaw_suppressed"]?.GetValue<string>());
+        });
+
+    /// <summary>
+    /// <b>A misfortune crosses the wire, and what comes back is the purchase and the GM's words and
+    /// nothing else.</b>
+    ///
+    /// <para>p.85 gives a misfortune no roll, no threshold and no duration, so this is the one spend
+    /// whose whole answer is a pool that fell and a sentence. Both halves are required here: the
+    /// pool on the public state has to have moved, or the call did nothing; and the words have to be
+    /// on the line, or the <c>narration</c> field was dropped and the spend was refused for naming
+    /// nothing — which is what a client would see as "the server ignored me".</para>
+    ///
+    /// <para>It needs no <c>actor</c>, which is asserted by sending none: p.85 throws a misfortune
+    /// at the Heroes as a side, not on behalf of a character.</para>
+    /// </summary>
+    [Fact]
+    public async Task AMisfortunesNarrationCrossesTheWireAndCostsThePool() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 81
+            });
+
+            var encounter = opened["encounter_id"]!.GetValue<string>();
+            var before = opened["adversity"]!.GetValue<int>();
+
+            // The control: there is a pool for the spend to come out of.
+            Assert.True(before > 0, $"the fight opened on {before} Adversity");
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["spend"] = "misfortune",
+                    ["narration"] = "the fire escape gives way under them"
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            Assert.Contains(turn["added"]!.AsArray(), l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "adversity_spend_misfortune", StringComparison.Ordinal)
+                && l["text"]!.GetValue<string>()
+                    .Contains("the fire escape gives way under them", StringComparison.Ordinal));
+
+            Assert.Equal(before - 1, turn["state"]!["adversity"]!.GetValue<int>());
+        });
+
+    /// <summary>
+    /// <b>An act of villainy crosses the wire, and the story's one act comes back on the public
+    /// state.</b>
+    ///
+    /// <para>The narration is what the point buys — p.85's act is "anything necessary to advance
+    /// the story" and this server has no story — so a dropped field would leave the spend refused
+    /// for naming nothing. The <c>villainy</c> list is the other half: it is what refuses the
+    /// second purchase, and a client that cannot see it has no way to know the story's one act is
+    /// gone until it asks for another and is told.</para>
+    ///
+    /// <para>The second purchase is driven here too, because "once per story" is the only limit on
+    /// this spend and a limit nobody drives over the wire is a limit that has only been read.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnActOfVillainyCrossesTheWireAndTheStorysOneActComesBackOnTheState() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["challengeLevel"] = 3,
+                ["seed"] = 81
+            });
+
+            var encounter = opened["encounter_id"]!.GetValue<string>();
+            var before = opened["adversity"]!.GetValue<int>();
+
+            // The control: enough in the pool for two, so the second refusal below is the limit's.
+            Assert.True(before >= 2, $"the fight opened on {before} Adversity");
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "villainy",
+                    ["narration"] = "throws the switch and floods the lower deck"
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            Assert.Contains(turn["added"]!.AsArray(), l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "adversity_spend_villainy", StringComparison.Ordinal)
+                && l["text"]!.GetValue<string>()
+                    .Contains("throws the switch and floods the lower deck", StringComparison.Ordinal));
+
+            Assert.Equal(before - 1, turn["state"]!["adversity"]!.GetValue<int>());
+
+            Assert.Equal(
+                ["villain"],
+                turn["state"]!["villainy"]!.AsArray().Select(v => v!.GetValue<string>()));
+
+            // And the story's one act is gone: the second is refused, with nothing spent.
+            var again = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "villainy",
+                    ["narration"] = "grabs a hostage"
+                }
+            });
+
+            Assert.Contains(again["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>()
+                    .Contains("act of villainy per story", StringComparison.Ordinal));
+
+            Assert.Equal(before - 1, again["state"]!["adversity"]!.GetValue<int>());
+        });
+
+    /// <summary>
+    /// <b>What the wire does with a <c>narration</c> that says nothing, one that says a great deal,
+    /// and one sent where the page has nothing for it to buy.</b>
+    ///
+    /// <para>The three answers are different and none of them was pinned. An <b>empty</b> one is a
+    /// spend that does not say what it bought and is refused on the ledger with nothing spent — the
+    /// same answer a missing field gets, which is the honest one, because a caller who sent
+    /// <c>""</c> has said exactly as much as a caller who sent nothing. A <b>long</b> one is carried
+    /// whole: the GM's sentence is the record and truncating it would leave a line that reads as
+    /// though they had stopped mid-thought, so there is no cap and this says so rather than leaving
+    /// the first person to send a paragraph to find out. And one on a <b>Resolve</b> spend is
+    /// <em>ignored</em>, which is what every other unknown field on every other intent gets — but a
+    /// field that is silently dropped is the failure the team flag was, so it is pinned here and
+    /// said in <c>PLAY-POLICY.md</c> rather than left for a model to assume its words were
+    /// recorded.</para>
+    /// </summary>
+    [Fact]
+    public async Task ANarrationIsRefusedWhenEmptyCarriedWholeWhenLongAndIgnoredOnAResolveSpend() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["challengeLevel"] = 3,
+                ["seed"] = 81
+            });
+
+            var encounter = opened["encounter_id"]!.GetValue<string>();
+            var before = opened["adversity"]!.GetValue<int>();
+
+            // The control: there is a pool, so a refusal below is the narration's.
+            Assert.True(before >= 2, $"the fight opened on {before} Adversity");
+
+            var empty = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["spend"] = "misfortune",
+                    ["narration"] = ""
+                }
+            });
+
+            // A refusal is an answer and not a transport error, and it spends nothing.
+            Assert.True(empty["ok"]!.GetValue<bool>());
+            Assert.Equal(before, empty["state"]!["adversity"]!.GetValue<int>());
+            Assert.Contains(empty["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains("does not say what it is", StringComparison.Ordinal));
+
+            // A long one is carried whole, not capped and not truncated.
+            var long_ = string.Join(" ", Enumerable.Repeat("the scaffolding shifts under them", 200));
+
+            var wordy = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["spend"] = "misfortune",
+                    ["narration"] = long_
+                }
+            });
+
+            Assert.True(wordy["ok"]!.GetValue<bool>());
+            Assert.Equal(before - 1, wordy["state"]!["adversity"]!.GetValue<int>());
+            Assert.Contains(wordy["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains(long_, StringComparison.Ordinal));
+
+            // And one sent on a Resolve purchase is ignored: the purchase happens, and the words
+            // appear nowhere in the answer — not on a line, and not on the state.
+            const string Unheard = "he grits his teeth and goes first";
+
+            var seized = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_resolve",
+                    ["actor"] = "hero",
+                    ["spend"] = "seize_initiative",
+                    ["narration"] = Unheard
+                }
+            });
+
+            Assert.True(seized["ok"]!.GetValue<bool>());
+
+            // The control: the purchase itself went through, so "the words are absent" is not
+            // "nothing happened".
+            Assert.Contains(seized["state"]!["seized"]!.AsArray(), s =>
+                string.Equals(s!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            Assert.DoesNotContain(Unheard, seized.ToJsonString(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
     /// <b>A range class is named, never numbered.</b>
     ///
     /// <para><c>Enum.TryParse</c> accepts the numeral of a member — and for a plain enum it accepts

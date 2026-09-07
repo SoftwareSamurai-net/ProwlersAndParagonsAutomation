@@ -61,7 +61,8 @@ public sealed class Combatant
         IReadOnlyList<string> defences,
         string? defeatedByEffect,
         bool dying,
-        int instantRecoveriesUsed)
+        int instantRecoveriesUsed,
+        string? suppressedFlaw)
     {
         Id = id;
         Name = name;
@@ -77,6 +78,7 @@ public sealed class Combatant
         DefeatedByEffect = defeatedByEffect;
         Dying = dying;
         InstantRecoveriesUsed = instantRecoveriesUsed;
+        SuppressedFlaw = suppressedFlaw;
     }
 
     /// <summary>The side the book's own fights are written from: the player characters'.</summary>
@@ -169,6 +171,26 @@ public sealed class Combatant
     /// <summary>How many instant recoveries this combatant has taken, against p.76's one a scene.</summary>
     public int InstantRecoveriesUsed { get; }
 
+    /// <summary>
+    /// The Flaw the GM has bought this character out of for the rest of the scene (Ch.5 p.85), in
+    /// the GM's own words, or null.
+    ///
+    /// <para><b>It is the whole of what that purchase leaves behind, and it is read rather than
+    /// kept for the look of it.</b> Nothing in <c>play/</c> makes a Flaw bite — an NPC's Flaws
+    /// "come into play whenever the opportunity presents itself", which is the GM's judgement and
+    /// not a roll — so the suppression itself is narration. What is not narration is the printed
+    /// limit beside it: "no character can benefit from this more than once per issue", so a second
+    /// purchase against a character who carries this is refused, and a reader of the public state
+    /// sees which weakness was bought off and whose.</para>
+    ///
+    /// <para><b>The duration needs no clock.</b> p.85 gives the suppression "the rest of the
+    /// scene", and an <see cref="Encounter"/> is one scene — <see cref="Encounter.Step"/> turns
+    /// pages and there is nothing in it that ends a scene — so it is carried to the end of the
+    /// fight and never expires inside one. That reading is recorded in
+    /// <c>docs/guide/play-engine.md</c>.</para>
+    /// </summary>
+    public string? SuppressedFlaw { get; }
+
     /// <summary>Whether this combatant holds Resolve at all — true for a Hero and nobody else.</summary>
     public bool HoldsResolve => Kind == CombatantKind.Hero;
 
@@ -230,12 +252,12 @@ public sealed class Combatant
     /// <summary>This combatant with a different Health. Nothing else moves.</summary>
     public Combatant WithHealth(int health) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
-            DefeatedByEffect, Dying, InstantRecoveriesUsed);
+            DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw);
 
     /// <summary>This combatant bleeding out, or steadied. p.79's clock, started and stopped.</summary>
     public Combatant Bleeding(bool dying) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
-            Defences, DefeatedByEffect, dying, InstantRecoveriesUsed);
+            Defences, DefeatedByEffect, dying, InstantRecoveriesUsed, SuppressedFlaw);
 
     /// <summary>
     /// This combatant brought round by p.76's instant recovery: on their feet at
@@ -243,7 +265,7 @@ public sealed class Combatant
     /// </summary>
     public Combatant Recovered(int health) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
-            defeatedByEffect: null, Dying, InstantRecoveriesUsed + 1);
+            defeatedByEffect: null, Dying, InstantRecoveriesUsed + 1, SuppressedFlaw);
 
     /// <summary>
     /// This combatant put out of the fight by <paramref name="effect"/> — p.76's defeat by special
@@ -255,7 +277,32 @@ public sealed class Combatant
 
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
-            Defences, effect, Dying, InstantRecoveriesUsed);
+            Defences, effect, Dying, InstantRecoveriesUsed, SuppressedFlaw);
+    }
+
+    /// <summary>
+    /// This combatant with <paramref name="flaw"/> bought off them for the rest of the scene — Ch.5
+    /// p.85's <c>adversity_spend_suppress_flaw</c>.
+    ///
+    /// <para>A throw rather than a silent overwrite where one is already suppressed: the page allows
+    /// one per character per issue, so a second is a rule the engine refuses on the ledger before it
+    /// ever reaches here, and reaching here anyway would be a bug rather than a request.</para>
+    /// </summary>
+    public Combatant Suppressing(string flaw)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(flaw);
+
+        if (SuppressedFlaw is { } already)
+        {
+            throw new InvalidOperationException(
+                $"{Name} already has {already} suppressed, and p.85 allows one per character per "
+                + "issue. The engine refuses the second purchase on the ledger; this is reached "
+                + "only by a caller that has gone round it.");
+        }
+
+        return new Combatant(
+            Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
+            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, flaw);
     }
 
     /// <summary>
@@ -283,7 +330,7 @@ public sealed class Combatant
 
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks,
-            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed);
+            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw);
     }
 
     /// <summary>This Minion group with fewer bodies in it.</summary>
@@ -291,7 +338,7 @@ public sealed class Combatant
         Kind == CombatantKind.MinionGroup
             ? new Combatant(
                 Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, Math.Max(0, groupSize),
-                TraitRanks, Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed)
+                TraitRanks, Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw)
             : throw new InvalidOperationException($"{Name} is a {Kind}, not a group of Minions.");
 
     private static Combatant Build(
@@ -308,6 +355,6 @@ public sealed class Combatant
             id, name, kind, side, edge, health, health, resolve, groupSize,
             new Dictionary<string, int>(traitRanks, StringComparer.Ordinal),
             [.. defences],
-            defeatedByEffect: null, dying: false, instantRecoveriesUsed: 0);
+            defeatedByEffect: null, dying: false, instantRecoveriesUsed: 0, suppressedFlaw: null);
     }
 }

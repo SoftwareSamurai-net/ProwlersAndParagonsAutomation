@@ -90,18 +90,14 @@ public sealed partial class Encounter
     /// and quietly implemented since, fails — and drives every purchase through <see cref="Step"/> to
     /// be sure the ones listed really do refuse and the ones not listed really do not.</para>
     ///
-    /// <para>Three of them are the situational modifiers on p.75. Nothing on an <see cref="Attack"/>
-    /// can express cover, relative size or bad light, so there is nothing to apply them to; they are
-    /// listed rather than silently absent because a reader of a balance run needs to know the figure
-    /// was measured in clear air, in the open, against somebody the same size.</para>
+    /// <para>What is left on it is the three situational modifiers on p.75. Nothing on an
+    /// <see cref="Attack"/> can express cover, relative size or bad light, so there is nothing to
+    /// apply them to; they are listed rather than silently absent because a reader of a balance run
+    /// needs to know the figure was measured in clear air, in the open, against somebody the same
+    /// size.</para>
     /// </summary>
     public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        // The GM's three, Ch.5 p.85.
-        "adversity_spend_suppress_flaw",
-        "adversity_spend_misfortune",
-        "adversity_spend_villainy",
-
         // p.75's three situational modifiers: no intent can express any of them.
         "modifier_cover",
         "modifier_size",
@@ -180,6 +176,7 @@ public sealed partial class Encounter
             LastAttack = null,
             LosesNextTurn = [],
             TeamAttacked = [],
+            Villainy = [],
             Table = Table,
             Ledger = new Ledger(lines),
             Over = false

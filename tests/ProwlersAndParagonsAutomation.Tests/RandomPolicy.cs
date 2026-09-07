@@ -67,8 +67,7 @@ internal sealed class RandomPolicy : IPolicy
             6 => new GrappleIntent(actor.Id, target, (GrappleMove)Pick(3)),
             7 => new BreakFree(actor.Id, rolled, Threshold: Pick(4)),
             8 => new Stabilise(actor.Id, target),
-            _ => new SpendAdversity(
-                actor.Id, (AdversitySpend)Pick(4), Points: 1 + Pick(2), Target: target)
+            _ => Adversity(actor, target)
         };
 
         Emitted.Add(intent.GetType().Name);
@@ -77,6 +76,27 @@ internal sealed class RandomPolicy : IPolicy
 
     /// <summary>Every Resolve purchase this policy has emitted, for a fixture's positive control.</summary>
     public HashSet<ResolveSpend> Purchases { get; } = [];
+
+    /// <summary>Every Adversity purchase this policy has emitted, for the same control.</summary>
+    public HashSet<AdversitySpend> GmPurchases { get; } = [];
+
+    // <b>Cycled, and half of them carry the GM's words.</b> p.85's three own purchases are refused
+    // unless the spend says what the point bought, so a generator that never sent a narration would
+    // drive the refusal branch of all three and none of the branches that change the state — which
+    // is the half the purity property is about. Its own counter, for the reason AfterRoll has one:
+    // sharing one makes every other call advance it and quietly narrows the coverage.
+    private int _nextGmPurchase;
+
+    private SpendAdversity Adversity(Combatant actor, string target)
+    {
+        var kind = (AdversitySpend)(_nextGmPurchase++ % Enum.GetValues<AdversitySpend>().Length);
+
+        GmPurchases.Add(kind);
+
+        return new SpendAdversity(
+            actor.Id, kind, Points: 1 + Pick(2), Target: target,
+            Narration: Coin() ? "a hot temper" : null);
+    }
 
     /// <inheritdoc/>
     public Intent? AfterRoll(EncounterState state, Combatant actor)
