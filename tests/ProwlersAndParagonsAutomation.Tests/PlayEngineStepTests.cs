@@ -3335,9 +3335,9 @@ public sealed class PlayEngineStepTests
             && l.Text.Contains("full grab", StringComparison.Ordinal));
 
         Assert.Null(step.State["held"].Holding);
-        Assert.Equal("the sword", step.State["holder"].Holding!.Name);
-        Assert.Equal(step.State.Page, step.State["holder"].Holding!.WonOnPage);
-        Assert.False(step.State["holder"].Holding!.Used);
+        Assert.Equal("the sword", step.State["holder"].Holding?.Name);
+        Assert.Equal(step.State.Page, step.State["holder"].Holding?.WonOnPage);
+        Assert.Equal(false, step.State["holder"].Holding?.Used);
 
         // And the half that is the GM's, said out loud rather than silently not done.
         Assert.Contains(step.Added, l =>
@@ -3420,8 +3420,8 @@ public sealed class PlayEngineStepTests
 
         var kept = AfterAPageTurn(useIt: true);
 
-        Assert.Equal("the sword", kept.State["holder"].Holding!.Name);
-        Assert.True(kept.State["holder"].Holding!.Used);
+        Assert.Equal("the sword", kept.State["holder"].Holding?.Name);
+        Assert.Equal(true, kept.State["holder"].Holding?.Used);
         Assert.DoesNotContain(kept.Added, l =>
             l.Text.Contains("tossed aside as the page turns", StringComparison.Ordinal));
     }
@@ -3442,7 +3442,7 @@ public sealed class PlayEngineStepTests
 
         // The control: the grab really landed, so the page turn below is acting on an item somebody
         // has rather than on an empty hand.
-        Assert.Equal("the sword", state["holder"].Holding!.Name);
+        Assert.Equal("the sword", state["holder"].Holding?.Name);
 
         while (state.Current is { } acting)
             state = encounter.Step(state, new EndTurn(acting.Id)).State;
@@ -3471,7 +3471,7 @@ public sealed class PlayEngineStepTests
         // The control: the faces this fixture scripted are the faces the engine took, and the grab
         // really landed full.
         Assert.Equal(0, dice.Remaining);
-        Assert.Equal("the sword", state["holder"].Holding!.Name);
+        Assert.Equal("the sword", state["holder"].Holding?.Name);
 
         return state;
     }
@@ -3571,7 +3571,7 @@ public sealed class PlayEngineStepTests
             string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
             && l.Text.Contains("defends with", StringComparison.Ordinal));
 
-        Assert.True(allowed.State["holder"].Holding!.Used);
+        Assert.Equal(true, allowed.State["holder"].Holding?.Used);
     }
 
     // ── Defeat ───────────────────────────────────────────────────────────────
