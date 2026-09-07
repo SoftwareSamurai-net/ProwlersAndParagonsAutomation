@@ -4,9 +4,12 @@
 #   ./scripts/test-kill-tree.sh                  # every case, including a real wrangler
 #   ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic ones only. NOT a full run
 #
-# It also covers the other thing `scripts/e2e/process.sh` owns — `redacted_tail`, which keeps a
-# raw sign-in token out of the log tail a failing `start_server` prints — for the reason that file
-# is separate at all: it is the only part of this harness's shell that can be sourced and tested.
+# It also covers the other two things `scripts/e2e/process.sh` owns, for the reason that file is
+# separate at all — it is the only part of this harness's shell that can be sourced and tested:
+# `redacted_tail`, which keeps a raw sign-in token out of the log tail a failing `start_server`
+# prints, and `capture_server_state`/`say_server_state`, which say whether the server outlived the
+# drive. The second pair exists because CI run 34040527190 reported eight refused connections and
+# not one word about the server that had died underneath them.
 #
 # ------------------------------------------------------------------------------------------------
 # WHY THIS EXISTS, AND WHY AN OUTCOME CHECK WAS NOT ENOUGH.
@@ -30,7 +33,7 @@
 # evidence of anything.
 #
 # ------------------------------------------------------------------------------------------------
-# WHAT IT THEN FOUND, WHICH IS WHY THERE ARE SEVEN CASES AND NOT FOUR.
+# WHAT IT THEN FOUND, WHICH IS WHY THERE ARE EIGHT CASES AND NOT FOUR.
 #
 # The first CI run with this step in it — `33949251306`, `ubuntu-latest` — went red exactly where
 # it was pointed:
@@ -82,7 +85,7 @@
 # `docs/guide/testing.md` states it for `./scripts/e2e.sh`: a script that reports *verdicts*
 # rather than a test count cannot be totalled with four suites' thousands without making the
 # total meaningless, and a missing count there has to be an error rather than a zero. This one
-# reports seven verdicts, so it is its own step in `build.yml` and prints its own summary line.
+# reports eight verdicts, so it is its own step in `build.yml` and prints its own summary line.
 
 set -euo pipefail
 
@@ -842,6 +845,255 @@ redaction_case() {
 }
 
 # ------------------------------------------------------------------------------------------------
+# Case 8 — the third thing `scripts/e2e/process.sh` owns: saying whether the server outlived the
+# drive.
+#
+# **CI run `34040527190` is why it exists.** `wrangler pages dev` died in the middle of a
+# nine-check drive; the harness printed one `[OUTCOME]` timeout and seven `[HARNESS]` refused
+# connections and not one word about the server, because `scripts/e2e.sh` called `stop_server`
+# before anything asked whether there was still a server to stop. Afterwards there is nothing to
+# ask: the tree is killed and the port released.
+#
+# **The positive control comes first and is the whole of the value here**, for the reason this file
+# repeats: "it said ALREADY DEAD" is satisfied by a function that always says that, and by a
+# fixture that never started. So this asserts the live reading against a process that is genuinely
+# running and genuinely bound, *before* it asserts the dead one — and the two readings have to
+# differ, which a constant cannot do.
+#
+# **`SIGKILL` and an exit status of 137, deliberately.** 128+9 is what `wait` reports for a killed
+# child on any POSIX shell, and it is the status the Linux OOM killer leaves behind — which is one
+# of the few hypotheses a reader of the CI log could act on. A function that reported "dead" and
+# dropped the status would pass a weaker version of this check.
+server_state_case() {
+  local dir port log before after out
+
+  dir="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$dir'" RETURN
+
+  write_listener "$dir"
+  log="$dir/server.log"
+  port="$(next_free_port 8908)"
+
+  # The log a failing drive would quote, with a sign-in token in it — `say_server_state` has to
+  # reach `redacted_tail` and not `tail`, and a fixture with no token in it cannot tell the two
+  # apart.
+  {
+    echo "[wrangler:info] Ready on http://127.0.0.1:$port"
+    echo "[wrangler:info] GET /signin?t=uNREDACTEDtok3n 302 Found (4ms)"
+    echo "[wrangler:err] the runtime is gone"
+  } > "$log"
+
+  node "$dir/listener.mjs" "$port" >> "$log" 2>&1 &
+  server_pid=$!
+  server_port="$port"
+  server_log="$log"
+
+  local pid="$server_pid"
+  local deadline=$((SECONDS + 20))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    port_in_use "$port" && break
+    sleep 1
+  done
+
+  if ! live "$pid" || ! port_in_use "$port"; then
+    stop_server
+    fail SERVER_STATE "[CONTROL] the fixture never came up (pid $pid alive: $(live "$pid" && echo\
+ yes || echo no), port $port listening: $(port_in_use "$port" && echo yes || echo no)), so a"\
+" reading of 'dead' below would have been right by accident."
+    return
+  fi
+
+  capture_server_state
+  before="$server_state"
+
+  case "$before" in
+    *ALIVE*"still listening on port $port"*) ;;
+    *)
+      stop_server
+      fail SERVER_STATE "[CONTROL] a running, bound server read as: $before. Every assertion"\
+" below is about telling that state from a dead one, and this one cannot report it."
+      return
+      ;;
+  esac
+
+  # **The quiet branch, and it is an assertion rather than a nicety.** Most failures here are a
+  # check going red against a healthy server — a twin's whole purpose — and forty lines of a
+  # request log under each one buries the verdict. So a live server has to be *said* and its log
+  # *named* without being dumped.
+  out="$(say_server_state "the drive" 2>&1)"
+
+  case "$out" in
+    *"the runtime is gone"*)
+      stop_server
+      fail SERVER_STATE "[OUTCOME] say_server_state dumped the server's log while the server was"\
+" still alive, which buries every twin's verdict under a request log: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *ALIVE*"$log"*) ;;
+    *)
+      stop_server
+      fail SERVER_STATE "[OUTCOME] with the server alive it printed neither the state nor the path"\
+" of the log a reader would open: $out"
+      return
+      ;;
+  esac
+
+  # ----------------------------------------------------------------------------------------------
+  # **A wrong reading has to cost a wrong line, never a hung job.** `wait` on a live child blocks
+  # until that child exits, and the child here is a server nothing has stopped yet — so an
+  # aliveness test that reads a running server as gone does not make `capture_server_state` say
+  # the wrong thing, it makes it say nothing, for ever. Measured before `settled_dead` existed:
+  # inverting that test turned this script into an eleven-minute hang, and no CI log tells a hung
+  # step from a broken runner. It is the exact shape this file's own header warns about, one level
+  # in — a check that cannot fail is worthless, and a check that hangs is worse.
+  #
+  # **The lie goes to the seam and the fixture owns its own child, and both halves are necessary.**
+  # `server_is_live` is replaced rather than the file edited, so this is a fixture and not a
+  # mutation; and it runs in a shell of its own because bash blocks in `wait` only for *its own*
+  # children — asking a subshell to wait on this script's child returns 127 at once and would
+  # prove nothing. The control below is that the helper really did have a live child to block on.
+  local helper_out helper_pid
+
+  helper_out="$dir/lying-capture.out"
+
+  cat > "$dir/lying-capture.sh" <<'HELPER'
+#!/usr/bin/env bash
+# Drives capture_server_state with the one reading that used to hang it. SERVER_STATE in
+# scripts/test-kill-tree.sh is the only caller; see the comment there.
+set -uo pipefail
+. "$1/scripts/e2e/process.sh"
+
+# The seam, wrong the one way that costs: a running process reported as gone.
+server_is_live() { return 1; }
+
+sleep 120 &
+server_pid=$!
+server_port="$2"
+server_log=''
+
+# The control, read with the primitive rather than with the seam this has just replaced: `wait`
+# can only block on a child that is actually running.
+kill -0 "$server_pid" 2>/dev/null && echo "CONTROL the child was alive when it was asked about"
+
+capture_server_state
+echo "STATE $server_state"
+
+kill -9 "$server_pid" 2>/dev/null || true
+HELPER
+
+  bash "$dir/lying-capture.sh" "$root" "$(next_free_port 8918)" > "$helper_out" 2>&1 &
+  helper_pid=$!
+
+  deadline=$((SECONDS + 20))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    live "$helper_pid" || break
+    sleep 1
+  done
+
+  if live "$helper_pid"; then
+    kill_tree "$helper_pid" > /dev/null 2>&1 || true
+    stop_server
+    fail SERVER_STATE "[OUTCOME] capture_server_state never came back when the aliveness test read"\
+" a live server as gone. Unbounded, that branch reaches \`wait\`, which blocks until the child"\
+" exits — and the child is the server this harness has not stopped yet. See settled_dead in"\
+" scripts/e2e/process.sh, and read its bound: this arm also fires if the bound is too long to be"\
+" one."
+    return
+  fi
+
+  wait "$helper_pid" 2>/dev/null || true
+  out="$(cat "$helper_out")"
+
+  case "$out" in
+    *"CONTROL the child was alive"*) ;;
+    *)
+      stop_server
+      fail SERVER_STATE "[CONTROL] the helper had no live child when it called"\
+" capture_server_state, so \`wait\` had nothing to block on and coming back promptly proved"\
+" nothing at all: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *STATE*"ALREADY DEAD"*)
+      stop_server
+      fail SERVER_STATE "[OUTCOME] with the aliveness test wrong it declared a running process"\
+" dead — which it can only have done by reaching \`wait\` and being handed a status. A harness"\
+" that invents an exit status is worse than one that admits it has none: $out"
+      return
+      ;;
+    *STATE*UNREADABLE*) ;;
+    *)
+      stop_server
+      fail SERVER_STATE "[OUTCOME] with the aliveness test wrong it neither hung nor said so. Two"\
+" readings that contradict each other have to be reported as a contradiction: $out"
+      return
+      ;;
+  esac
+
+  # **The block's `2>/dev/null` is for bash, not for the fixture.** A shell announces a background
+  # job killed by a signal — `84609 Killed: 9  node …` — on its own stderr at the next command it
+  # runs, which lands in the middle of this file's verdicts and reads like a failure. Redirecting
+  # the *kill and the settle loop* is what catches it; redirecting the `wait` does not, because by
+  # then the shell has already said it.
+  {
+    kill -9 "$pid" 2>/dev/null || true
+
+    deadline=$((SECONDS + 20))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+      live "$pid" || break
+      sleep 1
+    done
+  } 2>/dev/null
+
+  capture_server_state
+  after="$server_state"
+
+  if [ "$before" = "$after" ]; then
+    fail SERVER_STATE "[OUTCOME] the reading did not change when the server was killed — both"\
+" times: $after. A constant cannot report a server death."
+    return
+  fi
+
+  case "$after" in
+    *"ALREADY DEAD"*"exit status 137"*) ;;
+    *)
+      fail SERVER_STATE "[OUTCOME] a server killed with SIGKILL read as: $after. It has to say it"\
+" is dead and carry the exit status, which is the only part a reader can act on — 137 is what the"\
+" OOM killer leaves."
+      return
+      ;;
+  esac
+
+  out="$(say_server_state "the drive" 2>&1)"
+
+  case "$out" in
+    *"uNREDACTEDtok3n"*)
+      fail SERVER_STATE "[OUTCOME] say_server_state printed a raw sign-in token out of the server"\
+" log. It has to go through redacted_tail — see its comment: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *"ALREADY DEAD"*"the runtime is gone"*)
+      pass SERVER_STATE "a live server reads as alive and bound, a SIGKILLed one as dead with"\
+" exit status 137, a live one misread as gone is answered in two seconds rather than waited on"\
+" for ever, and say_server_state quotes the log with the token redacted"
+      ;;
+    *)
+      fail SERVER_STATE "[OUTCOME] say_server_state printed neither the state nor the log's last"\
+" words, which is the whole of what run 34040527190 was missing: $out"
+      ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------------------------
 
 echo "=== kill_tree, proved by reading the pids ========================================"
 echo ""
@@ -852,6 +1104,7 @@ synthetic_case
 respawning_case
 orphan_case
 redaction_case
+server_state_case
 
 if [ "$skip_wrangler" -eq 1 ]; then
   echo ""
