@@ -195,9 +195,14 @@ public sealed class PlayTools
         [Description("The seed the dice are drawn from. The same seed gives the same fight. 0 by default.")]
         int? seed = null,
         [Description("The range class the fight opens in: close, distant or extreme. Close by default.")]
-        string? openingRange = null)
+        string? openingRange = null,
+        [Description(
+            "What the light is like in this scene, which Ch.4 p.75 costs on attack rolls and on "
+            + "active defence rolls alike: clear, poor or none. Clear by default, which is no "
+            + "modifier at all.")]
+        string? visibility = null)
     {
-        if (!TryReadSetup(combatants, table, challengeLevel, seed, openingRange, out var setup, out var problem))
+        if (!TryReadSetup(combatants, table, challengeLevel, seed, openingRange, visibility, out var setup, out var problem))
             return Write(problem);
 
         var engine = new Encounter(_play, new SeededDice(setup.Seed), setup.Table);
@@ -205,7 +210,7 @@ public sealed class PlayTools
         EncounterState state;
         try
         {
-            state = engine.Begin(setup.Combatants, setup.ChallengeLevel, setup.Opening);
+            state = engine.Begin(setup.Combatants, setup.ChallengeLevel, setup.Opening, setup.Visibility);
         }
         catch (Exception e) when (IsCallersFault(e))
         {
@@ -224,7 +229,7 @@ public sealed class PlayTools
             ["opening_range"]   = Wire(setup.Opening.ToString()),
             ["adversity"]       = state.Adversity,
             ["turn_order"]      = TurnOrder(state),
-            ["table"]           = TableEcho(setup.Table),
+            ["table"]           = TableEcho(setup.Table, setup.Visibility),
             ["ledger"]          = Lines([.. TierLines(setup), .. state.Ledger.Lines])
         });
     }
@@ -244,7 +249,10 @@ public sealed class PlayTools
             "One intent, as a JSON object with a \"kind\" of: attack, move, hold, grapple, "
             + "break_free, spend_resolve, spend_adversity, stabilise, end_turn, end_page. "
             + "For example {\"kind\": \"attack\", \"actor\": \"gatecrasher\", \"target\": "
-            + "\"mecha\", \"trait_id\": \"blast\", \"type\": \"physical_power\"}.")]
+            + "\"mecha\", \"trait_id\": \"blast\", \"type\": \"physical_power\"}. An attack also "
+            + "takes \"cover\" (none, light, heavy, almost_full, complete) and, where the shot goes "
+            + "through the obstacle rather than at the exposed part of the target, "
+            + "\"cover_structure\" — the obstacle's Structure rank.")]
         JsonElement intent)
     {
         if (string.IsNullOrWhiteSpace(encounterId) || !_encounters.TryGetValue(encounterId, out var held))
@@ -380,7 +388,12 @@ public sealed class PlayTools
         [Description("Which policy chooses each turn. Currently: attack_the_weakest.")]
         string? policy = null,
         [Description("The page each run stops at if neither side is down. 20 by default.")]
-        int? maxPages = null)
+        int? maxPages = null,
+        [Description(
+            "What the light is like, in the same shape start_encounter takes: clear, poor or none. "
+            + "Clear by default. It is echoed back inside \"table\", because a rate measured in the "
+            + "dark is a rate about a different game.")]
+        string? visibility = null)
     {
         var n = runs ?? 0;
 
@@ -415,7 +428,7 @@ public sealed class PlayTools
                 + "answer for that reason."));
         }
 
-        if (!TryReadSetup(combatants, table, challengeLevel, seed, openingRange, out var setup, out var problem))
+        if (!TryReadSetup(combatants, table, challengeLevel, seed, openingRange, visibility, out var setup, out var problem))
             return Write(problem);
 
         // <b>The runs are consecutive seeds, so the last one has to be a seed.</b> `seed + runs - 1`
@@ -480,7 +493,8 @@ public sealed class PlayTools
         {
             var seed = setup.Seed + run;
             var engine = new Encounter(_play, new SeededDice(seed), setup.Table);
-            var state = engine.Begin(setup.Combatants, setup.ChallengeLevel, setup.Opening);
+            var state = engine.Begin(
+                setup.Combatants, setup.ChallengeLevel, setup.Opening, setup.Visibility);
 
             var opened = state.Adversity;
 
@@ -583,7 +597,7 @@ public sealed class PlayTools
                 ["note"] = "a policy is a guess about how people play, not a rule — this figure is "
                            + "about a party that plays this way"
             },
-            ["table"]           = TableEcho(setup.Table),
+            ["table"]           = TableEcho(setup.Table, setup.Visibility),
 
             ["challenge_level"] = setup.ChallengeLevel,
             ["opening_range"]   = Wire(setup.Opening.ToString()),
@@ -613,7 +627,8 @@ public sealed class PlayTools
         TableRules Table,
         int ChallengeLevel,
         int Seed,
-        RangeBand Opening);
+        RangeBand Opening,
+        Visibility Visibility);
 
     private static readonly IReadOnlyDictionary<string, string> NoTiers =
         new Dictionary<string, string>(StringComparer.Ordinal);
@@ -624,14 +639,16 @@ public sealed class PlayTools
         int? challengeLevel,
         int? seed,
         string? openingRange,
+        string? visibility,
         out Setup setup,
         out JsonObject problem)
     {
-        setup = new Setup([], NoTiers, TableRules.Book, 0, 0, RangeBand.Close);
+        setup = new Setup([], NoTiers, TableRules.Book, 0, 0, RangeBand.Close, Visibility.Clear);
         problem = new JsonObject();
 
         if (!TryReadTable(table, out var rules, out problem)) return false;
         if (!TryReadRange(openingRange, out var opening, out problem)) return false;
+        if (!TryReadVisibility(visibility, out var light, out problem)) return false;
 
         // <b>A Challenge Level below zero is refused, not clamped.</b> `Math.Max(0, …)` read −3 as
         // 0, opened the fight with the Adversity a Challenge Level of nothing buys, and echoed
@@ -672,7 +689,7 @@ public sealed class PlayTools
             return false;
         }
 
-        setup = new Setup(everyone, tiers, rules, challengeLevel ?? 0, seed ?? 0, opening);
+        setup = new Setup(everyone, tiers, rules, challengeLevel ?? 0, seed ?? 0, opening, light);
         return true;
     }
 
@@ -783,8 +800,16 @@ public sealed class PlayTools
         var side = Text(entry, "side").Trim();
         var id = Text(entry, "id").Trim();
 
+        // <b>Read before the Minion branch, so it applies to a mob as well as to a character.</b>
+        // p.75's size bands are about the attacker and the defender, and a group of Minions is both
+        // in its turn; refusing a giant robot a size because it has no sheet would be a rule about
+        // this server's shapes rather than about the page.
+        if (!TryReadSize(entry, position, out var size, out problem)) return false;
+
+        var invisible = Flag(entry, "invisible");
+
         if (string.Equals(kind, "minions", StringComparison.Ordinal))
-            return TryReadMinions(entry, position, side, id, out combatant, out problem);
+            return TryReadMinions(entry, position, side, id, size, invisible, out combatant, out problem);
 
         if (entry["character"] is not { } character)
         {
@@ -810,7 +835,8 @@ public sealed class PlayTools
             combatant = CombatantFactory.From(
                 sheet, _rules, _derived, _play, rung,
                 id.Length == 0 ? null : id,
-                side.Length == 0 ? null : side);
+                side.Length == 0 ? null : side,
+                size, invisible);
 
             return true;
         }
@@ -873,7 +899,8 @@ public sealed class PlayTools
     }
 
     private static bool TryReadMinions(
-        JsonObject entry, int position, string side, string id, out Combatant combatant, out JsonObject problem)
+        JsonObject entry, int position, string side, string id, double size, bool invisible,
+        out Combatant combatant, out JsonObject problem)
     {
         combatant = Combatant.Minions("placeholder", "placeholder", 1, 1, "threat");
         problem = new JsonObject();
@@ -902,9 +929,46 @@ public sealed class PlayTools
 
         combatant = Combatant.Minions(
             id.Length == 0 ? name : id, name, rank, bodies, "threat",
-            side.Length == 0 ? Combatant.OpposingSide : side);
+            side.Length == 0 ? Combatant.OpposingSide : side, size, invisible);
 
         return true;
+    }
+
+    /// <summary>
+    /// How big a combatant is, for Ch.4 p.75's size bands, or a refusal naming what is wrong with
+    /// the figure.
+    ///
+    /// <para><b>It is a bare number whose only meaning is the ratio between two of them</b>, so any
+    /// unit will do as long as one fight uses one: feet, metres, "a person is 1". The default is
+    /// that everybody is the same size, which is the only arrangement in which none of p.75's four
+    /// bands applies.</para>
+    ///
+    /// <para><b>A size that is not a real figure above zero is refused rather than taken as the
+    /// default.</b> A zero divides, and the infinity that comes out satisfies every band there is —
+    /// so a typo would put a standing +2d on somebody's defence with nothing anywhere saying the
+    /// value had been thrown away.</para>
+    /// </summary>
+    private static bool TryReadSize(JsonObject entry, int position, out double size, out JsonObject problem)
+    {
+        size = Combatant.SameSize;
+        problem = new JsonObject();
+
+        if (entry["size"] is not { } given) return true;
+
+        if (given is JsonValue value && value.TryGetValue<double>(out var read)
+            && read > 0 && !double.IsNaN(read) && !double.IsInfinity(read))
+        {
+            size = read;
+            return true;
+        }
+
+        problem = Problem("BAD_SIZE",
+            $"Combatant {position} has a \"size\" of {given.ToJsonString()}. Ch.4 p.75 compares two "
+            + "combatants' sizes as a ratio — at least twice, at least 5 times, no more than half, "
+            + "no more than one-fifth — so a size is a number above zero in whatever unit this "
+            + $"fight is using, and {Combatant.SameSize} means the same size as everybody else. "
+            + "Omit it for that.");
+        return false;
     }
 
     /// <summary>
@@ -1089,6 +1153,39 @@ public sealed class PlayTools
         return false;
     }
 
+    /// <summary>
+    /// What the light is like, by name — read exactly as <see cref="TryReadRange"/> reads a range
+    /// class, and for the same reason: <c>Enum.TryParse</c> also accepts a numeral, and a
+    /// <c>Visibility</c> that is not one of the three would put every roll in the fight through a
+    /// band lookup nothing can answer.
+    ///
+    /// <para><b>An unreadable value is refused rather than taken as clear air.</b> A scene somebody
+    /// meant to fight in the dark, measured in daylight and echoed back as daylight, is the
+    /// "accepted and quietly ignored" this server refuses a table setting for.</para>
+    /// </summary>
+    private static bool TryReadVisibility(string? wanted, out Visibility visibility, out JsonObject problem)
+    {
+        visibility = Visibility.Clear;
+        problem = new JsonObject();
+
+        if (string.IsNullOrWhiteSpace(wanted)) return true;
+
+        foreach (var name in Enum.GetNames<Visibility>())
+        {
+            if (!string.Equals(Wire(name), wanted.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+
+            visibility = Enum.Parse<Visibility>(name);
+            return true;
+        }
+
+        problem = Problem("NO_SUCH_VISIBILITY",
+            $"'{wanted}' is not a visibility. Ch.4 p.75 prices two and this engine names the third "
+            + "state as well: "
+            + string.Join(", ", Enum.GetNames<Visibility>().Select(Wire))
+            + ". Clear is the default and is no modifier.");
+        return false;
+    }
+
     // ── Reading an intent ─────────────────────────────────────────────────
 
     /// <summary>The intents this engine takes, by the name a caller passes.</summary>
@@ -1119,6 +1216,7 @@ public sealed class PlayTools
             case "attack":
                 if (!TryReadEnum<DamageKind>(entry, "damage", DamageKind.Lethal, out var damage, out problem)) return false;
                 if (!TryReadEnum<AttackType>(entry, "type", AttackType.Unarmed, out var type, out problem)) return false;
+                if (!TryReadEnum<Cover>(entry, "cover", Cover.None, out var cover, out problem)) return false;
 
                 read = new Attack(
                     actor,
@@ -1136,7 +1234,14 @@ public sealed class PlayTools
                     // `spend_resolve` naming `team_attack` answered "was not a team attack" for
                     // ever. The spelling guard over that document is scoped to tool arguments, and
                     // the fields of an intent are not among them, so nothing disagreed.
-                    Flag(entry, "team"));
+                    Flag(entry, "team"),
+                    cover,
+                    // <b>Absent and 0 are different, which is why this is not `Number(...) ?? 0`.</b>
+                    // Supplying a Structure is the declaration that the shot goes through the
+                    // obstacle, and p.75 makes two things follow from it; a missing one has to mean
+                    // "at whatever of the target is exposed" rather than "through an obstacle of
+                    // Structure 0", which every attack in the book gets through.
+                    Number(entry, "cover_structure"));
                 return true;
 
             case "move":
@@ -1271,7 +1376,9 @@ public sealed class PlayTools
             ["name"] = state[id].Name,
             ["kind"] = Wire(state[id].Kind.ToString()),
             ["side"] = state[id].Side,
-            ["edge"] = state.EffectiveEdge[id]
+            ["edge"] = state.EffectiveEdge[id],
+            ["size"] = state[id].Size,
+            ["invisible"] = state[id].Invisible
         })
     ];
 
@@ -1307,6 +1414,7 @@ public sealed class PlayTools
             ["current"]         = state.Current?.Id,
             ["over"]            = state.Over,
             ["adversity"]       = state.Adversity,
+            ["visibility"]      = Wire(state.Visibility.ToString()),
             ["turn_order"]      = TurnOrder(state),
             ["holds"]           = Strings(state.Holds),
             ["seized"]          = Strings(state.Seized),
@@ -1327,6 +1435,8 @@ public sealed class PlayTools
                     ["dying"]              = c.Dying,
                     ["defeated_by_effect"] = c.DefeatedByEffect,
                     ["flaw_suppressed"]    = c.SuppressedFlaw,
+                    ["size"]               = c.Size,
+                    ["invisible"]          = c.Invisible,
                     ["defeated"]           = c.Defeated(floor)
                 })
             ]),
@@ -1378,9 +1488,16 @@ public sealed class PlayTools
     /// from one produced by a build that had lost a switch, and the reader of a balance figure is
     /// exactly the person who needs to know which game was measured.
     /// </summary>
-    private static JsonObject TableEcho(TableRules table)
+    private static JsonObject TableEcho(TableRules table, Visibility visibility)
     {
         var echo = new JsonObject();
+
+        // <b>The light is echoed inside the table and not beside it, and that placement is the
+        // point.</b> The play policy says a rate is quoted with four things and one of them is
+        // `table`; a fight measured in the dark is a different game from the same fight in
+        // daylight, by up to three dice on every attack roll and every dodge in it — so the figure
+        // has to travel with the thing a quoter is already told to carry. Ch.4 p.75.
+        echo["visibility"] = Wire(visibility.ToString());
 
         foreach (var name in TableRules.Switches.Select(s => s.Name).Distinct(StringComparer.Ordinal))
         {
