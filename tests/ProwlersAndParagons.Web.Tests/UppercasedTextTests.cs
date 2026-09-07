@@ -7,6 +7,8 @@ using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
 using ProwlersAndParagonsAutomation.Web.Layout;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
@@ -28,11 +30,11 @@ public sealed class UppercasedTextTests
 {
     /// <summary>A rank as the rulebook writes it: a number, then a lower-case d.</summary>
     private static readonly Regex Rank =
-        new(@"\b\d+d\b", RegexOptions.None, TimeSpan.FromSeconds(5));
+        ScanRegex.Build(@"\b\d+d\b", RegexOptions.None);
 
     /// <summary>A chapter or page citation: Ch.2, p.17.</summary>
     private static readonly Regex Citation =
-        new(@"\b(Ch|p|pp)\.\s*\d", RegexOptions.None, TimeSpan.FromSeconds(5));
+        ScanRegex.Build(@"\b(Ch|p|pp)\.\s*\d", RegexOptions.None);
 
     /// <summary>
     /// Every selector <c>app.css</c> sets in capitals, read out of the stylesheet rather than
@@ -45,10 +47,10 @@ public sealed class UppercasedTextTests
 
         // Comments first: one of them contains the words "text-transform: uppercase" while
         // explaining why a rule does not use it, which would otherwise read as a selector.
-        css = new Regex(@"/\*.*?\*/", RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+        css = ScanRegex.Build(@"/\*.*?\*/", RegexOptions.Singleline)
             .Replace(css, " ");
 
-        var rules = new Regex(@"([^{}]+)\{([^{}]*)\}", RegexOptions.None, TimeSpan.FromSeconds(5));
+        var rules = ScanRegex.Build(@"([^{}]+)\{([^{}]*)\}", RegexOptions.None);
 
         var data = new TheoryData<string>();
 
@@ -326,15 +328,15 @@ public sealed class UppercasedTextTests
         var web = Path.Combine(RepoRoot(), "web");
         var css = File.ReadAllText(Path.Combine(web, "wwwroot", "css", "app.css"));
 
-        var rule = new Regex(@"(?<![\w.-])label\s*\{([^{}]*)\}", RegexOptions.None, TimeSpan.FromSeconds(5))
-            .Match(new Regex(@"/\*.*?\*/", RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+        var rule = ScanRegex.Build(@"(?<![\w.-])label\s*\{([^{}]*)\}", RegexOptions.None)
+            .Match(ScanRegex.Build(@"/\*.*?\*/", RegexOptions.Singleline)
                 .Replace(css, " "));
 
         Assert.True(rule.Success, "app.css no longer styles the label element at all.");
 
         if (!rule.Groups[1].Value.Contains("text-transform", StringComparison.Ordinal)) return;
 
-        var literal = new Regex(@"Label\s*=\s*""([^""@]+)""", RegexOptions.None, TimeSpan.FromSeconds(5));
+        var literal = ScanRegex.Build(@"Label\s*=\s*""([^""@]+)""", RegexOptions.None);
 
         foreach (var file in Directory.GetFiles(web, "*.razor", SearchOption.AllDirectories)
                      .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)))
@@ -374,7 +376,7 @@ public sealed class UppercasedTextTests
     }
 
     private static string Collapse(string text) =>
-        new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(text, " ").Trim();
+        ScanRegex.Build(@"\s+", RegexOptions.None).Replace(text, " ").Trim();
 
     private static string RepoRoot()
     {

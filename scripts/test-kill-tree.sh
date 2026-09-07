@@ -117,6 +117,37 @@ done
 failures=0
 checks=0
 
+# ------------------------------------------------------------------------------------------------
+# THE FIXTURES OUTLIVE AN INTERRUPTED RUN, AND ONE OF THEM IS A HUNDRED PROCESSES.
+#
+# `respawning_case` starts a supervisor whose whole job is to replace a sibling the moment it dies,
+# and a hundred siblings for it to replace. That is the point of the case. But the only cleanup on
+# the path is `trap "rm -rf '$dir'" RETURN`, which deletes the temp directory and kills nothing —
+# so a Ctrl-C, a SIGTERM from a CI step timeout, or any exit between spawning the tree and
+# `stop_server` leaves a supervisor and its hundred markers reparented onto init.
+#
+# **And the RETURN trap makes them unattributable.** The marker is identified by its path, which is
+# what `count_matching` greps for; deleting the directory means the path no longer exists on disk,
+# so the leftovers cannot be traced back to the run that made them. That is not hypothetical — this
+# repository has had a set of orphaned spinners sitting at ppid 1 for a day and a half with nothing
+# to say where they came from.
+#
+# So every case that spawns a tree registers its temp directory here, and a top-level trap kills
+# anything whose command line still names one. `pkill` runs twice on purpose: the supervisor and
+# its children match the same pattern and are signalled together, and a sibling can be respawned in
+# the gap between the supervisor being signalled and dying.
+spawned_dirs=''
+
+kill_spawned_trees() {
+  local d
+  for d in $spawned_dirs; do
+    pkill -f "$d" 2>/dev/null || true
+    pkill -f "$d" 2>/dev/null || true
+  done
+}
+
+trap kill_spawned_trees EXIT INT TERM
+
 pass() {
   checks=$((checks + 1))
   echo "KILL-TREE CHECK $1: PASS — $2"
@@ -507,6 +538,8 @@ $(descendants_of "$root_pid")"
 synthetic_case() {
   local dir port
   dir="$(mktemp -d)"
+  # Registered for the top-level trap: this case starts processes out of $dir.
+  spawned_dirs="$spawned_dirs $dir"
   # shellcheck disable=SC2064
   trap "rm -rf '$dir'" RETURN
 
@@ -595,6 +628,8 @@ EOF
 respawning_case() {
   local dir port
   dir="$(mktemp -d)"
+  # Registered for the top-level trap: this case starts processes out of $dir.
+  spawned_dirs="$spawned_dirs $dir"
   # shellcheck disable=SC2064
   trap "rm -rf '$dir'" RETURN
 
@@ -603,9 +638,18 @@ respawning_case() {
   # The sibling. A script rather than a bare `sleep`, because its *path* is the marker: `ps` shows
   # `/bin/sh <this temp dir>/marker.sh`, and the temp dir is unique to this run. `sleep` on its own
   # is unidentifiable and every shell tail-execs a one-line script, which would lose the path.
+  # The 600s bound is belt and braces beside the trap above: a marker that is somehow orphaned
+  # anyway — the trap cannot run if this script is SIGKILLed — dies on its own instead of spinning
+  # on init until somebody goes looking. It is thirty times the twenty seconds the case allows for
+  # the tree to come up, so it cannot expire while the case is still running, and the supervisor
+  # replaces any marker that exits early, so an expiry could not thin the fixture even if it did.
   cat > "$dir/marker.sh" <<'EOF'
 #!/bin/sh
-while :; do sleep 30; done
+i=0
+while [ "$i" -lt 120 ]; do
+  sleep 5
+  i=$((i + 1))
+done
 EOF
   chmod +x "$dir/marker.sh"
 
@@ -659,6 +703,8 @@ EOF
 orphan_case() {
   local dir port log holder tree
   dir="$(mktemp -d)"
+  # Registered for the top-level trap: this case starts processes out of $dir.
+  spawned_dirs="$spawned_dirs $dir"
   # shellcheck disable=SC2064
   trap "rm -rf '$dir'" RETURN
 
@@ -763,6 +809,8 @@ wrangler_case() {
   fi
 
   dir="$(mktemp -d)"
+  # Registered for the top-level trap: this case starts processes out of $dir.
+  spawned_dirs="$spawned_dirs $dir"
   # shellcheck disable=SC2064
   trap "rm -rf '$dir'" RETURN
 

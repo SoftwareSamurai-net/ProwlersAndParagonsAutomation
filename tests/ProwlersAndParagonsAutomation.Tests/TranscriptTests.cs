@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Engine;
 
+using ProwlersAndParagons.Testing;
+
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
@@ -39,8 +41,12 @@ public sealed class TranscriptTests
     private static string Directory =>
         Path.Combine(RulesFixture.RepoRoot, "data", "transcripts");
 
+    /// <summary>
+    /// A scanning regex. See <see cref="ScanRegex"/> for why these are linear-time rather than
+    /// backtracking under a five-second cap.
+    /// </summary>
     private static Regex Rx(string pattern, RegexOptions options = RegexOptions.None) =>
-        new(pattern, options, TimeSpan.FromSeconds(5));
+        ScanRegex.Build(pattern, options);
 
     /// <summary>
     /// The transcripts, read the way the browser reads them: from file contents keyed by name,
