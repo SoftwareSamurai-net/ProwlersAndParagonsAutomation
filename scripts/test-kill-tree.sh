@@ -891,14 +891,62 @@ redaction_case() {
   esac
 
   case "$out" in
-    *"/signin?t=<redacted> 302"*)
-      pass REDACTED_TAIL "both t= values are gone and the rest of the log is untouched"
-      ;;
+    *"/signin?t=<redacted> 302"*) ;;
     *)
       fail REDACTED_TAIL "[OUTCOME] the token is gone but so is the address it was on, so a"\
 " failing start_server no longer says what it was serving: $out"
+      return
       ;;
   esac
+
+  # ----------------------------------------------------------------------------------------------
+  # **The file, and not only the tail, because the file leaves the machine now.** `build.yml`
+  # uploads `.e2e/logs/` as an artifact when a drive fails — which is the point of collecting
+  # wrangler's own debug log at all, since forty lines of one is not a stack — and `e2e.sh`'s EXIT
+  # trap runs `redact_in_place` over that directory first. A tail that redacts beside an artifact
+  # that does not is the leak the redactor was written for, arriving by the other door.
+  #
+  # **Nested, because the logs are nested.** `real.log` is one level down and
+  # `wrangler/<server>/wrangler-….log` is three, and a rewrite that globbed a single directory
+  # would leave the debug logs — the new ones, the whole reason the artifact exists — untouched
+  # while this case went green.
+  local deep="$dir/wrangler/twin-html-lang-dropped"
+  mkdir -p "$deep"
+  {
+    echo "[wrangler:info] GET /signin?t=onDiskTok3n-QQ 302 Found (4ms)"
+    echo "[wrangler:info] an ordinary line with no secret in it"
+  } > "$deep/wrangler-2026-09-07_12-19-49_785.log"
+
+  redact_in_place "$dir"
+
+  if ! grep -q 'an ordinary line with no secret in it' \
+      "$deep/wrangler-2026-09-07_12-19-49_785.log"; then
+    fail REDACTED_TAIL "[CONTROL] the nested log's ordinary line did not survive redact_in_place,"\
+" so the file is empty or gone — and 'no token on disk' holds perfectly against a file that was"\
+" truncated or deleted."
+    return
+  fi
+
+  # Both fixtures: the nested one proves the walk goes deep, and the first one — `$log`, at the
+  # top of `$dir` — proves it did not go deep *instead of* shallow.
+  if grep -rq 'onDiskTok3n-QQ\|zAe9_-QbT7xyKLmn' "$dir" 2>/dev/null; then
+    fail REDACTED_TAIL "[OUTCOME] a raw sign-in token is still on disk under $dir after"\
+" redact_in_place. build.yml uploads that directory as an artifact when a drive fails, so this is"\
+" the bearer secret the tail above was careful not to print, travelling by the other door. In:"\
+" $(grep -rl 'onDiskTok3n-QQ\|zAe9_-QbT7xyKLmn' "$dir" 2>/dev/null | tr '\n' ' ')"
+    return
+  fi
+
+  if find "$dir" -name '*.redacting' 2>/dev/null | grep -q .; then
+    fail REDACTED_TAIL "[OUTCOME] redact_in_place left its own temporary files behind. Each is an"\
+" unredacted copy of the log beside it, and it would be uploaded with it:"\
+" $(find "$dir" -name '*.redacting' 2>/dev/null | tr '\n' ' ')"
+    return
+  fi
+
+  pass REDACTED_TAIL "both t= values are gone from the tail and the rest of the log is untouched,"\
+" and redact_in_place clears a token out of a log three directories down without emptying it or"\
+" leaving a temporary beside it"
 }
 
 # ------------------------------------------------------------------------------------------------

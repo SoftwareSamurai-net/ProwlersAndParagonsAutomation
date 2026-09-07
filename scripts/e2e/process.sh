@@ -54,6 +54,50 @@ redacted_tail() {
   tail -"${2:-30}" "$1" | redact
 }
 
+# redact_in_place <dir> — rewrite every file under a directory through `redact`.
+#
+# **The tail is not the only thing that leaves this machine any more.** `build.yml` uploads
+# `.e2e/logs/` as an artifact when a drive fails, so that the *whole* of a dead wrangler's debug log
+# can be downloaded rather than only its last forty lines — and a wrangler server log is a request
+# log of a run that drove `/signin?t=<raw token>`. The two failure arms have gone through
+# `redacted_tail` since the day they were written precisely so a CI log could be pasted anywhere;
+# an artifact of the same bytes unredacted would hand back what those arms were careful not to
+# print.
+#
+# **Called from `e2e.sh`'s EXIT trap, beside deleting `.e2e/seed.json`, and for the same reason.**
+# That file is removed at the end of the run that minted its tokens rather than at the start of the
+# next one, because a working tree holding credentials for however long that is, is a habit. The
+# logs are the other half of it. Nothing needs the raw value to debug a failure, so nothing is lost
+# by the local copy being redacted too.
+#
+# **It can never fail the run.** It is on the cleanup path, and `stop_server`'s comment says why
+# that matters: a non-zero return from the EXIT trap replaces the script's real exit status, so a
+# tidying problem would overwrite the code that says why a red run was red.
+redact_in_place() {
+  local dir="$1" files f tmp
+
+  [ -n "$dir" ] && [ -d "$dir" ] || return 0
+
+  # **The list is taken whole before anything is rewritten.** Each file is redacted through a
+  # sibling temporary, and streaming `find` into the loop would hand the loop its own temporaries.
+  files="$(find "$dir" -type f 2>/dev/null)" || return 0
+
+  while IFS= read -r f; do
+    [ -n "$f" ] && [ -f "$f" ] || continue
+    tmp="$f.redacting"
+
+    if redact < "$f" > "$tmp" 2>/dev/null; then
+      mv -f "$tmp" "$f" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
+    else
+      rm -f "$tmp" 2>/dev/null || true
+    fi
+  done <<EOF
+$files
+EOF
+
+  return 0
+}
+
 # ------------------------------------------------------------------------------------------------
 # The server currently running, if any. `stop_server` reads the first two and is also the EXIT
 # trap, so it has to be able to run against a script that never started one. `server_log` is where

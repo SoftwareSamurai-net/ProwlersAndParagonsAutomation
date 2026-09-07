@@ -551,8 +551,17 @@ fi
 #
 # The SQL beside it stays: it carries hashes and addresses, no raw token, and it is what a reader
 # debugging a failed sign-in actually needs.
+# **And the logs are redacted where they lie, for the same reason and a second one.** Every failure
+# arm here quotes a wrangler log through `redacted_tail`, because a tail is what gets pasted into a
+# CI run's public output — and `build.yml` now uploads the whole of `.e2e/logs/` as an artifact when
+# a drive fails, so the *file* travels as well as the tail. A server log is a request log of a run
+# that drove `/signin?t=<raw token>`; leaving the raw value in the artifact would hand back exactly
+# what those arms are careful not to print. Nothing needs it to debug a failure.
+#
+# After `stop_server`, so a server still writing to its log cannot append a line behind the rewrite.
 cleanup() {
   stop_server
+  redact_in_place "$logs"
   rm -f "$seed_plan"
 }
 
