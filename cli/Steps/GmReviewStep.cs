@@ -133,7 +133,7 @@ public sealed class GmReviewStep : IWizardStep
             var power     = rules.GetPower(sp.PowerId);
             var name      = power?.Name ?? sp.PowerId;
             var effective = power is null ? 0 : derived.GetEffectiveRank(sp, sheet);
-            var cost      = costs.PowerCost(sp);
+            var cost      = costs.PowerCost(sp, sheet.ImmortalityCost);
             var review    = power?.NeedsReview == true ? " [yellow]*[/]" : "";
 
             // Through the shared formatter, so a repeated option reads the same here as on the

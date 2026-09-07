@@ -145,7 +145,7 @@ public static class CharacterSheetRenderer
                 var name      = power?.Name ?? sp.PowerId;
                 var baseline  = power is null ? 0 : derived.GetBaselineRank(power, sheet, sp);
                 var effective = power is null ? 0 : derived.GetEffectiveRank(sp, sheet);
-                var cost      = costs.PowerCost(sp);
+                var cost      = costs.PowerCost(sp, sheet.ImmortalityCost);
                 var review    = power?.NeedsReview == true ? " [mechanics unverified]" : "";
 
                 sb.AppendLine($"  {name}{review}");
@@ -395,7 +395,7 @@ public static class CharacterSheetRenderer
                 var power      = rules.GetPower(sp.PowerId);
                 var baseline   = power is null ? 0 : derived.GetBaselineRank(power, sheet, sp);
                 var effective  = power is null ? 0 : derived.GetEffectiveRank(sp, sheet);
-                var powerCost  = costs.PowerCost(sp);
+                var powerCost  = costs.PowerCost(sp, sheet.ImmortalityCost);
                 return (JsonNode)new JsonObject
                 {
                     ["id"]              = sp.PowerId,

@@ -154,7 +154,7 @@
                                             which printed "Armor8d" here once already. *@
                                             <Term Name="@(power?.Name ?? sp.PowerId)"
                                                   Text="@power?.Description" Enabled="@Explain" />@Ranked(power, rank)</span>
-                                        <span class="hp">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
+                                        <span class="hp">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp, Sheet.ImmortalityCost))?.ToString() ?? "—") HP</span>
                                     </div>
                                     @if (power is not null)
                                     {

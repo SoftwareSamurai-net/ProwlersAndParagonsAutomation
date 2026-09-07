@@ -275,7 +275,7 @@
     private void Recompute()
     {
         var draft = Draft();
-        _cost = CharacterSession.TryCost(() => Session.Costs.PowerCost(draft));
+        _cost = CharacterSession.TryCost(() => Session.Costs.PowerCost(draft, Session.Sheet.ImmortalityCost));
         _effectiveRank = _cost is null ? 0 : Session.Derived.GetEffectiveRank(draft, Session.Sheet);
     }
 

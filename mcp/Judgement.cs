@@ -182,7 +182,7 @@ public sealed class Judgement
                                         ? null
                                         : _rules.GetPower(powerId)?.Name),
                 ["effective_rank"] = Answer(() => _derived.GetEffectiveRank(selection, sheet)),
-                ["hero_points"]    = Answer(() => _costs.PowerCost(selection))
+                ["hero_points"]    = Answer(() => _costs.PowerCost(selection, sheet.ImmortalityCost))
             });
         }
 
