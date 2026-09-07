@@ -547,6 +547,15 @@ else
     /// id is not what a tier is called and the message has to stay true without them. Looking them
     /// up and saying them is the screen's half of that bargain — and a disagreement stated without
     /// the two numbers leaves a reader with nothing to act on.</para>
+    ///
+    /// <para><b>Every pair a finding can carry has an arm here, and that is the whole obligation of
+    /// this method.</b> <c>CampaignFinding</c>'s own remarks promise a screen renders the figures,
+    /// so a pair with no arm is not a shorter message — it is a promise this file silently broke.
+    /// <c>CAMPAIGN_IMMORTALITY_COST_MISMATCH</c> and <c>IMMORTALITY_COST_WITHOUT_CAMPAIGN</c> both
+    /// shipped carrying a price that fell through to <c>_ => ""</c>, so a reader was told their
+    /// character is charged "a different price for Immortality" with neither number anywhere on
+    /// screen. <c>CampaignFindingFiguresTests</c> is the guard, and it reads the record's own
+    /// properties rather than a list typed out beside them.</para>
     /// </summary>
     private string Ranks(CampaignFinding finding) => finding switch
     {
@@ -555,6 +564,15 @@ else
 
         { CharacterTraitCapRank: { } ours, CampaignTraitCapRank: { } theirs } =>
             $"Built to a Trait Cap of {ours}d; the game caps at {theirs}d.",
+
+        { CharacterImmortalityCost: { } ours, CampaignImmortalityCost: { } theirs } =>
+            $"Charged {ours} HP for {ImmortalityName}; the game charges {theirs} HP.",
+
+        // The orphaned price is one figure rather than a pair, because there is no game to name a
+        // second one — and it is still said, for the reason the pairs are: "a house price" is not
+        // something a reader can go and put back without being told what it is.
+        { CharacterImmortalityCost: { } orphaned } =>
+            $"Charged {orphaned} HP for {ImmortalityName}.",
 
         _ => "",
     };
