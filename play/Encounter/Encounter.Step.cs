@@ -105,6 +105,9 @@ public sealed partial class Encounter
         // cover's is: an attack that cannot be made is one nothing should happen about.
         if (attack.Item is { Length: > 0 })
         {
+            // p.76's deadlock, and it is checked before the hand is, so both parties are refused
+            // for the reason the page gives rather than one of them for a reason it does not.
+            if (FightingOverIt(state, actor, attack.Item.Trim(), lines) is { } locked) return locked;
             if (UsingWhatTheyDoNotHold(state, actor, attack.Item.Trim(), lines) is { } empty) return empty;
 
             state = UseTheItem(state, actor, attack.Item.Trim(), lines);
@@ -2379,6 +2382,52 @@ public sealed partial class Encounter
             && g.Kind == GrappleKind.Partial
             && Between(g, a, b)
             && string.Equals(g.Item, item, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Whether an attack is made with the object a partial grab is being fought over, refused on the
+    /// ledger citing <c>grab</c>'s own <c>partial_means</c>.
+    ///
+    /// <para><b>p.76 states the prohibition and this engine could not see it, until an attack could
+    /// name an item.</b> "A partial grab means you and your opponent are fighting over an item. They
+    /// can't use it, but neither can you." The half of the deadlock this engine already applied is
+    /// the defences — neither has an active one against anybody else — and the prohibition on
+    /// <em>using</em> it was recorded as unenforceable because no roll named a weapon. One does now:
+    /// <see cref="Attack.Item"/> names exactly the object the contest is over, and the character who
+    /// walked in with it is still recorded as holding it, so without this the printed sentence would
+    /// be false in the one case the page wrote it for.</para>
+    ///
+    /// <para><b>It refuses an attack and not a toss</b>, because the same paragraph prints the exit:
+    /// "you can exit grappling combat at any time by letting go of the object". Using it is what the
+    /// deadlock forbids; letting go of it is what the deadlock is escaped by.</para>
+    ///
+    /// <para>Both parties are refused and neither is refused for the other's reason — the grabber is
+    /// not holding the object either, so this has to be asked before the hand is.</para>
+    /// </summary>
+    private EncounterState? FightingOverIt(
+        EncounterState state, Combatant actor, string item, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("grab");
+
+        var contest = state.Grapples.FirstOrDefault(g =>
+            g.Move == GrappleMove.Grab
+            && g.Kind == GrappleKind.Partial
+            && string.Equals(g.Item, item, StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(g.Holder, actor.Id, StringComparison.Ordinal)
+                || string.Equals(g.Held, actor.Id, StringComparison.Ordinal)));
+
+        if (contest is null) return null;
+
+        var other = string.Equals(contest.Holder, actor.Id, StringComparison.Ordinal)
+            ? contest.Held
+            : contest.Holder;
+
+        return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+            $"{actor.Name} cannot attack with {item}: a partial grab is {entry.Grab!.PartialMeans}, "
+            + $"and {state[other].Name} has hold of the other end of it. "
+            + $"{nameof(entry.Grab.MayExitByLettingGoOfTheObject)} is "
+            + $"{entry.Grab.MayExitByLettingGoOfTheObject}, so tossing it is one way out and "
+            + $"{entry.Grab.PartialResolvedBy} is the other. Nothing was rolled");
+    }
 
     /// <summary>
     /// Whether an intent names an item its actor is not holding, refused on the ledger citing

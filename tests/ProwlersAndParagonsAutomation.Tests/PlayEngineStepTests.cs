@@ -3587,6 +3587,108 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>Neither party may attack with the object a partial grab is over, which is the clause p.76
+    /// prints and this engine could not see until an attack could name an item.</b>
+    ///
+    /// <para>"A partial grab means you and your opponent are fighting over an item. <b>They can't use
+    /// it, but neither can you.</b>" The half of the deadlock already applied is the defences; the
+    /// prohibition on using it was recorded as unenforceable because no roll named a weapon. One
+    /// does now — and the character who walked in with the sword is still recorded as holding it, so
+    /// without this the printed sentence is false in exactly the case it was written for.</para>
+    ///
+    /// <para><b>Both parties, and neither for the other's reason.</b> The grabber is not holding it
+    /// either, so a refusal that only asked about the hand would refuse them for the wrong thing.
+    /// </para>
+    ///
+    /// <para>Three controls: nothing is rolled, the same attack <em>without</em> the item is
+    /// resolved — so this is about the object and not about the deadlock switching attacks off — and
+    /// the same attack with the item is resolved once the contest is over.</para>
+    /// </summary>
+    [Fact]
+    public void NeitherPartyMayAttackWithWhatAPartialGrabIsOver()
+    {
+        var partial = new ScriptedDice([.. FacesFor(10, 2), .. FacesFor(10, 0)]);
+        var opening = new Encounter(_play, partial);
+
+        var deadlock = opening.Step(
+            opening.Begin(ArmedWrestlers()),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword")).State;
+
+        // The controls on the setup: the deadlock is a partial grab over the sword, and the
+        // character who brought it is still recorded as holding it — so the refusal below is not
+        // the empty-hands one wearing a different hat.
+        var contest = Assert.Single(deadlock.Grapples);
+        Assert.Equal(GrappleKind.Partial, contest.Kind);
+        Assert.Equal("the sword", contest.Item);
+        Assert.Equal("the sword", deadlock["held"].Holding!.Name);
+
+        // The party whose hands it is in.
+        var owner = new ScriptedDice([.. FacesFor(10, 4), .. FacesFor(8, 1)]);
+
+        var refusedOwner = new Encounter(_play, owner).Step(
+            deadlock with { TurnIndex = deadlock.TurnOrder.ToList().IndexOf("held") },
+            new Attack("held", "bystander", "might", Item: "the sword"));
+
+        Assert.Contains(refusedOwner.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("cannot attack with the sword", StringComparison.Ordinal)
+            && l.Text.Contains("both characters are fighting over the item and neither can use it",
+                StringComparison.Ordinal));
+
+        Assert.Equal(18, owner.Remaining);
+        Assert.DoesNotContain(refusedOwner.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        // And the other party, who is not holding it — refused for the page's reason and not for
+        // the state of their hands.
+        var grabber = new ScriptedDice([.. FacesFor(10, 4), .. FacesFor(8, 1)]);
+
+        var refusedGrabber = new Encounter(_play, grabber).Step(
+            deadlock, new Attack("holder", "bystander", "might", Item: "the sword"));
+
+        Assert.Contains(refusedGrabber.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("cannot attack with the sword", StringComparison.Ordinal)
+            && l.Text.Contains("neither can use it", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(refusedGrabber.Added, l =>
+            l.Text.Contains("is not holding the sword", StringComparison.Ordinal));
+
+        Assert.Equal(18, grabber.Remaining);
+
+        // The control: the same attack naming no item is resolved, so the deadlock has not switched
+        // attacking off — p.76 takes the active defences and the use of the object, and no more.
+        var plain = new ScriptedDice([.. FacesFor(10, 4), .. FacesFor(8, 1)]);
+
+        var allowed = new Encounter(_play, plain).Step(
+            deadlock, new Attack("holder", "bystander", "might"));
+
+        Assert.NotEqual(18, plain.Remaining);
+        Assert.Contains(allowed.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        // And the second control: once the contest is settled outright the winner may swing it.
+        var settling = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
+
+        var won = new Encounter(_play, settling).Step(
+            deadlock, new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword")).State;
+
+        Assert.Equal("the sword", won["holder"].Holding!.Name);
+
+        var after = new ScriptedDice([.. FacesFor(10, 4), .. FacesFor(8, 1)]);
+
+        var swung = new Encounter(_play, after).Step(
+            won, new Attack("holder", "held", "might", Item: "the sword"));
+
+        Assert.NotEqual(18, after.Remaining);
+        Assert.Contains(swung.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// <b>An item won and neither used nor tossed is tossed aside as the page turns.</b>
     ///
     /// <para>p.76 gives the winner one page: "you gain control of the object and can use it or toss

@@ -313,11 +313,14 @@ where it is, and what becomes of it after that is yours.
 **Three things about a grab are yours and the ledger says which.** What losing the item means for
 the loser's own attacks: no figure of theirs is changed, because an attack here names a Trait and
 nothing in this repository's rules data says which Trait a weapon backs — so if the sword mattered,
-say so yourself. Where a tossed item landed, for the same reason there is no scenery here. And a
-partial grab's "neither of you can use it": what the engine applies of that deadlock is the clause
-beside it — neither character has an active defence against anyone else — because an attack has no
-field naming which weapon backs it. Naming an item on an attack **changes no figure at all**: not the
+say so yourself. Where a tossed item landed, for the same reason there is no scenery here. Naming an item on an attack **changes no figure at all**: not the
 pool, not the row of the table, not the damage. Do not narrate it as a bonus.
+
+**While a partial grab stands, neither of them may attack with the contested object.** That is
+p.76's "they can't use it, but neither can you", and an attack naming it is refused by name for
+either party, with nothing rolled — including the one who walked in with it, who is still recorded
+as holding it. Attacking with anything else is untouched: what the deadlock takes is the use of that
+object and both characters' active defences against anybody but each other.
 
 **`friendly_fire` needs nothing from you.** Whether a target is "engaged in close combat or
 otherwise bunched up" is worked out from the range bands you already set: anyone at Close Range
