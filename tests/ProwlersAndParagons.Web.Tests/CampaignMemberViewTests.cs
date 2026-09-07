@@ -462,6 +462,47 @@ public sealed class CampaignMemberViewTests
         Assert.Contains("Fatal Damage", after.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("House rules at the table now", after.Markup, StringComparison.Ordinal);
         Assert.Empty(after.FindAll("ul.diff-rows"));
+
+        // **And the copy still carries its own sentence**, which is what makes this the panel as
+        // it was rather than an empty region. A list of switches under a heading, with nothing
+        // saying it is a copy or what would take a new one, is the state the heading was rewritten
+        // to fix — and it would satisfy every absence above.
+        Assert.Contains("copied onto the character when it joined", after.Markup,
+            StringComparison.Ordinal);
+        Assert.Contains("joins again", after.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The GM of the very row is answered nothing at the member's own address.</b>
+    ///
+    /// <para>The server's most careful rule on this route — <c>player_user_id</c> and no GM arm, so
+    /// the account that owns a campaign reads it at its own address and nowhere else — and
+    /// <c>FakeApi</c> mirrors it. Nothing drove that arm: the page test asserts the GM's screen
+    /// makes no request at all, which is true and says nothing about what the fake would answer if
+    /// one were made. <b>A fake arm nothing exercises is a fake arm free to drift from the
+    /// server</b>, and this one is the difference between a rule being tested and being
+    /// described.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheGmOfTheRowIsAnsweredNothingAtTheMembersOwnAddress()
+    {
+        var (ctx, _page) = await AMemberOf(new CampaignTable { FatalDamage = true }, immortality: 9);
+        await using var _ = ctx;
+
+        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var mine = await store.MineAsync();
+
+        Assert.NotNull(mine);
+
+        var id = mine.Single().Id;
+
+        // The control: the member is answered, so the null below is a refusal rather than a route
+        // that answers nobody.
+        Assert.NotNull(await store.TableAsync(id));
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        Assert.Null(await store.TableAsync(id));
     }
 
     /// <summary>
