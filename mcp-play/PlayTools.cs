@@ -1682,9 +1682,10 @@ public sealed class PlayTools
                     // it, so a thrown weapon is the caller's word or it is nothing at all.
                     Flag(entry, "close_range_only"),
                     // p.76's "use it ... on that same page". Refused unless the actor is holding
-                    // exactly this, because a full grab is the only way anything reaches their
-                    // hands here — an item this engine does not know about is one a caller would
-                    // otherwise conjure into the fight by naming it.
+                    // exactly this — an opening "holding" and a full grab are the two ways anything
+                    // reaches their hands here, so an item this engine does not know about is one a
+                    // caller would otherwise conjure into the fight by naming it. Refused too while
+                    // a partial grab is being fought over it, which is p.76's "neither can use it".
                     Text(entry, "item") is { Length: > 0 } wielded ? wielded : null);
                 return true;
 

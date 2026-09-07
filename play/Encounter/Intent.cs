@@ -255,12 +255,17 @@ public abstract record Intent(string Actor);
 /// <param name="Item">
 /// The item this attack is made with, where it is the one p.76's full grab has just put in the
 /// actor's hands — "you gain control of the object and can use it or toss it aside on that same
-/// page".
+/// page" — or the one they walked into the fight carrying.
 ///
 /// <para><b>It is refused unless the actor is actually holding it</b>, by name and with nothing
-/// rolled. This engine has no inventory and never claims to: the only way an item reaches
-/// <see cref="Combatant.Holding"/> is by being taken off somebody, so an attack naming anything else
-/// is a claim about equipment nothing here can answer for.</para>
+/// rolled. This engine has no inventory and never claims to: two things reach
+/// <see cref="Combatant.Holding"/> and both are somebody's word said out loud — an opening hand
+/// declared when the fight was built (<see cref="Combatant.Carrying"/>) and an object a full grab
+/// took off its holder. An attack naming anything else is a claim about equipment nothing here can
+/// answer for.</para>
+///
+/// <para><b>And it is refused while a partial grab is being fought over it</b>, for either party:
+/// p.76's half-measure says "they can't use it, but neither can you".</para>
 ///
 /// <para><b>It changes no figure and is not allowed to.</b> There is no Weapon Bonus anywhere in
 /// this repository's rules data and no sheet says which Trait a weapon backs — see the Gear Limit in
@@ -316,6 +321,12 @@ public sealed record Hold(string Actor) : Intent(Actor);
 /// read carries one — see <see cref="HeldItem"/>. What the engine does with the word is exactly what
 /// p.76 states: a partial grab records it as the thing both characters have hold of, and a full grab
 /// moves it.</para>
+///
+/// <para><b>And the target has to be recorded as holding it</b>, or the grab is refused with nothing
+/// rolled: p.76 takes an item "away from your opponent", so a grab presupposes an opponent who has
+/// one. <see cref="Combatant.Carrying"/> is how a fight is opened with somebody armed. The one
+/// exception is the object a partial grab between the pair is already over, which is in nobody's
+/// hands and which the page settles by exactly these rolls.</para>
 /// </param>
 public sealed record GrappleIntent(
     string Actor, string Target, GrappleMove Move, string? Item = null) : Intent(Actor);

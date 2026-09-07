@@ -303,9 +303,9 @@ against somebody who has not got it either.
 
 **What the page gives the winner is one page, and this server applies it as state.** Send
 `"item"` on an attack to use it, or the `toss` intent to throw it away — either is refused by name
-unless that is exactly what the actor is holding, because a full grab is the only way anything
-reaches anybody's hands here and an item this engine does not know about is one you would otherwise
-be conjuring into the fight by naming it. **Neither spends the turn**: that is p.76's "in effect, a
+unless that is exactly what the actor is holding — an opening `holding` and a full grab are the two
+ways anything reaches anybody's hands here, and an item this server does not know about is one you
+would otherwise be conjuring into the fight by naming it. **Neither spends the turn**: that is p.76's "in effect, a
 free action", and the actor still has their ordinary action afterwards. Anything still held at the
 end of the page it was won on is tossed aside and nobody has it — an item that *was* used stays
 where it is, and what becomes of it after that is yours. **And a character who has been put out of
