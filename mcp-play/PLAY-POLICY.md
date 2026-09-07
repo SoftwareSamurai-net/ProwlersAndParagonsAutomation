@@ -133,6 +133,12 @@ every answer for exactly this reason.
   without it, and so is a run in the dark — which is why the scene's `visibility` comes back inside
   that same object rather than beside it.
 
+**The other two of p.75's modifiers are facts about a character, so they come back per combatant.**
+`table` cannot carry them: a `size` moves the defender's active defence by up to two dice and an
+`invisible` costs whoever faces one three, and both are somebody's rather than the scene's. Each
+row of `by_combatant` echoes its own `size` and `invisible` beside its defeat rate, so a report
+says which fight it measured without anybody having to remember what they sent.
+
 Say what was measured, in those terms, or do not say it.
 
 ## The calls

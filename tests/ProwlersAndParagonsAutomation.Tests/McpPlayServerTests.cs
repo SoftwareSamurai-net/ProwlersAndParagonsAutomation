@@ -1693,6 +1693,74 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A measurement is reproducible from its own echo, and two of p.75's three modifiers are
+    /// not the scene's.</b>
+    ///
+    /// <para>The scene's light rides back inside <c>table</c> so that a rate quoted with the four
+    /// things carries it. <c>size</c> and <c>invisible</c> cannot ride there: they are facts about a
+    /// character, and <c>table</c> is a fact about the fight. They were echoed on
+    /// <c>start_encounter</c>'s turn order and on the held public state and <b>nowhere in a
+    /// <c>run_encounters</c> answer at all</b> — so a run against a five-times-sized attacker came
+    /// back looking exactly like a run in which everybody was the same size, while every active
+    /// defence in it had moved by two dice.</para>
+    ///
+    /// <para>Driven, and with the control that the values are the ones this call sent rather than
+    /// the defaults: the same call without them is asserted to echo the defaults, so a server that
+    /// hard-coded either figure cannot satisfy both.</para>
+    /// </summary>
+    [Fact]
+    public async Task RunEncountersEchoesEachCombatantsSizeAndInvisibility() =>
+        await WithClient(async client =>
+        {
+            var fight = TwoSides();
+
+            fight[0]!["size"] = 5.0;
+            fight[1]!["invisible"] = true;
+
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = fight,
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = 75
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>());
+
+            var rows = answer["by_combatant"]!.AsArray()
+                .ToDictionary(c => c!["id"]!.GetValue<string>(), c => c!, StringComparer.Ordinal);
+
+            Assert.Equal(5.0, rows["hero"]["size"]!.GetValue<double>());
+            Assert.False(rows["hero"]["invisible"]!.GetValue<bool>());
+
+            Assert.Equal(Combatant.SameSize, rows["villain"]["size"]!.GetValue<double>());
+            Assert.True(rows["villain"]["invisible"]!.GetValue<bool>());
+
+            // The control: the same fight said nothing about either, and the echo says so — so the
+            // figures above are this call's and not a constant printed on every answer.
+            var plain = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = 75
+            });
+
+            Assert.True(plain["ok"]!.GetValue<bool>());
+
+            foreach (var row in plain["by_combatant"]!.AsArray())
+            {
+                Assert.Equal(Combatant.SameSize, row!["size"]!.GetValue<double>());
+                Assert.False(row["invisible"]!.GetValue<bool>());
+            }
+
+            // And the control that the two fields were not merely carried through an echo: the same
+            // seed against the same characters gives a different measurement, so what was echoed is
+            // something the run actually used.
+            Assert.NotEqual(
+                plain["mean_pages"]!.GetValue<double>(),
+                answer["mean_pages"]!.GetValue<double>());
+        });
+
+    /// <summary>
     /// <b>Two turns in flight on one fight land in order, rather than on top of each other.</b>
     ///
     /// <para>Taking a turn is <em>read the held state, step it, write the result back</em>, and the

@@ -568,6 +568,18 @@ public sealed class PlayTools
                 ["name"]                  = combatant.Name,
                 ["kind"]                  = Wire(combatant.Kind.ToString()),
                 ["side"]                  = combatant.Side,
+
+                // <b>The two of p.75's three modifiers that are a fact about a character travel
+                // with the rate, the way the scene's light travels inside `table`.</b> A rate is
+                // quoted with four things and none of them can carry these: size is on the
+                // combatant and moves the defender's active defence by up to two dice, invisibility
+                // is on the combatant and costs whoever faces one three. A report measured against
+                // a giant, echoed back as though everybody were the same size, is a figure about a
+                // fight nobody can reconstruct from it — which is the whole reason the light is
+                // echoed at all. Ch.4 p.75.
+                ["size"]                  = combatant.Size,
+                ["invisible"]             = combatant.Invisible,
+
                 ["defeat_rate"]           = Rate(defeats[combatant.Id], runs),
                 ["mean_health_remaining"] = combatant.Kind == CombatantKind.MinionGroup
                     ? null
