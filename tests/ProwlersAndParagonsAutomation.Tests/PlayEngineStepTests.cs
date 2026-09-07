@@ -3587,6 +3587,70 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A character in a hold cannot throw anything away, and the free-action clause does not
+    /// excuse them.</b>
+    ///
+    /// <para>p.76's "in effect, a free action" is an exemption from the multiple action penalty, not
+    /// from being pinned: a fully held character "can only try to escape", and a partial hold leaves
+    /// both of them one physical action — "an opposed Might roll, aiming for a full hold or an
+    /// escape". Throwing something away is neither.</para>
+    ///
+    /// <para><b>This was a documented claim with nothing driving it.</b> Deleting the grapple guard
+    /// from the toss left the whole suite green, so a held character could have discarded the sword
+    /// they were pinned with and nothing here would have noticed. Both bands are driven, because
+    /// they refuse through different branches and cite different clauses.</para>
+    ///
+    /// <para>The control is the same toss by the same character with no hold on them: it is
+    /// resolved, so the refusal is about the hold rather than about tosses being switched off.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(5, "leaves them only trying to escape")]
+    [InlineData(2, "is in a partial hold")]
+    public void ACharacterInAHoldCannotTossWhatTheyAreHolding(int net, string expected)
+    {
+        var dice = new ScriptedDice([.. FacesFor(10, net), .. FacesFor(10, 0)]);
+        var opening = new Encounter(_play, dice);
+
+        var pinned = opening.Step(
+            opening.Begin(ArmedWrestlers()),
+            new GrappleIntent("holder", "held", GrappleMove.Hold, null)).State;
+
+        // The controls: the hold really landed in the band this case is about, and the character it
+        // landed on really is holding something to throw away.
+        Assert.Equal(0, dice.Remaining);
+        var hold = Assert.Single(pinned.Grapples);
+        Assert.Equal(GrappleMove.Hold, hold.Move);
+        Assert.Equal("the sword", pinned["held"].Holding!.Name);
+
+        var encounter = new Encounter(_play, new SeededDice(21));
+
+        var refused = encounter.Step(
+            pinned with { TurnIndex = pinned.TurnOrder.ToList().IndexOf("held") },
+            new Toss("held", "the sword"));
+
+        Assert.Contains(refused.Added, l =>
+            string.Equals(l.Rule, "hold", StringComparison.Ordinal)
+            && l.Text.Contains(expected, StringComparison.Ordinal));
+
+        Assert.Equal("the sword", refused.State["held"].Holding!.Name);
+        Assert.DoesNotContain(refused.Added, l =>
+            l.Text.Contains("tosses the sword aside", StringComparison.Ordinal));
+
+        // The control: with no hold on them the same toss goes through.
+        var loose = pinned with
+        {
+            Grapples = [],
+            TurnIndex = pinned.TurnOrder.ToList().IndexOf("held")
+        };
+
+        var tossed = encounter.Step(loose, new Toss("held", "the sword"));
+
+        Assert.Null(tossed.State["held"].Holding);
+        Assert.Contains(tossed.Added, l =>
+            l.Text.Contains("tosses the sword aside", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// <b>An attack that is refused does not spend p.76's page: the item is not marked used.</b>
     ///
     /// <para><c>HeldItem.Used</c> is what discharges "use it or toss it aside on that same page", so

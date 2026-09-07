@@ -2524,8 +2524,12 @@ public sealed partial class Encounter
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
             $"{actor.Name} tosses {actor.Holding!.Name} aside, which "
-            + $"{nameof(grab.FullAllowsUsingOrTossingItTheSamePage)} allows on the page a full grab "
-            + $"won it and {nameof(grab.FullSuffersTheMultipleActionPenalty)} is "
+            + (actor.Holding.CarriedIn
+                ? "they walked into the fight with — no grab won it, so p.76's page was never a "
+                  + "limit on it"
+                : $"{nameof(grab.FullAllowsUsingOrTossingItTheSamePage)} allows on the page a full "
+                  + "grab won it")
+            + $", and {nameof(grab.FullSuffersTheMultipleActionPenalty)} is "
             + $"{grab.FullSuffersTheMultipleActionPenalty} — so it does not spend their turn. Nobody "
             + "holds it now; where it landed is the GM's"));
 
