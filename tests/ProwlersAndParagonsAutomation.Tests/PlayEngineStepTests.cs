@@ -4401,6 +4401,69 @@ public sealed class PlayEngineStepTests
         Assert.Contains(printed, line.Text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// <b>The default statement both documents make is true of the code and is still in both of
+    /// them.</b>
+    ///
+    /// <para>"In clear air, in the open, against somebody the same size" is what a reader of a
+    /// balance figure off this engine is told it was measured under. It used to be a statement about
+    /// three <em>absences</em> — no intent could express any of them — and it is now a statement
+    /// about three <em>defaults</em>, which is the weaker kind of claim and the one that needs a
+    /// guard: a default that moved would leave both documents describing a fight nobody ran.</para>
+    ///
+    /// <para>Driven rather than read: a fight nobody said anything about cites none of the three
+    /// entries, with the control that it resolved an attack at all.</para>
+    /// </summary>
+    [Fact]
+    public void AFightNobodySaidAnythingAboutIsTheOneBothDocumentsDescribe()
+    {
+        var (attacker, target) = Pair("agility", 6);
+
+        var encounter = new Encounter(_play, new SeededDice(75));
+        var state = encounter.Begin([attacker, target]);
+
+        Assert.Equal(Visibility.Clear, state.Visibility);
+        Assert.All(state.Combatants.Values, c => Assert.Equal(Combatant.SameSize, c.Size));
+        Assert.All(state.Combatants.Values, c => Assert.False(c.Invisible));
+
+        var plain = new Attack("hero", "villain", "might");
+
+        Assert.Equal(Cover.None, plain.Cover);
+        Assert.Null(plain.CoverStructure);
+
+        var step = encounter.Step(state, plain);
+
+        // The control: an attack really was resolved, so the three absences below are about the
+        // defaults and not about a step that did nothing.
+        Assert.Contains(step.Added, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        foreach (var id in new[] { "modifier_cover", "modifier_size", "modifier_visibility" })
+        {
+            Assert.DoesNotContain(step.Added, l =>
+                string.Equals(l.Rule, id, StringComparison.Ordinal));
+        }
+
+        // And both documents still say it — the guide for whoever changes the engine, the play
+        // policy for whoever quotes a number out of it.
+        const string Statement = "in clear air, in the open, against somebody the same size";
+
+        Assert.Contains(Statement, Prose(Guide()), StringComparison.Ordinal);
+
+        Assert.Contains(
+            Statement,
+            Prose(File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "mcp-play", "PLAY-POLICY.md"))),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Markdown with its emphasis and its hard wrapping taken out, so a sentence is looked for as a
+    /// sentence — a phrase tested for raw passes or fails on where the wrap and the bold markers
+    /// happened to land, which is a check that breaks on a reflow and says nothing on a deletion.
+    /// </summary>
+    private static string Prose(string markdown) =>
+        string.Join(' ', markdown.Replace("*", "", StringComparison.Ordinal)
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
     /// <summary>Half, the way the Glossary's book-wide rule rounds — the engine's own halving.</summary>
     private int Halved(int value) => Rounding.Half(_play, value);
 
