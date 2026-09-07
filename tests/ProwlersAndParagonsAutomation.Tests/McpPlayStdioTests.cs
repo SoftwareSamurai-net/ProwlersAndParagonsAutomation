@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using ProwlersAndParagonsAutomation.McpPlay;
@@ -32,27 +33,77 @@ public sealed class McpPlayStdioTests
     private static readonly string[] BuiltFrom = ["mcp-play", "play", "engine", "mcp-shared"];
 
     /// <summary>
-    /// The first file under <see cref="BuiltFrom"/> that is newer than <paramref name="binary"/>, or
-    /// null if the binary is at least as new as all of them — and the binary not existing counts as
-    /// out of date, so one answer covers both cases.
+    /// Every file the published binary is built out of, each with a hash of its <b>content</b>: the
+    /// repository-relative path and a SHA-256, one line apiece, in path order.
     ///
     /// <para>Every file rather than <c>*.cs</c>: the policy document is an embedded resource, the
     /// project files decide what is copied beside the binary, and both are sources of what gets
-    /// published. <c>bin</c> and <c>obj</c> are skipped, since build output is newer than the build
-    /// by definition and would make this permanently stale.</para>
+    /// published. <c>bin</c> and <c>obj</c> are skipped: build output changes whenever anything is
+    /// compiled, so including it would report the binary as stale immediately after publishing
+    /// it.</para>
     /// </summary>
-    private static string? NewerThanTheBinary(string binary)
-    {
-        if (!File.Exists(binary)) return "nothing — it is not there at all";
-
-        var built = File.GetLastWriteTimeUtc(binary);
-
-        return BuiltFrom
+    private static string SourceFingerprint() =>
+        string.Join('\n', BuiltFrom
             .SelectMany(tree => Directory.EnumerateFiles(
                 Path.Combine(RulesFixture.RepoRoot, tree), "*", SearchOption.AllDirectories))
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
-            .FirstOrDefault(f => File.GetLastWriteTimeUtc(f) > built);
+            .Select(f => Path.GetRelativePath(RulesFixture.RepoRoot, f).Replace('\\', '/'))
+            .OrderBy(relative => relative, StringComparer.Ordinal)
+            .Select(relative => relative + ' ' + Convert.ToHexString(SHA256.HashData(
+                File.ReadAllBytes(Path.Combine(RulesFixture.RepoRoot, relative))))));
+
+    /// <summary>
+    /// Where the fingerprint of the sources a publish was asked to build is recorded: beside the
+    /// binary, so it is thrown away with it and cannot outlive the directory it describes.
+    /// </summary>
+    private static string PublishedFrom(string binary) =>
+        Path.Combine(Path.GetDirectoryName(binary)!, ".published-from");
+
+    /// <summary>
+    /// Why <paramref name="binary"/> is not a build of the sources on disk, or null if it is.
+    ///
+    /// <para><b>This asks about content, and it used to ask about time.</b> The question is whether
+    /// the published binary was built from the code that is there now, and a modification time
+    /// answers a different one. The build is deterministic: edit a source, restore it byte for byte
+    /// — which every mutation check in this repository does — and the source is newer than the
+    /// binary while producing byte-identical output, so <c>publish</c> skips the copy, the binary's
+    /// timestamp does not move, and a timestamp guard fails <em>again</em> telling the reader to
+    /// publish, which is the one thing that cannot fix it. Three agents in one day worked round that
+    /// with <c>rm -rf mcp-play-server</c> or <c>touch</c>. A guard whose remedy does not work is a
+    /// guard people learn to route around, and the next stale binary goes with them.</para>
+    ///
+    /// <para>So a successful publish records the fingerprint of what it was asked to build, and this
+    /// compares that record with the sources as they are. Restoring a file byte for byte is then not
+    /// a change at all and nothing is republished; changing one is a change however the timestamps
+    /// fell. A publish that <em>fails</em> — the running-server case CLAUDE.md names — records
+    /// nothing, so the binary stays stale and the assertion still fires.</para>
+    /// </summary>
+    private static string? StaleBecause(string binary, string fingerprint)
+    {
+        if (!File.Exists(binary)) return "it is not there at all";
+
+        var record = PublishedFrom(binary);
+
+        if (!File.Exists(record))
+            return $"nothing beside it says what it was published from ('{record}' is missing)";
+
+        var recorded = File.ReadAllText(record).Split('\n');
+        var current = fingerprint.Split('\n');
+
+        for (var i = 0; i < Math.Max(recorded.Length, current.Length); i++)
+        {
+            var was = i < recorded.Length ? recorded[i] : null;
+            var now = i < current.Length ? current[i] : null;
+
+            if (string.Equals(was, now, StringComparison.Ordinal)) continue;
+
+            // A line is "<path> <hash>", so the first field of whichever side has one names the
+            // file that changed, appeared or went away.
+            return $"'{(now ?? was)!.Split(' ')[0]}' is not what it was published from";
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -530,11 +581,13 @@ public sealed class McpPlayStdioTests
     /// this repository's code, and the stray write this whole area exists for was inside a tool.
     /// </para>
     ///
-    /// <para><b>And it publishes when the binary is older than the code, not only when it is
+    /// <para><b>And it publishes when the binary was not built from the code, not only when it is
     /// missing.</b> The check used to be <c>File.Exists</c>, so a <c>mcp-play-server/</c> published
     /// once and never again made this a test of a binary from another week — green while the
     /// registration, the tools, either engine or the shared arguments had all moved on underneath
-    /// it. The four trees the binary is built out of are compared against it by timestamp.</para>
+    /// it. What replaced it was a timestamp comparison, which was right about the danger and wrong
+    /// about the instrument; <see cref="StaleBecause"/> carries why, and the question is now about
+    /// the content of the four trees the binary is built out of.</para>
     /// </summary>
     [Fact]
     public async Task TheCheckedInRegistrationSpeaksNothingButTheProtocol()
@@ -558,7 +611,13 @@ public sealed class McpPlayStdioTests
         var published = Path.Combine(
             RulesFixture.RepoRoot, "mcp-play-server", "ProwlersAndParagons.McpPlay.dll");
 
-        if (NewerThanTheBinary(published) is not null)
+        // Taken before the publish, deliberately: this is the fingerprint of the sources the
+        // publish is being *asked* to build. Taking it afterwards would claim currency for a file
+        // edited while the build was reading, which is the direction that fails unsafely — recorded
+        // this way, such an edit simply shows up as stale on the next run.
+        var sources = SourceFingerprint();
+
+        if (StaleBecause(published, sources) is not null)
         {
             using var publish = Process.Start(new ProcessStartInfo("dotnet")
             {
@@ -572,6 +631,13 @@ public sealed class McpPlayStdioTests
             })!;
 
             await publish.WaitForExitAsync(giveUp.Token);
+
+            // <b>Only a publish that worked may say what the binary was built from.</b> This one is
+            // allowed to fail — with a server running out of that directory the copy fails while
+            // leaving a binary in place — and recording the fingerprint anyway would hand a stale
+            // binary a certificate of freshness, which is the whole trap this guard exists for.
+            if (publish.ExitCode == 0 && File.Exists(published))
+                File.WriteAllText(PublishedFrom(published), sources);
         }
 
         Assert.True(File.Exists(published),
@@ -581,15 +647,15 @@ public sealed class McpPlayStdioTests
 
         // The publish above is allowed to fail, so this is where a stale binary is caught. The
         // commonest reason it fails is the one CLAUDE.md names: a server running out of that
-        // directory holds the file, and that is the sentence to print rather than a timestamp.
-        var stale = NewerThanTheBinary(published);
+        // directory holds the file, and that is the sentence to print rather than a hash.
+        var stale = StaleBecause(published, sources);
 
         Assert.True(stale is null,
-            $"'{published}' is older than '{stale}', so this would test a binary built before the "
-            + "code it is supposed to be checking. Publishing it here did not fix that, and the "
-            + "usual reason is a running server holding the file: stop it, then run "
-            + "dotnet publish mcp-play/ProwlersAndParagons.McpPlay.csproj -c Release "
-            + "-o mcp-play-server");
+            $"'{published}' was not published from the sources on disk — {stale}. This would test a "
+            + "binary built from other code than the code it is supposed to be checking. Publishing "
+            + "it here did not fix that, and the usual reason is a running server holding the file: "
+            + "stop it, then run dotnet publish mcp-play/ProwlersAndParagons.McpPlay.csproj "
+            + "-c Release -o mcp-play-server");
 
         var start = new ProcessStartInfo(server["command"]!.GetValue<string>())
         {
