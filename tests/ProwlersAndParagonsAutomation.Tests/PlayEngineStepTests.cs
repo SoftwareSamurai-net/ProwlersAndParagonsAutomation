@@ -4241,6 +4241,67 @@ public sealed class PlayEngineStepTests
             StringComparison.Ordinal);
     }
     /// <summary>
+    /// <b>A size that cannot be a ratio is refused by the type, whichever door it comes in at.</b>
+    ///
+    /// <para><c>Combatant.Build</c> refuses a zero, a negative, a NaN and an infinity, and the
+    /// reason it has to is arithmetic: <c>SizeModifier</c> divides one size by the other, and a zero
+    /// defender yields an infinity that satisfies every band p.75 prints — a standing +2d nothing
+    /// anywhere reports. <b>Nothing drove that guard.</b> Replacing its condition with
+    /// <c>false</c> left all 4,697 tests in this project green, because the only refusal anybody had
+    /// written was the encounter server's, and <c>play/</c> is a library with more callers than
+    /// that one.</para>
+    ///
+    /// <para>Every factory is driven, because each passes <c>size</c> down separately, and
+    /// <see cref="CombatantFactory"/> is driven too — it is the door a host actually uses. The
+    /// control is the same call with a real size, which has to build.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(0d)]
+    [InlineData(-1d)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    public void ASizeThatCannotBeARatioIsRefusedByEveryFactory(double size)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 5 };
+
+        var factories = new (string Name, Func<double, Combatant> Build)[]
+        {
+            ("Hero", s => Combatant.Hero("a", "A", 5, 10, 3, traits, ["toughness"], size: s)),
+            ("Villain", s => Combatant.Villain("a", "A", 5, 10, traits, ["toughness"], size: s)),
+            ("Foe", s => Combatant.Foe("a", "A", 5, 10, traits, ["toughness"], size: s)),
+            ("Extra", s => Combatant.Extra("a", "A", 5, 10, traits, ["toughness"], size: s)),
+            ("Minions", s => Combatant.Minions("a", "A", 5, 4, "threat", size: s))
+        };
+
+        foreach (var (name, build) in factories)
+        {
+            // The control first: the same call with a real size builds, so the throw below is about
+            // the figure and not about the arguments around it.
+            Assert.Equal(2, build(2).Size);
+
+            var refused = Assert.Throws<ArgumentOutOfRangeException>(() => build(size));
+
+            Assert.Contains("p.75", refused.Message, StringComparison.Ordinal);
+            Assert.Contains("ratio", refused.Message, StringComparison.Ordinal);
+            Assert.True(
+                string.Equals(refused.ParamName, "size", StringComparison.Ordinal),
+                $"{name} refused a size of {size} on '{refused.ParamName}' rather than on 'size'");
+        }
+
+        // And the door a host actually comes in at: a sheet plus a size, through the one place in
+        // play/ that reads a CharacterSheet.
+        var rules = new RulesFixture();
+        var sheet = rules.LegalSheet();
+
+        Assert.Equal(2, CombatantFactory.From(
+            sheet, rules.Rules, rules.Derived, _play, CombatantKind.Hero, size: 2).Size);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => CombatantFactory.From(
+            sheet, rules.Rules, rules.Derived, _play, CombatantKind.Hero, size: size));
+    }
+
+    /// <summary>
     /// <b>Size touches the dodging kind of defence and no other.</b>
     ///
     /// <para>p.75 says "Size affects your <em>active</em> defense rolls" in as many words, so a

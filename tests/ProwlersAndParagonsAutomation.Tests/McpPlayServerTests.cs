@@ -1761,6 +1761,80 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>Every shape of a size p.75 cannot make a ratio of is refused by name, and nothing else
+    /// is.</b>
+    ///
+    /// <para>The roster of refusal codes drives <c>BAD_SIZE</c> once, with a zero. A zero is the
+    /// one that is obviously dangerous — it divides, and the infinity that comes out satisfies
+    /// every band there is — but it is one of several: a negative size inverts the comparison, a
+    /// string or a flag is not a figure at all, and a literal too large for a <c>double</c> is an
+    /// infinity arriving by another door. Each is driven here, because a reader of the guard has no
+    /// way to tell a case it handles from one it happens to reach through a different branch.</para>
+    ///
+    /// <para><b>The accepted half is the control</b>, and it is what stops this being a test that a
+    /// server refusing every size would pass: the fixture below opens a fight on a size on each
+    /// side of 1 and gets it back echoed as sent.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("-0.5")]
+    [InlineData("\"big\"")]
+    [InlineData("true")]
+    [InlineData("[]")]
+    [InlineData("{}")]
+    [InlineData("1e400")]
+    public async Task ASizeThatCannotBeARatioIsRefusedByName(string literal) =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = WithRawSize(JsonNode.Parse(literal))
+            });
+
+            Assert.False(answer["ok"]!.GetValue<bool>(), $"a size of {literal} opened a fight");
+
+            Assert.Equal("BAD_SIZE", answer["problem"]!["code"]!.GetValue<string>());
+
+            // The refusal names the page whose bands it could not be a ratio for, rather than
+            // reading as a schema complaint about a number.
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Contains("p.75", message, StringComparison.Ordinal);
+            Assert.Contains("ratio", message, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>The control on the fixture above: a real size above zero is taken, on either side of 1.</b>
+    ///
+    /// <para>Without this, a server that refused every <c>"size"</c> it was ever sent would satisfy
+    /// every case of <see cref="ASizeThatCannotBeARatioIsRefusedByName"/>. It is also the other
+    /// half of the echo: the figure that comes back is the one that went out, so a server that
+    /// accepted the value and then dropped it cannot pass either.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(0.2)]
+    [InlineData(1.0)]
+    [InlineData(5.0)]
+    [InlineData(180.0)]
+    public async Task ARealSizeAboveZeroIsTakenAndEchoedAsSent(double size) =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = WithSize(size)
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), $"a size of {size} was refused");
+
+            var hero = Assert.Single(
+                answer["turn_order"]!.AsArray(),
+                c => string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            Assert.Equal(size, hero!["size"]!.GetValue<double>());
+        });
+
+    /// <summary>
     /// <b>Two turns in flight on one fight land in order, rather than on top of each other.</b>
     ///
     /// <para>Taking a turn is <em>read the held state, step it, write the result back</em>, and the
@@ -2714,6 +2788,14 @@ public sealed class McpPlayServerTests
 
     /// <summary>The fight with one combatant given a size p.75's bands cannot be a ratio of.</summary>
     private static JsonArray WithSize(double size)
+    {
+        var fight = TwoSides();
+        fight[0]!["size"] = size;
+        return fight;
+    }
+
+    /// <summary>The same, for a <c>"size"</c> that is not a number at all.</summary>
+    private static JsonArray WithRawSize(JsonNode? size)
     {
         var fight = TwoSides();
         fight[0]!["size"] = size;
