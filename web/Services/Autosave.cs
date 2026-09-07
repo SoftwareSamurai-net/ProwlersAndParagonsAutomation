@@ -108,6 +108,20 @@ public sealed class Autosave
     /// is a fire-and-forget continuation, and if one ever did, a raised flag with nobody left to
     /// lower it would coalesce every future edit into a write that is never going to start. The
     /// throw is not swallowed: it goes on to the same nowhere it went before this class existed.</para>
+    ///
+    /// <para><b>And the edit behind a failed write is picked up rather than dropped with it.</b>
+    /// Clearing both flags together was a lost update by the other door: the keystroke that raised
+    /// <see cref="_again"/> had nobody left to send it, which is precisely what this class exists
+    /// to prevent, reached through the failure path instead of the success path. So a pending edit
+    /// keeps <see cref="_writing"/> raised and starts a fresh pump — the throw still goes where it
+    /// went, and the edit still goes to the store.</para>
+    ///
+    /// <para><b>Conditioned on the flag, and that is the bound.</b> An unconditional re-pump
+    /// against a store that throws every time is a hot loop; conditioned, the writes are bounded by
+    /// the edits made rather than by the failures suffered, and a throw with nothing pending lowers
+    /// the flag and stops. <b>This is not a retry policy and must not become one</b> — the write
+    /// that failed is not tried again, because the reader's next keystroke is the only thing that
+    /// says there is anything left to send.</para>
     /// </summary>
     private async Task Pump()
     {
@@ -123,11 +137,20 @@ public sealed class Autosave
             }
             catch
             {
+                bool pending;
+
                 lock (_gate)
                 {
-                    _writing = false;
+                    pending = _again;
                     _again = false;
+
+                    // Stays raised when something is pending, because the pump started below *is*
+                    // that write: lowering it would let the next edit start a second one beside
+                    // it, which is the race this class exists to end.
+                    _writing = pending;
                 }
+
+                if (pending) _ = Pump();
 
                 throw;
             }
