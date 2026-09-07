@@ -135,7 +135,6 @@ turned one of these table settings on without saying that the numbers do not car
 
 | Entry | What it is |
 |---|---|
-| `adversity_spend_misfortune` | Ch.5 p.85. A piece of misfortune that is a challenge. |
 | `adversity_spend_villainy` | Ch.5 p.85. An act of villainy the Heroes cannot simply prevent. |
 | `modifier_cover` | p.75. Nothing on an attack can say a target is behind something. |
 | `modifier_size` | p.75. Nothing says how big anybody is. |
@@ -162,18 +161,17 @@ initiative variant beside them — are applied.
 
 **Spends that refuse by name** — the `kind` values `spend_resolve` and `spend_adversity` accept,
 recognise, and answer with a `not yet implemented` line. Every one of a Hero's own purchases is
-resolved; what is left here is two of the GM's four, which are effects on a scene rather than on
+resolved; what is left here is one of the GM's four, which is an effect on a scene rather than on
 a roll:
 
 | Spend | Tool |
 |---|---|
-| `misfortune` | `spend_adversity` |
 | `villainy` | `spend_adversity` |
 
 Everything else a spend can name is resolved: `extra_dice`, `reroll`, `seize_initiative`,
 `instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold`, `knockback`, `luring` and
-`team_attack` for a Hero, and, for the GM, `suppress_flaw` and `anything_resolve_can` naming one of
-the purchases the last table below marks bought.
+`team_attack` for a Hero, and, for the GM, `suppress_flaw`, `misfortune` and
+`anything_resolve_can` naming one of the purchases the last table below marks bought.
 
 **`suppress_flaw` buys a Villain, a Foe or an Extra out of one of their Flaws for the rest of the
 scene, and takes a `narration`.** Say which Flaw, in `narration`, or the spend is refused with
@@ -185,6 +183,16 @@ character is saved from is yours to tell. What the engine has recorded is the po
 pool and the suppression itself, which comes back on the public state as `flaw_suppressed` and
 refuses a second purchase against the same character — p.85 allows one per character per issue.
 A Hero or a group of Minions is refused: the page names three kinds and those are not among them.
+
+**`misfortune` throws a piece of bad luck at the Heroes, and takes a `narration` too.** Say what the
+misfortune is — a weapon jams, a stray shot endangers civilians, a Hero's mask comes off — or it is
+refused with nothing spent. **The point leaving the pool is not most of this rule, it is the whole
+of it**: p.85 gives a misfortune no roll, no threshold, no duration and no way of resisting one, so
+the engine records the purchase and your words and nothing else, and the ledger line says so. Two
+things the page asks of one are yours to honour: it should be a challenge and a complication rather
+than a punishment, and never a heavy-handed plot device — that is what `villainy` is for. It is the
+one spend aimed at a side rather than at a character, so it needs no `actor`; a fight with no Hero
+in it is refused, because there is nobody to throw it at.
 
 **`luring` is the one spend that takes a `target`**, because p.79 lets a dodged attack be sent into
 a person rather than into the scenery — and a person is the only thing this engine has to send it

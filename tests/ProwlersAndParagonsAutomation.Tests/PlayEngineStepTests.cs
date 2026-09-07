@@ -1469,6 +1469,98 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>p.85's misfortune: the point moves, the GM's words go on the ledger, and nothing else in
+    /// the fight is touched.</b>
+    ///
+    /// <para>The entry's own <c>ambiguity</c> says nothing here is mechanical — three examples, two
+    /// prohibitions, and no roll, threshold, duration or means of resisting one anywhere on the
+    /// page. So the claim this fixture makes is unusually flat and is the honest one: the pool falls
+    /// by the printed price, the line carries what the GM said, and <b>every other part of the state
+    /// is the same object it was</b>. That last assertion is the one that would catch an engine
+    /// inventing a mechanic the book has not got.</para>
+    ///
+    /// <para>The refusal is driven too: a spend that does not say what the misfortune is buys
+    /// nothing. And the end of the fixture is why there is no "nobody to throw it at" refusal — a
+    /// fight with no Hero in it opens on no Adversity at all, so such a guard would be a branch no
+    /// encounter can reach.</para>
+    /// </summary>
+    [Fact]
+    public void AMisfortuneCostsThePoolAndRecordsTheGmsWordsAndNothingElse()
+    {
+        var entry = _play.GetResolve("adversity_spend_misfortune");
+        var rule = entry.Spend!;
+
+        // The controls on the data: a price, and the two things the page asks of a misfortune.
+        Assert.Equal(1, rule.CostAdversity);
+        Assert.True(rule.MustBeAChallengeNotAPunishment);
+        Assert.True(rule.MustNotBeAPlotDevice);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 5, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 9, health: 20, traits, ["toughness"]);
+
+        // Nothing here rolls, and the one scripted face is required to be untouched at the end.
+        var dice = new ScriptedDice(6);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain], challengeLevel: 2);
+        var opening = state.Adversity;
+
+        Assert.True(opening >= rule.CostAdversity, $"the GM opened on {opening} Adversity");
+
+        // Refused, with nothing spent: a purchase that does not say what the misfortune is.
+        var unnamed = encounter.Step(state, new SpendAdversity("villain", AdversitySpend.Misfortune));
+
+        Assert.Equal(opening, unnamed.State.Adversity);
+        Assert.Contains(unnamed.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.Text.Contains("does not say what it is", StringComparison.Ordinal));
+
+        // The purchase.
+        const string What = "the fire escape gives way under them";
+
+        var bought = encounter.Step(state, new SpendAdversity(
+            "villain", AdversitySpend.Misfortune, Narration: What));
+
+        Assert.Equal(opening - rule.CostAdversity, bought.State.Adversity);
+
+        var line = bought.Added.Single(l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains(What, line.Text, StringComparison.Ordinal);
+        Assert.Contains("the Heroes on " + Combatant.HeroSide, line.Text, StringComparison.Ordinal);
+        Assert.Contains("the GM's to narrate", line.Text, StringComparison.Ordinal);
+
+        // <b>And nothing else moved.</b> Same objects, not merely equal ones: an engine that had
+        // invented a mechanic for a rule the page gives none to would have rebuilt one of these.
+        Assert.Same(state.Combatants, bought.State.Combatants);
+        Assert.Same(state.Effects, bought.State.Effects);
+        Assert.Same(state.TurnOrder, bought.State.TurnOrder);
+        Assert.Same(state.Ranges, bought.State.Ranges);
+        Assert.Equal(state.Page, bought.State.Page);
+        Assert.Equal(state.TurnIndex, bought.State.TurnIndex);
+
+        // <b>And a fight with nobody to throw one at cannot buy one, without a guard for it.</b>
+        // The opening pool is a point per Hero plus the Challenge Level times the same number, so a
+        // fight with no Hero in it opens on nothing and the spend is refused for want of a point.
+        // A "there is nobody to throw it at" refusal would be a branch no encounter can reach,
+        // which is why there is not one — and this is what makes that claim true rather than said.
+        var foe = Combatant.Foe("foe", "the Foe", edge: 4, health: 8, traits, ["toughness"], side: "third");
+        var villainsOnly = encounter.Begin([villain, foe], challengeLevel: 3);
+
+        Assert.Equal(0, villainsOnly.Adversity);
+
+        var nobody = encounter.Step(villainsOnly, new SpendAdversity(
+            "villain", AdversitySpend.Misfortune, Narration: What));
+
+        Assert.Equal(0, nobody.State.Adversity);
+        Assert.Contains(nobody.Added, l =>
+            l.Text.Contains("the GM has 0 Adversity", StringComparison.Ordinal));
+
+        Assert.Equal(1, dice.Remaining);
+    }
+
+    /// <summary>
     /// <b>An odd pool banking automatic successes keeps the even half and nothing for the leftover
     /// die.</b>
     ///

@@ -98,7 +98,6 @@ public sealed partial class Encounter
     public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         // The GM's, Ch.5 p.85.
-        "adversity_spend_misfortune",
         "adversity_spend_villainy",
 
         // p.75's three situational modifiers: no intent can express any of them.

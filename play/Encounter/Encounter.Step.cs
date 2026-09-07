@@ -2307,6 +2307,9 @@ public sealed partial class Encounter
             case AdversitySpend.SuppressFlaw:
                 return SuppressFlaw(state, entry, spend, lines);
 
+            case AdversitySpend.Misfortune:
+                return Misfortune(state, entry, spend, lines);
+
             case AdversitySpend.AnythingResolveCan:
                 break;
 
@@ -2468,6 +2471,74 @@ public sealed partial class Encounter
             + "recorded the point and the suppression and nothing else"));
 
         return ChargeAdversity(state, cost).With(npc.Suppressing(flaw));
+    }
+
+    /// <summary>
+    /// Ch.5 p.85's <c>adversity_spend_misfortune</c>: a point throws a piece of bad luck at the
+    /// Heroes.
+    ///
+    /// <para><b>Nothing about this rule is mechanical, and the entry's own <c>ambiguity</c> says so
+    /// in as many words</b>: a misfortune is defined by three examples and two prohibitions, and no
+    /// roll, threshold, duration or way of resisting one is printed anywhere. So the whole of what
+    /// this engine can honestly do is take the point out of the pool and write down what the GM
+    /// said the point bought — and the ledger line says that is what it did, rather than announcing
+    /// an effect the state never received.</para>
+    ///
+    /// <para><b>It is refused unless it says what the misfortune is.</b> A purchase recorded with no
+    /// words behind it is a pool that has moved for nothing: nobody reading the run could narrate
+    /// from it and nobody could audit it. That is the same refusal p.79's luring makes of a lure
+    /// that names nobody, and for the same reason — the engine has nothing of its own to put
+    /// there.</para>
+    ///
+    /// <para><b>It is aimed at a side and not at a character</b>, which is why it is the one spend
+    /// whose <see cref="Intent.Actor"/> is not read and whose ledger line names no actor: p.85
+    /// throws it at "the Heroes", and the line names the side they are on.</para>
+    /// </summary>
+    private EncounterState Misfortune(
+        EncounterState state, ResolveEntry entry, SpendAdversity spend, List<LedgerLine> lines)
+    {
+        var rule = entry.Spend!;
+        var cost = rule.CostAdversity!.Value;
+
+        if (WrongPrice(state, entry, spend, cost, lines) is { } priced) return priced;
+
+        if (spend.Narration is not { Length: > 0 } what)
+        {
+            return Refuse(state, "", entry.Id, entry.SourceRef, lines,
+                $"a point buys {rule.WhatItIs}, and this spend does not say what it is. p.85 gives "
+                + $"a misfortune no roll, no threshold and no duration — {string.Join("; ", rule.ExamplesGiven!)} "
+                + "are the whole of what it prints — so the words are the GM's and this engine has "
+                + "none of its own");
+        }
+
+        var asked = new List<string>();
+        if (rule.MustBeAChallengeNotAPunishment == true) asked.Add("a challenge rather than a punishment");
+        if (rule.MustNotBeAPlotDevice == true) asked.Add("never a heavy-handed plot device");
+
+        // <b>The side, because p.85 aims a misfortune at "the Heroes" and this engine has no such
+        // category — only combatants who are on a side.</b> There is no refusal for a fight with no
+        // Heroes in it and there cannot usefully be one: the opening pool is a point per Hero plus
+        // the Challenge Level times the same number, so a fight without one opens on nothing at all
+        // and the spend is refused for want of a point long before it could be refused for want of
+        // a target. A guard there would be a branch no encounter can reach.
+        var sides = state.Combatants.Values
+            .Where(c => c.Kind == CombatantKind.Hero)
+            .Select(c => c.Side)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        var aimedAt = sides.Count == 0 ? "the Heroes" : "the Heroes on " + string.Join(" and ", sides);
+
+        lines.Add(new LedgerLine(
+            state.Page, "", entry.Id, entry.SourceRef,
+            $"the GM spends {cost} Adversity on a misfortune aimed at {aimedAt}: "
+            + $"\"{what}\". p.85 asks that it be {string.Join(", and ", asked)}. Nothing about a "
+            + "misfortune is mechanical — the page gives it no roll, no threshold and no duration — "
+            + "so this engine has recorded the point and the GM's words, and the misfortune itself "
+            + "is the GM's to narrate"));
+
+        return ChargeAdversity(state, cost);
     }
 
     /// <summary>

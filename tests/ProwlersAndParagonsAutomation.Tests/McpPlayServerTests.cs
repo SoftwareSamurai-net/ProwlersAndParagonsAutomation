@@ -823,6 +823,56 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A misfortune crosses the wire, and what comes back is the purchase and the GM's words and
+    /// nothing else.</b>
+    ///
+    /// <para>p.85 gives a misfortune no roll, no threshold and no duration, so this is the one spend
+    /// whose whole answer is a pool that fell and a sentence. Both halves are required here: the
+    /// pool on the public state has to have moved, or the call did nothing; and the words have to be
+    /// on the line, or the <c>narration</c> field was dropped and the spend was refused for naming
+    /// nothing — which is what a client would see as "the server ignored me".</para>
+    ///
+    /// <para>It needs no <c>actor</c>, which is asserted by sending none: p.85 throws a misfortune
+    /// at the Heroes as a side, not on behalf of a character.</para>
+    /// </summary>
+    [Fact]
+    public async Task AMisfortunesNarrationCrossesTheWireAndCostsThePool() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 81
+            });
+
+            var encounter = opened["encounter_id"]!.GetValue<string>();
+            var before = opened["adversity"]!.GetValue<int>();
+
+            // The control: there is a pool for the spend to come out of.
+            Assert.True(before > 0, $"the fight opened on {before} Adversity");
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["spend"] = "misfortune",
+                    ["narration"] = "the fire escape gives way under them"
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            Assert.Contains(turn["added"]!.AsArray(), l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "adversity_spend_misfortune", StringComparison.Ordinal)
+                && l["text"]!.GetValue<string>()
+                    .Contains("the fire escape gives way under them", StringComparison.Ordinal));
+
+            Assert.Equal(before - 1, turn["state"]!["adversity"]!.GetValue<int>());
+        });
+
+    /// <summary>
     /// <b>A range class is named, never numbered.</b>
     ///
     /// <para><c>Enum.TryParse</c> accepts the numeral of a member — and for a plain enum it accepts
