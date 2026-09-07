@@ -4759,13 +4759,14 @@ public sealed class PlayEngineStepTests
     ///
     /// <para><b>p.75 hangs the "unless" off one sentence and this engine applies it to both.</b> The
     /// printed clause is "You effectively have no visibility against an invisible opponent unless
-    /// you have a Power that compensates for this, like Blind Fighting or Radar" — so what the page
-    /// says in as many words is that the Power answers an <em>invisible opponent</em>. The entry
-    /// carries <c>powers_that_compensate_given</c> under <c>visibility</c> as a whole rather than
-    /// under the invisible clause, and a Power called Blind Fighting that did nothing about
-    /// darkness would be a strange rule, so the engine reads it as covering the scene's light too.
-    /// That is a reading, it is the permissive direction, and the guide's readings table records it.
-    /// </para>
+    /// you have a Power that compensates for this, like Blind Fighting or Radar" — so read alone it
+    /// covers an invisible opponent and not the dark. <b>The book settles it on the Power's own
+    /// page, and this engine may not read that page</b>: Blind Fighting (Ch.2, p.24) is "no
+    /// penalties or adverse effects when fighting in the dark or against opponents you can't see,
+    /// whatever the reason". That is a Chapter 2 entry and <c>play/</c> reads
+    /// <c>data/rules/play/</c> and nothing else, so the scope is read off the field's placement —
+    /// <c>powers_that_compensate_given</c> sits under <c>visibility</c> as a whole rather than under
+    /// the invisible clause — and the guide's readings table records why.</para>
     ///
     /// <para><b>Only the light half was driven.</b> Narrowing the compensation to
     /// <c>!unseen &amp;&amp; Compensating(roller)</c> — the engine declining to compensate for
