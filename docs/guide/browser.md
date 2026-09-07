@@ -967,26 +967,46 @@ the storage half, which shipped a slice earlier.
     spelling of `LiveHouseRules` cost the page a third sanctioned tier read — and the sanction is
     what would then have permitted a real one.
 - **The copy going stale is reported in one of its two directions, and the other is now reported
-  too.** `CAMPAIGN_HOUSE_RULES_NOT_COPIED` is the empty-copy half: the game has set a price or
-  turned a rule on and the character carries neither, because it joined before the GM decided.
-  Both mismatch checks need each side to have set something — item 15's condition, unchanged — so
-  that state produced no finding at all while the engine went on costing Immortality at the book's
-  3 at a table charging 12. It is reported **before** `CAMPAIGN_TABLE_MISMATCH` because it can move
-  a figure and that one cannot, it carries the table's price so `Ranks` can say the number, and its
-  remedy is joining again — the one act that writes into the still-empty field. **Reported, never
-  repaired**: copying the price in from a panel would move somebody's spend while they were reading
-  a list.
+  too.** `CAMPAIGN_HOUSE_RULES_NOT_COPIED` is the empty-copy half: the game has set a cap, a price
+  or a rule and the character carries none of them, because it joined before the GM decided.
+  All three mismatch checks need each side to have set something — item 15's condition, unchanged —
+  so that state produced no finding at all while the engine went on costing Immortality at the
+  book's 3 at a table charging 12. It is reported **before** `CAMPAIGN_TABLE_MISMATCH` because it
+  can move a figure and that one cannot, it carries the table's figures so `Ranks` can say the
+  numbers, and its remedy is joining again — the one act that writes into the still-empty field.
+  **Reported, never repaired**: copying the price in from a panel would move somebody's spend while
+  they were reading a list.
 - **The both-set condition is still item 15's and is still right; what changed is that its blind
-  spot now has a finding of its own.** Both mismatch checks compare only where the campaign *and*
+  spot now has a finding of its own.** Every mismatch check compares only where the campaign *and*
   the character have set something, which is correct for a mismatch — a campaign that has set no
   price is not overruling anybody. The claim this file used to make beside it, that "a character
   with none has already inherited the campaign's", is true only of a campaign that had already
   decided at the time of the join, and that gap is what `CAMPAIGN_HOUSE_RULES_NOT_COPIED` covers.
-  **The cap is deliberately not folded into it**: a character with no house cap is built to its
-  tier's, which is a real ceiling rather than a missing copy, and the live list says what the table
-  caps at so a reader can see the difference without being told they are missing something. What
-  the finding's sentence points at is joining again, because that is where `??=` fires into the
-  still-empty field, `TookHouseRules` goes true and the join says so.
+  What the finding's sentence points at is joining again, because that is where `??=` fires into
+  the still-empty field, `TookHouseRules` goes true and the join says so.
+- **The cap is in that finding, and this reverses what was written here first.** The first version
+  left it out, on the argument that a character with no house cap is built to its tier's, which is
+  a real ceiling rather than a missing copy. **That argument is true of all three settings or of
+  none**: a character with no house price is charged the book's 3, which is a real price by the
+  same reasoning, and it is in the finding. Two further things decided it. `Apply` copies the cap
+  with the same `??=` as the other two and answers `TookTraitCap` when it fires, so the join
+  already treats a cap as a thing that is copied — a finding that did not was one of two places
+  disagreeing about one assignment. And the cap is the setting of the three that moves the most:
+  `EffectiveTraitCap` feeds rank legality *and* Resolve, where the price moves a spend and the
+  switches move nothing until a fight, so a character sitting at its tier's 12d in a game that caps
+  at 6d has ranks its table will not allow. "The live list says what the table caps at, so a reader
+  can see the difference" is the re-scan this pair of lists exists to save somebody.
+  **Each figure is carried only where that setting is the one missing**, so a game whose cap the
+  character *did* take prints the price alone — a true figure given for a false reason is the fault
+  `Ranks` exists to keep out.
+- **The reverse direction — the character carries a rule the game has since dropped — is drawn as
+  a row and is deliberately not a finding, for all three settings alike.** A game that has set
+  nothing is not overruling anybody, which is the sentence `Inspect` already applied to a cap, and
+  the copy is what is in force for that character either way. It is not silent to a reader:
+  `BetweenTables` compares both ways round, so *Fatal Damage on → off* and *Immortality 9 HP →
+  3 HP* are on the panel beside the copy they are about, with the live list saying "The book as
+  printed." above them. That is the honest shape — a row saying what has moved, and no sentence
+  telling somebody to act on a table that has stopped asking anything of them.
 - **So the panel has to say it is a copy, and the first version said the opposite.** A join writes
   into empty fields only and nothing else writes at all, so a GM who edits the campaign afterwards
   changes nothing on a character already in it — `Inspect` reports that disagreement and a member

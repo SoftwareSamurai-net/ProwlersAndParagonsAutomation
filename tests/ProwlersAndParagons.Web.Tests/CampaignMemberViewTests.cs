@@ -240,6 +240,108 @@ public sealed class CampaignMemberViewTests
     }
 
     /// <summary>
+    /// <b>A cap the game set after the join is reported too, and it was not.</b>
+    ///
+    /// <para>The finding built for the empty copy asked about the price and the switches and left
+    /// the Trait Cap out — which made it inconsistent with <c>CAMPAIGN_TRAIT_CAP_MISMATCH</c> above
+    /// it in exactly the direction where the cap matters most. <c>Apply</c> copies all three
+    /// settings with the same <c>??=</c>, so all three go missing the same way; and the cap is the
+    /// one of them that moves the most, because <c>EffectiveTraitCap</c> feeds rank legality
+    /// <em>and</em> Resolve where the price moves a spend and the switches move nothing until a
+    /// fight.</para>
+    ///
+    /// <para><b>Reported and never repaired</b>, the same as the price: the remedy is joining
+    /// again, which is the one act that writes into a still-empty field.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACharacterThatJoinedBeforeTheTableCappedIsToldItIsMeasuredByTheBook()
+    {
+        var (ctx, page) = await AMemberOf();
+        await using var _ = ctx;
+
+        // The control: the join happened, and it copied no cap because there was none to copy.
+        Assert.Equal(CampaignId, ctx.Session.Sheet.CampaignId);
+        Assert.Null(ctx.Session.Sheet.TraitCapRank);
+
+        // The GM caps the game afterwards, and nothing writes it onto the character.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        ctx.Api.Campaign(CampaignId, "Pinnacle City",
+            StoredCampaign.Write(new Campaign(
+                CampaignId, "Pinnacle City", "standard", 6, false)));
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var after = ctx.Render<Campaigns>();
+
+        Assert.Contains("joined before the game set its house rules", after.Markup,
+            StringComparison.Ordinal);
+
+        // The figure, for the reason every other one is carried: "measured by the book" is not
+        // something a reader can act on without being told what the table caps at instead.
+        Assert.Contains("The game caps at 6d.", after.Markup, StringComparison.Ordinal);
+
+        Assert.Contains("Join again", after.Markup, StringComparison.Ordinal);
+        Assert.Null(ctx.Session.Sheet.TraitCapRank);
+    }
+
+    /// <summary>
+    /// <b>The other direction is drawn as rows and is deliberately not a finding.</b>
+    ///
+    /// <para>The GM clears the table's house rules and the character keeps the copy it took. That
+    /// is not a disagreement anybody has to act on — a game that has set nothing is not overruling
+    /// anybody, which is the sentence <c>Inspect</c> already applies to a cap — so no finding is
+    /// produced for any of the three settings, in either the cap's, the price's or the switches'
+    /// case.</para>
+    ///
+    /// <para><b>Which does not make it silent</b>, and that is what this pins: the member's own
+    /// panel draws it, a row per setting, because <c>CampaignDiff.BetweenTables</c> compares the
+    /// copy against the live table both ways round. An absence asserted with nothing beside it
+    /// would be satisfied by a page that had stopped drawing anything at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task RulesTheGameHasDroppedAreDrawnAsRowsRatherThanReportedAsAFinding()
+    {
+        var (ctx, page) = await AMemberOf(new CampaignTable { FatalDamage = true }, immortality: 9);
+        await using var _ = ctx;
+
+        // The control: the copy was taken, so there is something to go stale.
+        Assert.Equal(9, ctx.Session.Sheet.ImmortalityCost);
+        Assert.True(ctx.Session.Sheet.CampaignTable?.FatalDamage);
+
+        // The GM drops every house rule the game had.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        ctx.Api.Campaign(CampaignId, "Pinnacle City",
+            StoredCampaign.Write(new Campaign(
+                CampaignId, "Pinnacle City", "standard", null, false)));
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var after = ctx.Render<Campaigns>();
+
+        // Drawn: the live list says the book, and the rows say what the character still carries.
+        Assert.Contains("House rules at the table now", after.Markup, StringComparison.Ordinal);
+        Assert.Contains("The book as printed.", after.Markup, StringComparison.Ordinal);
+
+        var moved = after.FindAll("ul.diff-rows > li").Select(li => li.TextContent.Trim()).ToList();
+
+        Assert.Contains(moved, t => t.Contains("Fatal Damage", StringComparison.Ordinal)
+                                    && t.Contains("on → off", StringComparison.Ordinal));
+        Assert.Contains(moved, t => t.Contains("Immortality", StringComparison.Ordinal)
+                                    && t.Contains("9 HP → 3 HP", StringComparison.Ordinal));
+
+        // And no finding: the sentences of both house-rule findings are absent, with the rows
+        // above as the control that this page really did compare the two tables.
+        Assert.DoesNotContain("joined before the game set its house rules", after.Markup,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("carries a different set of optional rules", after.Markup,
+            StringComparison.Ordinal);
+
+        // Nothing repaired, in this direction either.
+        Assert.Equal(9, ctx.Session.Sheet.ImmortalityCost);
+        Assert.True(ctx.Session.Sheet.CampaignTable?.FatalDamage);
+    }
+
+    /// <summary>
     /// <b>A live read that answered nothing leaves the panel exactly as it was.</b>
     ///
     /// <para>The other half of the pair, and what keeps the new list from being a thing the screen

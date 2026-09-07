@@ -693,10 +693,20 @@ else
         { CharacterImmortalityCost: { } orphaned } =>
             $"Charged {orphaned} HP for {ImmortalityName}.",
 
-        // The other single figure, and the other direction: the game has named a price and the
-        // character carries none, so there is one number and it is the table's. Said for the
-        // reason the pairs are — "costed by the book" is not something a reader can act on
-        // without knowing what the table would charge instead.
+        // **The table's own figures, with no character figure beside them**, which is the shape
+        // `CAMPAIGN_HOUSE_RULES_NOT_COPIED` carries: the game has decided something and the
+        // character carries nothing, so there is one number per setting and both are the table's.
+        // Said for the reason the pairs are — "measured by the book" is not something a reader can
+        // act on without knowing what the table would use instead.
+        //
+        // **The pair arm comes first**, because a `switch` takes the arm that matches and a game
+        // that set both a cap and a price would otherwise print only the price. That is the same
+        // silent half-answer this whole method exists to stop.
+        { CampaignTraitCapRank: { } capped, CampaignImmortalityCost: { } charged } =>
+            $"The game caps at {capped}d and charges {charged} HP for {ImmortalityName}.",
+
+        { CampaignTraitCapRank: { } capped } => $"The game caps at {capped}d.",
+
         { CampaignImmortalityCost: { } charged } =>
             $"The game charges {charged} HP for {ImmortalityName}.",
 

@@ -162,7 +162,14 @@ public static class CampaignJoin
 
     /// <summary>
     /// The character joined before the table decided anything, so it carries no copy of the rules
-    /// the game now has.
+    /// the game now has — its house Trait Cap, its price for Immortality, or its optional rules.
+    ///
+    /// <para><b>The reverse is deliberately not a finding</b>, and it is the same answer for all
+    /// three: a character carrying a house rule its game has since cleared keeps it, and a game
+    /// that has set nothing is not overruling anybody — the sentence
+    /// <see cref="Inspect"/> already applies to a cap. That direction is not silent to a reader
+    /// either, because it is what <c>CampaignDiff.BetweenTables</c> draws as a row on the member's
+    /// own panel, beside the copy it is about.</para>
     ///
     /// <para>Named here because it is the one finding a screen has to be able to ask for
     /// <em>before</em> it has anything to compare: a member's browser cannot resolve their own
@@ -311,12 +318,15 @@ public static class CampaignJoin
     ///   <item><c>CAMPAIGN_IMMORTALITY_COST_MISMATCH</c> — both have set a price and they differ.
     ///     A price is Hero Points, so this is a character whose spend was counted against a figure
     ///     its table did not set.</item>
-    ///   <item><c>CAMPAIGN_HOUSE_RULES_NOT_COPIED</c> — the game has set a price or turned a rule
-    ///     on and the character carries neither, because it joined before the GM decided. <b>The
-    ///     other direction of the two checks above</b>, both of which need each side to have set
-    ///     something and so say nothing at all about this one. Reported before the mismatch below
-    ///     because it can move a figure: a character costed at the book's 3 for Immortality at a
-    ///     table charging 12.</item>
+    ///   <item><c>CAMPAIGN_HOUSE_RULES_NOT_COPIED</c> — the game has set a cap, a price or a rule
+    ///     and the character carries none of them, because it joined before the GM decided. <b>The
+    ///     other direction of the three checks above</b>, every one of which needs each side to
+    ///     have set something and so says nothing at all about this one. Reported before the
+    ///     mismatch below because it can move a figure: a character costed at the book's 3 for
+    ///     Immortality at a table charging 12, or checked against a tier's ceiling at a table that
+    ///     caps tighter. <b>All three settings, and the cap was left out of the first version</b> —
+    ///     which made the finding inconsistent with the cap mismatch above it in the direction
+    ///     where the cap matters most, since it feeds rank legality and Resolve both.</item>
     ///   <item><c>CAMPAIGN_TABLE_MISMATCH</c> — both carry optional rules and they are not the
     ///     same ones. <b>Last, because it is the one finding that moves no figure</b>: the
     ///     switches decide what happens in a fight and nothing about cost or legality.</item>
@@ -407,14 +417,31 @@ public static class CampaignJoin
         // price is the half that matters; the switch block is carried along with it because a
         // character that took neither took neither, and two findings for one join is two sentences
         // saying the same thing.
-        if ((campaign.ImmortalityCost is not null && sheet.ImmortalityCost is null)
-            || (campaign.Table is { IsTheBook: false } && sheet.CampaignTable is null))
+        //
+        // **All three of the settings a join copies, and leaving the cap out was a hole.** The
+        // first version of this asked about the price and the switches only, which made it
+        // inconsistent with the mismatch above it in the one direction that matters most: a
+        // campaign that set a cap after somebody joined left that character checked against the
+        // tier's ceiling with nothing said, and the cap is the setting of the three that moves the
+        // most — `EffectiveTraitCap` feeds rank legality *and* Resolve, where the price moves a
+        // spend and the switches move nothing until a fight. `Apply` copies all three with the
+        // same `??=`, so all three go missing the same way.
+        var capMissing = campaign.TraitCapRank is not null && sheet.TraitCapRank is null;
+        var priceMissing = campaign.ImmortalityCost is not null && sheet.ImmortalityCost is null;
+        var switchesMissing = campaign.Table is { IsTheBook: false } && sheet.CampaignTable is null;
+
+        if (capMissing || priceMissing || switchesMissing)
         {
+            // **Each figure is carried only where it is the one that is missing.** A game that set
+            // a cap the character *did* take and a price it did not must not print "the game caps
+            // at 6d" beside a sentence about what was not copied — the figure would be true and
+            // the reason for saying it false, which is the shape `Ranks` exists to keep honest.
             return new CampaignFinding(HouseRulesNotCopied,
                 "This character joined before the game set its house rules, so it carries none of "
-                + "them and is costed by the book. Join again to take the table's rules as they "
+                + "them and is measured by the book. Join again to take the table's rules as they "
                 + "stand. Nothing has been changed either way.",
-                CampaignImmortalityCost: campaign.ImmortalityCost);
+                CampaignTraitCapRank: capMissing ? campaign.TraitCapRank : null,
+                CampaignImmortalityCost: priceMissing ? campaign.ImmortalityCost : null);
         }
 
         // Last, because it is the finding that changes no figure: the optional rules decide what
