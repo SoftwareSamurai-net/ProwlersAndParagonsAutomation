@@ -1421,7 +1421,8 @@ public sealed class PlayTools
             ["size"] = state[id].Size,
             ["invisible"] = state[id].Invisible,
             ["hard_target"] = state[id].HardTarget,
-            ["ready"] = state[id].Ready
+            ["ready"] = state[id].Ready,
+            ["conscious_at_zero_or_less"] = state[id].ConsciousAtZeroOrLess
         })
     ];
 
@@ -1482,6 +1483,9 @@ public sealed class PlayTools
                     ["invisible"]          = c.Invisible,
                     ["hard_target"]        = c.HardTarget,
                     ["ready"]              = c.Ready,
+                    // p.80's Slow Healing: on their feet at a Health that would otherwise have
+                    // them out, and one point of damage from being out again.
+                    ["conscious_at_zero_or_less"] = c.ConsciousAtZeroOrLess,
                     ["defeated"]           = c.Defeated(floor)
                 })
             ]),

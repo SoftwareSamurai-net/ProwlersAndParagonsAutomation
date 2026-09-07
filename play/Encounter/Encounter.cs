@@ -1,5 +1,6 @@
 using ProwlersAndParagonsAutomation.Play.Dice;
 using ProwlersAndParagonsAutomation.Play.Rules;
+using ProwlersAndParagonsAutomation.Play.Rules.Models;
 
 namespace ProwlersAndParagonsAutomation.Play.Encounter;
 
@@ -72,7 +73,6 @@ public sealed partial class Encounter
     /// </summary>
     public static IReadOnlySet<string> SwitchesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        nameof(TableRules.SlowHealing),
         nameof(TableRules.RaisedGearLimit),
         nameof(TableRules.GearLimitRank)
     };
@@ -168,6 +168,10 @@ public sealed partial class Encounter
                 $"the visibility here is {band.Visibility}, which is {Dice(band.Dice)} on "
                 + $"{light.Visibility!.Affects} made in it"));
         }
+
+        // p.80's Slow Healing is half a rule about the days after a fight, so page one says which
+        // half this scene is carrying and which half it is not.
+        if (Table.SlowHealing) SlowHealingReaches(lines);
 
         var order = TurnOrder(everyone, edges, [], [], lines, page: 1);
 
@@ -461,6 +465,73 @@ public sealed partial class Encounter
 
         return order;
     }
+
+
+    /// <summary>
+    /// p.80's Slow Healing, sorted into the clauses a scene can carry and the clauses it cannot,
+    /// on page one.
+    ///
+    /// <para><b>An <see cref="Encounter"/> is one scene, and half of this rule is about the days
+    /// after it.</b> Three clauses bite inside a fight and are applied: nobody heals on regaining
+    /// consciousness after a defeat, so p.76's instant recovery brings a character round on the
+    /// Health they went down with; such a character may be conscious at or below the defeat figure;
+    /// and in that condition any damage at all puts them back down. A fourth is already true here
+    /// and is named rather than claimed as new — a character may be stabilised as often as
+    /// necessary, and p.79's <see cref="Stabilise"/> has never counted.</para>
+    ///
+    /// <para><b>The rest is between scenes and is said to be</b>, rather than left for a reader to
+    /// discover was missing: the daily rate by Toughness band, the sentence that takes away the
+    /// healing after each battle — which this engine has no intent for in the first place — and the
+    /// Medicine Talent's once-a-week limit and its rate. A rule announced as on and silently applied
+    /// in part is the failure this ledger exists to prevent, so the line names the parts.</para>
+    ///
+    /// <para><b>Two things beside the clauses are the entry's own notes and both are carried.</b>
+    /// The lowest band prints no hourly figure, and the entry's <c>interpretation</c> supplies
+    /// twenty-four as arithmetic rather than as a page reference; and its <c>ambiguity</c> records
+    /// that the Medicine rate halves without the page saying which way. Neither is applied here —
+    /// both are outside the scene — but a reader of a run under this setting should not have to go
+    /// to the file to find them.</para>
+    /// </summary>
+    private void SlowHealingReaches(List<LedgerLine> lines)
+    {
+        var entry = _play.GetGritty("gritty_slow_healing");
+        var rule = entry.SlowHealing!;
+
+        lines.Add(new LedgerLine(
+            1, "", entry.Id, entry.SourceRef,
+            "Slow Healing, inside this scene: nobody heals on regaining consciousness after a "
+            + $"defeat ({rule.HealingOnRegainingConsciousnessAfterADefeat}), so a character brought "
+            + "round is up on the Health they went down with; they may be conscious at or below the "
+            + $"figure that defeats them ({rule.YouMayBeConsciousAtZeroOrNegativeHealth}); and in "
+            + $"that condition any damage at all defeats them ({rule.InThatConditionAnyDamageAtAllDefeatsYou}). "
+            + $"Stabilisation is available as often as necessary ({rule.StabilizationAvailableAsOftenAsNecessary}), "
+            + "which is what this engine already does"));
+
+        var bands = string.Join("; ", rule.Bands.Select(b =>
+            $"{Toughness(b)}: {b.HealthPerDay} a day"
+            + (b.OnePointEveryHours is { } hours
+                ? $" (1 every {hours} hours)"
+                : $" (1 every {entry.Interpretation!.OnePointEveryHoursForTheLowestBand} hours, "
+                  + "which is this project's arithmetic and not a figure p.80 prints)")));
+
+        lines.Add(new LedgerLine(
+            1, "", entry.Id, entry.SourceRef,
+            "and outside it, where this engine cannot follow: the daily rate by Toughness — "
+            + $"{bands} — that there is no healing after each battle ({rule.HealingAfterEachBattle}), "
+            + $"and the Medicine Talent {rule.MedicineHealingLimit} at "
+            + $"{rule.MedicineHealthPerNetSuccesses} point per {rule.MedicineNetSuccessesPerPoint} "
+            + $"net successes. That last rate rounds in a direction the page never states: {entry.Ambiguity}"));
+    }
+
+    /// <summary>One Slow Healing band's Toughness range, in the shape p.80 prints it.</summary>
+    private static string Toughness(GrittyBandModel band) =>
+        (band.MinToughness, band.MaxToughness) switch
+        {
+            (null, { } max) => $"{max}d or less",
+            ({ } min, null) => $"{min}d or greater",
+            ({ } min, { } max) => $"{min}d to {max}d",
+            _ => "any Toughness"
+        };
 
     /// <summary>
     /// What the GM's alternative multiplies an Edge by.

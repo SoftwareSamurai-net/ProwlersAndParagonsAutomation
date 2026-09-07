@@ -1747,6 +1747,24 @@ public sealed partial class Encounter
         var damage = net * rule.DamagePerNetSuccess;
         var health = target.CurrentHealth - damage;
 
+        // p.80's Slow Healing, the sharp end of the sentence that let them stand up at all: a
+        // character conscious at or below the defeat figure "is defeated if you take even a single
+        // point of damage in this condition".
+        var overcome = damage > 0 && target.ConsciousAtZeroOrLess && state.Table.SlowHealing;
+
+        if (overcome)
+        {
+            var slow = _play.GetGritty("gritty_slow_healing");
+
+            lines.Add(new LedgerLine(
+                state.Page, target.Id, slow.Id, slow.SourceRef,
+                $"{target.Name} was on their feet at {target.CurrentHealth} Health under Slow "
+                + $"Healing, and p.80 puts them down again for {damage} point"
+                + (damage == 1 ? "" : "s") + " of damage: any at all does it"));
+        }
+
+        Combatant Down(Combatant hurt) => overcome ? hurt.Overcome() : hurt;
+
         if (!state.Table.FatalDamage)
         {
             health = Math.Max(rule.DefeatedAtHealth, health);
@@ -1756,7 +1774,7 @@ public sealed partial class Encounter
                 $"{net} net successes is {damage} damage; {target.Name} is on {health} Health"
                 + (health <= rule.DefeatedAtHealth ? $", which is {rule.DefeatedMeans}" : "")));
 
-            return state.With(target.WithHealth(health));
+            return state.With(Down(target.WithHealth(health)));
         }
 
         var gritty = _play.GetGritty("gritty_fatal_damage");
@@ -1767,7 +1785,7 @@ public sealed partial class Encounter
             state.Page, actor.Id, entry.Id, entry.SourceRef,
             $"{net} net successes is {damage} damage; {target.Name} is on {health} Health"));
 
-        var hurt = target.WithHealth(health);
+        var hurt = Down(target.WithHealth(health));
 
         if (health <= killedAt)
         {
@@ -2982,9 +3000,15 @@ public sealed partial class Encounter
 
         if (CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines)) return state;
 
-        var health = actor.CurrentHealth <= floor
+        // p.80's Slow Healing: "you do not heal ... when you regain consciousness after a defeat".
+        // So the point still brings them round and it brings back nothing else.
+        var slowly = state.Table.SlowHealing;
+
+        var health = actor.CurrentHealth <= floor && !slowly
             ? rule.AfterADamagingDefeatRestoresHealth
             : actor.CurrentHealth;
+
+        var standing = slowly && health <= floor;
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
@@ -2995,7 +3019,21 @@ public sealed partial class Encounter
             + (freed ? ", and free of the effect that had them" : "")
             + $" — {rule.LimitPerScene} a scene"));
 
-        return state.With(actor.Spending(rule.CostResolve).Recovered(health)) with { Effects = effects };
+        if (standing)
+        {
+            var gritty = _play.GetGritty("gritty_slow_healing");
+            var slow = gritty.SlowHealing!;
+
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, gritty.Id, gritty.SourceRef,
+                $"under Slow Healing nobody heals on regaining consciousness after a defeat "
+                + $"(healing_on_regaining_consciousness_after_a_defeat is {slow.HealingOnRegainingConsciousnessAfterADefeat}), "
+                + $"so {actor.Name} is up on {health} Health, which p.80 allows — and in that "
+                + "condition a single point of damage puts them straight back down"));
+        }
+
+        return state.With(actor.Spending(rule.CostResolve).Recovered(health, standing))
+            with { Effects = effects };
     }
 
     /// <summary>

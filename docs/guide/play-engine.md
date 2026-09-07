@@ -106,11 +106,16 @@ Three properties of it are load-bearing:
 
 | Setting | Entry |
 |---|---|
-| `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other nine gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, `CloseRangePenalty`, `TheDrop`, `FriendlyFire`, and the initiative variant beside them.
+**All ten gritty rules are now applied but one, and the one is the Gear Limit** — see below. The nine are `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, `CloseRangePenalty`, `TheDrop`, `FriendlyFire` and `SlowHealing`, with the initiative variant beside them.
+
+**p.80's Slow Healing is half a rule about the days after a fight, and page one says which half this scene carries.** Three clauses bite inside one and are applied for real. Nobody heals on regaining consciousness after a defeat, so p.76's instant recovery brings a character round on the Health they went down with rather than on `after_a_damaging_defeat_restores_health`. Such a character *may be conscious* at or below the figure that defeats them, which is `Combatant.ConsciousAtZeroOrLess` and is read by `Defeated` — without that the purchase would be a point spent on a sentence, since the very next line would find them defeated again. And in that condition any damage at all puts them down, which is `Combatant.Overcome`. A fourth clause is already true here and is named rather than claimed as new: stabilisation is available as often as necessary, and p.79's `Stabilise` has never counted.
+
+**The rest is between scenes and the ledger says so** rather than leaving a reader to discover it was missing: the daily rate by Toughness band, the sentence taking away the healing after each battle — which this engine has no intent for in the first place — and the Medicine Talent's once-a-week limit and its rate. The entry's own two notes travel with them, because a reader of a run should not have to open the file: the lowest band prints no hourly figure and the `interpretation` supplies twenty-four as arithmetic rather than as a page reference, and the `ambiguity` records that the Medicine rate halves without the page saying which way.
+
+**p.80's parenthetical is satisfied without a check, and it is the same reading `gritty_wound_penalties` already makes of the identical phrase.** "You may be conscious while at 0 or negative Health (if using the Fatal Damage rules)" hangs off the whole phrase, but exactly the defeat figure needs no optional rule — p.75 defeats a character there in any fight — and Health cannot fall below it unless Fatal Damage is on. So the condition holds structurally rather than by a branch.
 
 **p.80's Friendly Fire needs no field at all, because the fight already knows.** "A target engaged in close combat or otherwise bunched up with other characters" is derived from p.73's range bands, which are pairwise: a target at Close Range with somebody who is not the person shooting at them is a target with somebody else close enough to catch a stray round. Defeated characters are not in the melee, for the reason they are not the actor or target of anything.
 

@@ -3149,6 +3149,90 @@ public sealed class McpPlayServerTests
             Assert.True(Cites(into, "gritty_friendly_fire"));
         });
 
+
+    // ── p.80's Slow Healing, over the wire ────────────────────────────────
+
+    /// <summary>
+    /// <b>The <c>slow_healing</c> setting crosses the wire, and a character brought round under it
+    /// comes back on the wire as standing at the figure that would otherwise have them out.</b>
+    ///
+    /// <para>Nothing is declared for this rule, so what is driven is the setting and the state it
+    /// leaves behind — <c>conscious_at_zero_or_less</c> on the combatant, which is the field a
+    /// conversation needs in order not to narrate a character as unconscious when the engine has
+    /// them on their feet. The control is the same fight with the setting off, where p.76's own
+    /// figure comes back instead.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheSlowHealingSettingCrossesTheWireAndPublishesWhoIsStillStanding() =>
+        await WithClient(async client =>
+        {
+            var restores = _play.GetCombat("instant_recovery")
+                .InstantRecovery!.AfterADamagingDefeatRestoresHealth;
+
+            async Task<JsonNode> Recover(bool setting)
+            {
+                var fight = TwoSides();
+
+                // A Hero with almost nothing to lose, so one blow puts them down and the recovery
+                // below is the thing under test.
+                fight[0]!["character"]!["AbilityRanks"] =
+                    new JsonObject { ["might"] = 1, ["toughness"] = 1, ["willpower"] = 1 };
+
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["slow_healing"] = setting },
+                    ["seed"] = 80
+                });
+
+                var id = opened["encounter_id"]!.GetValue<string>();
+
+                // The Hero passes — the ladder puts them first on a tied Edge — the Villain
+                // flattens them, and then the Hero buys their feet back.
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject { ["kind"] = "end_turn", ["actor"] = "hero" }
+                });
+
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "villain", ["target"] = "hero",
+                        ["trait_id"] = "might"
+                    }
+                });
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "spend_resolve", ["actor"] = "hero",
+                        ["spend"] = "instant_recovery"
+                    }
+                });
+            }
+
+            static JsonNode Hero(JsonNode turn) =>
+                turn["state"]!["combatants"]!.AsArray().Single(c =>
+                    string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal))!;
+
+            // The control: with the setting off, p.76's own figure comes back and nobody is
+            // standing at nothing.
+            var ordinary = Hero(await Recover(setting: false));
+
+            Assert.Equal(restores, ordinary["health"]!.GetValue<int>());
+            Assert.False(ordinary["conscious_at_zero_or_less"]!.GetValue<bool>());
+
+            var slowly = Hero(await Recover(setting: true));
+
+            Assert.True(slowly["health"]!.GetValue<int>() <= 0);
+            Assert.True(slowly["conscious_at_zero_or_less"]!.GetValue<bool>());
+        });
+
     /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
     /// reader — enough to open a fight for the tests that are about something else.

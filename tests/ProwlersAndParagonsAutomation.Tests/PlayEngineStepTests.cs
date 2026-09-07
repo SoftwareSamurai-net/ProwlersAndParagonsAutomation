@@ -5848,6 +5848,211 @@ public sealed class PlayEngineStepTests
             l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
     }
 
+
+    // ── p.80's Slow Healing ──────────────────────────────────────────────────
+
+    /// <summary>Slow Healing, and nothing else.</summary>
+    private static readonly TableRules SlowHealingOn = TableRules.Book with { SlowHealing = true };
+
+    /// <summary>
+    /// A Hero beaten down to the defeat figure with a point of Resolve left to get up on, and a
+    /// Villain standing over them.
+    /// </summary>
+    private (EncounterState State, Encounter Fight) Floored(TableRules table)
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        var hero = Combatant.Hero(
+            "hero", "the Hero", edge: 12, health: 8, resolve: 2,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 2 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain(
+            "villain", "the Villain", edge: 7, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 2 },
+            ["toughness"]);
+
+        var fight = new Encounter(_play, new ScriptedDice([.. Enumerable.Repeat(4, 400)]), table);
+        var state = fight.Begin([hero, villain]);
+
+        // Put the Hero on the floor without rolling for it, so this fixture is about what happens
+        // next rather than about how they got there.
+        state = state.With(state["hero"].WithHealth(floor));
+
+        Assert.True(state["hero"].Defeated(floor), "the fixture did not actually put the Hero down");
+
+        return (state, fight);
+    }
+
+    /// <summary>
+    /// <b>Under Slow Healing a character brought round comes up on the Health they went down with,
+    /// and stays up.</b>
+    ///
+    /// <para>p.80 takes away the healing "when you regain consciousness after a defeat", which is
+    /// exactly what p.76's instant recovery is — so the purchase still buys the character their feet
+    /// and buys them no Health at all. <b>The state is what is checked</b>: an engine that had
+    /// written the sentence and left <see cref="Combatant.Defeated"/> answering true would have the
+    /// character down again on the very next line, and the point would have bought a ledger
+    /// entry.</para>
+    ///
+    /// <para><b>The setting off is the baseline and is measured first</b>, and it is the entry's own
+    /// figure rather than a number typed here.</para>
+    /// </summary>
+    [Fact]
+    public void SlowHealingBringsACharacterRoundOnTheHealthTheyWentDownWith()
+    {
+        var restores = _play.GetCombat("instant_recovery").InstantRecovery!.AfterADamagingDefeatRestoresHealth;
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        // The control on the reading: p.76 really does restore something, or "restores nothing" is
+        // a statement about a rule that never gave anything back.
+        Assert.True(restores > floor);
+
+        var (open, ordinary) = Floored(TableRules.Book);
+        var healed = ordinary.Step(open, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.Equal(restores, healed["hero"].CurrentHealth);
+        Assert.False(healed["hero"].ConsciousAtZeroOrLess);
+        Assert.False(healed["hero"].Defeated(floor));
+
+        var (slow, gritty) = Floored(SlowHealingOn);
+        var up = gritty.Step(slow, new SpendResolve("hero", ResolveSpend.InstantRecovery));
+
+        Assert.Equal(floor, up.State["hero"].CurrentHealth);
+        Assert.True(up.State["hero"].ConsciousAtZeroOrLess);
+
+        // The half that makes it a state rather than a flag: they are on their feet at a Health
+        // that would otherwise have them out of the fight.
+        Assert.False(up.State["hero"].Defeated(floor));
+
+        var line = Assert.Single(up.Added, l =>
+            string.Equals(l.Rule, "gritty_slow_healing", StringComparison.Ordinal));
+
+        Assert.Contains("single point of damage", line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A character standing at the defeat figure goes down again to one point of damage.</b>
+    ///
+    /// <para>The other half of p.80's sentence, and the reason the first half is safe to apply: a
+    /// character who may be conscious at nothing "is defeated if you take even a single point of
+    /// damage in this condition". Driven at one point rather than at a comfortable number, because
+    /// the page's word is <em>single</em> and an engine that had used the ordinary defeat test would
+    /// pass at anything larger.</para>
+    /// </summary>
+    [Fact]
+    public void OnePointOfDamagePutsAStandingCharacterBackDown()
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        Assert.Equal(1, rate);   // the fixture's control: one net success really is one point
+
+        var (slow, fight) = Floored(SlowHealingOn);
+        var state = fight.Step(slow, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.False(state["hero"].Defeated(floor));
+
+        // The Villain's turn, and a single net success: 6d Might for one success against the Hero's
+        // halved 2d Toughness, which scores nothing.
+        state = fight.Step(state, new EndTurn("hero")).State;
+
+        var scripted = new ScriptedDice([4, 1, 1, 1, 1, 1, 1, 1]);
+        var villainsTurn = new Encounter(_play, scripted, SlowHealingOn);
+
+        var struck = villainsTurn.Step(
+            state, new Attack("villain", "hero", "might", DamageKind.Subdual)).State;
+
+        Assert.Equal(floor, struck["hero"].CurrentHealth);
+        Assert.False(struck["hero"].ConsciousAtZeroOrLess);
+        Assert.True(struck["hero"].Defeated(floor), "one point of damage left them standing");
+    }
+
+    /// <summary>
+    /// <b>An attack that lands nothing leaves them standing</b> — "even a single point" is a point,
+    /// and a miss is not one. The control on the fixture above: without this, an engine that put a
+    /// standing character down on every attack aimed at them would pass it perfectly.
+    /// </summary>
+    [Fact]
+    public void AMissLeavesAStandingCharacterOnTheirFeet()
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        var (slow, fight) = Floored(SlowHealingOn);
+        var state = fight.Step(slow, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        state = fight.Step(state, new EndTurn("hero")).State;
+
+        // Nothing on either side, so the attack has no net successes and does no damage.
+        var scripted = new ScriptedDice([.. Enumerable.Repeat(1, 8)]);
+        var missed = new Encounter(_play, scripted, SlowHealingOn)
+            .Step(state, new Attack("villain", "hero", "might", DamageKind.Subdual)).State;
+
+        Assert.True(missed["hero"].ConsciousAtZeroOrLess);
+        Assert.False(missed["hero"].Defeated(floor));
+    }
+
+    /// <summary>
+    /// <b>Page one says which clauses this scene carries and which it cannot.</b>
+    ///
+    /// <para>Half of p.80's rule is about the days after a fight, and a setting announced as on
+    /// while only part of it runs is the shape of defect this ledger exists to prevent. So the
+    /// out-of-scene half is named — every band of the daily rate, the after-battle healing, the
+    /// Medicine limit — and so are the entry's own two notes: the lowest band's hourly figure, which
+    /// is this project's arithmetic, and the ambiguity about which way the Medicine rate halves.
+    /// </para>
+    ///
+    /// <para>Every figure is read out of the shipped entry, so a corrected file moves the fixture
+    /// with it.</para>
+    /// </summary>
+    [Fact]
+    public void PageOneSaysWhichHalfOfSlowHealingTheSceneCarries()
+    {
+        var entry = _play.GetGritty("gritty_slow_healing");
+        var rule = entry.SlowHealing!;
+
+        var (state, _) = Floored(SlowHealingOn);
+
+        var opening = state.Ledger.Lines
+            .Where(l => string.Equals(l.Rule, "gritty_slow_healing", StringComparison.Ordinal))
+            .ToList();
+
+        // Three: the setting's own announcement, then the two halves of what it reaches.
+        Assert.Equal(3, opening.Count);
+        Assert.Contains("table setting SlowHealing is on", opening[0].Text, StringComparison.Ordinal);
+
+        var inside = opening[1].Text;
+        var outside = opening[2].Text;
+
+        Assert.Contains("regaining consciousness", inside, StringComparison.Ordinal);
+        Assert.Contains("any damage at all", inside, StringComparison.Ordinal);
+
+        // Every band of the daily rate, by the figures the file carries.
+        Assert.Equal(4, rule.Bands.Count);
+
+        foreach (var band in rule.Bands)
+        {
+            Assert.Contains(
+                $"{band.HealthPerDay} a day", outside, StringComparison.Ordinal);
+        }
+
+        // The lowest band prints no hourly figure and the interpretation supplies one.
+        Assert.Null(rule.Bands[0].OnePointEveryHours);
+        Assert.Contains(
+            $"1 every {entry.Interpretation!.OnePointEveryHoursForTheLowestBand} hours",
+            outside,
+            StringComparison.Ordinal);
+
+        Assert.Contains(rule.MedicineHealingLimit, outside, StringComparison.Ordinal);
+        Assert.Contains(entry.Ambiguity!, outside, StringComparison.Ordinal);
+
+        // And the setting off says none of it.
+        var (quiet, _) = Floored(TableRules.Book);
+
+        Assert.DoesNotContain(quiet.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_slow_healing", StringComparison.Ordinal));
+    }
+
     /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
     private static string Line((int Thrown, IReadOnlyList<LedgerLine> Lines) exchange, string ruleId) =>
         Assert.Single(exchange.Lines, l => string.Equals(l.Rule, ruleId, StringComparison.Ordinal)).Text;

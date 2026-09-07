@@ -191,13 +191,21 @@ page one of the run and do not move the numbers:
 
 | Setting | Entry |
 |---|---|
-| `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other nine — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`,
-`HardTargets`, `close_range_penalty`, `the_drop`, `friendly_fire` and the initiative variant beside
-them — are applied.
+**Every other gritty rule is applied**: `FatalDamage`, `ToughMinions`, `WoundPenalties`,
+`ActiveDefensesCost`, `HardTargets`, `close_range_penalty`, `the_drop`, `friendly_fire` and
+`slow_healing`, with the initiative variant beside them.
+
+**`slow_healing` is half a rule about the days after a fight, and page one of every run that takes
+it says which half the fight is carrying.** Inside a scene: nobody heals on regaining consciousness
+after a defeat, so `instant_recovery` brings a character round on the Health they went down with; a
+character in that condition **may be walking around at or below zero**, which the state reports and
+the turn order includes; and any damage at all puts them straight back down. Outside it, and named
+on the ledger rather than left silent: the daily healing rate by Toughness, the loss of the
+after-battle healing roll, and the Medicine Talent's once-a-week limit. Those are yours to keep
+track of between scenes — do not narrate a character healing here.
 
 **`friendly_fire` needs nothing from you.** Whether a target is "engaged in close combat or
 otherwise bunched up" is worked out from the range bands you already set: anyone at Close Range
