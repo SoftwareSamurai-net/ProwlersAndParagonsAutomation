@@ -3395,6 +3395,55 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>Winning the contest outright ends it, whichever character the partial was recorded
+    /// under.</b>
+    ///
+    /// <para>The filter that replaces a grapple matched the actor as <see cref="Grapple.Holder"/>
+    /// only, so a character who won a partial grab and then lost the item outright left their own
+    /// partial standing beside the winner's full one. That is not bookkeeping: p.76 takes both
+    /// characters' active defences away against everyone else <em>while a partial grab lasts</em>,
+    /// and a partial nothing could remove took them away for the rest of the fight — the bystander in
+    /// this fixture would have been swinging at two characters who could not dodge, over a sword one
+    /// of them was plainly holding.</para>
+    ///
+    /// <para>The consequence is what is asserted and not the list length alone, because the list is
+    /// the mechanism and the dodge is the rule.</para>
+    /// </summary>
+    [Fact]
+    public void AFullGrabEndsAPartialRecordedTheOtherWayRound()
+    {
+        var opened = new Encounter(_play, new SeededDice(15)).Begin(Wrestlers());
+
+        var contested = opened with
+        {
+            Grapples = [new Grapple("holder", "held", GrappleMove.Grab, GrappleKind.Partial, "the sword")],
+            TurnIndex = opened.TurnOrder.ToList().IndexOf("held")
+        };
+
+        // The control: while the partial stands, neither of them may dodge the bystander — which is
+        // the state this fixture is about ending.
+        Assert.Contains("defends with toughness",
+            DefenceOf(contested, "holder", "bystander"), StringComparison.Ordinal);
+
+        var dice = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
+
+        var won = new Encounter(_play, dice).Step(
+            contested, new GrappleIntent("held", "holder", GrappleMove.Grab, "the sword"));
+
+        Assert.Equal(0, dice.Remaining);
+
+        var grapple = Assert.Single(won.State.Grapples);
+
+        Assert.Equal(GrappleKind.Full, grapple.Kind);
+        Assert.Equal("held", grapple.Holder);
+        Assert.Equal("the sword", won.State["held"].Holding?.Name);
+
+        // And the rule: the contest is over, so the character who lost it has their dodge back.
+        Assert.Contains("defends with agility",
+            DefenceOf(won.State, "holder", "bystander"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>An item won and neither used nor tossed is tossed aside as the page turns.</b>
     ///
     /// <para>p.76 gives the winner one page: "you gain control of the object and can use it or toss
