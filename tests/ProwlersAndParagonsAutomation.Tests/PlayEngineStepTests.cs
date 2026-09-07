@@ -7405,6 +7405,69 @@ public sealed class PlayEngineStepTests
         Assert.Contains(nameof(TableRules.GearLimitRank), Encounter.SwitchesNotYetApplied);
     }
 
+    /// <summary>
+    /// <b>Three tests sort ledger lines by whether they say "not yet implemented", and the Gear
+    /// Limit switch is the only thing left in this engine that says it.</b>
+    ///
+    /// <para>They used to key on p.85's first purchase naming one of the four Chapter 4 spends that
+    /// charged the buyer's own pool. Those four are bought out of the GM's pool now, so no spend of
+    /// either enum can produce the phrase, and each of the three moved its control to
+    /// <see cref="Encounter.SwitchesNotYetApplied"/> instead. <b>That leaves all three resting on one
+    /// set, and nothing said so.</b> A substring test whose subject can only ever answer one way is
+    /// an instrument nobody has checked — it passes against a classifier that has stopped
+    /// recognising the phrase at all, which is the shape of guard fault this repository has shipped
+    /// four times.</para>
+    ///
+    /// <para><b>So this is the guard that fires when the last two-valued case goes.</b> The day
+    /// p.80's Gear Limit is applied for real, that set empties, three controls die in the same
+    /// commit and nothing else here would say a word about it. The message names them, because a
+    /// failure that says "the set is empty" sends a reader to delete the assertion rather than to
+    /// the three tests that then have nothing behind them.</para>
+    ///
+    /// <para>The pair below is the instrument itself, driven once in the place that owns it: a run
+    /// with a listed switch on says the phrase on page one and a run with an applied one does not.
+    /// A switch removed from the list and left unapplied fails here rather than in three tests at
+    /// once, each of them saying something else.</para>
+    /// </summary>
+    [Fact]
+    public void TheThreeClassifierTestsRestOnASwitchThisEngineStillDeclines()
+    {
+        Assert.True(
+            Encounter.SwitchesNotYetApplied.Count > 0,
+            "Encounter.SwitchesNotYetApplied is empty, so nothing in this engine writes a `not yet "
+            + "implemented` ledger line any more — and three tests sort on that phrase and have "
+            + "nothing left to prove they can still see it: "
+            + $"{nameof(EveryPurchaseEitherRefusesByNameOrResolves)} and "
+            + $"{nameof(EveryLedgerLineCitesAnEntryThatExistsAndThatEntrysPage)} in this file, and "
+            + "McpPlayPolicyTests.EveryPurchaseTheGmsPoolMayNameAnswersTheWayThePolicySaysItDoes. "
+            + "Each needs a new two-valued control, or the classifier is measuring nothing and "
+            + "should be retired with them.");
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"]);
+
+        // The listed switch, which page one announces as carried by nothing.
+        var unapplied = new Encounter(_play, new SeededDice(21), TableRules.Book with { RaisedGearLimit = true })
+            .Begin([hero, villain]);
+
+        Assert.Contains(unapplied.Ledger.Lines, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal)
+            && string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal));
+
+        // And an applied one, which does not — or "says the phrase" would be true of every run and
+        // the three tests would be sorting a pile with one thing in it.
+        var applied = new Encounter(_play, new SeededDice(21), TableRules.Book with { FatalDamage = true })
+            .Begin([hero, villain]);
+
+        Assert.DoesNotContain(applied.Ledger.Lines, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+
+        Assert.Contains(applied.Ledger.Lines, l =>
+            l.Text.Contains("table setting FatalDamage is on", StringComparison.Ordinal));
+    }
+
     /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
     private static string Line((int Thrown, IReadOnlyList<LedgerLine> Lines) exchange, string ruleId) =>
         Assert.Single(exchange.Lines, l => string.Equals(l.Rule, ruleId, StringComparison.Ordinal)).Text;
