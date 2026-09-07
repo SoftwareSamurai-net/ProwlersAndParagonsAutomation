@@ -3639,6 +3639,60 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A group of Minions is on neither side of the table question: it carries none, and page
+    /// one does not say so.</b>
+    ///
+    /// <para><b>Both halves are decisions and both could have gone the other way.</b> A Minion
+    /// group is not a sheet — it is a threat rank and a count — so there is no field on it a
+    /// campaign's house rules could arrive in, and nothing to compare against the sheets that do
+    /// carry one. Excluding it from the agreement check is therefore not a hole: silence here is
+    /// complete rather than partial, unlike a character sheet, where an absent block is one of
+    /// three states (see
+    /// <see cref="ASheetThatNamesACampaignAndCarriesNoTableIsNotAnnouncedAsBeingAtNone"/>).</para>
+    ///
+    /// <para><b>And it is left off page one's list of who brought nothing, deliberately.</b> That
+    /// clause exists so a reader learns that a <em>character</em> is being fought under rules its
+    /// own game may not play; "the robots carry no table" is true of every group of Minions there
+    /// has ever been, and a line that always says the same thing is a line readers learn to skip —
+    /// which costs the clause the one job it has. The GM's four robots have no game of their own to
+    /// be taken out of.</para>
+    ///
+    /// <para>The control is that the group really is in the fight: it is in the turn order, so this
+    /// is not a check that passed because the Minions were dropped on the way in.</para>
+    /// </summary>
+    [Fact]
+    public async Task AGroupOfMinionsIsNotNamedAsCarryingNoTable() =>
+        await WithClient(async client =>
+        {
+            var fight = OneOfThemInACampaign();
+            fight.Add(new JsonObject
+            {
+                ["kind"] = "minions", ["id"] = "robots", ["name"] = "the robots",
+                ["threat_rank"] = 5, ["count"] = 4, ["side"] = "villains"
+            });
+
+            var answer = await Open(client, fight);
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+            Assert.Equal("sheets", TableOf(answer)["source"]!.GetValue<string>());
+
+            // The control: the robots are in the fight, so their absence from the sentence below is
+            // about the sentence and not about the fight.
+            Assert.Contains("robots",
+                answer["turn_order"]!.AsArray().Select(t => t!["id"]!.GetValue<string>()),
+                StringComparer.Ordinal);
+
+            var page = PageOneOnTheTable(answer);
+
+            // The Villain's sheet carried nothing and is named. The robots have no sheet and are
+            // not — naming them would be a line true of every Minion group there is.
+            Assert.Contains("'villain'", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("robots", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("robots",
+                TableOf(answer)["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
     /// A <see cref="TableRules"/> built back out of an echo, switch by switch, <b>driven by
     /// <c>TableRules.Switches</c> rather than by the keys the echo happens to have</b>.
     ///
