@@ -106,6 +106,44 @@ public sealed class PlayTableRulesTests
     }
 
     /// <summary>
+    /// <b>p.80's own sword comes out at the rank the page prints.</b>
+    ///
+    /// <para>The one worked example the Gear Limit entry carries: a basic sword is +2d, so at the
+    /// default limit of six the most a character can bring to bear with it is eight — "even if you
+    /// have more than 6d Might". It is <em>computed</em> from the limit this engine reads and the
+    /// bonus the entry carries, and compared with the answer the authors worked through, which is
+    /// the only check here that two transcriptions cannot both pass by agreeing with each other.
+    /// </para>
+    ///
+    /// <para>It is worth pinning even though the switch is not applied — see
+    /// <c>docs/guide/play-engine.md</c> for why it cannot be. The figure this fixture drives is the
+    /// one thing about the rule the engine <em>does</em> compute, and a default that had drifted
+    /// would build a sword the page does not print.</para>
+    /// </summary>
+    [Fact]
+    public void TheSwordOnPageEightyReachesTheRankTheExampleWorksThrough()
+    {
+        var entry = _play.GetGritty("gritty_raised_gear_limit").GearLimit!;
+
+        // The control: the example really is a weapon with a bonus on it, so the sum below is a
+        // sum of two figures rather than of one and a zero.
+        Assert.NotEmpty(entry.WorkedExampleWeapon);
+        Assert.True(entry.WorkedExampleWeaponBonusDice > 0);
+
+        var reach = TableRules.Book.GearLimit(_play) + entry.WorkedExampleWeaponBonusDice;
+
+        Assert.Equal(entry.WorkedExampleMaximumEffectiveRankAtTheDefaultLimit, reach);
+
+        // And a table that raised the limit reaches further, which is what the switch would buy if
+        // anything here could hold a sword.
+        var raised = TableRules.Book with { RaisedGearLimit = true, GearLimitRank = entry.RaisedOptions[0] };
+
+        Assert.True(
+            raised.GearLimit(_play) + entry.WorkedExampleWeaponBonusDice > reach,
+            "raising the limit did not raise what the sword reaches");
+    }
+
+    /// <summary>
     /// <b>A switch that is on but not yet applied says so on the ledger, on the first page.</b>
     ///
     /// <para>A setting accepted and quietly ignored is the worst of the three possible behaviours: a
