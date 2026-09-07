@@ -981,9 +981,17 @@ public sealed class PlayTools
     /// theirs: a reader can tell a fight measured under the baseline from a fight whose table
     /// this server failed to read.</para>
     ///
-    /// <para>Cited to <c>gritty_overview</c>, which is p.79's own paragraph about a table adopting
-    /// the optional rules before play — the entry that makes "whose table is this" a question the
-    /// book asks rather than one this server invented.</para>
+    /// <para><b>Cited to <c>gritty_overview</c>, and the sentence is written so that what the page
+    /// says and what this server says are separable.</b> That entry is p.79's paragraph about a
+    /// table reviewing the optional rules and adopting what it wants before play — it is what makes
+    /// "whose table is this" a question the book asks rather than one this server invented, and it
+    /// is quoted for that and nothing more. <b>Where the switches came from is not on any page</b>:
+    /// no paragraph in the book has an opinion about a <c>table</c> argument on an MCP call or a
+    /// block copied onto a character sheet, so a line reading "the optional rules this fight is
+    /// resolved under came from the sheets handed in" cited to p.79 attributes this server's
+    /// bookkeeping to the rulebook. <b>And p.79 speaks for ten switches, not thirteen</b> —
+    /// Checking Your Swing is p.69's and the two initiative settings are p.73's — so the sentence
+    /// says so rather than letting one citation stand for all of them.</para>
     /// </summary>
     private LedgerLine TableSourceLine(Setup setup)
     {
@@ -991,7 +999,9 @@ public sealed class PlayTools
 
         return new LedgerLine(
             1, "", entry.Id, entry.SourceRef,
-            $"the optional rules this fight is resolved under came from {setup.SourceNote}");
+            "p.79 leaves the optional combat rules to the table, to review and adopt before play; "
+            + "the switches this fight is resolved under — those ten and the three beside them — "
+            + $"came from {setup.SourceNote}");
     }
 
     private IEnumerable<LedgerLine> TierLines(Setup setup)

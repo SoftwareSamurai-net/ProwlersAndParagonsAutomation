@@ -3639,6 +3639,90 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>The page-one lines this server writes itself cite an entry that exists and that entry's
+    /// own page — and nothing checked that before.</b>
+    ///
+    /// <para><c>PlayEngineStepTests.EveryLedgerLineCitesAnEntryThatExistsAndThatEntrysPage</c>
+    /// walks a ledger the <em>engine</em> produced. Page one carries lines the engine never sees:
+    /// the tier line and the table-source line are built here, out of entries looked up here, and
+    /// they reach a reader in the same array wearing the same two fields. A citation is a promise
+    /// that a printed page says this, so the class of line the engine's guard cannot see is exactly
+    /// the class that needs one of its own.</para>
+    ///
+    /// <para><b>And the table-source line is the one where the promise is easiest to overstate.</b>
+    /// <c>gritty_overview</c> is p.79's paragraph about a table reviewing the optional rules and
+    /// adopting what it wants; it says nothing about where an MCP server got its switches from, and
+    /// it speaks for ten of the thirteen — Checking Your Swing is p.69's, the two initiative
+    /// settings are p.73's. So the sentence has to separate the page's claim from this server's
+    /// bookkeeping, and the assertions below require both halves to be present rather than only
+    /// checking the id.</para>
+    ///
+    /// <para>Driven over the wire because that is where a reader meets these lines, and with the
+    /// count as its control: page one really did carry lines from both builders.</para>
+    /// </summary>
+    [Fact]
+    public async Task ThePageOneLinesThisServerWritesCiteRealEntriesAndTheirOwnPages() =>
+        await WithClient(async client =>
+        {
+            var answer = await Open(client, UnderOneTable(HouseRules()));
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var pageOne = answer["ledger"]!.AsArray()
+                .Where(l => l!["page"]!.GetValue<int>() == 1)
+                .ToList();
+
+            // The control: both builders wrote. The table-source line is one, the tier lines are
+            // one per character with a tier, and the switch lines come from the engine.
+            Assert.Contains(pageOne, l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "gritty_overview", StringComparison.Ordinal));
+            Assert.Contains(pageOne, l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "starting_resolve", StringComparison.Ordinal));
+
+            foreach (var line in pageOne)
+            {
+                var rule = line!["rule"]!.GetValue<string>();
+
+                Assert.True(_play.EntryIds().Any(e =>
+                        string.Equals(e.Id, rule, StringComparison.Ordinal)),
+                    $"page one names a rule '{rule}' that is in none of the five play files: "
+                    + line["text"]!.GetValue<string>());
+
+                Assert.Equal(SourceRefOf(rule), line["source_ref"]!.GetValue<string>());
+            }
+
+            // The table-source line quotes p.79 for what p.79 says and says the rest is this
+            // server's: the switches came from somewhere, and no page has an opinion about where.
+            var provenance = PageOneOnTheTable(answer);
+
+            Assert.Contains("p.79 leaves the optional combat rules to the table",
+                provenance, StringComparison.Ordinal);
+            Assert.Contains("the three beside them", provenance, StringComparison.Ordinal);
+            Assert.Contains("came from the sheets handed in", provenance, StringComparison.Ordinal);
+        });
+
+    /// <summary>One entry's <c>source_ref</c>, whichever of the five play files it is in.</summary>
+    private string SourceRefOf(string id)
+    {
+        foreach (var (file, entryId) in _play.EntryIds())
+        {
+            if (!string.Equals(entryId, id, StringComparison.Ordinal)) continue;
+
+            return file switch
+            {
+                PlayRulesRepository.PlayMetaFile => _play.GetMeta(id).SourceRef,
+                PlayRulesRepository.ChallengeFile => _play.GetChallenge(id).SourceRef,
+                PlayRulesRepository.CombatFile => _play.GetCombat(id).SourceRef,
+                PlayRulesRepository.GrittyFile => _play.GetGritty(id).SourceRef,
+                PlayRulesRepository.ResolveFile => _play.GetResolve(id).SourceRef,
+                var other => throw new InvalidOperationException($"Unknown play rules file {other}.")
+            };
+        }
+
+        throw new KeyNotFoundException($"No entry '{id}' in the play rules.");
+    }
+
+    /// <summary>
     /// <b>Two sheets whose only difference is a Gear Limit rank behind a switch neither turned on
     /// fight, and the fight they fight is the same fight either way.</b>
     ///
