@@ -662,6 +662,142 @@ public sealed class McpPlayServerTests
     }
 
     /// <summary>
+    /// <b>An attack's <c>team</c> flag crosses the wire, and p.79's purchase is reachable through
+    /// the server.</b>
+    ///
+    /// <para><b>This is the failure the document could not see.</b> <c>PLAY-POLICY.md</c> tells
+    /// every conversation this server has to send <c>"team": true</c> on the attack; the intent
+    /// reader had no such field, so the flag was dropped, the entry's <c>attack_bonus_dice</c> never
+    /// reached the pool, and <c>spend_resolve</c> naming <c>team_attack</c> answered "was not a team
+    /// attack" for ever. The policy's own spelling guard is scoped to <em>tool arguments</em> and
+    /// the fields of an intent are not among them, which is why nothing disagreed.</para>
+    ///
+    /// <para><b>No die roll is asserted</b>, for the reason this whole class records: the pool is a
+    /// figure the entry supplies, and whether the roll happened to show a six is not. So the
+    /// purchase is required only to be answered by the rule that sells it and never by the refusal
+    /// that says the attack was not one — which is exactly what a dropped flag produces and what a
+    /// bad roll does not.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAttacksTeamFlagCrossesTheWireAndTheSixesArePurchasable() =>
+        await WithClient(async client =>
+        {
+            var bonus = _play.GetCombat("team_attacks").TeamAttack!.AttackBonusDice;
+
+            // The control on the data: there is a bonus to look for, or the pool below says nothing.
+            Assert.True(bonus > 0);
+
+            var encounter = (await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 81
+            }))["encounter_id"]!.GetValue<string>();
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack",
+                    ["actor"] = "hero",
+                    ["target"] = "villain",
+                    ["trait_id"] = "might",
+                    ["team"] = true
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            var added = turn["added"]!.AsArray();
+
+            Assert.Contains(added, l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "team_attacks", StringComparison.Ordinal));
+
+            // The Hero's 8d of Might plus the entry's own bonus: the flag arrived and was priced.
+            var roll = added.Single(l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "attacks_and_defenses", StringComparison.Ordinal));
+
+            Assert.Contains($"might {8 + bonus}d", roll!["text"]!.GetValue<string>(), StringComparison.Ordinal);
+
+            var spend = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_resolve", ["actor"] = "hero", ["spend"] = "team_attack"
+                }
+            });
+
+            var lines = spend["added"]!.AsArray();
+
+            Assert.Contains(lines, l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "team_attacks", StringComparison.Ordinal));
+
+            Assert.DoesNotContain(lines, l =>
+                l!["text"]!.GetValue<string>()
+                    .Contains("was not a team attack", StringComparison.Ordinal));
+        });
+
+    /// <summary>
+    /// <b>A lure's <c>target</c> crosses the wire, and one naming nobody in the fight is an answer
+    /// rather than a dropped connection.</b>
+    ///
+    /// <para>p.79's luring is the one purchase that points at somebody, so <c>spend_resolve</c> and
+    /// <c>spend_adversity</c> both carry a <c>target</c>. A name the fight does not hold reaches the
+    /// engine's indexer, which throws — and the whole contract of this server is that a caller's
+    /// mistake comes back as something a model can act on. Either refusal is correct here: the
+    /// engine may reject the purchase on the ledger before it ever looks the name up. What must
+    /// never happen is the protocol error, and the ids have to be named either way.</para>
+    /// </summary>
+    [Fact]
+    public async Task ALureNamingNobodyInTheFightIsAnAnswerAndNotAProtocolError() =>
+        await WithClient(async client =>
+        {
+            var encounter = (await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 81
+            }))["encounter_id"]!.GetValue<string>();
+
+            await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = "hero", ["target"] = "villain",
+                    ["trait_id"] = "might"
+                }
+            });
+
+            // Call, not CallToolAsync: a protocol error is what this asserts against, and Call is
+            // where that becomes a failure rather than an exception nobody reads.
+            var answer = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_resolve", ["actor"] = "hero",
+                    ["spend"] = "luring", ["target"] = "nobody_in_this_fight"
+                }
+            });
+
+            if (!answer["ok"]!.GetValue<bool>())
+            {
+                Assert.Equal("INTENT_REFUSED", answer["problem"]!["code"]!.GetValue<string>());
+
+                Assert.Contains("nobody_in_this_fight",
+                    answer["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
+
+                return;
+            }
+
+            // The other legal answer: refused on the ledger, by the rule that sells the purchase,
+            // with nothing spent.
+            Assert.Contains(answer["added"]!.AsArray(), l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "luring", StringComparison.Ordinal));
+        });
+
+    /// <summary>
     /// <b>A range class is named, never numbered.</b>
     ///
     /// <para><c>Enum.TryParse</c> accepts the numeral of a member — and for a plain enum it accepts
