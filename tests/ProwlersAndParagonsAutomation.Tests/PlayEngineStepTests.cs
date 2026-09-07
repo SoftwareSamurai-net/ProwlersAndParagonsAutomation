@@ -1,6 +1,8 @@
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Play.Dice;
 using ProwlersAndParagonsAutomation.Play.Encounter;
 using ProwlersAndParagonsAutomation.Play.Rules;
+using ProwlersAndParagonsAutomation.Play.Rules.Models;
 
 namespace ProwlersAndParagonsAutomation.Tests;
 
@@ -3842,4 +3844,564 @@ public sealed class PlayEngineStepTests
         Assert.Equal(Combatant.HeroSide, Combatant.Hero("d", "d", 5, 10, 0, traits, ["toughness"]).Side);
         Assert.Equal(Combatant.OpposingSide, Combatant.Villain("e", "e", 5, 10, traits, ["toughness"]).Side);
     }
+
+    // ── p.75's three situational modifiers ────────────────────────────────────
+
+    /// <summary>
+    /// A fight of two, each with exactly the Traits the case under test wants them to have.
+    /// </summary>
+    private static (Combatant Attacker, Combatant Target) Pair(
+        string defenceTrait, int defenceRank, double attackerSize = Combatant.SameSize,
+        double targetSize = Combatant.SameSize, bool attackerInvisible = false,
+        bool targetInvisible = false, IReadOnlySet<string>? attackerPowers = null,
+        IReadOnlySet<string>? targetPowers = null, int attackRank = 8)
+    {
+        var attacker = Combatant.Hero(
+            "hero", "the Hero", edge: 9, health: 12, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = attackRank },
+            [], side: "heroes", size: attackerSize, invisible: attackerInvisible,
+            powers: attackerPowers);
+
+        var target = Combatant.Villain(
+            "villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { [defenceTrait] = defenceRank },
+            [defenceTrait], side: "villains", size: targetSize, invisible: targetInvisible,
+            powers: targetPowers);
+
+        return (attacker, target);
+    }
+
+    /// <summary>
+    /// <b>How many dice one exchange actually threw.</b>
+    ///
+    /// <para>The instrument for every band below, and it is chosen over parsing a pool out of the
+    /// ledger's prose because it measures the thing itself: a modifier that moved the pool by
+    /// <em>n</em> dice is a roll that asked the source for <em>n</em> fewer. Every face is a 4 —
+    /// one success under <c>play_meta</c>'s map — so nothing here turns on which faces came up.
+    /// </para>
+    ///
+    /// <para><see cref="ScriptedDice"/> throws when it runs out, so a script this long is not a
+    /// silent allowance: it is why <see cref="Assert.NotEqual{T}(T, T)"/> on the count below is a
+    /// real reading rather than a saturated one.</para>
+    /// </summary>
+    private (int Thrown, IReadOnlyList<LedgerLine> Lines) Exchange(
+        Combatant attacker, Combatant target, Attack attack, Visibility light = Visibility.Clear)
+    {
+        const int Plenty = 300;
+
+        var dice = new ScriptedDice([.. Enumerable.Repeat(4, Plenty)]);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([attacker, target], visibility: light);
+
+        // Begin makes no roll with random initiative off, so everything the source hands out from
+        // here is the exchange's — asserted rather than assumed.
+        Assert.Equal(Plenty, dice.Remaining);
+
+        var step = encounter.Step(state, attack);
+
+        var thrown = Plenty - dice.Remaining;
+
+        // <b>The control every caller below leans on.</b> An attack refused before the roll throws
+        // no dice at all, and a comparison of two zeroes is an equality that proves nothing — which
+        // is how this helper first reported a modifier working on a fight whose turn order put the
+        // wrong combatant first. Every fixture that wants a refusal drives one directly instead.
+        Assert.True(thrown > 0,
+            "the exchange threw no dice, so it was refused rather than resolved and every "
+            + "comparison built on it would be a comparison of nothing");
+
+        return (thrown, step.Added);
+    }
+
+    /// <summary>The dice one band of an entry's table prints, off the shipped file.</summary>
+    private int BandDice(string entryId, Func<CombatBandModel, string?> word, string printed)
+    {
+        var entry = _play.GetCombat(entryId);
+
+        var bands = entryId switch
+        {
+            "modifier_cover" => entry.Cover!.Bands,
+            "modifier_size" => entry.Size!.Bands,
+            _ => entry.Visibility!.Bands
+        };
+
+        var band = Assert.Single(bands, b => string.Equals(word(b), printed, StringComparison.Ordinal));
+
+        // The control on the reading itself: a band worth nothing would make every assertion below
+        // an equality between two unchanged numbers.
+        Assert.NotEqual(0, band.Dice);
+
+        return band.Dice;
+    }
+
+    /// <summary>
+    /// <b>Each band of cover moves the attack pool by exactly the dice p.75 prints for it.</b>
+    ///
+    /// <para>The expected figure is read out of <c>modifier_cover</c>'s own table by the printed
+    /// word, never restated here — so a file whose light cover became −2d moves this fixture with
+    /// it, and a fixture that had the numbers typed into it would go on agreeing with a page it no
+    /// longer matched.</para>
+    ///
+    /// <para>The control is the exchange in the open, measured first: an engine that threw no dice
+    /// at all, or that refused the attack, would satisfy a bare "fewer dice" assertion perfectly.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(Cover.Light, "light")]
+    [InlineData(Cover.Heavy, "heavy")]
+    [InlineData(Cover.AlmostFull, "almost full")]
+    public void EachBandOfCoverMovesTheAttackPoolByExactlyTheDiceItPrints(Cover cover, string printed)
+    {
+        var (attacker, target) = Pair("toughness", 6);
+        var entry = _play.GetCombat("modifier_cover");
+
+        var open = Exchange(attacker, target, new Attack("hero", "villain", "might"));
+
+        // The control: the fight happened, and it threw the attacker's whole rank plus the
+        // defender's — an exchange that refused would have thrown nothing.
+        Assert.Equal(8 + Halved(6), open.Thrown);
+        Assert.Contains(open.Lines, l => string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+        Assert.DoesNotContain(open.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        var behind = Exchange(attacker, target, new Attack("hero", "villain", "might", Cover: cover));
+
+        Assert.Equal(open.Thrown + BandDice("modifier_cover", b => b.Cover, printed), behind.Thrown);
+
+        // And the line, naming the entry, its printed page, the band and the dice it moved.
+        var line = Assert.Single(behind.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains(printed, line.Text, StringComparison.Ordinal);
+        Assert.Contains($"{BandDice("modifier_cover", b => b.Cover, printed)}d", line.Text, StringComparison.Ordinal);
+        Assert.Contains(entry.Cover!.Affects, line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Bad light costs the attacker and the defender alike, and the two are separate lines.</b>
+    ///
+    /// <para>p.75: "Visibility affects your attack rolls <em>and</em> your active defense rolls."
+    /// So an exchange in poor light throws two bands' worth fewer dice than the same exchange in
+    /// clear air, not one — and the check that distinguishes "applied twice" from "applied once and
+    /// doubled" is the pair of ledger lines beside it, one per roller.</para>
+    ///
+    /// <para><b>The defender answers with an active defence on purpose.</b> The band is
+    /// <c>active defense rolls</c>, so the two-sidedness is only reachable where the defence chosen
+    /// is one; the passive half of the same claim is the fixture below.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(Visibility.Poor, "poor")]
+    [InlineData(Visibility.None, "none")]
+    public void BadLightCostsTheAttackerAndTheActiveDefenderAlike(Visibility light, string printed)
+    {
+        var (attacker, target) = Pair("agility", 6);
+        var entry = _play.GetCombat("modifier_visibility");
+        var dice = BandDice("modifier_visibility", b => b.Visibility, printed);
+
+        var clear = Exchange(attacker, target, new Attack("hero", "villain", "might"));
+
+        // The control: in clear air both rolls are their full rank and nothing cites this entry.
+        Assert.Equal(8 + 6, clear.Thrown);
+        Assert.DoesNotContain(clear.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        var dark = Exchange(attacker, target, new Attack("hero", "villain", "might"), light);
+
+        Assert.Equal(clear.Thrown + (2 * dice), dark.Thrown);
+
+        var lines = dark.Lines
+            .Where(l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal))
+            .ToList();
+
+        Assert.Equal(2, lines.Count);
+        Assert.Equal(["hero", "villain"], lines.Select(l => l.Actor).Order(StringComparer.Ordinal));
+        Assert.All(lines, l => Assert.Equal(entry.SourceRef, l.SourceRef));
+        Assert.All(lines, l => Assert.Contains(printed, l.Text, StringComparison.Ordinal));
+        Assert.All(lines, l => Assert.Contains($"{dice}d", l.Text, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The other half: bad light does not touch a passive defence.</b>
+    ///
+    /// <para>Same fight, same light, a Toughness answering instead of an Agility — so the exchange
+    /// loses one band and not two, and only the attacker's line is written. Without this the
+    /// fixture above is satisfied by an engine that applied the band to every defence there is.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void BadLightDoesNotTouchAPassiveDefence()
+    {
+        var (attacker, target) = Pair("toughness", 6);
+        var entry = _play.GetCombat("modifier_visibility");
+        var dice = BandDice("modifier_visibility", b => b.Visibility, "poor");
+
+        var clear = Exchange(attacker, target, new Attack("hero", "villain", "might"));
+        var dim = Exchange(attacker, target, new Attack("hero", "villain", "might"), Visibility.Poor);
+
+        Assert.Equal(clear.Thrown + dice, dim.Thrown);
+
+        var line = Assert.Single(dim.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal("hero", line.Actor);
+    }
+
+    /// <summary>
+    /// <b>Each band of size moves the defender's active defence by exactly the dice p.75 prints —
+    /// and the factor is derived from two sizes rather than taken as a band.</b>
+    ///
+    /// <para>Each case gives the two combatants sizes whose ratio lands in one band and passes
+    /// through no other: 2 and 5 in each direction. The expected figure is read off
+    /// <c>modifier_size</c>'s own table by the printed phrase.</para>
+    ///
+    /// <para><b>The 5× cases are what stop the nesting reading from being an assumption.</b> An
+    /// attacker five times your size is also at least twice your size, so an engine that took the
+    /// first matching band would give +1d where the page gives +2d.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(2.0, 1.0, "at least twice your size")]
+    [InlineData(5.0, 1.0, "at least 5 times your size")]
+    [InlineData(1.0, 2.0, "no more than half your size")]
+    [InlineData(1.0, 5.0, "no more than one-fifth your size")]
+    public void EachBandOfSizeMovesTheDefendersActiveDefenceByExactlyTheDiceItPrints(
+        double attackerSize, double targetSize, string printed)
+    {
+        var entry = _play.GetCombat("modifier_size");
+        var dice = BandDice("modifier_size", b => b.AttackerRelativeSize, printed);
+
+        var (evenAttacker, evenTarget) = Pair("agility", 6);
+        var even = Exchange(evenAttacker, evenTarget, new Attack("hero", "villain", "might"));
+
+        // The control: the same size is no band at all, which is what the guide's "against somebody
+        // the same size" default statement rests on.
+        Assert.Equal(8 + 6, even.Thrown);
+        Assert.DoesNotContain(even.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        var (attacker, target) = Pair("agility", 6, attackerSize: attackerSize, targetSize: targetSize);
+        var mismatched = Exchange(attacker, target, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(even.Thrown + dice, mismatched.Thrown);
+
+        var line = Assert.Single(mismatched.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal("villain", line.Actor);
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains(printed, line.Text, StringComparison.Ordinal);
+        Assert.Contains($"{dice}d", line.Text, StringComparison.Ordinal);
+        Assert.Contains(entry.Size!.Affects, line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Size touches the dodging kind of defence and no other.</b>
+    ///
+    /// <para>p.75 says "Size affects your <em>active</em> defense rolls" in as many words, so a
+    /// Toughness soaking a blow does not move however big the attacker is — and neither does an
+    /// Armor, which is the case that would matter to anybody measuring a fight against a giant.
+    /// Both are driven, at the largest band the page prints, and both have to come back unchanged
+    /// with no line written; the active pair beside them is the control that the same sizes really
+    /// do move a roll.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("toughness")]
+    [InlineData("armor")]
+    public void SizeNeverMovesAPassiveDefence(string passive)
+    {
+        var entry = _play.GetCombat("modifier_size");
+        var dice = BandDice("modifier_size", b => b.AttackerRelativeSize, "at least 5 times your size");
+
+        var (giant, small) = Pair(passive, 6, attackerSize: 5, targetSize: 1);
+        var soaked = Exchange(giant, small, new Attack("hero", "villain", "might"));
+
+        var (evenAttacker, evenTarget) = Pair(passive, 6);
+        var even = Exchange(evenAttacker, evenTarget, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(even.Thrown, soaked.Thrown);
+        Assert.DoesNotContain(soaked.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        // The control: the same two sizes against an active defence do move the roll, so the
+        // equality above is a statement about the defence and not about the sizes.
+        var (dodgingAttacker, dodger) = Pair("agility", 6, attackerSize: 5, targetSize: 1);
+        var dodged = Exchange(dodgingAttacker, dodger, new Attack("hero", "villain", "might"));
+
+        var (openAttacker, openTarget) = Pair("agility", 6);
+        var open = Exchange(openAttacker, openTarget, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(open.Thrown + dice, dodged.Thrown);
+    }
+
+    /// <summary>
+    /// <b>A completely hidden target cannot be hit, and nothing is rolled.</b>
+    ///
+    /// <para>The refusal is driven rather than asserted about: the dice source is handed a script
+    /// and has to come back untouched, which is the only way to tell a refusal from an attack that
+    /// was rolled and missed. The state comes back unchanged too.</para>
+    /// </summary>
+    [Fact]
+    public void ACompletelyHiddenTargetCannotBeHitAndNothingIsRolled()
+    {
+        var (attacker, target) = Pair("toughness", 6);
+        var entry = _play.GetCombat("modifier_cover");
+
+        Assert.True(entry.Cover!.ACompletelyHiddenTargetCannotBeHit,
+            "the entry no longer says a completely hidden target cannot be hit");
+
+        var dice = new ScriptedDice(4, 4, 4, 4, 4, 4);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([attacker, target]);
+
+        var step = encounter.Step(state, new Attack("hero", "villain", "might", Cover: Cover.Complete));
+
+        // Nothing was rolled, and nothing about the fight moved.
+        Assert.Equal(6, dice.Remaining);
+        Assert.Null(step.State.LastAttack);
+        Assert.Equal(target.CurrentHealth, step.State["villain"].CurrentHealth);
+
+        var line = Assert.Single(step.Added, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains("cannot be hit", line.Text, StringComparison.Ordinal);
+        Assert.Contains(entry.Cover.AttackingThroughCoverRequires, line.Text, StringComparison.Ordinal);
+
+        // The control: the same fight, the same attack with no cover on it, is resolved and does
+        // throw dice — so the refusal above is about the cover and not about anything else here.
+        var open = Exchange(attacker, target, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(8 + Halved(6), open.Thrown);
+    }
+
+    /// <summary>
+    /// <b>Attacking through cover: the rank has to be greater than the Structure, and then the
+    /// Structure answers the roll.</b>
+    ///
+    /// <para>Three cases in one fixture because they are one rule. At a rank equal to the Structure
+    /// nothing is rolled — <c>attacking_through_cover_requires</c> is "greater than", and equal is
+    /// not. Above it the attack goes through, and the substitution has to <em>move the roll</em>:
+    /// the defender's own Toughness of 2 is put aside and the obstacle's 9d answers instead, which
+    /// is seven more dice on the table. A clause applied by writing a ledger line and changing no
+    /// pool would pass a fixture that only read the prose.</para>
+    /// </summary>
+    [Fact]
+    public void AnAttackThroughCoverNeedsARankAboveTheStructureAndThenTheStructureAnswersIt()
+    {
+        var entry = _play.GetCombat("modifier_cover");
+
+        Assert.True(entry.Cover!.TargetMayUseTheCoversStructureAsAPassiveDefense,
+            "the entry no longer lets the target answer with the cover's Structure");
+
+        var (attacker, target) = Pair("toughness", 2, attackRank: 9);
+
+        // Equal is not greater: refused, with nothing rolled.
+        var script = new ScriptedDice(4, 4, 4, 4, 4, 4);
+        var blocked = new Encounter(_play, script);
+        var start = blocked.Begin([attacker, target]);
+
+        var stopped = blocked.Step(start, new Attack(
+            "hero", "villain", "might", Cover: Cover.Complete, CoverStructure: 9));
+
+        Assert.Equal(6, script.Remaining);
+        Assert.Null(stopped.State.LastAttack);
+        Assert.Contains(stopped.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.Text.Contains(entry.Cover.AttackingThroughCoverRequires, StringComparison.Ordinal));
+
+        // One rank higher and it goes through — and the Structure, not the Toughness, answers.
+        var (harder, sameTarget) = Pair("toughness", 2, attackRank: 10);
+
+        var open = Exchange(harder, sameTarget, new Attack("hero", "villain", "might"));
+        var through = Exchange(harder, sameTarget, new Attack(
+            "hero", "villain", "might", Cover: Cover.Complete, CoverStructure: 9));
+
+        // The control first: in the open the target answers with half their own Toughness.
+        Assert.Equal(10 + Halved(2), open.Thrown);
+
+        // And through the cover, the roll moves: the obstacle's 9d in place of that.
+        Assert.Equal(10 + 9, through.Thrown);
+
+        var line = Assert.Single(through.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal("villain", line.Actor);
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains("passive defence", line.Text, StringComparison.Ordinal);
+
+        // The defence that answered was passive, which is what makes p.79's luring unavailable to a
+        // target who hid rather than moved — and what keeps every size band off the Structure.
+        Assert.False(through.Lines.Count == 0);
+    }
+
+    /// <summary>
+    /// <b>A −3d on a 2d pool reaches p.67's floor, and one die is thrown that scores only on a
+    /// six.</b>
+    ///
+    /// <para>The floor is <c>SuccessCounter</c>'s and this proves the modifiers reach it: the pool
+    /// after visibility is −1, which is not a pool of nothing. The script is exactly as long as the
+    /// exchange needs, so an engine that threw the full 2d would run <see cref="ScriptedDice"/> out
+    /// and an engine that threw fewer would leave <c>Remaining</c> above zero.</para>
+    ///
+    /// <para>Both halves of the floor are driven. A four is a success under
+    /// <c>play_meta.success_map</c> and scores nothing under the floor; a six is worth two under the
+    /// map and scores one under the floor. The control is the same script in clear air, where the
+    /// six is worth its full two — so the difference is the floor and not the fixture.</para>
+    /// </summary>
+    [Fact]
+    public void ATripleVisibilityPenaltyOnATwoDicePoolReachesTheSubOneDieFloor()
+    {
+        var floor = _play.GetMeta("sub_one_die_floor").SubOneDie!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        Assert.Equal(-3, BandDice("modifier_visibility", b => b.Visibility, "none"));
+
+        var (attacker, target) = Pair("toughness", 4, attackRank: 2);
+
+        // Toughness 4 against a lethal attack is halved to 2, so the exchange is 1 + 2 dice: one
+        // for the floored attack and two for the soak. Both scripts are exactly that long.
+        Assert.Equal(2, Halved(4));
+
+        // A four scores nothing at the floor, where it is a success under the ordinary map.
+        var missed = Blind(attacker, target, floor.CountingFaces[0] == 4 ? 5 : 4);
+
+        Assert.Equal(target.CurrentHealth, missed.CurrentHealth);
+
+        // A six scores exactly the floor's own figure — one, not the two the map gives it. The
+        // defender rolls two ones and scores nothing, so the net is that one success.
+        var hit = Blind(attacker, target, floor.CountingFaces[0]);
+
+        Assert.Equal(target.CurrentHealth - (floor.SuccessesWhenHit * rate), hit.CurrentHealth);
+
+        // The control: the same three faces in clear air. The attack is 2d, the six is worth two
+        // under the map and the second die adds a success, so the target takes more than the floor
+        // allowed — an engine that never floored anything would give this answer in the dark too.
+        var lit = new Encounter(_play, new ScriptedDice(6, 4, 1, 1));
+        var open = lit.Begin([attacker, target]);
+        var struck = lit.Step(open, new Attack("hero", "villain", "might")).State["villain"];
+
+        Assert.True(struck.CurrentHealth < hit.CurrentHealth,
+            $"in clear air the same faces left {struck.CurrentHealth} Health and the floor left {hit.CurrentHealth}");
+    }
+
+    /// <summary>One exchange in the dark, with the attacker's single floored die showing <paramref name="face"/>.</summary>
+    private Combatant Blind(Combatant attacker, Combatant target, int face)
+    {
+        var dice = new ScriptedDice(face, 1, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([attacker, target], visibility: Visibility.None);
+
+        var step = encounter.Step(state, new Attack("hero", "villain", "might"));
+
+        // The whole of the control: exactly three faces were wanted, so the attack threw one die
+        // and not two, and the defence threw the two the halved Toughness asks for.
+        Assert.Equal(0, dice.Remaining);
+
+        return step.State["villain"];
+    }
+
+    /// <summary>
+    /// <b>An opponent nobody can see counts as no visibility, for whichever of them is facing
+    /// them.</b>
+    ///
+    /// <para>Two fights, in clear air both times, and the same band lands on opposite people: an
+    /// invisible target costs the attacker their attack roll, and an invisible attacker costs the
+    /// defender their dodge. The band is <c>none</c> in both, read off the file.</para>
+    /// </summary>
+    [Fact]
+    public void AnInvisibleOpponentCountsAsNoVisibilityForWhicheverOfThemFacesThem()
+    {
+        var entry = _play.GetCombat("modifier_visibility");
+        var dice = BandDice("modifier_visibility", b => b.Visibility, "none");
+
+        Assert.True(entry.Visibility!.AnInvisibleOpponentCountsAsNoVisibility,
+            "the entry no longer says an invisible opponent counts as no visibility");
+
+        var (evenAttacker, evenTarget) = Pair("agility", 6);
+        var seen = Exchange(evenAttacker, evenTarget, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(8 + 6, seen.Thrown);
+
+        // An invisible target: the attacker is the one in the dark, and only they lose dice.
+        var (attacker, ghost) = Pair("agility", 6, targetInvisible: true);
+        var atAGhost = Exchange(attacker, ghost, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(seen.Thrown + dice, atAGhost.Thrown);
+        Assert.Equal("hero", Assert.Single(
+            atAGhost.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)).Actor);
+
+        // An invisible attacker: now it is the defender's dodge that suffers.
+        var (unseen, defender) = Pair("agility", 6, attackerInvisible: true);
+        var fromAGhost = Exchange(unseen, defender, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(seen.Thrown + dice, fromAGhost.Thrown);
+        Assert.Equal("villain", Assert.Single(
+            fromAGhost.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)).Actor);
+    }
+
+    /// <summary>
+    /// <b>A Power p.75 gives as compensating cancels the penalty, and the ledger says which one.</b>
+    ///
+    /// <para>Both names the entry gives are driven, and the combatant is built by
+    /// <see cref="CombatantFactory"/> from a real sheet rather than handed the id — because that
+    /// read is the half that would break silently. Blind Fighting and Radar are default-rank
+    /// Powers, so the character engine answers <b>0</b> for both, and an engine that had looked for
+    /// a rank would compensate nobody for ever.</para>
+    ///
+    /// <para>The control is the same sheet without the Power, in the same darkness: it loses the
+    /// band, so the equality is about the Power and not about the fight.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("blind_fighting")]
+    [InlineData("radar")]
+    public void APowerThatCompensatesCancelsTheVisibilityPenaltyAndTheLineNamesIt(string powerId)
+    {
+        var entry = _play.GetCombat("modifier_visibility");
+        var rules = new RulesFixture();
+
+        var sheet = rules.LegalSheet();
+        sheet.Name = "the Hero";
+        sheet.AbilityRanks["might"] = 8;
+        sheet.AbilityRanks["agility"] = 1;
+        sheet.AbilityRanks["toughness"] = 1;
+
+        var blind = CombatantFactory.From(
+            sheet, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero", "heroes");
+
+        sheet.SelectedPowers.Add(new SelectedPower(powerId, 0));
+
+        var seeing = CombatantFactory.From(
+            sheet, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero", "heroes");
+
+        // The control on the read itself: the Power is on the combatant and its rank is nothing, so
+        // TraitRanks could not have answered this question.
+        Assert.Contains(powerId, seeing.Powers, StringComparer.Ordinal);
+        Assert.DoesNotContain(powerId, blind.Powers, StringComparer.Ordinal);
+        Assert.Equal(0, seeing.Rank(powerId));
+
+        // Edge 1, so p.73's order puts the Hero first and the attack is theirs to make: an attack
+        // out of turn is refused, which would make every comparison below one between two zeroes.
+        var target = Combatant.Villain(
+            "villain", "the Villain", edge: 1, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 6 },
+            ["toughness"], side: "villains");
+
+        Assert.True(blind.Edge > target.Edge, "the fixture's Hero does not act first");
+
+        var lit = Exchange(blind, target, new Attack("hero", "villain", "might"));
+        var dark = Exchange(blind, target, new Attack("hero", "villain", "might"), Visibility.None);
+        var compensated = Exchange(seeing, target, new Attack("hero", "villain", "might"), Visibility.None);
+
+        // The control: without the Power the darkness really does cost the band.
+        Assert.Equal(lit.Thrown + BandDice("modifier_visibility", b => b.Visibility, "none"), dark.Thrown);
+
+        // With it, the pool is the one it was in clear air.
+        Assert.Equal(lit.Thrown, compensated.Thrown);
+
+        var line = Assert.Single(
+            compensated.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains("unpenalised", line.Text, StringComparison.Ordinal);
+
+        var printed = Assert.Single(
+            entry.Visibility!.PowersThatCompensateGiven,
+            p => string.Equals(p.ToLowerInvariant().Replace(' ', '_'), powerId, StringComparison.Ordinal));
+
+        Assert.Contains(printed, line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>Half, the way the Glossary's book-wide rule rounds — the engine's own halving.</summary>
+    private int Halved(int value) => Rounding.Half(_play, value);
+
 }
