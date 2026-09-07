@@ -213,6 +213,51 @@ export async function read(request, env, deps, user, id) {
 }
 
 /**
+ * The campaign this membership names, as the campaign's own payload — the player's live view of
+ * the table they are at.
+ *
+ * **Why it exists.** Everything else about a campaign is scoped to the account that owns it, so a
+ * player's browser cannot read the game they are in at all: what their screen draws is the copy of
+ * the table's rules that was written onto their character when it joined. That copy is what is in
+ * force for the character and stays so — nothing here changes it — but a GM who raises the price
+ * of Immortality afterwards moves nothing, and until now no screen could even say the two had come
+ * apart. This is the one read that lets a member's page put the live table beside their copy.
+ *
+ * **Scoped by `player_user_id` and nothing else, which is the whole of the authorisation.** The
+ * caller's own `campaign_members` row is what entitles them, the same predicate `getMembership`'s
+ * player half carries — and unlike that one there is no GM arm, because the account that owns a
+ * campaign already reads it at its own address. A membership belonging to somebody else, a
+ * membership this account is the *GM* of, an id that never existed, and a campaign the GM has
+ * deleted all answer the same 404 in the same words. Those are not four facts this server tells
+ * apart for a caller: a split would say whether an id exists, which is the reason `read` above
+ * gives one sentence to two of them.
+ *
+ * **Nothing is parsed.** The payload goes out exactly as it came in, the way `join` answers the
+ * same bytes and for the same reason — this server holds no rule and must never gain one. A route
+ * that lifted `Table` and `ImmortalityCost` out of the payload would be this server knowing what a
+ * campaign is shaped like, which is a second place to keep in step with the engine and one that
+ * would fail silently, answering nulls, the first time the shape moved.
+ *
+ * **So what bounds the answer is the read, not a projection**: `db.campaignForMember` selects two
+ * columns, the campaign's id and its payload. No account id, no label, no join code, no character,
+ * no clone and nothing about another member — the same bound `campaignByJoinCode` states, which is
+ * what a player already receives when they redeem a code.
+ */
+export async function table(request, env, deps, user, id) {
+    if (!ID_PATTERN.test(id)) return fail(400, 'That is not a membership id this server uses.');
+
+    const row = await db.campaignForMember(env.DB, { id, playerUserId: user.id });
+    if (!row) return fail(404, 'This account has no membership with that id.');
+
+    return json({
+        campaignId: row.campaign_id,
+        // The campaign's own payload, verbatim, exactly as `join` hands it back. The browser reads
+        // the table's rules out of it; this server does not know there are any.
+        payload: row.payload,
+    });
+}
+
+/**
  * Send a snapshot for approval, replacing whatever was waiting.
  *
  * **One slot, and resubmitting overwrites it.** There is deliberately no history: what the owner

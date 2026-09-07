@@ -310,6 +310,88 @@ else
             </p>
         }
 
+        @* **The table as it stands, beside the copy above — the half a member could not see.**
+           A campaign's payload is scoped to the account that owns it, so this is not
+           `AccountCampaignStore` answering: it is `GET /api/memberships/{id}/table`, authorised by
+           the reader's own membership row, which is the one thing on this server that says a
+           player belongs at that table. See `docs/guide/accounts-server.md`.
+
+           **Two lists rather than one, because they are two different facts.** What the character
+           carries is what it is costed by and what travels to a fight; what the table has decided
+           is what the next character to join will take. They were the same list at the moment of
+           the join and nothing keeps them in step afterwards, which is exactly why both headings
+           say whose they are.
+
+           **Drawn only where the live read answered**, which is a member of a game that is still
+           there. A GM reads their own campaign and never comes down this branch; a read that
+           failed leaves the panel exactly as it was before any of this existed, which is the copy
+           alone.
+
+           **And the differences are the point of the pair.** `CampaignDiff.BetweenTables` is the
+           same comparison and the same thirteen names the GM's approval screen reads, in the same
+           `Fatal Damage off → on` idiom — a second one here would be a second chance to name a
+           switch differently from the book. Nothing is repaired: joining again is what takes a new
+           copy, and it is the only thing that ever writes one. *@
+        @if (_live is not null)
+        {
+            <p class="others-head">House rules at the table now</p>
+
+            @if (LiveHouseRules is { Count: > 0 } table)
+            {
+                <ul class="house-rules-read">
+                    @foreach (var line in table)
+                    {
+                        <li class="small">@line</li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="small muted">The book as printed.</p>
+            }
+
+            @if (TableChanges is { Count: > 0 } moved)
+            {
+                <ul class="diff-rows">
+                    @foreach (var row in moved)
+                    {
+                        <li>
+                            <span class="what">@row.What</span>
+                            <span class="was">@Moved(row)</span>
+                        </li>
+                    }
+                </ul>
+                <p class="small muted" role="status">
+                    The character keeps its own until it joins again.
+                </p>
+            }
+
+            @* **When this was read, and a way to read it again.** The heading above says "now",
+               which is a claim about currency this page cannot keep on its own: the live table is
+               fetched when the panel opens and after anything that reloads the lists, and never
+               again. So a player sitting on the screen while the GM changes a setting is reading a
+               list that says "now" and means "when you arrived" — the exact dishonesty the copy's
+               own sentence was rewritten to fix, one heading further down.
+
+               The age is the honest half and the button is the cheap half: one request, the same
+               one, rather than the whole Refresh a reload costs. See `RecheckTable`. *@
+            <p class="small muted">
+                Read @LiveAge.
+                <button type="button" class="btn quiet" @onclick="RecheckTable">Check again</button>
+            </p>
+        }
+        else if (_liveWentAway)
+        {
+            @* **A recheck that answered nothing says so rather than taking the list away.** The
+               section vanishing is right on a first render — the panel then draws what it always
+               drew — but a reader who has just pressed a button and watched a list disappear has
+               been told nothing at all about why. *@
+            <p class="small muted" role="status">
+                The table could not be read just now, so the list above is the character's own
+                copy. The game may have been deleted.
+            </p>
+        }
+
         @if (_playing is null)
         {
             <EmptyState>Your games could not be read. Try again in a moment.</EmptyState>
@@ -522,6 +604,43 @@ else
     private Campaign? _campaign;
 
     /// <summary>
+    /// The campaign the character on screen is in, <b>as the table has it now</b>, or null.
+    ///
+    /// <para><b>Read for a member and never for a GM.</b> <see cref="_campaign"/> is what
+    /// <c>AccountCampaignStore</c> resolved, which is a campaign this account owns; this is the
+    /// same game read through the reader's own membership row, and it is asked for only where the
+    /// first answered nothing. A GM therefore costs no extra request and sees no second list —
+    /// their screen is the one that has always been able to read the campaign.</para>
+    ///
+    /// <para><b>Null covers four things and they are one thing to this screen</b>: no membership
+    /// of that campaign, a game the GM has deleted, a payload this build cannot read, and a server
+    /// that could not be reached. Each means there is no live table to put beside the copy, and
+    /// the panel then draws exactly what it drew before this existed.</para>
+    /// </summary>
+    private Campaign? _live;
+
+    /// <summary>
+    /// When <see cref="_live"/> was read, as Unix milliseconds, or 0 for never.
+    ///
+    /// <para><b>The heading over that list says "now" and this is what makes the word honest.</b>
+    /// The read happens when the panel opens and after anything that reloads the lists; a GM
+    /// changing a setting while somebody has the page open moves nothing until the next one. So
+    /// the panel prints how old the answer is, in the same words a character's row prints its own
+    /// age in, and offers the one request that refreshes it.</para>
+    /// </summary>
+    private long _liveReadAt;
+
+    /// <summary>
+    /// Whether a live table this reader had already been shown has since answered nothing.
+    ///
+    /// <para><b>Only ever set by <see cref="RecheckTable"/>, and that is the whole of it.</b> A
+    /// first render that reads nothing draws the copy alone, which is what the panel drew before
+    /// any of this existed and needs no sentence. A list that was on screen and is now gone
+    /// because the reader pressed a button does.</para>
+    /// </summary>
+    private bool _liveWentAway;
+
+    /// <summary>
     /// The campaign id <see cref="_campaign"/> was resolved from, and whether anything has been
     /// resolved at all.
     ///
@@ -545,8 +664,15 @@ else
     /// </summary>
     private CampaignFinding? Finding =>
         _resolved && string.Equals(_resolvedFrom, Session.Sheet.CampaignId, StringComparison.Ordinal)
-            ? WorthSaying(CampaignJoin.Inspect(Session.Sheet, _campaign))
+            ? WorthSaying(CampaignJoin.Inspect(Session.Sheet, _campaign ?? _live))
             : null;
+
+    // **The live table stands in where the account's own read answered nothing, and that is what
+    // makes five of the six findings reachable by a member at all.** Every mismatch is computed
+    // from a campaign that resolved, and a player's browser resolves none — so a character built
+    // to the wrong tier for the game it is in, or costed at the book's price by a table that
+    // charges 12, was told on no screen. `Inspect` is unchanged in what it compares; what changed
+    // is that it is now handed something to compare against.
 
     /// <summary>
     /// The finding, unless it is one this reader is the wrong person to be told.
@@ -612,6 +738,23 @@ else
         // something a reader can go and put back without being told what it is.
         { CharacterImmortalityCost: { } orphaned } =>
             $"Charged {orphaned} HP for {ImmortalityName}.",
+
+        // **The table's own figures, with no character figure beside them**, which is the shape
+        // `CAMPAIGN_HOUSE_RULES_NOT_COPIED` carries: the game has decided something and the
+        // character carries nothing, so there is one number per setting and both are the table's.
+        // Said for the reason the pairs are — "measured by the book" is not something a reader can
+        // act on without knowing what the table would use instead.
+        //
+        // **The pair arm comes first**, because a `switch` takes the arm that matches and a game
+        // that set both a cap and a price would otherwise print only the price. That is the same
+        // silent half-answer this whole method exists to stop.
+        { CampaignTraitCapRank: { } capped, CampaignImmortalityCost: { } charged } =>
+            $"The game caps at {capped}d and charges {charged} HP for {ImmortalityName}.",
+
+        { CampaignTraitCapRank: { } capped } => $"The game caps at {capped}d.",
+
+        { CampaignImmortalityCost: { } charged } =>
+            $"The game charges {charged} HP for {ImmortalityName}.",
 
         _ => "",
     };
@@ -748,6 +891,107 @@ else
             return lines;
         }
     }
+
+    /// <summary>
+    /// The house rules the table has <em>now</em>, as lines to print, or empty for a table playing
+    /// the book.
+    ///
+    /// <para><b>The same lines in the same order as the character's own list above</b>, so the two
+    /// can be read down the page against each other. That is why this is spelled here beside
+    /// <see cref="HouseRules"/> rather than being a second shape: a live list ordering its
+    /// switches differently from the copy is a list somebody has to re-scan to compare, which is
+    /// the whole thing the pair exists for.</para>
+    /// </summary>
+    private IReadOnlyList<string> LiveHouseRules
+    {
+        get
+        {
+            var lines = new List<string>();
+
+            // **Named `campaign`, and that is load-bearing rather than taste.**
+            // `TraitCapReadTests` treats every receiver but `sheet` and `campaign` as a tier, so a
+            // house cap read off a local called anything else is a tier read this file would have
+            // to be sanctioned for — and the sanction is what would then permit a real one.
+            if (_live is not { } campaign) return lines;
+
+            if (campaign.TraitCapRank is { } cap) lines.Add($"Trait Cap {cap}d");
+
+            if (campaign.ImmortalityCost is { } price)
+                lines.Add($"{ImmortalityName} costs {price} HP");
+
+            if (campaign.Table is { IsTheBook: false } table)
+            {
+                lines.AddRange(HouseRuleFormatter.On(table));
+
+                if (table is { RaisedGearLimit: true, GearLimitRank: { } rank })
+                    lines.Add($"Gear Limit {rank}d");
+            }
+
+            return lines;
+        }
+    }
+
+    /// <summary>
+    /// What the table has decided since this character took its copy, one row per setting.
+    ///
+    /// <para><b>Computed by <see cref="CampaignDiff.BetweenTables"/> and not here</b>, so a member
+    /// and the GM deciding about their submission read the same thirteen names in the same
+    /// <c>off → on</c> idiom. Empty where the two agree, which is the ordinary case and draws
+    /// nothing.</para>
+    /// </summary>
+    private IReadOnlyList<DiffRow> TableChanges =>
+        _live is { } live ? CampaignDiff.BetweenTables(Session.Rules, Session.Sheet, live) : [];
+
+    /// <summary>
+    /// How old the live table on screen is, in the words a character's row uses.
+    ///
+    /// <para><b><see cref="Ages"/> rather than a second scale</b>, so "3 minutes ago" means the
+    /// same thing on this panel as it does in the character manager. It answers null only for a
+    /// timestamp of zero or one in the future, neither of which can reach here — the list is drawn
+    /// only where <c>_live</c> is set and the stamp is written in the same statement — so the
+    /// fallback is the phrase that would be true anyway rather than an empty sentence.</para>
+    /// </summary>
+    private string LiveAge =>
+        Ages.Since(_liveReadAt, DateTimeOffset.UtcNow) ?? "just now";
+
+    /// <summary>
+    /// Read the live table again, and nothing else.
+    ///
+    /// <para><b>One request rather than <c>Refresh</c>.</b> What the reader asked for is whether
+    /// the table has moved; re-reading their campaigns, their standings, the inbox and the current
+    /// character to answer it would be four round trips for one question, and it would redraw
+    /// panels they were not looking at.</para>
+    ///
+    /// <para><b>A null answer is kept as a null and said out loud.</b> `TableAsync` returns one for
+    /// a game the GM has deleted, a membership that is not the reader's, a payload this build
+    /// cannot read and a server that is not there — and the panel then falls back to the copy
+    /// alone, which without a sentence reads as a list that quietly disappeared under a button
+    /// press.</para>
+    /// </summary>
+    private async Task RecheckTable()
+    {
+        var read = await LiveTableAsync();
+
+        _liveWentAway = read is null;
+        _live = read;
+
+        if (read is not null) _liveReadAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    }
+
+    /// <summary>
+    /// One row's movement, in the words the approval screen uses.
+    ///
+    /// <para><b>Copied in shape from <c>CampaignApproval</c>'s own <c>Was</c> and deliberately not
+    /// shared with it.</b> That one is a method on a page and this is four lines; what has to
+    /// agree between the two screens is the row — its name and its two values — and that is
+    /// <see cref="CampaignDiff"/>'s, computed once.</para>
+    /// </summary>
+    private static string Moved(DiffRow row) => row.Kind switch
+    {
+        DiffKind.Added => row.After is { } after ? $"added {after}" : "added",
+        DiffKind.Removed => row.Before is { } before ? $"removed {before}" : "removed",
+        _ => $"{row.Before} → {row.After}",
+    };
 
     private string RunAside => $"{_running.Count} to run";
 
@@ -893,8 +1137,40 @@ else
     private async Task ResolveCampaign()
     {
         _campaign = await Store.ForAsync(Session.Sheet);
+
+        // **Only where the account's own read answered nothing**, which is a member rather than a
+        // GM. A second request on the GM's path would be one this screen already has the answer to,
+        // and it would be answered 404 anyway: the table address is authorised by a membership row
+        // and a GM has none for their own game.
+        _live = _campaign is null ? await LiveTableAsync() : null;
+
+        // Stamped in the same statement the read is assigned in, so the age on screen can never be
+        // a stamp from a different answer. Cleared with it: a resolve is a fresh start, and the
+        // "could not be read" sentence is only ever about a button somebody pressed.
+        _liveReadAt = _live is null ? 0 : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _liveWentAway = false;
+
         _resolvedFrom = Session.Sheet.CampaignId;
         _resolved = true;
+    }
+
+    /// <summary>
+    /// The game this character is in, as its table has it now, read through the reader's own
+    /// membership.
+    ///
+    /// <para><b>The membership row is what makes the request possible</b>, so a missing list is a
+    /// null rather than a guess: <c>_playing</c> is the one read on this server scoped to the
+    /// player, and without a row for this campaign there is no id to ask under. That is the same
+    /// evidence <see cref="WorthSaying"/> uses, from the same list, one screen up.</para>
+    /// </summary>
+    private async Task<Campaign?> LiveTableAsync()
+    {
+        if (Session.Sheet.CampaignId is not { } id) return null;
+
+        var row = _playing?.FirstOrDefault(
+            m => string.Equals(m.CampaignId, id, StringComparison.Ordinal));
+
+        return row is null ? null : await Memberships.TableAsync(row.Id);
     }
 
     private void Reload() => _ = InvokeAsync(async () =>
@@ -917,6 +1193,9 @@ else
             // to them would be true of the moment rather than of their character. The panels are
             // not drawn in that state anyway; this keeps the field from outliving the account.
             _campaign = null;
+            _live = null;
+            _liveReadAt = 0;
+            _liveWentAway = false;
             _resolvedFrom = null;
             _resolved = false;
             _empty = new HashSet<string>(StringComparer.Ordinal);

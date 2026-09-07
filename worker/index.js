@@ -279,6 +279,18 @@ async function route(request, env, deps) {
                     () => memberships.reject(request, env, deps, user, membershipId));
             }
 
+            // **The one address here a player reaches and the GM of the same row does not.** A
+            // campaign is scoped to the account that owns it, so a member cannot read the game
+            // they are in; this answers that game's own payload, authorised by their own row.
+            // Under this membership's id rather than beside `/api/campaigns` because the
+            // membership *is* the authorisation — an address under the campaign's id would be one
+            // more place asking "may this caller see this campaign", and this server has enough of
+            // those already.
+            if (tail === 'table') {
+                return only('GET', method,
+                    () => memberships.table(request, env, deps, user, membershipId));
+            }
+
             return fail(404, 'No such address.');
         }
 

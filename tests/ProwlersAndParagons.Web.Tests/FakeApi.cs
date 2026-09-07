@@ -1203,6 +1203,26 @@ public sealed class FakeApi : HttpMessageHandler
             return await Status(HttpStatusCode.NoContent);
         }
 
+        // **The live table, and it is the player's alone.** The real route is scoped by
+        // `player_user_id` with no GM arm — a GM reads their own campaign at its own address — so a
+        // fake that answered the GM here would make the one thing this route is careful about
+        // untestable. A campaign the GM has deleted matches nothing and answers the same 404.
+        if (tail == "table")
+        {
+            if (request.Method != HttpMethod.Get) return await Status(HttpStatusCode.MethodNotAllowed);
+            if (isGm) return await Status(HttpStatusCode.NotFound);
+            if (!_campaigns.TryGetValue((row.GmAccount, row.CampaignId), out var live))
+            {
+                return await Status(HttpStatusCode.NotFound);
+            }
+
+            // Two keys, exactly what the server sends. A fake answering a label or an account id
+            // here would let the browser bind something the real server does not have.
+            return await Json($$"""
+                {"campaignId":{{Quote(row.CampaignId)}},"payload":{{Quote(live.Payload)}}}
+                """);
+        }
+
         if (tail.Length > 0) return await Status(HttpStatusCode.NotFound);
         if (request.Method != HttpMethod.Get) return await Status(HttpStatusCode.MethodNotAllowed);
 

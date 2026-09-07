@@ -217,4 +217,99 @@ public sealed class CampaignFindingFiguresTests
 
         Assert.Contains("Charged 11 HP for Immortality.", said, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// <b>The empty copy, which arrived carrying a figure and with no scenario here.</b>
+    ///
+    /// <para>This class's own remarks say a new finding with a new field "costs nothing to add and
+    /// fails here until somebody says it out loud", and
+    /// <c>CAMPAIGN_HOUSE_RULES_NOT_COPIED</c> was added carrying a price without one — the guard
+    /// built for exactly this was not extended, and the price reached the screen only because a
+    /// different test happened to assert the sentence.</para>
+    ///
+    /// <para><b>Two figures and no character figure beside either</b>, which is the shape unique to
+    /// this finding: the game has decided a cap and a price and the character carries neither, so
+    /// both numbers are the table's. A game that sets both must print both — an arm matching on the
+    /// price alone would answer with half of it, and a reader told they are "measured by the book"
+    /// with no ceiling named cannot act on it.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyCopyNamesTheCapAndThePriceTheGameHasSet()
+    {
+        var (finding, said) = await Drawn(
+            new Campaign(CampaignId, "Pinnacle City", "standard", 6, false, null, 12),
+            sheet =>
+            {
+                sheet.CampaignId = CampaignId;
+                sheet.SelectedTierId = "standard";
+            });
+
+        AssertEveryFigureIsOnScreen("CAMPAIGN_HOUSE_RULES_NOT_COPIED", finding, said);
+
+        Assert.Contains("The game caps at 6d and charges 12 HP for Immortality.", said,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Only the setting that is actually missing is named.</b>
+    ///
+    /// <para>The character took the cap at the join and the game set a price afterwards. Printing
+    /// "the game caps at 6d" here would be a true figure given for a false reason — the cap is not
+    /// what was missed — and the reader would go looking for a disagreement that is not there.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyCopyNamesNoFigureTheCharacterAlreadyTook()
+    {
+        var (finding, said) = await Drawn(
+            new Campaign(CampaignId, "Pinnacle City", "standard", 6, false, null, 12),
+            sheet =>
+            {
+                sheet.CampaignId = CampaignId;
+                sheet.SelectedTierId = "standard";
+                sheet.TraitCapRank = 6;
+            });
+
+        AssertEveryFigureIsOnScreen("CAMPAIGN_HOUSE_RULES_NOT_COPIED", finding, said);
+
+        Assert.Null(finding.CampaignTraitCapRank);
+        Assert.Contains("The game charges 12 HP for Immortality.", said, StringComparison.Ordinal);
+        Assert.DoesNotContain("caps at", said, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The one arm where a figure would be an invention, and the mirror image of everything
+    /// above.</b>
+    ///
+    /// <para>A game that has switched an optional rule on and set neither a cap nor a price
+    /// produces <c>CAMPAIGN_HOUSE_RULES_NOT_COPIED</c> carrying nothing at all: thirteen switches
+    /// are not a figure, which is why the join sentence says the rules came with it and lets the
+    /// panel say which. So <c>Ranks</c> falls through to <c>_ =&gt; ""</c> here <em>correctly</em>,
+    /// and this is the only scenario in this class that says so — every other one is about an arm
+    /// that was missing.</para>
+    ///
+    /// <para><b>It cannot use the figures loop, and the reason is that loop's own control.</b> A
+    /// finding carrying nothing satisfies <c>AssertEveryFigureIsOnScreen</c> completely, which is
+    /// exactly what its <c>carried.Count &gt; 0</c> guard exists to catch — so the assertion here
+    /// is the other side of it: nothing carried, and the sentence alone on screen. A cap or a
+    /// price appearing beside it would be a true number given for a false reason.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyCopyOfSwitchesAloneCarriesNoFigureAndPrintsNone()
+    {
+        var (finding, said) = await Drawn(
+            new Campaign(CampaignId, "Pinnacle City", "standard", null, false,
+                new CampaignTable { FatalDamage = true }),
+            sheet =>
+            {
+                sheet.CampaignId = CampaignId;
+                sheet.SelectedTierId = "standard";
+            });
+
+        Assert.Equal("CAMPAIGN_HOUSE_RULES_NOT_COPIED", finding.Code);
+        Assert.Empty(Figures(finding));
+
+        // The sentence and nothing but the sentence. Asserted as equality rather than as three
+        // absences, because `Ranks` borrowing an arm would append something this cannot predict.
+        Assert.Equal(finding.Message, said.Trim());
+    }
 }

@@ -501,6 +501,47 @@ public sealed class ApiMembershipStore
     }
 
     /// <summary>
+    /// The campaign this membership names, as the table has it <em>now</em>.
+    ///
+    /// <para><b>The one campaign read a player can make, and the reason it exists.</b> Every other
+    /// address under <c>/api/campaigns</c> is scoped to the account that owns the game, so a member
+    /// resolves no campaign at all through <see cref="AccountCampaignStore"/> — which is why
+    /// <see cref="CampaignJoin.Inspect"/> answers <c>UNKNOWN_CAMPAIGN</c> to one. The server
+    /// authorises this by the caller's own membership row instead, and answers the campaign's
+    /// payload and nothing else.</para>
+    ///
+    /// <para><b>It is a live view and never a write.</b> What is in force for the character is the
+    /// copy taken when it joined, and nothing here changes that — <c>Campaigns.razor</c> draws the
+    /// two beside each other and says which is which. Refreshing the character silently is the one
+    /// thing <see cref="CampaignJoin"/> exists not to do.</para>
+    ///
+    /// <para>Null for a membership that is not the caller's, a campaign the GM has deleted, a
+    /// payload this build cannot read, and a server that could not be reached. All four mean the
+    /// same thing to the screen: there is no live table to put beside the copy, so draw the copy
+    /// alone, which is exactly what it drew before this existed.</para>
+    /// </summary>
+    public async Task<Campaign?> TableAsync(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return null;
+
+        try
+        {
+            using var response =
+                await _http.GetAsync($"{List}/{Uri.EscapeDataString(id)}/table");
+
+            if (!response.IsSuccessStatusCode) return null;
+
+            var read = await response.Content.ReadFromJsonAsync<WiredTable>(Wire);
+
+            // The one reader both stores share, so a campaign made on a laptop and read live on a
+            // phone is spelled the same either way — the same call `JoinAsync` makes on the same
+            // bytes, and never a second reader that could disagree about what a campaign is.
+            return read?.Payload is { Length: > 0 } payload ? StoredCampaign.Read(payload) : null;
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return null; }
+    }
+
+    /// <summary>
     /// Replace a campaign's join code, and hand the new one back.
     ///
     /// <para>On the campaign rather than on a membership, because a code is a property of the game
@@ -573,6 +614,15 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("id")] string? Id,
         [property: JsonPropertyName("campaignId")] string? CampaignId,
         [property: JsonPropertyName("label")] string? Label,
+        [property: JsonPropertyName("payload")] string? Payload);
+
+    /// <summary>
+    /// What the live-table read answers. <b>Two keys, and the smallness is the design</b> — the
+    /// server sends the campaign's id and its opaque payload and nothing else, so there is no
+    /// account id, no label, no join code and nothing about another member to bind here.
+    /// </summary>
+    private sealed record WiredTable(
+        [property: JsonPropertyName("campaignId")] string? CampaignId,
         [property: JsonPropertyName("payload")] string? Payload);
 
     private sealed record WiredVersion([property: JsonPropertyName("version")] int Version);
