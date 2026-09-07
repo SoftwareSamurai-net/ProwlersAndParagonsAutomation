@@ -191,8 +191,9 @@ of it**: p.85 gives a misfortune no roll, no threshold, no duration and no way o
 the engine records the purchase and your words and nothing else, and the ledger line says so. Two
 things the page asks of one are yours to honour: it should be a challenge and a complication rather
 than a punishment, and never a heavy-handed plot device — that is what `villainy` is for. It is the
-one spend aimed at a side rather than at a character, so it needs no `actor`; a fight with no Hero
-in it is refused, because there is nobody to throw it at.
+one spend aimed at a side rather than at a character, so it needs no `actor`. A fight with no Hero
+in it cannot buy one either way: the pool opens at a point per Hero plus the Challenge Level times
+the same number, so such a fight opens on nothing and the spend is refused for want of a point.
 
 **`villainy` has a Villain automatically do whatever the story needs, once per story, and takes a
 `narration` as well.** Say what the act is — the switch thrown, the hostage taken, the escape — or
