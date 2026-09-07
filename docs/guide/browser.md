@@ -259,9 +259,10 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   steps and the 141 Powers are filtered in the browser. Five rows because the palette is a way to
   reach something and `/rules` is the results page.
 - **The race guard is not optional and a pause is not one.** Two queries typed a second apart are
-  two requests that really were made, and the older one can answer last — the autosave's defect in
-  a new place, and silent when it happens, because the rows look like an answer and are just the
-  answer to the question before last. Every search takes a number and an answer is dropped if a
+  two requests that really were made, and the older one can answer last — the shape that cost the
+  autosave somebody's keystrokes and is fixed there differently (see `Autosave` below), and silent
+  when it happens, because the rows look like an answer and are just the answer to the question
+  before last. Every search takes a number and an answer is dropped if a
   higher one has already landed. The test holds the first response at the wire and releases it
   after the second, with both requests asserted so a dropped answer cannot be mistaken for a
   request that never happened.
@@ -696,6 +697,26 @@ no way to list keys. The one exception is the legacy slot, checked directly ever
   all were tested, and none of them could ever have had two characters to work with. **The account's
   store never had this bug**: its `PUT` creates the row on the first autosave. The two sides
   disagreeing is what hid it for a whole slice.
+- **One autosave is open at a time, and everything typed behind it is coalesced into the next
+  one.** `Autosave` owns that, and it is a class rather than a subscription in `Program.cs` because
+  the subscription lost work: one fire-and-forget write per `NotifyChanged` is harmless against
+  `localStorage.setItem`, which is synchronous, and a lost update against an account — two `PUT`s
+  really are in flight together, `worker/characters.js` keeps whichever body lands last, and it
+  stores nothing that could tell an older body from a newer one. A name is typed a letter at a time,
+  so this is the ordinary case: the e2e `ACCOUNT_SAVE` check caught a second browser holding
+  "Account Bound H" for a character the first had finished typing and been told was saved.
+- **Serialised on the client rather than compared on the server, and the reasoning is not
+  interchangeable with `pending_version`'s.** That compare-and-swap exists because a GM and a player
+  each hold a snapshot and the server has a decision to make. Here both writes come from one tab and
+  the newer one is unambiguously the one to keep. A counter on the wire would also have to survive a
+  reload and a second tab — `CharacterSession.Version` counts changes since *this* page loaded and
+  restarts at zero in the next one — and 409 on that route already means the account is full.
+- **Still no debounce, and coalescing is not one.** A debounce drops the last edit before a refresh,
+  which is the thing the write-through exists to prevent; the coalesced write is always sent, and it
+  always carries the sheet as it stands when it starts.
+- **"Saved" may understate what landed and may never overstate it.** The version announced is read
+  immediately before the write, so the word can lag a beat that the next write ends. The other
+  direction is the lie: a reader told their work is kept whose work is not kept.
 - **Nothing empty is ever listed**, on either side — `CharacterSession.IsWorthKeeping`, one
   predicate. The payload is still written when the sheet is empty, because emptying the current slot
   is how starting over leaves it; what is guarded is the row a person sees. Without it, minting a
