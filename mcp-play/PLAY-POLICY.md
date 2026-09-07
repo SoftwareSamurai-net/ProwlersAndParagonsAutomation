@@ -135,7 +135,6 @@ turned one of these table settings on without saying that the numbers do not car
 
 | Entry | What it is |
 |---|---|
-| `adversity_spend_villainy` | Ch.5 p.85. An act of villainy the Heroes cannot simply prevent. |
 | `modifier_cover` | p.75. Nothing on an attack can say a target is behind something. |
 | `modifier_size` | p.75. Nothing says how big anybody is. |
 | `modifier_visibility` | p.75. Nothing says what the light is like. |
@@ -159,19 +158,20 @@ page one of the run and do not move the numbers:
 The other five — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost` and the
 initiative variant beside them — are applied.
 
-**Spends that refuse by name** — the `kind` values `spend_resolve` and `spend_adversity` accept,
-recognise, and answer with a `not yet implemented` line. Every one of a Hero's own purchases is
-resolved; what is left here is one of the GM's four, which is an effect on a scene rather than on
-a roll:
+**No spend refuses by name any more, and that is a claim held to the engine.** Every `kind` either
+`spend_resolve` or `spend_adversity` accepts is resolved: `extra_dice`, `reroll`,
+`seize_initiative`, `instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold`,
+`knockback`, `luring` and `team_attack` for a Hero, and `suppress_flaw`, `misfortune`, `villainy`
+and `anything_resolve_can` for the GM. **What is still answered with a `not yet implemented` line
+is what `anything_resolve_can` may *name*** — four of a Hero's ten purchases, in the last table of
+this document, which is the one place to read that from.
 
-| Spend | Tool |
-|---|---|
-| `villainy` | `spend_adversity` |
-
-Everything else a spend can name is resolved: `extra_dice`, `reroll`, `seize_initiative`,
-`instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold`, `knockback`, `luring` and
-`team_attack` for a Hero, and, for the GM, `suppress_flaw`, `misfortune` and
-`anything_resolve_can` naming one of the purchases the last table below marks bought.
+That does not make every spend a spend that always happens. A resolved spend still refuses on the
+ledger when the fight is not in a state for it — no roll on the table, nobody down under an effect,
+the wrong kind of character, a limit already used, a pool that cannot cover it — and those lines
+say what was wrong and leave the pool alone. **A refusal is not a `not yet implemented`**: the
+first means the rules said no here, and the second means this engine has not got the rule. Narrate
+neither as though it happened.
 
 **`suppress_flaw` buys a Villain, a Foe or an Extra out of one of their Flaws for the rest of the
 scene, and takes a `narration`.** Say which Flaw, in `narration`, or the spend is refused with
@@ -193,6 +193,17 @@ things the page asks of one are yours to honour: it should be a challenge and a 
 than a punishment, and never a heavy-handed plot device — that is what `villainy` is for. It is the
 one spend aimed at a side rather than at a character, so it needs no `actor`; a fight with no Hero
 in it is refused, because there is nobody to throw it at.
+
+**`villainy` has a Villain automatically do whatever the story needs, once per story, and takes a
+`narration` as well.** Say what the act is — the switch thrown, the hostage taken, the escape — or
+it is refused with nothing spent. **Only a Villain**: p.85 says Foes and Minions lack what it takes,
+and naming one is refused. **The story is the encounter**, because a story is a unit Chapter 5
+defines nowhere and a fight is the largest thing this engine can see — so the second purchase in
+one fight is refused, the count comes back on the public state as `villainy`, and it does *not*
+follow you into the next scene of the same story: keeping track across scenes is yours. The act
+succeeds without a roll and there is no ledger line for one, because the page attaches none. And
+the page's warning is worth passing on: used often, it tells the players their choices did not
+matter.
 
 **`luring` is the one spend that takes a `target`**, because p.79 lets a dodged attack be sent into
 a person rather than into the scenery — and a person is the only thing this engine has to send it

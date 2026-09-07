@@ -1356,12 +1356,14 @@ public sealed class PlayEngineStepTests
         Assert.Contains(spent.Added, l =>
             l.Text.Contains("the GM spends 2 Adversity on the Villain", StringComparison.Ordinal));
 
-        // The other three purchases are effects on a scene rather than on a roll, and still refuse.
-        var scene = encounter.Step(state, new SpendAdversity("villain", AdversitySpend.Villainy));
+        // The four purchases that still charge the buyer's own pool refuse by name, and the GM's
+        // pool is not touched for one — that is the whole of what is left unimplemented in p.85.
+        var unbought = encounter.Step(state, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
 
-        Assert.Contains(scene.Added, l =>
+        Assert.Contains(unbought.Added, l =>
             l.Text.Contains("not yet implemented", StringComparison.Ordinal));
-        Assert.Equal(opening, scene.State.Adversity);
+        Assert.Equal(opening, unbought.State.Adversity);
     }
 
     /// <summary>
@@ -1561,6 +1563,113 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>p.85's act of villainy: once per story, only a Villain, and the act itself is the GM's.</b>
+    ///
+    /// <para>"Anything necessary to advance the story" is not a mechanic and this engine has no
+    /// story to advance, so what the Villain does never reaches the state and the line hands it
+    /// back. Every figure the page does print is driven here: the price, the one kind it applies to
+    /// against the two it names as excluded, and the once-per-story limit — which this engine counts
+    /// over the encounter, because a story is a unit the chapter defines nowhere and a fight is the
+    /// largest thing it can see.</para>
+    ///
+    /// <para>Nothing rolls, and the one scripted face is required to be untouched at the end.</para>
+    /// </summary>
+    [Fact]
+    public void AnActOfVillainyIsOncePerStoryAndOnlyAVillainCanBeHandedOne()
+    {
+        var entry = _play.GetResolve("adversity_spend_villainy");
+        var rule = entry.Spend!;
+
+        // The controls on the data: a price, one eligible kind, two excluded, one act, no roll.
+        Assert.Equal(1, rule.CostAdversity);
+        Assert.Equal(["Villain"], rule.EligibleCharacters);
+        Assert.Equal(["Foe", "Minion"], rule.ExcludedCharacters);
+        Assert.Equal(1, rule.LimitPerStory);
+        Assert.True(rule.Automatic);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 5, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 9, health: 20, traits, ["toughness"]);
+        var other = Combatant.Villain("other", "the other Villain", edge: 8, health: 20, traits, ["toughness"]);
+        var foe = Combatant.Foe("foe", "the Foe", edge: 4, health: 8, traits, ["toughness"]);
+        var robots = Combatant.Minions("robots", "the robots", threat: 5, groupSize: 4, "threat");
+
+        var dice = new ScriptedDice(6);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain, other, foe, robots], challengeLevel: 3);
+        var opening = state.Adversity;
+
+        // The controls on the fixture: a pool to spend, and no act spent yet.
+        Assert.True(opening >= 2, $"the GM opened on {opening} Adversity");
+        Assert.Empty(state.Villainy);
+
+        const string Act = "throws the switch and floods the lower deck";
+
+        // Refused, with nothing spent: the printed price...
+        var priced = encounter.Step(state, new SpendAdversity(
+            "villain", AdversitySpend.Villainy, Points: 2, Narration: Act));
+
+        Assert.Equal(opening, priced.State.Adversity);
+        Assert.Empty(priced.State.Villainy);
+
+        // ...a Foe, whom the page names as lacking what it takes...
+        var onAFoe = encounter.Step(state, new SpendAdversity(
+            "foe", AdversitySpend.Villainy, Narration: Act));
+
+        Assert.Equal(opening, onAFoe.State.Adversity);
+        Assert.Contains(onAFoe.Added, l =>
+            l.Text.Contains("Foes and Minions lack what it takes", StringComparison.Ordinal)
+            && l.Text.Contains("is a Foe", StringComparison.Ordinal));
+
+        // ...a group of Minions, likewise...
+        var onMinions = encounter.Step(state, new SpendAdversity(
+            "robots", AdversitySpend.Villainy, Narration: Act));
+
+        Assert.Equal(opening, onMinions.State.Adversity);
+        Assert.Contains(onMinions.Added, l => l.Text.Contains("is a Minion", StringComparison.Ordinal));
+
+        // ...and one that does not say what the act is, which is the whole of what it buys.
+        var unnamed = encounter.Step(state, new SpendAdversity("villain", AdversitySpend.Villainy));
+
+        Assert.Equal(opening, unnamed.State.Adversity);
+        Assert.Empty(unnamed.State.Villainy);
+
+        // The purchase: one point, and the story's one act is spent.
+        var bought = encounter.Step(state, new SpendAdversity(
+            "villain", AdversitySpend.Villainy, Narration: Act));
+
+        Assert.Equal(opening - rule.CostAdversity, bought.State.Adversity);
+        Assert.Equal(["villain"], bought.State.Villainy);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+
+        var line = bought.Added.Single(l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains(Act, line.Text, StringComparison.Ordinal);
+        Assert.Contains("automatically and with no roll", line.Text, StringComparison.Ordinal);
+        Assert.Contains("the GM's to narrate", line.Text, StringComparison.Ordinal);
+
+        // The limit, driven twice over: the same Villain again, and a different one. p.85's sentence
+        // is about the story and not about the character, so both refuse.
+        var again = encounter.Step(bought.State, new SpendAdversity(
+            "villain", AdversitySpend.Villainy, Narration: "grabs a hostage"));
+
+        Assert.Equal(bought.State.Adversity, again.State.Adversity);
+        Assert.Equal(["villain"], again.State.Villainy);
+        Assert.Contains(again.Added, l =>
+            l.Text.Contains("act of villainy per story", StringComparison.Ordinal));
+
+        var someoneElse = encounter.Step(bought.State, new SpendAdversity(
+            "other", AdversitySpend.Villainy, Narration: "escapes down the service tunnel"));
+
+        Assert.Equal(bought.State.Adversity, someoneElse.State.Adversity);
+        Assert.Equal(["villain"], someoneElse.State.Villainy);
+
+        Assert.Equal(1, dice.Remaining);
+    }
+
+    /// <summary>
     /// <b>An odd pool banking automatic successes keeps the even half and nothing for the leftover
     /// die.</b>
     ///
@@ -1713,7 +1822,7 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
-    /// <b>Every purchase either refuses by name against a listed entry, or resolves.</b>
+    /// <b>Every purchase resolves, and nothing refuses by name any more.</b>
     ///
     /// <para>The list above is a static field, and a static field is a claim like any other: it stays
     /// true until somebody implements one of the things on it and forgets. So every member of both
@@ -1721,8 +1830,18 @@ public sealed class PlayEngineStepTests
     /// happened — a purchase that refuses must be on the list, and one that does something must not
     /// be.</para>
     ///
-    /// <para>Both halves have to be non-empty, which is the positive control: a run in which nothing
-    /// refused, or nothing resolved, would satisfy the comparison and prove nothing.</para>
+    /// <para><b>The refusal half is now empty, and it is asserted empty rather than dropped.</b>
+    /// p.85's three own purchases were the last spends on the list; what is left there is the three
+    /// situational modifiers, which no intent can reach. So the check that used to be "something
+    /// refused" becomes the stronger one in both directions: every purchase resolved, and any that
+    /// starts refusing goes red here with a message saying it has to be added to the list and to the
+    /// two documents that publish it.</para>
+    ///
+    /// <para><b>The classifier still has a positive control, driven at the end.</b> It is p.85's
+    /// first purchase naming one of the four Chapter 4 spends that still charge the buyer's own
+    /// pool, which is the one `not yet implemented` line a spend can still produce — and it is
+    /// deliberately kept out of the sorting above, because the entry it cites is applied and is
+    /// rightly not on the list.</para>
     /// </summary>
     [Fact]
     public void EveryPurchaseEitherRefusesByNameOrResolves()
@@ -1762,34 +1881,54 @@ public sealed class PlayEngineStepTests
             }
         }
 
+        var gm = new HashSet<AdversitySpend>();
+
         foreach (var kind in Enum.GetValues<AdversitySpend>())
         {
-            var encounter = new Encounter(_play, new SeededDice(21));
-            var state = encounter.Begin([hero, villain]);
+            var encounter = new Encounter(_play, new SeededDice(21), TableRules.Book with { FatalDamage = true });
+            var state = encounter.Begin([hero, villain], challengeLevel: 3);
 
-            var step = encounter.Step(state, new SpendAdversity("villain", kind));
+            state = encounter.Step(state, new Attack("hero", "villain", "might")).State;
+
+            // Each is handed what its own rule asks for, so a purchase that ends up in neither pile
+            // did so because the rules refused it and not because an argument was missing.
+            var step = encounter.Step(state, new SpendAdversity(
+                "villain", kind,
+                AsResolve: kind == AdversitySpend.AnythingResolveCan ? ResolveSpend.ExtraDice : null,
+                Narration: "a hot temper"));
 
             foreach (var line in step.Added.Where(l =>
                          l.Text.Contains("not yet implemented", StringComparison.Ordinal)))
             {
                 refused.Add(line.Rule);
             }
+
+            gm.Add(kind);
         }
 
-        // The controls: both halves happened.
-        Assert.NotEmpty(refused);
-        Assert.NotEmpty(resolved);
+        // The control: every purchase in both enums was driven and every one of them resolved.
+        Assert.Equal(Enum.GetValues<ResolveSpend>().Order(), resolved.Order());
+        Assert.Equal(Enum.GetValues<AdversitySpend>().Order(), gm.Order());
 
-        foreach (var rule in refused)
-        {
-            Assert.True(Encounter.EntriesNotYetApplied.Contains(rule),
-                $"'{rule}' refuses as not yet implemented and is not on Encounter.EntriesNotYetApplied");
-        }
+        Assert.True(
+            refused.Count == 0,
+            "these entries refuse as not yet implemented: " + string.Join(", ", refused.Order(StringComparer.Ordinal))
+            + ". No spend does any more, so a new one has to be added to Encounter.EntriesNotYetApplied, "
+            + "to docs/guide/play-engine.md and to mcp-play/PLAY-POLICY.md before this can pass.");
 
-        // And the purchases that are implemented say so by being missing from the refusals.
-        Assert.Contains(ResolveSpend.Reroll, resolved);
-        Assert.Contains(ResolveSpend.InstantRecovery, resolved);
-        Assert.DoesNotContain("instant_recovery", refused, StringComparer.Ordinal);
+        // The classifier's own control, kept out of the sorting above: p.85's first purchase naming
+        // one of the four that still charge the buyer's own pool is the one `not yet implemented`
+        // line a spend can still produce, and it cites an entry that is applied rather than listed.
+        var buyer = new Encounter(_play, new SeededDice(21));
+        var opened = buyer.Begin([hero, villain], challengeLevel: 3);
+
+        var unbought = buyer.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Contains(unbought.Added, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+
+        Assert.Equal(opened.Adversity, unbought.State.Adversity);
     }
 
     /// <summary>
@@ -3199,8 +3338,12 @@ public sealed class PlayEngineStepTests
             new SpendResolve("hero", ResolveSpend.Knockback),
             new SpendResolve("hero", ResolveSpend.Luring),
             new SpendResolve("hero", ResolveSpend.TeamAttack),
-            new SpendAdversity("villain", AdversitySpend.Villainy),
-            new SpendAdversity("villain", AdversitySpend.Misfortune, Points: 999)
+            new SpendAdversity("villain", AdversitySpend.Villainy),          // refused: names no act
+            new SpendAdversity("villain", AdversitySpend.Misfortune, Points: 999),
+            // The one `not yet implemented` line a spend can still produce, and the control below
+            // is about it: p.85's first purchase naming one that charges the buyer's own pool.
+            new SpendAdversity(
+                "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.Stabilise)
         };
 
         foreach (var intent in refusals) state = encounter.Step(state, intent).State;

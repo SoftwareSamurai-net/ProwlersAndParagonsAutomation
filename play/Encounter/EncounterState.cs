@@ -254,6 +254,24 @@ public sealed record EncounterState
     /// </summary>
     public required IReadOnlyList<string> TeamAttacked { get; init; }
 
+    /// <summary>
+    /// Every Villain the GM has had perform an act of villainy, in the order they did (Ch.5 p.85).
+    ///
+    /// <para><b>It is a list on the encounter rather than a flag on a character, because the limit
+    /// p.85 prints is not per character</b>: "once per story, you can spend 1 Adversity to have a
+    /// Villain automatically perform an act of villainy". One act, whoever performs it — so the
+    /// count is what <c>limit_per_story</c> is compared against, and the ids are here so a reader
+    /// of the state can see who it was.</para>
+    ///
+    /// <para><b>The story is this encounter, and that is a reading rather than a transcription.</b>
+    /// A story is not a unit Chapter 5 defines anywhere — its own <c>ambiguity</c> says so, and the
+    /// pools it governs are counted per issue — and a scene is the largest thing this engine can
+    /// see. So the limit is enforced across the fight and no further; the ledger line says which
+    /// unit it counted in, so a GM running a second scene knows the count did not come with
+    /// them.</para>
+    /// </summary>
+    public required IReadOnlyList<string> Villainy { get; init; }
+
     /// <summary>Whether the fight is over — one side left standing, or the page limit reached.</summary>
     public required bool Over { get; init; }
 

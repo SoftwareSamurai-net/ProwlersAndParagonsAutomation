@@ -2310,6 +2310,9 @@ public sealed partial class Encounter
             case AdversitySpend.Misfortune:
                 return Misfortune(state, entry, spend, lines);
 
+            case AdversitySpend.Villainy:
+                return ActOfVillainy(state, entry, spend, lines);
+
             case AdversitySpend.AnythingResolveCan:
                 break;
 
@@ -2542,6 +2545,87 @@ public sealed partial class Encounter
     }
 
     /// <summary>
+    /// Ch.5 p.85's <c>adversity_spend_villainy</c>: once in a story, a point has a Villain
+    /// automatically do whatever the story needs — throw the switch, take the hostage, get away.
+    ///
+    /// <para><b>The act is the GM's and the limits are the engine's, and the ledger line says
+    /// which is which.</b> "Anything necessary to advance the story" is not a mechanic and this
+    /// engine has no plot to advance, so what the Villain does never reaches the state and the line
+    /// hands it back. What does reach the state is everything the page states: the pool pays
+    /// <c>cost_adversity</c> once, only a <c>Villain</c> may be handed it — "Foes and Minions lack
+    /// what it takes", read off <c>excluded_characters</c> rather than restated here — and
+    /// <see cref="EncounterState.Villainy"/> records that the story's one act is spent, which is
+    /// what refuses the second.</para>
+    ///
+    /// <para><b>What "once per story" means here is a reading and is recorded as one.</b> Chapter 5
+    /// defines no story — its own <c>ambiguity</c> says the pools it governs are counted per issue
+    /// and that the two are the same thing only in a one-session game — and the largest unit this
+    /// engine can see is an encounter, which is a scene. So the limit holds across this fight and
+    /// no further, the line says so, and a GM running a second scene of the same story knows the
+    /// count did not travel with them. Enforcing it over a unit the engine cannot see would be a
+    /// limit it could not honestly claim; enforcing nothing would drop a printed one.</para>
+    ///
+    /// <para><b>A purchase that does not say what the act is is refused with nothing spent</b>, for
+    /// the reason the other two are: the act <em>is</em> the purchase, and a point recorded against
+    /// "a Villain does something" is a line nobody can narrate from.</para>
+    /// </summary>
+    private EncounterState ActOfVillainy(
+        EncounterState state, ResolveEntry entry, SpendAdversity spend, List<LedgerLine> lines)
+    {
+        var rule = entry.Spend!;
+        var cost = rule.CostAdversity!.Value;
+
+        if (WrongPrice(state, entry, spend, cost, lines) is { } priced) return priced;
+
+        var npc = state[spend.Actor];
+        var printed = PrintedKind(npc.Kind);
+        var eligible = rule.EligibleCharacters!;
+
+        if (!eligible.Contains(printed, StringComparer.Ordinal))
+        {
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"villainy applies only to {Plural(eligible)} — {Plural(rule.ExcludedCharacters!)} "
+                + $"lack what it takes — and {npc.Name} is a {printed}");
+        }
+
+        if (state.Villainy.Count >= rule.LimitPerStory!.Value)
+        {
+            var already = state.Villainy.Select(id => state[id].Name);
+
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"p.85 allows {rule.LimitPerStory} act of villainy per story, and "
+                + $"{string.Join(", ", already)} has had it. A story is not a unit the chapter "
+                + "defines, and the largest one this engine can see is this encounter — so the "
+                + "count is per fight, and it does not follow the GM into the next scene");
+        }
+
+        if (spend.Narration is not { Length: > 0 } act)
+        {
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"a point buys what p.85 calls it — {rule.Effect} — and this spend does not say "
+                + $"what the act is. The page's examples are {string.Join("; ", rule.ExamplesGiven!)}, "
+                + "and this engine has no story of its own to read one off");
+        }
+
+        var automatically = rule.Automatic == true ? ", automatically and with no roll" : "";
+        var sparingly = rule.UseSparingly == true
+            ? " The page says to use it sparingly: done often, it tells the players their choices "
+              + "did not matter."
+            : "";
+
+        lines.Add(new LedgerLine(
+            state.Page, npc.Id, entry.Id, entry.SourceRef,
+            $"the GM spends {cost} Adversity on {npc.Name}: {rule.Effect}{automatically} — "
+            + $"\"{act}\". "
+            + $"That is the {rule.LimitPerStory} this story allows, counted over this encounter "
+            + $"because a story is a unit the chapter does not define.{sparingly} The act itself is "
+            + "the GM's to narrate; this engine has recorded the point and that the story's one act "
+            + "is spent"));
+
+        return ChargeAdversity(state, cost) with { Villainy = [.. state.Villainy, npc.Id] };
+    }
+
+    /// <summary>
     /// The refusal every one of p.85's three own purchases makes of a spend that asks for a number
     /// of points the page does not price, or a throwaway null where it asks for the printed one.
     ///
@@ -2558,6 +2642,16 @@ public sealed partial class Encounter
             : Refuse(state, spend.Actor, entry.Id, entry.SourceRef, lines,
                 $"p.85 prices {entry.Name} at {cost} Adversity and this spend asks for "
                 + $"{spend.Points}. Nothing was spent");
+
+    /// <summary>
+    /// The kinds on one of p.85's eligible or excluded lists, as a sentence names them.
+    ///
+    /// <para>Each is pluralised on its own rather than the join being: "Foe and Minions" is what a
+    /// single trailing letter produces, and the page reads "Foes and Minions lack what it takes".
+    /// </para>
+    /// </summary>
+    private static string Plural(IReadOnlyList<string> kinds) =>
+        string.Join(" and ", kinds.Select(kind => kind + "s"));
 
     /// <summary>
     /// A <see cref="CombatantKind"/> as p.85 spells it, so the eligible and excluded lists on those

@@ -111,7 +111,9 @@ public sealed class PlayEnginePropertyTests
     /// refusals unexamined. The generator emits all of them, including purchases the actor cannot
     /// afford and moves that make no sense where they are, because a refusal is a branch of
     /// <c>Step</c> like any other. Its own list of what it emitted is the second control: a
-    /// generator that had quietly narrowed would fail here rather than pass with less to say.</para>
+    /// generator that had quietly narrowed would fail here rather than pass with less to say. It
+    /// cycles the GM's four purchases as well, half of them carrying the narration p.85's three own
+    /// spends are refused without, so both sides of that refusal are inside the property.</para>
     ///
     /// <para>Both table settings that change what <c>Step</c> reaches for are on, so the Fatal
     /// Damage clock and the wound penalties are inside the property rather than beside it.</para>
@@ -159,6 +161,11 @@ public sealed class PlayEnginePropertyTests
             policy.Emitted.Order(StringComparer.Ordinal));
 
         Assert.Equal(Enum.GetValues<ResolveSpend>().Order(), policy.Purchases.Order());
+
+        // And every Adversity purchase, which is what makes this a statement about p.85's three own
+        // spends as well as its first: each is emitted with the GM's words and without them, so the
+        // branch that changes the state and the branch that refuses are both inside the property.
+        Assert.Equal(Enum.GetValues<AdversitySpend>().Order(), policy.GmPurchases.Order());
     }
 
     private static EncounterState StepAndCheck(

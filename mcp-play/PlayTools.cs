@@ -1310,6 +1310,7 @@ public sealed class PlayTools
             ["turn_order"]      = TurnOrder(state),
             ["holds"]           = Strings(state.Holds),
             ["seized"]          = Strings(state.Seized),
+            ["villainy"]        = Strings(state.Villainy),
 
             ["combatants"] = new JsonArray([
                 .. state.TurnOrder.Select(id => state[id]).Select(c => (JsonNode)new JsonObject

@@ -873,6 +873,81 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>An act of villainy crosses the wire, and the story's one act comes back on the public
+    /// state.</b>
+    ///
+    /// <para>The narration is what the point buys — p.85's act is "anything necessary to advance
+    /// the story" and this server has no story — so a dropped field would leave the spend refused
+    /// for naming nothing. The <c>villainy</c> list is the other half: it is what refuses the
+    /// second purchase, and a client that cannot see it has no way to know the story's one act is
+    /// gone until it asks for another and is told.</para>
+    ///
+    /// <para>The second purchase is driven here too, because "once per story" is the only limit on
+    /// this spend and a limit nobody drives over the wire is a limit that has only been read.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnActOfVillainyCrossesTheWireAndTheStorysOneActComesBackOnTheState() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["challengeLevel"] = 3,
+                ["seed"] = 81
+            });
+
+            var encounter = opened["encounter_id"]!.GetValue<string>();
+            var before = opened["adversity"]!.GetValue<int>();
+
+            // The control: enough in the pool for two, so the second refusal below is the limit's.
+            Assert.True(before >= 2, $"the fight opened on {before} Adversity");
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "villainy",
+                    ["narration"] = "throws the switch and floods the lower deck"
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            Assert.Contains(turn["added"]!.AsArray(), l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "adversity_spend_villainy", StringComparison.Ordinal)
+                && l["text"]!.GetValue<string>()
+                    .Contains("throws the switch and floods the lower deck", StringComparison.Ordinal));
+
+            Assert.Equal(before - 1, turn["state"]!["adversity"]!.GetValue<int>());
+
+            Assert.Equal(
+                ["villain"],
+                turn["state"]!["villainy"]!.AsArray().Select(v => v!.GetValue<string>()));
+
+            // And the story's one act is gone: the second is refused, with nothing spent.
+            var again = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "villainy",
+                    ["narration"] = "grabs a hostage"
+                }
+            });
+
+            Assert.Contains(again["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>()
+                    .Contains("act of villainy per story", StringComparison.Ordinal));
+
+            Assert.Equal(before - 1, again["state"]!["adversity"]!.GetValue<int>());
+        });
+
+    /// <summary>
     /// <b>A range class is named, never numbered.</b>
     ///
     /// <para><c>Enum.TryParse</c> accepts the numeral of a member — and for a plain enum it accepts

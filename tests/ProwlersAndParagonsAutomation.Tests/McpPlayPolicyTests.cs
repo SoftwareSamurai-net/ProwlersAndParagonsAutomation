@@ -177,22 +177,27 @@ public sealed class McpPlayPolicyTests
     }
 
     /// <summary>
-    /// <b>The spends the policy says refuse are the spends that actually refuse</b>, driven rather
-    /// than listed.
+    /// <b>The policy says no spend refuses by name, and no spend does</b> — driven rather than
+    /// listed.
     ///
     /// <para>The two tables above are pinned against static fields, which are themselves claims —
     /// <see cref="PlayEngineStepTests.EveryPurchaseEitherRefusesByNameOrResolves"/> is what keeps
-    /// those honest, and this is the same instrument pointed at the third table, which is the one a
-    /// model reads to decide whether it may narrate a knockback. So every member of both spend enums
-    /// goes through <see cref="Encounter.Step"/> and is sorted by what happened, and the document
-    /// has to name exactly the ones that refused — by the wire spelling a caller would pass, since
-    /// that is what the table is a table of.</para>
+    /// those honest, and this is the same instrument pointed at what the document tells a model it
+    /// may narrate. Every member of both spend enums goes through <see cref="Encounter.Step"/> and
+    /// is sorted by what happened, and the document has to agree — by the wire spelling a caller
+    /// would pass, since that is what it is naming.</para>
     ///
-    /// <para>Both halves non-empty is the control: a run in which nothing refused, or nothing
-    /// resolved, would satisfy the comparison while measuring nothing.</para>
+    /// <para><b>The table this used to compare against is gone, because the last spend on it was
+    /// applied</b>, and the claim it made is now a sentence: every `kind` resolves, and what is
+    /// still answered with a `not yet implemented` line is what `anything_resolve_can` may
+    /// <em>name</em>. So the two-valued control that keeps the classifier honest lives in
+    /// <see cref="EveryPurchaseTheGmsPoolMayNameAnswersTheWayThePolicySaysItDoes"/>, which drives
+    /// the same instrument over that table and still sees both answers. What is asserted here is
+    /// the stronger pair: nothing refused, everything resolved, and every one of them is named in
+    /// the document a caller reads.</para>
     /// </summary>
     [Fact]
-    public void ThePolicysRefusingSpendsAreTheSpendsThatRefuse()
+    public void ThePolicySaysNoSpendRefusesByNameAndNoneDoes()
     {
         var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 9,
             new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 5 },
@@ -239,19 +244,26 @@ public sealed class McpPlayPolicyTests
                 : resolved).Add(PlayTools.Wire(kind.ToString()));
         }
 
-        Assert.NotEmpty(refused);
-        Assert.NotEmpty(resolved);
+        // The control: every purchase in both enums was driven, and every one of them resolved.
+        Assert.Equal(
+            Enum.GetValues<ResolveSpend>().Select(k => PlayTools.Wire(k.ToString()))
+                .Concat(Enum.GetValues<AdversitySpend>().Select(k => PlayTools.Wire(k.ToString())))
+                .Order(StringComparer.Ordinal),
+            resolved.Order(StringComparer.Ordinal));
 
-        var named = ListedUnder("**Spends that refuse by name**");
+        Assert.True(
+            refused.Count == 0,
+            "these spends refuse as not yet implemented: "
+            + string.Join(", ", refused.Order(StringComparer.Ordinal))
+            + ". The play policy says none does, and a document served to every conversation this "
+            + "server has is wrong everywhere at once — say so in it before this can pass.");
 
-        Assert.Equal(refused.Order(StringComparer.Ordinal), named.Order(StringComparer.Ordinal));
+        // And the document has to say it, both ways: the claim itself, and every spend named, so a
+        // caller reading it can learn that each is available.
+        Assert.Contains("No spend refuses by name any more", Flowed, StringComparison.Ordinal);
 
-        // And the other direction, out of the prose beneath that table: a spend that resolves must
-        // not be sitting in the sentence listing the ones that do not.
         foreach (var kind in resolved)
         {
-            Assert.DoesNotContain(kind, named, StringComparer.Ordinal);
-
             Assert.True(Flowed.Contains(kind, StringComparison.Ordinal),
                 $"'{kind}' resolves, and the policy does not name it at all — a caller reading this "
                 + "document has no way to learn it is available.");
