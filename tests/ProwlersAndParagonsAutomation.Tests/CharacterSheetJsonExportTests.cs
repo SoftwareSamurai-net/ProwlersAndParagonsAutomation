@@ -87,7 +87,12 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
     {
         string[] expected =
         [
-            "meta", "name", "tier", "package", "hp_budget", "trait_cap", "abilities", "talents",
+            "meta", "name", "tier", "package", "hp_budget", "trait_cap",
+            // The table's own rules, present and null for a character at no table — a reader
+            // has to be able to tell "this table decided nothing" from "this build had not
+            // heard of the field", so the keys are written either way.
+            "campaign_table", "immortality_cost",
+            "abilities", "talents",
             "source_groups", "powers", "perks", "flaws", "gear", "derived", "narrative",
             "validation"
         ];

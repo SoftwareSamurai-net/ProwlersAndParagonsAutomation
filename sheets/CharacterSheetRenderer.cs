@@ -87,6 +87,58 @@ public static class CharacterSheetRenderer
         sb.AppendLine($"  Tier:     {tier}");
         sb.AppendLine($"  HP Spent: {total} / {budget}");
         sb.AppendLine();
+
+        WriteHouseRules(sb, sheet, rules);
+    }
+
+    /// <summary>
+    /// <b>What this character's table has decided, printed only when it has decided something.</b>
+    ///
+    /// <para>Three kinds of thing, in the order somebody reading a sheet at a table wants them:
+    /// the Trait Cap, because it is the ceiling every rank on the page is judged against and the
+    /// datum the Resolve further down is measured from; the price for Immortality, because it is
+    /// Hero Points and the total above has already spent them; and the optional rules, because
+    /// they decide what happens when the sheet is used in a fight.</para>
+    ///
+    /// <para><b>Absent in full for a character at no table</b> — which is every character exported
+    /// before this existed, so every one of those files is unchanged byte for byte. A heading over
+    /// "Fatal Damage: no" thirteen times is a block that is true of every game and tells a reader
+    /// nothing; <see cref="CampaignTable.IsTheBook"/> is the question that keeps it off the
+    /// page.</para>
+    ///
+    /// <para><b>The cap prints only when the character carries a house one</b>, and then as
+    /// <see cref="DerivedStatsCalculator.EffectiveTraitCap"/>. A tier's own ceiling is a fact about
+    /// the tier and this block is about the table.</para>
+    /// </summary>
+    private static void WriteHouseRules(StringBuilder sb, CharacterSheet sheet, RulesRepository rules)
+    {
+        var switches = sheet.CampaignTable is { IsTheBook: false } table ? table : null;
+
+        if (sheet.TraitCapRank is null && sheet.ImmortalityCost is null && switches is null) return;
+
+        sb.AppendLine("─── HOUSE RULES ────────────────────────────────────────────");
+
+        if (sheet.TraitCapRank is not null)
+        {
+            var tier = sheet.SelectedTierId is null ? null : rules.GetTier(sheet.SelectedTierId);
+            sb.AppendLine($"  Trait Cap: {DerivedStatsCalculator.EffectiveTraitCap(sheet, tier)}d");
+        }
+
+        if (sheet.ImmortalityCost is { } price)
+            sb.AppendLine($"  {rules.GetPower("immortality")?.Name ?? "Immortality"}: {price} HP");
+
+        if (switches is not null)
+        {
+            foreach (var name in HouseRuleFormatter.On(switches)) sb.AppendLine($"  {name}");
+
+            // The rank only where the switch that reads it is on. A figure left behind under a
+            // switch nobody turned on is not a rule this table adopted, and printing it would say
+            // it was.
+            if (switches is { RaisedGearLimit: true, GearLimitRank: { } rank })
+                sb.AppendLine($"    Gear Limit {rank}d");
+        }
+
+        sb.AppendLine();
     }
 
     private static void WriteAbilities(StringBuilder sb, CharacterSheet sheet, RulesRepository rules)
@@ -338,6 +390,25 @@ public static class CharacterSheetRenderer
             // `derived.resolve` further down is measured from, so a sheet that printed the figure
             // and not the cap would be unreadable the first time a campaign tightened one.
             ["trait_cap"] = DerivedStatsCalculator.EffectiveTraitCap(sheet, tier),
+
+            // <b>The optional rules this character's table has turned on, for the reader that
+            // cannot ask the campaign.</b> The encounter server is handed characters and never a
+            // campaign — it cannot resolve a campaign id any more than the engine can — so a fight
+            // fought with this sheet is fought under the book unless the sheet says otherwise.
+            // Null for a character at no table, which is every export made before this existed.
+            //
+            // <b>Every switch is written, including the ones that are off</b>, unlike the text
+            // sheet's list. A document is read by a program: an absent key would be
+            // indistinguishable from a build that had not heard of the setting, and "off" is a
+            // thing this table decided as much as "on" is.
+            ["campaign_table"] = TableJson(sheet.CampaignTable),
+
+            // What this table charges for Immortality, or null for the book's 3. It is beside the
+            // switches rather than inside them because it is the one house rule here that costs
+            // Hero Points — `hp_budget.spent` below has already been charged it.
+            ["immortality_cost"] = sheet.ImmortalityCost is { } price
+                ? JsonValue.Create(price)
+                : JsonValue.Create<int?>(null),
             ["package"] = pkg is null ? JsonValue.Create<string?>(null) : new JsonObject
             {
                 ["id"]   = pkg.Id,
@@ -495,5 +566,54 @@ public static class CharacterSheetRenderer
         };
 
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    /// <summary>
+    /// A table's optional rules as JSON, or null for a character at no table.
+    ///
+    /// <para><b>The keys are the property names <c>CampaignTable</c> and
+    /// <c>play/Encounter/TableRules.cs</c> share, in snake_case</b> — the spelling every other key
+    /// in this document uses. They are written out one at a time rather than serialised off the
+    /// record, because a serialiser's naming policy is a thing that can be changed elsewhere, and
+    /// this is a contract the encounter server reads: <c>CampaignTableExportTests</c> holds the
+    /// key list to the switch list so a setting cannot be added on one side alone.</para>
+    ///
+    /// <para><b>The Gear Limit rank is written whether or not the switch that reads it is on</b>,
+    /// unlike the text sheet, where a rank under an unadopted switch would read as a rule. A
+    /// document says what the campaign holds; a program reading it applies
+    /// <c>raised_gear_limit</c> itself, exactly as <c>TableRules.GearLimit</c> does.</para>
+    /// </summary>
+    private static JsonObject? TableJson(CampaignTable? table)
+    {
+        if (table is null) return null;
+
+        var block = new JsonObject();
+
+        foreach (var (key, _, _) in HouseRuleFormatter.All)
+            block[SnakeCase(key)] = HouseRuleFormatter.IsOn(table, key);
+
+        block["gear_limit_rank"] = table.GearLimitRank is { } rank
+            ? JsonValue.Create(rank)
+            : JsonValue.Create<int?>(null);
+
+        return block;
+    }
+
+    /// <summary>
+    /// <c>ActiveDefensesCost</c> to <c>active_defenses_cost</c>. The one place a property name
+    /// becomes a key in this document, so the two sides of the contract cannot drift by somebody
+    /// typing a key out by hand.
+    /// </summary>
+    private static string SnakeCase(string name)
+    {
+        var sb = new StringBuilder(name.Length + 4);
+
+        for (var i = 0; i < name.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(name[i])) sb.Append('_');
+            sb.Append(char.ToLowerInvariant(name[i]));
+        }
+
+        return sb.ToString();
     }
 }
