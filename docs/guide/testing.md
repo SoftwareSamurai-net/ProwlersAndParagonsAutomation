@@ -572,7 +572,7 @@ against a pre-built site.
 ```bash
 ./scripts/test-kill-tree.sh                  # eight checks: the parses, three trees, the orphan
                                              # backstop, the log redactor, the server-state
-                                             # reading; ~11s
+                                             # reading and its bound; ~13s
 ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic ones only. NOT a full run
 ```
 
@@ -707,6 +707,15 @@ saying whether the server was **still alive, already dead (with its exit status)
 the drive ended, and whether anything was still listening on its port; and the last forty lines of
 that server's own log, with `[?&]t=` values redacted.
 
+**That reading is bounded and cannot hang.** `capture_server_state` takes the exit status from
+`wait`, and `wait` on a live child blocks until that child exits — so a *wrong* aliveness reading
+does not make it say the wrong thing, it makes it say nothing, for ever. Measured before the bound
+existed: inverting the test turned `./scripts/test-kill-tree.sh` into an eleven-minute hang, which
+no CI log distinguishes from a broken runner. The reading is now a seam, `server_is_live`, and the
+dead branch confirms it with a bounded poll before `wait` is allowed to run; when the two disagree
+the state reads `UNREADABLE` and says so, because a harness that invents an exit status for a
+running process is worse than one that admits it has none.
+
 **The last two were missing, and CI run `34040527190` is what that cost.** `wrangler pages dev`
 died four seconds into a nine-check drive. `A11Y` reported a 45-second wait on `/build`, the seven
 checks after it each reported `net::ERR_CONNECTION_REFUSED` as if it were their own finding, and
@@ -728,6 +737,13 @@ first: a live, bound fixture has to read as alive before a `SIGKILL`ed one is al
 `ALREADY DEAD … exit status 137`, and the two readings have to differ — which a constant cannot
 do. Watched red four ways: reporting alive unconditionally, dropping the exit status, swapping
 `redacted_tail` for `tail` (the fixture log carries a token), and printing no log at all.
+
+**A fifth stage drives the reading being wrong**, which is the one thing the four above cannot
+reach: a helper in a shell of its own — bash blocks in `wait` only for *its own* children, so a
+subshell asking about somebody else's returns 127 at once and would prove nothing — replaces
+`server_is_live` with one that says *gone* about a process that is running, and the case requires
+an answer within seconds. Its control is that the helper really did have a live child to block on.
+Watched red two ways: with the bound removed and with the bound made too long to be one.
 
 **What the shape of that failure already rules out, so the next reader does not start from
 nothing.** A `workerd` that has died under a live wrangler does **not** produce refused
@@ -753,6 +769,39 @@ server stops answering rather than driving the rest into a refused connection ea
 `E2E CHECK <NAME>: NOT RUN` for what is left. `E2E RAN n CHECKS, m PASSED` counts only the ones
 that ran, so `n` shrinking is the shape of this failure; `e2e.sh` prints the `NOT RUN` names beside
 its own count so the two figures cannot be added into a suite that is quietly smaller.
+
+**A green run says it too, and that arm was the last silent one.** "All n checks passed" and "all n
+checks passed and the server was already dead when the last verdict was printed" used to be the
+same four words. It is a `::warning::` and not an `::error::` — every verdict printed stands, and a
+check that could not reach the server does not pass, so failing the run on it would be a claim
+about those verdicts that nothing has measured — but it arrives before the twins start failing to
+reach servers of their own.
+
+**And "stopped answering" includes the server that answers by hanging, which is the shape this
+harness should expect first.** The paragraph above records it: a `workerd` that has died under a
+live `wrangler pages dev` does not refuse connections, it holds the port and hangs. Against that
+server the first version of this reporting was no better than what it replaced — the probe counted
+only `ECONNREFUSED` and `ECONNRESET`, so every check spent its full 30-second navigation timeout
+and reported the dead server as its own `[OUTCOME]`. **The node driver did not even get that far**:
+`cdp.mjs` awaited `Page.navigate` before the load event, Chrome does not answer `Page.navigate`
+until a navigation commits, and the load wait therefore rejected with nothing awaiting it yet — an
+unhandled rejection, which Node answers by printing a stack and exiting. No verdict, no summary
+line, nothing for `e2e.sh` to read. Measured against a socket that accepts and never answers, at
+exactly 30 seconds.
+
+So: **an answer counts whatever it says** — a 500, a redirect, `boot-app-never-mounts` serving `/`
+perfectly while never mounting the app — and **no answer within ten seconds counts as stopped**.
+The bound is three orders of magnitude above a local static server's measured cost for `GET /`, and
+it is only ever asked after a check has already failed. Both drivers classify identically and print
+the same sentence, the POSIX spelling of the socket error included, because `e2e.sh` reads them
+with one `grep` and a reader compares two runs by eye.
+
+**Every verdict goes through one redaction point in each driver, whole line.** The first version
+wrapped `error.message` and interpolated the probe's own answer beside it raw, so a driver pointed
+at a base URL carrying a token printed `&t=<redacted>` in the half somebody had remembered and the
+token in full in the half they had not — one line, one verdict, the same shape as the leak the rule
+was written for. Green verdicts and `NOT RUN` lines go through it too: "only the red half is
+cleaned" is a rule that holds exactly until something passes.
 
 ### Three things about the server, each of which cost a debugging round
 
