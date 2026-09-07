@@ -194,6 +194,14 @@ page one of the run and do not move the numbers:
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
+Both are the same rule, and they are listed because the **default** Gear Limit is not applied
+either. p.80 caps the Trait rank you can bring to bear *when using mundane equipment*, and there is
+no equipment in a fight here: an attack names a Trait and never an item, a combatant carries no
+gear, and there is no Weapon Bonus anywhere in this repository's rules data for a limit to bite on.
+So a raised limit could not honestly be applied before the default one, and neither is. Send
+`raised_gear_limit` if you like — page one will say the numbers do not carry it — and cap a
+sword-swinging character's rank yourself.
+
 **Every other gritty rule is applied**: `FatalDamage`, `ToughMinions`, `WoundPenalties`,
 `ActiveDefensesCost`, `HardTargets`, `close_range_penalty`, `the_drop`, `friendly_fire` and
 `slow_healing`, with the initiative variant beside them.

@@ -6053,6 +6053,98 @@ public sealed class PlayEngineStepTests
             string.Equals(l.Rule, "gritty_slow_healing", StringComparison.Ordinal));
     }
 
+
+    // ── p.80's Gear Limit, and why both its switches are still listed ────────
+
+    /// <summary>
+    /// <b>Nothing in a fight here is held to a Gear Limit, and the raised one cannot honestly be
+    /// applied before the default one is.</b>
+    ///
+    /// <para>p.80 defines the limit as "the maximum effective Trait rank you can bring to bear
+    /// <em>when using mundane equipment</em>", and its worked example is a Might roll plus a sword's
+    /// +2d Weapon Bonus. Both halves of that are missing here, and this fixture drives both rather
+    /// than asserting them.</para>
+    ///
+    /// <para><b>There is no equipment in a fight.</b> An <see cref="Attack"/> names a Trait id and
+    /// no item, and a <see cref="Combatant"/> carries no gear — so a character built from a sheet
+    /// carrying a sword is byte-for-byte the character built from the same sheet without one, and
+    /// nothing downstream could tell an attack made with it from a bare-handed one.</para>
+    ///
+    /// <para><b>And there is no Weapon Bonus to cap.</b> <c>data/rules/</c> has no such figure at
+    /// all: Ch.6's catalogue is not extracted, and a <c>SelectedGear</c> is a name with optional
+    /// custom features on it. So a limit would have nothing to bite on even if an attack could name
+    /// a weapon.</para>
+    ///
+    /// <para><b>The consequence is the reason both switches stay listed</b>, and it is checked
+    /// rather than written down: <see cref="TableRules.GearLimit"/> computes the figure and no rule
+    /// in <c>play/</c> reads it. A run that turns <c>RaisedGearLimit</c> on is a run whose numbers
+    /// do not carry it, and page one says so.</para>
+    ///
+    /// <para><b>This test is written to fail when the gap closes.</b> A divergence recorded as a
+    /// check that still passes after the fix is one nobody notices was closed — the same shape as
+    /// the Expertise carve-out this repository already went through.</para>
+    /// </summary>
+    [Fact]
+    public void NothingInAFightIsHeldToAGearLimitSoBothSwitchesStayListed()
+    {
+        var rules = new RulesFixture();
+
+        var bare = rules.LegalSheet();
+        bare.Name = "the Hero";
+        bare.AbilityRanks["might"] = 8;
+
+        var armed = rules.LegalSheet();
+        armed.Name = "the Hero";
+        armed.AbilityRanks["might"] = 8;
+        armed.Gear.Add(new SelectedGear("a basic sword"));
+
+        // The control: the sword really is on the second sheet, so the equality below is between
+        // two different characters rather than between two copies of one.
+        Assert.Empty(bare.Gear);
+        Assert.Single(armed.Gear);
+
+        var without = CombatantFactory.From(bare, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
+        var with = CombatantFactory.From(armed, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
+
+        // A piece of gear reaches nothing an encounter can see.
+        Assert.Equal(without.TraitRanks.OrderBy(t => t.Key, StringComparer.Ordinal), with.TraitRanks.OrderBy(t => t.Key, StringComparer.Ordinal));
+        Assert.Equal(without.Rank("might"), with.Rank("might"));
+
+        // And an attack has nowhere to name one, so the limit could not be applied per attack
+        // either: every field of p.75's attack is a Trait, a row, or a modifier.
+        Assert.DoesNotContain(
+            typeof(Attack).GetProperties().Select(p => p.Name),
+            name => name.Contains("Gear", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("Weapon", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("Item", StringComparison.OrdinalIgnoreCase));
+
+        Assert.DoesNotContain(
+            typeof(Combatant).GetProperties().Select(p => p.Name),
+            name => name.Contains("Gear", StringComparison.OrdinalIgnoreCase));
+
+        // The figure exists and is the entry's; nothing reads it. That is the whole reason the two
+        // switches are still on Encounter.SwitchesNotYetApplied.
+        var entry = _play.GetGritty("gritty_raised_gear_limit").GearLimit!;
+
+        Assert.Equal(entry.DefaultRank, TableRules.Book.GearLimit(_play));
+
+        var readers = Directory
+            .EnumerateFiles(Path.Combine(RulesFixture.RepoRoot, "play"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(f => File.ReadAllText(f).Contains("GearLimit(", StringComparison.Ordinal))
+            .Select(f => Path.GetFileName(f))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        // The control on the scan: it really can find a name, and the one it finds is the
+        // definition rather than a use.
+        Assert.Equal(["TableRules.cs"], readers);
+
+        Assert.Contains(nameof(TableRules.RaisedGearLimit), Encounter.SwitchesNotYetApplied);
+        Assert.Contains(nameof(TableRules.GearLimitRank), Encounter.SwitchesNotYetApplied);
+    }
+
     /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
     private static string Line((int Thrown, IReadOnlyList<LedgerLine> Lines) exchange, string ruleId) =>
         Assert.Single(exchange.Lines, l => string.Equals(l.Rule, ruleId, StringComparison.Ordinal)).Text;
