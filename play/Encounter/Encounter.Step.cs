@@ -4326,6 +4326,9 @@ public sealed partial class Encounter
         state = TossWhatWasNeverUsed(state, page, lines);
         state = TickTheDying(state, page, lines);
 
+        // After the clock, because the clock is one of the things that puts a character out.
+        state = LetGoOfWhatTheDefeatedHold(state, page, lines);
+
         foreach (var forfeited in state.LosesNextTurn)
         {
             lines.Add(new LedgerLine(
@@ -4384,6 +4387,53 @@ public sealed partial class Encounter
                 + $"it. A full grab is {grab.FullMeans} and "
                 + $"{nameof(grab.FullAllowsUsingOrTossingItTheSamePage)} is that page and no further, "
                 + "so it is tossed aside as the page turns and nobody holds it now"));
+
+            state = state.With(combatant.Dropped());
+        }
+
+        return state;
+    }
+
+    /// <summary>
+    /// What becomes of an object in the hands of a character who is out of the fight: they let go of
+    /// it as the page turns, and the ledger says so.
+    ///
+    /// <para><b>p.76 says nothing about it, and the two candidate silences are not equally
+    /// honest.</b> The clause that gives anybody an object at all is "a full grab means you gain
+    /// control of the object", and a defeated character controls nothing — this engine refuses them
+    /// every intent that is a character <em>doing</em> something. Leaving the item on them is worse
+    /// than a state the book stops describing: a grab against a defeated target is refused before it
+    /// is rolled, so the object would be out of the fight for good, with nothing on the ledger to
+    /// say it had gone.</para>
+    ///
+    /// <para><b>It is applied at the page turn rather than at the moment of defeat</b>, because
+    /// there is no such moment here — damage, a special effect and p.79's clock all put a character
+    /// out through paths of their own, and <see cref="Combatant.Defeated"/> is computed rather than
+    /// recorded. The page turn is the one place that asks the question once, after the clock has
+    /// ticked, which is why this runs after it. Recorded in <c>docs/guide/play-engine.md</c>.</para>
+    ///
+    /// <para>Where it landed is the GM's, the same silence a toss keeps.</para>
+    /// </summary>
+    private EncounterState LetGoOfWhatTheDefeatedHold(
+        EncounterState state, int page, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("grab");
+        var grab = entry.Grab!;
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        foreach (var combatant in state.Combatants.Values
+                     .OrderBy(c => c.Id, StringComparer.Ordinal)
+                     .ToList())
+        {
+            if (combatant.Holding is not { } held || !combatant.Defeated(floor)) continue;
+
+            lines.Add(new LedgerLine(
+                page, combatant.Id, entry.Id, entry.SourceRef,
+                $"{combatant.Name} is out of the fight and lets go of {held.Name}: a full grab is "
+                + $"{grab.FullMeans}, and somebody this engine refuses every action to has none. "
+                + "Nobody could have taken it off them either — a grapple against a defeated target "
+                + "is refused before it is rolled — so leaving it in their hands would take it out "
+                + "of the fight with nothing saying so. Where it landed is the GM's"));
 
             state = state.With(combatant.Dropped());
         }

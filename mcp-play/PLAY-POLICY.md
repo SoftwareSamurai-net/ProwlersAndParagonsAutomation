@@ -308,7 +308,10 @@ reaches anybody's hands here and an item this engine does not know about is one 
 be conjuring into the fight by naming it. **Neither spends the turn**: that is p.76's "in effect, a
 free action", and the actor still has their ordinary action afterwards. Anything still held at the
 end of the page it was won on is tossed aside and nobody has it — an item that *was* used stays
-where it is, and what becomes of it after that is yours.
+where it is, and what becomes of it after that is yours. **And a character who has been put out of
+the fight lets go of whatever they are holding when the page turns**, whoever won it and whenever:
+nobody can grapple a defeated target, so an object left on a body would be out of the fight for
+good. Where it landed is yours.
 
 **Three things about a grab are yours and the ledger says which.** What losing the item means for
 the loser's own attacks: no figure of theirs is changed, because an attack here names a Trait and

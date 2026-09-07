@@ -3587,6 +3587,72 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A character who is out of the fight lets go of what they were holding, and the ledger says
+    /// where the object went.</b>
+    ///
+    /// <para>p.76 says nothing about a defeated holder, and the two silences are not equally honest.
+    /// The clause that puts an object in anybody's hands is "a full grab means you gain control of
+    /// the object", and a defeated character controls nothing — this engine refuses them every
+    /// intent that is a character doing something, and refuses a grapple <em>against</em> them
+    /// before it is rolled. So an item left on a body is an item out of the fight for good, with
+    /// nothing on the ledger to say it had gone.</para>
+    ///
+    /// <para><b>The item here was used</b>, which is what makes this fixture about defeat rather
+    /// than about p.76's one page: an unused one would have been tossed by the page turn anyway, so
+    /// a fixture built on one would pass against an engine that had never heard of defeat.</para>
+    ///
+    /// <para>The control is the other half: the same fight, the same used item, the same page turn,
+    /// with the holder still standing — they keep it.</para>
+    /// </summary>
+    [Fact]
+    public void ACharacterWhoIsOutOfTheFightLetsGoOfWhatTheyHeld()
+    {
+        var standing = AfterAPageTurnWithTheHolder(defeated: false);
+
+        // The control: used, so p.76's page has been discharged, and they still have it.
+        Assert.True(standing.State["holder"].Holding!.Used);
+        Assert.Equal("the sword", standing.State["holder"].Holding!.Name);
+
+        var out_ = AfterAPageTurnWithTheHolder(defeated: true);
+
+        Assert.Null(out_.State["holder"].Holding);
+        Assert.Contains(out_.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("is out of the fight and lets go of the sword", StringComparison.Ordinal)
+            && l.Text.Contains("control of the object", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A full grab, an attack made with what it won — so the item survives p.76's page — and then a
+    /// page turn, with the winner either standing or beaten down to the entry's own defeat figure.
+    /// </summary>
+    private StepResult AfterAPageTurnWithTheHolder(bool defeated)
+    {
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var state = WithTheSwordGrabbed();
+
+        state = encounter.Step(state, new Attack("holder", "held", "might", Item: "the sword")).State;
+
+        // The control on the setup: the item is theirs and the clause p.76 measures in pages has
+        // been discharged, so what happens below is about the holder and not about the page.
+        Assert.True(state["holder"].Holding!.Used);
+
+        if (defeated)
+        {
+            var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+            state = state.With(state["holder"].WithHealth(floor));
+
+            Assert.True(state["holder"].Defeated(floor));
+        }
+
+        while (state.Current is { } acting)
+            state = encounter.Step(state, new EndTurn(acting.Id)).State;
+
+        return encounter.Step(state, new EndPage(""));
+    }
+
+    /// <summary>
     /// <b>Either party may let go of the contested object, which ends the deadlock and gives both of
     /// them their active defences back.</b>
     ///
