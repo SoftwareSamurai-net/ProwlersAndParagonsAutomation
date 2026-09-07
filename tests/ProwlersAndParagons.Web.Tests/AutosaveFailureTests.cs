@@ -50,7 +50,7 @@ public sealed class AutosaveFailureTests
         session.Sheet.Name = "First";
         session.NotifyChanged();
 
-        await store.Reached.Task.WaitAsync(
+        await store.Reached(1).WaitAsync(
             TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
 
         // The control on the act: the write really is open at the store, so the edit below really
@@ -62,15 +62,19 @@ public sealed class AutosaveFailureTests
 
         Assert.Equal(1, Volatile.Read(ref store.Started));
 
-        store.Release.SetResult();
+        store.Let(1);
 
         await AssertEventually(
-            () => store.Wrote.Task.IsCompleted,
+            () => Volatile.Read(ref store.Started) == 2,
             "the write that threw cleared the pending flag and nobody sent \"Second\" — the edit "
             + "made while that write was open is lost, which is the defect Autosave exists to end "
             + "reached through the failure path");
 
-        Assert.Equal("Second", store.LastWritten);
+        store.Let(2);
+
+        await AssertEventually(
+            () => store.LastWritten == "Second",
+            "the write that followed the throw did not carry the edit that raised the flag");
     }
 
     /// <summary>
@@ -113,6 +117,61 @@ public sealed class AutosaveFailureTests
             + "that is never going to start");
     }
 
+    /// <summary>
+    /// <b>The write started after a throw is still a write at the wire, and nothing may start a
+    /// second one beside it.</b>
+    ///
+    /// <para><b>This is the hole the first fix left, found by breaking it.</b> Recovering the
+    /// pending edit needs two things and only one of them is visible from the test above: the fresh
+    /// pump has to start, <em>and</em> the write-open flag has to stay raised while it runs.
+    /// Lowering it and starting the pump anyway passed every test in both projects — 5,834 of them
+    /// — while leaving the class with two writes in flight from one tab, which is the whole defect
+    /// <see cref="Autosave"/> exists to end, now reachable through any store that throws once.</para>
+    ///
+    /// <para>So the interleaving is carried one step further than the test above: the throw, the
+    /// re-pump, and then an edit made while <em>that</em> write is at the wire. It has to be
+    /// coalesced like any other, and go out in the write after it.</para>
+    /// </summary>
+    [Fact]
+    public async Task NoWriteStartsBesideTheOneThatFollowsAThrow()
+    {
+        var session = ASession();
+        var store = new ThrowsOnceThenStores();
+
+        new Autosave(session, store).Start();
+
+        session.Sheet.Name = "First";
+        session.NotifyChanged();
+
+        await store.Reached(1).WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
+
+        session.Sheet.Name = "Second";
+        session.NotifyChanged();
+
+        store.Let(1);
+
+        // The write that carries "Second" — started by the catch, and open at the wire now.
+        await store.Reached(2).WaitAsync(
+            TimeSpan.FromSeconds(20), Xunit.TestContext.Current.CancellationToken);
+
+        session.Sheet.Name = "Third";
+        session.NotifyChanged();
+
+        // Bounded rather than instantaneous, for the reason the order tests give: a second write
+        // that was going to be dispatched has already been dispatched by now.
+        await Task.Delay(200, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, Volatile.Read(ref store.Started));
+
+        store.Let(2);
+
+        await AssertEventually(
+            () => store.LastWritten == "Third",
+            "the edit made while the post-throw write was open never went out, so recovering from "
+            + "a throw drops the keystroke behind its own recovery");
+    }
+
     // ── The fixture ───────────────────────────────────────────────────────────────────────────
 
     private static async Task AssertEventually(Func<bool> holds, string why)
@@ -141,38 +200,58 @@ public sealed class AutosaveFailureTests
     }
 
     /// <summary>
-    /// Throws the first time, holding that first call open until the test lets it go, and records
-    /// every name it is handed afterwards.
+    /// Throws the first time and stores every time after that, with each of the first two calls
+    /// held open at a gate of its own so a test can decide what happens behind them.
+    ///
+    /// <para><b>Two gates rather than one</b>, because the interleaving that matters runs past the
+    /// throw: the write started <em>by</em> the catch has to be held too, or an edit made while it
+    /// is open is an edit the test only hoped was concurrent.</para>
     /// </summary>
     private sealed class ThrowsOnceThenStores : ICharacterStore
     {
-        public TaskCompletionSource Reached { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private const int Gated = 2;
 
-        public TaskCompletionSource Release { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public TaskCompletionSource Wrote { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly Dictionary<int, TaskCompletionSource> _reached = [];
+        private readonly Dictionary<int, TaskCompletionSource> _release = [];
+        private readonly Lock _gate = new();
 
         public int Started;
 
         public string? LastWritten { get; private set; }
 
+        public Task Reached(int nth) => Slot(_reached, nth).Task;
+
+        public void Let(int nth) => Slot(_release, nth).TrySetResult();
+
         public async Task SaveAsync(CharacterSheet sheet, SheetMode mode)
         {
             ArgumentNullException.ThrowIfNull(sheet);
 
-            if (Interlocked.Increment(ref Started) == 1)
-            {
-                Reached.SetResult();
-                await Release.Task;
+            var nth = Interlocked.Increment(ref Started);
 
-                throw new InvalidTimeZoneException("the store fell over");
+            if (nth <= Gated)
+            {
+                Slot(_reached, nth).TrySetResult();
+                await Slot(_release, nth).Task;
             }
 
+            if (nth == 1) throw new InvalidTimeZoneException("the store fell over");
+
             LastWritten = sheet.Name;
-            Wrote.TrySetResult();
+        }
+
+        private TaskCompletionSource Slot(Dictionary<int, TaskCompletionSource> of, int nth)
+        {
+            lock (_gate)
+            {
+                if (!of.TryGetValue(nth, out var slot))
+                {
+                    slot = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    of[nth] = slot;
+                }
+
+                return slot;
+            }
         }
 
         public Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync() =>
