@@ -182,7 +182,11 @@ public sealed class PlayTools
             + "\"extra\", \"character\": {…the character's inputs…}, \"side\": \"heroes\", "
             + "\"id\": \"optional\"} — or {\"kind\": \"minions\", \"name\": \"the robots\", "
             + "\"threat_rank\": 6, \"count\": 4, \"side\": \"villains\"}. kind and side are yours "
-            + "to say: nothing derives them from the sheet.")]
+            + "to say: nothing derives them from the sheet. Either shape may also carry \"size\", "
+            + "\"invisible\", \"hard_target\" — a machine, vehicle or thick object, whose "
+            + "passive defences double while the hard_targets setting is on — and \"ready\", a "
+            + "weapon or Power aimed and ready, which under the_drop doubles their Edge for the "
+            + "order of action.")]
         JsonElement combatants,
         [Description(
             "The switches this table threw before play, as a JSON object of booleans — "
@@ -252,7 +256,11 @@ public sealed class PlayTools
             + "\"mecha\", \"trait_id\": \"blast\", \"type\": \"physical_power\"}. An attack also "
             + "takes \"cover\" (none, light, heavy, almost_full, complete) and, where the shot goes "
             + "through the obstacle rather than at the exposed part of the target, "
-            + "\"cover_structure\" — the obstacle's Structure rank.")]
+            + "\"cover_structure\" — the obstacle's Structure rank — \"vulnerable_part\", "
+            + "which under the hard_targets setting costs four dice and cancels the target's "
+            + "doubled passive defence, and \"close_range_only\" for an ordinary thrown weapon or "
+            + "anything else that only works up close, which the close_range_penalty setting "
+            + "ignores.")]
         JsonElement intent)
     {
         if (string.IsNullOrWhiteSpace(encounterId) || !_encounters.TryGetValue(encounterId, out var held))
@@ -579,6 +587,8 @@ public sealed class PlayTools
                 // echoed at all. Ch.4 p.75.
                 ["size"]                  = combatant.Size,
                 ["invisible"]             = combatant.Invisible,
+                ["hard_target"]           = combatant.HardTarget,
+                ["ready"]                 = combatant.Ready,
 
                 ["defeat_rate"]           = Rate(defeats[combatant.Id], runs),
                 ["mean_health_remaining"] = combatant.Kind == CombatantKind.MinionGroup
@@ -820,8 +830,21 @@ public sealed class PlayTools
 
         var invisible = Flag(entry, "invisible");
 
+        // <b>p.80's Hard Targets, and read here for the reason the size is.</b> A group of Minions
+        // can be a swarm of machines, so the flag is read before the Minion branch rather than
+        // being a fact only a character sheet may carry — and nothing on a sheet carries it either.
+        var hardTarget = Flag(entry, "hard_target");
+
+        // p.79's Drop, and a group of Minions may hold one too — or would, if p.73 gave them an
+        // Edge to double. The refusal is the engine's and it is on the ledger; this only reads.
+        var ready = Flag(entry, "ready");
+
         if (string.Equals(kind, "minions", StringComparison.Ordinal))
-            return TryReadMinions(entry, position, side, id, size, invisible, out combatant, out problem);
+        {
+            return TryReadMinions(
+                entry, position, side, id, size, invisible, hardTarget, ready,
+                out combatant, out problem);
+        }
 
         if (entry["character"] is not { } character)
         {
@@ -848,7 +871,7 @@ public sealed class PlayTools
                 sheet, _rules, _derived, _play, rung,
                 id.Length == 0 ? null : id,
                 side.Length == 0 ? null : side,
-                size, invisible);
+                size, invisible, hardTarget, ready);
 
             return true;
         }
@@ -912,7 +935,7 @@ public sealed class PlayTools
 
     private static bool TryReadMinions(
         JsonObject entry, int position, string side, string id, double size, bool invisible,
-        out Combatant combatant, out JsonObject problem)
+        bool hardTarget, bool ready, out Combatant combatant, out JsonObject problem)
     {
         combatant = Combatant.Minions("placeholder", "placeholder", 1, 1, "threat");
         problem = new JsonObject();
@@ -941,7 +964,7 @@ public sealed class PlayTools
 
         combatant = Combatant.Minions(
             id.Length == 0 ? name : id, name, rank, bodies, "threat",
-            side.Length == 0 ? Combatant.OpposingSide : side, size, invisible);
+            side.Length == 0 ? Combatant.OpposingSide : side, size, invisible, hardTarget, ready);
 
         return true;
     }
@@ -1253,7 +1276,13 @@ public sealed class PlayTools
                     // obstacle, and p.75 makes two things follow from it; a missing one has to mean
                     // "at whatever of the target is exposed" rather than "through an obstacle of
                     // Structure 0", which every attack in the book gets through.
-                    Number(entry, "cover_structure"));
+                    Number(entry, "cover_structure"),
+                    // p.80's Hard Targets: the attacker aims at the weak points instead, which
+                    // costs four dice and cancels the doubling for this one shot.
+                    Flag(entry, "vulnerable_part"),
+                    // p.79's Close Range, and its own exception. A fight here has no equipment in
+                    // it, so a thrown weapon is the caller's word or it is nothing at all.
+                    Flag(entry, "close_range_only"));
                 return true;
 
             case "move":
@@ -1390,7 +1419,10 @@ public sealed class PlayTools
             ["side"] = state[id].Side,
             ["edge"] = state.EffectiveEdge[id],
             ["size"] = state[id].Size,
-            ["invisible"] = state[id].Invisible
+            ["invisible"] = state[id].Invisible,
+            ["hard_target"] = state[id].HardTarget,
+            ["ready"] = state[id].Ready,
+            ["conscious_at_zero_or_less"] = state[id].ConsciousAtZeroOrLess
         })
     ];
 
@@ -1449,6 +1481,11 @@ public sealed class PlayTools
                     ["flaw_suppressed"]    = c.SuppressedFlaw,
                     ["size"]               = c.Size,
                     ["invisible"]          = c.Invisible,
+                    ["hard_target"]        = c.HardTarget,
+                    ["ready"]              = c.Ready,
+                    // p.80's Slow Healing: on their feet at a Health that would otherwise have
+                    // them out, and one point of damage from being out again.
+                    ["conscious_at_zero_or_less"] = c.ConsciousAtZeroOrLess,
                     ["defeated"]           = c.Defeated(floor)
                 })
             ]),

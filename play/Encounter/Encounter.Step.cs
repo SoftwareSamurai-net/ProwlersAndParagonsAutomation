@@ -73,7 +73,8 @@ public sealed partial class Encounter
 
     // ── Attacks ──────────────────────────────────────────────────────────────
 
-    private EncounterState ResolveAttack(EncounterState state, Attack attack, List<LedgerLine> lines)
+    private EncounterState ResolveAttack(
+        EncounterState state, Attack attack, List<LedgerLine> lines, bool strayShot = false)
     {
         if (NotTheirTurn(state, attack.Actor, lines)) return state;
         if (OutOfTheFight(state, attack.Actor, "actor", lines)) return state;
@@ -99,7 +100,7 @@ public sealed partial class Encounter
         if (attack.Charge && ChargeRefused(state, actor, attack, lines) is { } refused) return refused;
         if (attack.Team && TeamAttackRefused(state, actor, target, lines) is { } spent) return spent;
 
-        var pool = rank + AttackModifiers(state, actor, attack, lines);
+        var pool = rank + AttackModifiers(state, actor, attack, strayShot, lines);
         var attackRoll = _counter.Roll(pool, _dice);
 
         state = CommitToTheAttack(state, actor, attack);
@@ -130,7 +131,11 @@ public sealed partial class Encounter
                 after, actor, target, attack, attackRoll.Successes, defenceRoll.Successes, lines);
         }
 
-        return after with { LastAttack = resolved };
+        after = after with { LastAttack = resolved };
+
+        // p.80's Friendly Fire, last: a shot into a melee that landed nothing has to go somewhere,
+        // and where it goes is a second attack resolved for real. A stray round never sends another.
+        return strayShot ? after : TheShotGoesWide(after, actor, attack, resolved, lines);
     }
 
     /// <summary>
@@ -259,7 +264,51 @@ public sealed partial class Encounter
             + $"{roll.Successes}, and the impact of {(attackSuccesses - roll.Successes) * rate} less "
             + $"{charge.Charge.SelfDamageReducedBy} ({inflicted}) leaves them on {health} Health"));
 
-        return impact == 0 ? state : state.With(state[actor.Id].WithHealth(health));
+        if (impact == 0) return state;
+
+        // p.80's Slow Healing: a charger standing on nothing is a character in that condition, and
+        // the impact of their own charge is damage like any other.
+        var charger = state[actor.Id];
+        var hurt = charger.WithHealth(health);
+
+        return state.With(AnyDamageAtAllPutsThemDown(state, charger, impact, lines) ? hurt.Overcome() : hurt);
+    }
+
+    /// <summary>
+    /// p.80's Slow Healing, the sharp end of the sentence that let a character stand up at all:
+    /// somebody conscious at or below the figure that defeats them "is defeated if you take even a
+    /// single point of damage in this condition".
+    ///
+    /// <para><b>It lives here rather than inside one damage path because there is more than
+    /// one.</b> An attack's damage is the obvious one and was the only one this test was made in;
+    /// p.78's charge hurts the <em>charger</em> through <see cref="TheImpactComesBack"/>, which
+    /// writes a Health of its own and never went near it. A character on their feet at the defeat
+    /// figure could charge a braced opponent, take the impact on the ledger, and still be standing
+    /// — and with Fatal Damage off the Health clamps at the floor they were already on, so the
+    /// damage left no trace in the state at all.</para>
+    ///
+    /// <para><b>"Even a single point" is the threshold and nothing softer.</b> Zero damage is not a
+    /// point: an attack that landed nothing, and an effect that does no damage at all, leave them
+    /// standing — which is the control the fixtures for this rule are written around.</para>
+    ///
+    /// <para>Taking the state away is the whole of the consequence — see
+    /// <see cref="Combatant.Overcome"/> — so this returns whether it should be taken and the caller
+    /// applies it to whatever it was about to store.</para>
+    /// </summary>
+    private bool AnyDamageAtAllPutsThemDown(
+        EncounterState state, Combatant victim, int damage, List<LedgerLine> lines)
+    {
+        if (damage <= 0 || !victim.ConsciousAtZeroOrLess || !state.Table.SlowHealing) return false;
+
+        var slow = _play.GetGritty("gritty_slow_healing");
+
+        lines.Add(new LedgerLine(
+            state.Page, victim.Id, slow.Id, slow.SourceRef,
+            $"{victim.Name} was on their feet at {victim.CurrentHealth} Health under Slow "
+            + $"Healing, and p.80 puts them down again for {damage} point"
+            + (damage == 1 ? "" : "s") + " of damage: any at all does it"));
+
+        return true;
     }
 
     /// <summary>
@@ -292,7 +341,8 @@ public sealed partial class Encounter
     /// own defences until after their next turn, which is recorded here rather than in the ledger's
     /// prose — see <see cref="EncounterState.DefencesHalved"/>.</para>
     /// </summary>
-    private int AttackModifiers(EncounterState state, Combatant actor, Attack attack, List<LedgerLine> lines)
+    private int AttackModifiers(
+        EncounterState state, Combatant actor, Attack attack, bool strayShot, List<LedgerLine> lines)
     {
         var modifier = 0;
 
@@ -385,6 +435,14 @@ public sealed partial class Encounter
         // and what the light is like. Size is the defender's and is applied on the other side.
         modifier += CoverPenalty(state, actor, attack, lines);
         modifier += VisibilityPenalty(state, actor, state[attack.Target], "attack", lines);
+
+        // p.80's Hard Targets, on the attacking half: the price of aiming at a weak point. The
+        // doubling it buys off is applied on the other side of the roll, in ChooseDefence.
+        modifier += HardTargetNegation(state, actor, attack, lines);
+
+        // p.80's Friendly Fire: four dice for shooting into a scrum, and nothing at all for the
+        // round that has already gone wide.
+        modifier += FriendlyFire(state, actor, attack, strayShot, lines);
 
         modifier += WoundPenalty(state, actor, lines);
 
@@ -662,6 +720,466 @@ public sealed partial class Encounter
             .FirstOrDefault(printed => combatant.Powers.Contains(Normalise(printed)));
     }
 
+    // ── The Gritty Combat Rules, pp.79-81 ─────────────────────────────────
+
+    /// <summary>
+    /// p.80's Hard Targets, on the attacking half of the exchange:
+    /// <c>penalty_dice_to_negate_it</c> for an attacker who aims at
+    /// <c>negation_available_against</c> instead of at the thing as a whole.
+    ///
+    /// <para><b>A declaration that buys nothing says so rather than costing nothing in
+    /// silence.</b> <see cref="Attack.VulnerablePart"/> on a target who is not a hard target, or in
+    /// a fight that never took the setting, is a caller believing they paid for something; the
+    /// penalty is not taken and the line says which of the two reasons it was. A flag accepted and
+    /// quietly ignored is the shape of defect this whole engine is written against.</para>
+    ///
+    /// <para><b>Whether the target is complex enough to <em>have</em> a weak point is the GM's, and
+    /// the line says so.</b> The page offers the negation "against the vulnerable parts of a
+    /// complex machine or vehicle" — narrower than the doubling, which covers thick inanimate
+    /// objects as well — and <see cref="Combatant.HardTarget"/> is one flag rather than two. A
+    /// second flag for "complex" would be a distinction nothing on a sheet backs, so this engine
+    /// applies the negation wherever the doubling applies and hands the narrower question back
+    /// rather than deciding it. <c>docs/guide/play-engine.md</c> records the reading.</para>
+    /// </summary>
+    private int HardTargetNegation(
+        EncounterState state, Combatant actor, Attack attack, List<LedgerLine> lines)
+    {
+        if (!attack.VulnerablePart) return 0;
+
+        var entry = _play.GetGritty("gritty_hard_targets");
+        var rule = entry.HardTargets!;
+        var target = state[attack.Target];
+
+        if (!state.Table.HardTargets || !target.HardTarget)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"{actor.Name} aims at a vulnerable part of {target.Name} and there is nothing to "
+                + "negate: "
+                + (state.Table.HardTargets
+                    ? $"{target.Name} is none of {rule.AppliesTo}"
+                    : "this table did not take Hard Targets")
+                + $". The {Dice(rule.PenaltyDiceToNegateIt)} was not taken"));
+
+            return 0;
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{actor.Name} aims at {rule.NegationAvailableAgainst}: {Dice(rule.PenaltyDiceToNegateIt)}, "
+            + $"and {target.Name}'s passive defence is not {rule.PassiveDefenseRank}. Whether this "
+            + "one is complex enough to have a weak point is the GM's call, not this engine's"));
+
+        return rule.PenaltyDiceToNegateIt;
+    }
+
+    /// <summary>
+    /// What p.80's Hard Targets multiplies a passive defence rank by:
+    /// <c>passive_defense_rank</c>, which is the printed word "doubled".
+    ///
+    /// <para><b>The word is read and the factor is supplied here</b>, in the same shape as
+    /// <c>seize_initiative_gm_alternative</c>'s "doubles" and for the same reason: the entry states
+    /// an effect in prose rather than a multiplier, so an entry that has stopped saying it is a rule
+    /// this engine cannot apply and it throws rather than going on doubling.</para>
+    ///
+    /// <para><b>It multiplies the rank before either printed halving, and the order is not
+    /// arithmetic.</b> The page doubles a hard target's passive defence <em>rank</em>, which is the
+    /// figure on the sheet; the table's <c>1/2 Toughness</c> and <c>lethal_and_subdual</c>'s lethal
+    /// clause then halve what the rules say answers this attack. Doubling afterwards would put an
+    /// odd rank through <see cref="Halve"/> first and hand back one die more than the page allows —
+    /// a Toughness of 7 halves to 4 and doubles to 8, where the page's own order gives 14 and then
+    /// 7.</para>
+    ///
+    /// <para><b>Active defences never double</b>, because the page says passive: dodging a tank is
+    /// no harder for the tank being a tank. And a <see cref="Attack.CoverStructure"/> is left alone
+    /// too — a wall is plainly one of the "thick, inanimate objects" the rule names, but the
+    /// declaration is made on a <em>combatant</em> and a wall is not one. The Structure is a number
+    /// the caller supplies, so a caller who wants a doubled wall doubles the number.</para>
+    /// </summary>
+    private int HardTargetFactor(
+        EncounterState state, Combatant target, Attack attack, List<LedgerLine> lines)
+    {
+        if (!state.Table.HardTargets || !target.HardTarget || attack.VulnerablePart) return 1;
+
+        var entry = _play.GetGritty("gritty_hard_targets");
+        var rule = entry.HardTargets!;
+
+        if (!rule.PassiveDefenseRank.Contains("double", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"gritty_hard_targets now says a hard target's passive defence rank is "
+                + $"'{rule.PassiveDefenseRank}'. This engine reads the printed word \"doubled\" and "
+                + "supplies the factor of 2 itself, because the entry states the effect in prose "
+                + "rather than as a multiplier; a rule that no longer says it is a rule this engine "
+                + "cannot apply. See docs/guide/play-engine.md's readings table.");
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{target.Name} is one of {rule.AppliesTo}, so every passive defence of theirs answers "
+            + $"at a {rule.PassiveDefenseRank} rank; the active ones do not move. p.80 also "
+            + $"recommends the {rule.RecommendedProForVehicleScaleWeapons} Pro on vehicle-scale "
+            + $"weapons and the {rule.RecommendedProForThePhysicalAttacksOfPowerfulSuperhumanCharacters} "
+            + "Pro on the physical attacks of powerful superhuman characters, which is advice about "
+            + "how characters are built rather than a rule of this fight, and is not applied"));
+
+        return 2;
+    }
+
+    /// <summary>
+    /// Whether p.75's table calls this a <b>ranged</b> attack — which for the two Power rows is a
+    /// question only the Power's own Ch.2 Range can answer.
+    ///
+    /// <para><b>Every part of it is derived from the table rather than listed here.</b> A row whose
+    /// printed type names <em>Ranged</em> is a ranged attack; the rows whose attacking Trait is the
+    /// table's bare <c>Power</c> column are the ones the table declines to classify, and for those
+    /// the answer is on the sheet, in <see cref="Combatant.RangedPowers"/>. Everything left is one
+    /// of p.73's close combat attacks — a fist or a swung weapon — which
+    /// <c>close_combat_attacks_require</c> puts against an adjacent target and nowhere else.</para>
+    /// </summary>
+    private bool IsARangedAttack(Combatant attacker, Attack attack)
+    {
+        var table = _play.GetCombat("attack_and_defense_table").AttackDefenseTable!;
+        var printed = PrintedType(attack.Type);
+
+        var row = table.SingleOrDefault(r => string.Equals(r.Type, printed, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"attack_and_defense_table has no row '{printed}', so this engine cannot tell "
+                + "whether p.79's Close Range rule reaches this attack.");
+
+        if (row.Type.Contains("Ranged", StringComparison.OrdinalIgnoreCase)) return true;
+
+        return TheRowLeavesItToTheSheet(attack) && attacker.RangedPowers.Contains(attack.TraitId);
+    }
+
+    /// <summary>
+    /// Whether p.75's table declines to classify this attack's reach — which is exactly the rows
+    /// whose attacking Trait is the bare <c>Power</c> column, and is where
+    /// <see cref="Combatant.RangedPowers"/> is consulted instead.
+    ///
+    /// <para><b>It is separate from <see cref="IsARangedAttack"/> because the ledger needs the
+    /// question as well as the answer.</b> A fist that collects no Close Range penalty collected
+    /// none because p.73 puts a close combat attack against an adjacent target and the rule was
+    /// never about it; a Power that collects none collected none because this engine read the
+    /// Power's own Ch.2 Range and decided. The second is a reading and says so on the line.</para>
+    /// </summary>
+    private bool TheRowLeavesItToTheSheet(Attack attack)
+    {
+        var table = _play.GetCombat("attack_and_defense_table").AttackDefenseTable!;
+        var printed = PrintedType(attack.Type);
+
+        var row = table.SingleOrDefault(r => string.Equals(r.Type, printed, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"attack_and_defense_table has no row '{printed}', so this engine cannot tell "
+                + "whether p.79's Close Range rule reaches this attack.");
+
+        return string.Equals(row.AttackTrait, PowerColumn, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// p.79's Close Range penalty: <c>penalty_dice_to_active_defense</c> on the dodger when a
+    /// ranged attack is made from inside the nearest band.
+    ///
+    /// <para><b>Three facts have to line up and each is read where it lives.</b> That the pair is
+    /// at Close Range is <see cref="EncounterState.Ranges"/>, which is pairwise because p.73's
+    /// bands are. That the attack is ranged comes off p.75's table and, for a Power, off the
+    /// sheet — see <see cref="IsARangedAttack"/>. That such an attack <em>can</em> be used at
+    /// Distant or Extreme Range is <c>range_classes</c>' own <c>ranged_attacks_reach</c>, which is
+    /// the rule the entry's <c>applies_only_to_attacks_usable_at</c> is asking about; both strings
+    /// are read and a pair that no longer agrees is a throw rather than a penalty applied on
+    /// nothing.</para>
+    ///
+    /// <para><b>The exception is the caller's and the default is the page's.</b> Thrown weapons are
+    /// printed as an exception to the reach, not as the reach — so <see cref="Attack.CloseRangeOnly"/>
+    /// is what turns the penalty off, and a declaration that turned nothing off says so. There is
+    /// no equipment in a fight here, so nothing else could tell a pistol from a throwing knife.</para>
+    ///
+    /// <para>It moves an <b>active</b> defence and nothing else, because the entry says
+    /// <c>penalty_dice_to_active_defense</c>: a soak is a soak whatever is being shot at you.</para>
+    /// </summary>
+    private int RangedUpClose(
+        EncounterState state, Combatant target, Combatant attacker, Attack attack, List<LedgerLine> lines)
+    {
+        if (!state.Table.CloseRangePenalty) return 0;
+
+        var entry = _play.GetGritty("gritty_close_range");
+        var rule = entry.CloseRangePenalty!;
+
+        var ranged = IsARangedAttack(attacker, attack);
+
+        var close = state.RangeBetween(attacker.Id, target.Id) == RangeBand.Close;
+
+        if (!ranged || !close)
+        {
+            if (attack.CloseRangeOnly)
+            {
+                lines.Add(new LedgerLine(
+                    state.Page, target.Id, entry.Id, entry.SourceRef,
+                    $"{attacker.Name}'s attack is declared one of {rule.IgnoredFor}, and the rule "
+                    + $"would not have reached it anyway: {(ranged ? "the two are not at Close Range" : "this is not a ranged attack")}. "
+                    + $"{target.Name}'s defence is unmoved"));
+            }
+
+            // <b>A Power the reading declined to call ranged says so.</b> Everything else that
+            // lands here is a fist or a swung weapon, which p.73 puts against an adjacent target
+            // and which the rule was never about; a Power row is the case where this engine made a
+            // choice, and a choice made in silence is one nobody can argue with. See
+            // TheRowLeavesItToTheSheet.
+            if (!ranged && close && TheRowLeavesItToTheSheet(attack))
+            {
+                lines.Add(new LedgerLine(
+                    state.Page, target.Id, entry.Id, entry.SourceRef,
+                    $"{attacker.Name} is inside Close Range of {target.Name}, and p.75's table leaves "
+                    + $"it to the sheet whether {attack.TraitId} is one of the {rule.AppliesAgainst} "
+                    + $"— its own Ch.2 Range is not ranged, so it is not one this engine will apply "
+                    + "a penalty to. Only ranged counts: self and touch plainly cannot be used at a "
+                    + "distance, and zone and special are neither said to nor said not to, so the "
+                    + "narrow reading is the one that never costs a dodger dice the page may not "
+                    + $"have meant them to lose. {target.Name}'s active defence keeps its dice"));
+            }
+
+            return 0;
+        }
+
+        if (attack.CloseRangeOnly)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, target.Id, entry.Id, entry.SourceRef,
+                $"p.79 says to ignore this rule for {rule.IgnoredFor}, and {attacker.Name}'s attack "
+                + $"is declared one: {target.Name}'s active defence keeps its dice"));
+
+            return 0;
+        }
+
+        ReachIsStillPrinted(rule.AppliesOnlyToAttacksUsableAt);
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{rule.AppliesAgainst}: {attacker.Name} is inside Close Range of {target.Name}, and a "
+            + $"ranged attack reaches {_play.GetCombat("range_classes").RangeRules!.RangedAttacksReach}, "
+            + $"which is one of {rule.AppliesOnlyToAttacksUsableAt} — so {target.Name}'s active "
+            + $"defence is {Dice(rule.PenaltyDiceToActiveDefense)}"));
+
+        return rule.PenaltyDiceToActiveDefense;
+    }
+
+    /// <summary>
+    /// That a ranged attack still reaches past the nearest band, which is the whole of what makes
+    /// p.79's rule apply to one.
+    ///
+    /// <para><b>Both halves are read and neither is typed.</b> The entry asks for an attack usable
+    /// at <c>applies_only_to_attacks_usable_at</c>; <c>range_classes</c> says how far a ranged
+    /// attack reaches. Where the two stop naming a band past Close, this engine is being asked to
+    /// apply a penalty whose own condition it can no longer establish, so it throws rather than
+    /// applying it on nothing — the band names are <see cref="RangeBand"/>'s, which are p.73's.
+    /// </para>
+    /// </summary>
+    private void ReachIsStillPrinted(string required)
+    {
+        var reach = _play.GetCombat("range_classes").RangeRules!.RangedAttacksReach;
+
+        var beyondClose = Enum.GetNames<RangeBand>()
+            .Where(band => !string.Equals(band, nameof(RangeBand.Close), StringComparison.Ordinal))
+            .ToList();
+
+        var named = beyondClose.Where(band =>
+            required.Contains(band, StringComparison.OrdinalIgnoreCase)
+            && reach.Contains(band, StringComparison.OrdinalIgnoreCase));
+
+        if (named.Any()) return;
+
+        throw new InvalidOperationException(
+            $"gritty_close_range applies only to attacks usable at '{required}', and range_classes "
+            + $"says a ranged attack reaches '{reach}'. The two no longer name a range class past "
+            + $"{nameof(RangeBand.Close)} between them, so this engine cannot establish the rule's "
+            + "own condition and will not apply the penalty on nothing. See "
+            + "docs/guide/play-engine.md's readings table.");
+    }
+
+    /// <summary>
+    /// Everybody else in the melee p.80's Friendly Fire rule is about: the characters at Close
+    /// Range with the target, who are neither the target nor the attacker and are still in the
+    /// fight.
+    ///
+    /// <para><b>"Engaged in close combat or otherwise bunched up with other characters" is derived
+    /// from the range bands rather than declared</b>, and it can be, because p.73's bands are
+    /// pairwise: a target at Close Range with somebody who is not the person shooting at them is a
+    /// target with somebody else close enough to catch a stray round. That is the whole of what the
+    /// clause needs, and nothing on a sheet or in an intent could say it better.</para>
+    ///
+    /// <para><b>Defeated characters are not in the melee</b>, for the reason they are not the actor
+    /// or the target of anything: a body on the floor is not somebody a shot can go wide into, and
+    /// the second attack this list feeds would be refused against one anyway.</para>
+    ///
+    /// <para>Ordered by id, because the second attack picks out of it with a die and a run has to
+    /// give the same answer twice.</para>
+    /// </summary>
+    private List<Combatant> Melee(EncounterState state, Combatant actor, Attack attack)
+    {
+        if (!state.Table.FriendlyFire || !IsARangedAttack(actor, attack)) return [];
+
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        return
+        [
+            .. state.Combatants.Values
+                .Where(c => !string.Equals(c.Id, actor.Id, StringComparison.Ordinal)
+                            && !string.Equals(c.Id, attack.Target, StringComparison.Ordinal)
+                            && !c.Defeated(floor)
+                            && state.RangeBetween(c.Id, attack.Target) == RangeBand.Close)
+                .OrderBy(c => c.Id, StringComparer.Ordinal)
+        ];
+    }
+
+    /// <summary>
+    /// p.80's Friendly Fire, on the attack roll: <c>penalty_dice</c> for shooting into a scrum, and
+    /// <c>second_attack_penalty_dice</c> — which is nothing — for the shot that went wide.
+    ///
+    /// <para><b>Both figures are the entry's and the second is applied rather than assumed away.</b>
+    /// "This time at no penalty" is a printed number, and reading it is what keeps a later edit of
+    /// the file from leaving a stray round quietly cheaper or dearer than the page says.</para>
+    /// </summary>
+    private int FriendlyFire(
+        EncounterState state, Combatant actor, Attack attack, bool strayShot, List<LedgerLine> lines)
+    {
+        var melee = Melee(state, actor, attack);
+
+        if (melee.Count == 0) return 0;
+
+        var entry = _play.GetGritty("gritty_friendly_fire");
+        var rule = entry.FriendlyFire!;
+        var target = state[attack.Target];
+
+        if (strayShot)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"this is the shot that went wide, and p.80 makes it {Dice(rule.SecondAttackPenaltyDice)} "
+                + $"— {actor.Name} attacks {target.Name} at no penalty"));
+
+            return rule.SecondAttackPenaltyDice;
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{rule.AppliesWhen}: {target.Name} is at Close Range with "
+            + $"{string.Join(", ", melee.Select(c => c.Name))}, so {actor.Name}'s attack is "
+            + $"{Dice(rule.PenaltyDice)}"));
+
+        return rule.PenaltyDice;
+    }
+
+    /// <summary>
+    /// p.80's other half: a shot into a melee that landed nothing "must" go somewhere, so a second
+    /// attack is resolved for real against another character in the tangle.
+    ///
+    /// <para><b>It is resolved and not announced</b>, which is the whole difference between this
+    /// rule being applied and this rule being reported. The stray round goes through
+    /// <see cref="ResolveAttack"/> like any other attack — it rolls, it is defended against, and it
+    /// does damage or a special effect — and the one thing it may not do is trigger a third, which
+    /// is what <c>strayShot</c> carries.</para>
+    ///
+    /// <para><b>The GM's random choice comes off <see cref="IDiceSource"/></b>, because a seeded run
+    /// has to give the same fight twice and a policy that reached for its own randomness would make
+    /// a balance figure unreproducible from the seed printed beside it. The face is on the ledger,
+    /// so the choice is auditable rather than merely random.</para>
+    ///
+    /// <para><b>What the stray shot carries is the weapon, and what it drops is everything that was
+    /// a fact about the first shot.</b> The Trait, the row of p.75's table, the damage kind, the
+    /// special effect and the thrown-weapon declaration are properties of what is being fired;
+    /// cover and its Structure are a line of sight to somebody else, and going all-out, charging,
+    /// an area attack, a team attack and aiming at a weak point are all things the attacker
+    /// declared about the target they meant to hit. The line says so.</para>
+    /// </summary>
+    private EncounterState TheShotGoesWide(
+        EncounterState state, Combatant actor, Attack attack, ResolvedAttack resolved,
+        List<LedgerLine> lines)
+    {
+        var melee = Melee(state, actor, attack);
+
+        if (melee.Count == 0) return state;
+
+        var entry = _play.GetGritty("gritty_friendly_fire");
+        var rule = entry.FriendlyFire!;
+        var net = resolved.AttackSuccesses - resolved.DefenceSuccesses;
+
+        if (net > rule.SecondAttackTriggeredAtNetSuccesses) return state;
+
+        var (faces, index) = ThePick(melee.Count);
+        var unlucky = melee[index % melee.Count];
+
+        var rolled = faces.Count == 1
+            ? $"a die came up {faces[0]}"
+            : $"{faces.Count} dice came up {string.Join(" and ", faces)}";
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{net} net successes is {rule.SecondAttackTriggeredAtNetSuccesses} or fewer, so the "
+            + $"shot goes somewhere: p.80 asks for a second attack against {rule.SecondAttackIsAgainst}, "
+            + $"selected {rule.SecondTargetSelected} by the {rule.SecondTargetSelectedBy.ToUpperInvariant()} — "
+            + $"{rolled} against {melee.Count} of them, which is {unlucky.Name}. It is the "
+            + "same weapon at a different person: what the attacker declared about the first shot — "
+            + "cover, going all-out, charging, an area or team attack, a weak point — was about that "
+            + "target and does not come with it"));
+
+        var stray = attack with
+        {
+            Target = unlucky.Id,
+            Cover = Cover.None,
+            CoverStructure = null,
+            AllOut = false,
+            Charge = false,
+            Area = false,
+            Team = false,
+            VulnerablePart = false
+        };
+
+        return ResolveAttack(state, stray, lines, strayShot: true);
+    }
+
+    /// <summary>
+    /// The GM's random pick, off <see cref="IDiceSource"/>: the faces thrown and the index they
+    /// spell, for a melee of <paramref name="candidates"/>.
+    ///
+    /// <para><b>Enough dice are thrown that every candidate can be picked, which one cannot
+    /// do.</b> A d6 read as <c>(face - 1) % count</c> reaches indices 0 to 5 and no further, so in a
+    /// melee of seven the seventh character could never be hit, of nine the last three could not,
+    /// and the ledger would go on saying the target was "selected randomly" while naming a set the
+    /// die had quietly cut down to six. p.80 says the GM selects the second target randomly, and a
+    /// character who cannot be selected at all is not part of a random selection.</para>
+    ///
+    /// <para>So the faces are read as one number in base six — <c>face - 1</c> per die, most
+    /// significant first — and as many are thrown as it takes for that number to span the melee:
+    /// one die up to six of them, two up to thirty-six, and so on. <b>At least one is always
+    /// thrown</b>, even where the melee holds one character and there is nothing to choose between:
+    /// the face is the audit trail, and a pick recorded with no die behind it is one nobody can
+    /// reproduce from the seed printed beside the run.</para>
+    ///
+    /// <para><b>What this does not claim is a uniform distribution.</b> Six faces do not divide
+    /// four candidates evenly and no number of d6 divides seven at all, so the low indices stay a
+    /// little likelier; the property being bought here is that the set of reachable candidates is
+    /// the whole melee, which is the half a fixture can hold the engine to and the half that was
+    /// wrong.</para>
+    /// </summary>
+    private (IReadOnlyList<int> Faces, int Index) ThePick(int candidates)
+    {
+        var faces = new List<int>();
+        var span = 1L;
+        var index = 0;
+
+        do
+        {
+            var face = _dice.Roll(1)[0];
+
+            faces.Add(face);
+            index = (index * 6) + (face - 1);
+            span *= 6;
+        }
+        while (span < candidates);
+
+        return (faces, index);
+    }
+
     /// <summary>
     /// Which Trait answers an attack, and what pool it throws.
     ///
@@ -729,6 +1247,10 @@ public sealed partial class Encounter
 
         var candidates = DefenceCandidates(target, attack, lines, state);
 
+        // p.80's Hard Targets, on the defending half: a machine's passive defences answer at twice
+        // their rank, and the doubling is applied to the rank before either printed halving.
+        var hard = HardTargetFactor(state, target, attack, lines);
+
         var best = ("", 0, false);
         var guarded = new HashSet<string>(StringComparer.Ordinal);
 
@@ -739,6 +1261,8 @@ public sealed partial class Encounter
 
             var rank = target.Rank(trait);
             if (rank <= 0) continue;
+
+            if (!active) rank *= hard;
 
             // p.75, twice over: the row may print "1/2 Toughness", and a lethal attack halves a
             // Toughness whatever row it came from. Halve once if either says so.
@@ -755,7 +1279,7 @@ public sealed partial class Encounter
             {
                 // p.78's guard on going all-out: an opponent who could not penetrate the passive
                 // defence at its full rank still cannot, so for them it is not halved at all.
-                if (active || CouldPenetrate(state[attack.Actor], attack, target.Rank(trait)))
+                if (active || CouldPenetrate(state[attack.Actor], attack, target.Rank(trait) * hard))
                 {
                     rank = Halve(rank);
                 }
@@ -783,7 +1307,8 @@ public sealed partial class Encounter
         }
 
         if (attack.Area && best.Item3) DodgingAnAreaAttack(state, target, lines);
-        if (guarded.Contains(best.Item1)) StillCannotPenetrate(state, target, best.Item1, lines);
+        if (guarded.Contains(best.Item1))
+            StillCannotPenetrate(state, target, best.Item1, target.Rank(best.Item1) * hard, lines);
 
         var pool = best.Item2 + WoundPenalty(state, target, lines);
 
@@ -813,6 +1338,10 @@ public sealed partial class Encounter
         {
             pool += SizeModifier(state, target, state[attack.Actor], lines);
             pool += VisibilityPenalty(state, target, state[attack.Actor], "active defence", lines);
+
+            // p.79's Close Range, which is an active defence's rule too: a gun in your face is hard
+            // to dodge, and a soak is a soak whatever is being shot at you.
+            pool += RangedUpClose(state, target, state[attack.Actor], attack, lines);
         }
 
         return (best.Item1, pool, best.Item3);
@@ -1019,14 +1548,14 @@ public sealed partial class Encounter
 
     /// <summary>The ledger line for an attack that p.78's guard has kept out.</summary>
     private void StillCannotPenetrate(
-        EncounterState state, Combatant target, string trait, List<LedgerLine> lines)
+        EncounterState state, Combatant target, string trait, int rank, List<LedgerLine> lines)
     {
         var entry = _play.GetCombat("going_all_out");
 
         lines.Add(new LedgerLine(
             state.Page, target.Id, entry.Id, entry.SourceRef,
             $"{target.Name} went all-out, so every defence of theirs is halved — but an opponent who "
-            + $"could not penetrate their {trait} of {target.Rank(trait)} "
+            + $"could not penetrate their {trait} of {rank} "
             + $"{entry.AllOutAttack!.OpponentsWhoCouldNotPenetrateYourPassiveDefense}, so this one "
             + "meets it at its full rank"));
     }
@@ -1352,6 +1881,13 @@ public sealed partial class Encounter
         var damage = net * rule.DamagePerNetSuccess;
         var health = target.CurrentHealth - damage;
 
+        // p.80's Slow Healing, the sharp end of the sentence that let them stand up at all: a
+        // character conscious at or below the defeat figure "is defeated if you take even a single
+        // point of damage in this condition". Shared with p.78's charge, which hurts the charger.
+        var overcome = AnyDamageAtAllPutsThemDown(state, target, damage, lines);
+
+        Combatant Down(Combatant hurt) => overcome ? hurt.Overcome() : hurt;
+
         if (!state.Table.FatalDamage)
         {
             health = Math.Max(rule.DefeatedAtHealth, health);
@@ -1361,7 +1897,7 @@ public sealed partial class Encounter
                 $"{net} net successes is {damage} damage; {target.Name} is on {health} Health"
                 + (health <= rule.DefeatedAtHealth ? $", which is {rule.DefeatedMeans}" : "")));
 
-            return state.With(target.WithHealth(health));
+            return state.With(Down(target.WithHealth(health)));
         }
 
         var gritty = _play.GetGritty("gritty_fatal_damage");
@@ -1372,7 +1908,7 @@ public sealed partial class Encounter
             state.Page, actor.Id, entry.Id, entry.SourceRef,
             $"{net} net successes is {damage} damage; {target.Name} is on {health} Health"));
 
-        var hurt = target.WithHealth(health);
+        var hurt = Down(target.WithHealth(health));
 
         if (health <= killedAt)
         {
@@ -2587,9 +3123,15 @@ public sealed partial class Encounter
 
         if (CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines)) return state;
 
-        var health = actor.CurrentHealth <= floor
+        // p.80's Slow Healing: "you do not heal ... when you regain consciousness after a defeat".
+        // So the point still brings them round and it brings back nothing else.
+        var slowly = state.Table.SlowHealing;
+
+        var health = actor.CurrentHealth <= floor && !slowly
             ? rule.AfterADamagingDefeatRestoresHealth
             : actor.CurrentHealth;
+
+        var standing = slowly && health <= floor;
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
@@ -2600,7 +3142,21 @@ public sealed partial class Encounter
             + (freed ? ", and free of the effect that had them" : "")
             + $" — {rule.LimitPerScene} a scene"));
 
-        return state.With(actor.Spending(rule.CostResolve).Recovered(health)) with { Effects = effects };
+        if (standing)
+        {
+            var gritty = _play.GetGritty("gritty_slow_healing");
+            var slow = gritty.SlowHealing!;
+
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, gritty.Id, gritty.SourceRef,
+                $"under Slow Healing nobody heals on regaining consciousness after a defeat "
+                + $"(healing_on_regaining_consciousness_after_a_defeat is {slow.HealingOnRegainingConsciousnessAfterADefeat}), "
+                + $"so {actor.Name} is up on {health} Health, which p.80 allows — and in that "
+                + "condition a single point of damage puts them straight back down"));
+        }
+
+        return state.With(actor.Spending(rule.CostResolve).Recovered(health, standing))
+            with { Effects = effects };
     }
 
     /// <summary>

@@ -226,6 +226,32 @@ public abstract record Intent(string Actor);
 /// solid object and the lure's "whatever lies directly behind you" are things it has nothing to
 /// look up. <c>docs/guide/play-engine.md</c> records it.</para>
 /// </param>
+/// <param name="VulnerablePart">
+/// p.80's Hard Targets: the attacker is aiming at "the vulnerable parts of a complex machine or
+/// vehicle", which costs <c>penalty_dice_to_negate_it</c> and cancels the doubled passive defence.
+///
+/// <para><b>It is a declaration on one attack rather than a state of the target</b>, because the
+/// page prices it that way — the attacker accepts a penalty on <em>their</em> roll, and the next
+/// character to swing at the same machine may decline to. Whether the machine is complex enough to
+/// have a weak point is the GM's, and the ledger line says so rather than pretending this engine
+/// checked.</para>
+/// </param>
+/// <param name="CloseRangeOnly">
+/// p.79's Close Range rule, and its own exception: this attack is one of the "ordinary thrown
+/// weapons and other short-range attacks that can only be used at Close Range", so a dodger does
+/// not lose the two dice for meeting it up close.
+///
+/// <para><b>It is the caller's word, and the default is the other way because the page's is.</b>
+/// <c>range_classes</c>' <c>ranged_attacks_reach</c> is the rule — a ranged attack reaches Close
+/// Range or Distant Range — and thrown weapons are printed beside it as an <em>exception</em>. So a
+/// ranged attack reaches Distant unless somebody says otherwise, and this is where they say it: a
+/// fight here has no equipment in it, so nothing can tell a pistol from a throwing knife but the
+/// person running the fight.</para>
+///
+/// <para>It changes nothing for an attack the rule never reached — a fist, a sword, a Power whose
+/// own Range is not <c>ranged</c> — and the ledger says so rather than leaving a caller thinking
+/// they bought something.</para>
+/// </param>
 public sealed record Attack(
     string Actor,
     string Target,
@@ -238,7 +264,9 @@ public sealed record Attack(
     bool Area = false,
     bool Team = false,
     Cover Cover = Cover.None,
-    int? CoverStructure = null) : Intent(Actor);
+    int? CoverStructure = null,
+    bool VulnerablePart = false,
+    bool CloseRangeOnly = false) : Intent(Actor);
 
 /// <summary>
 /// Closing with or opening from one other combatant (p.74).

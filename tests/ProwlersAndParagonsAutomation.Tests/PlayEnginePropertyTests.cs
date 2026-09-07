@@ -128,7 +128,11 @@ public sealed class PlayEnginePropertyTests
     [MemberData(nameof(Seeds))]
     public void AStepNeverChangesTheStateItWasGiven(int seed)
     {
-        var table = TableRules.Book with { FatalDamage = true, WoundPenalties = true };
+        var table = TableRules.Book with
+        {
+            FatalDamage = true, WoundPenalties = true, HardTargets = true,
+            CloseRangePenalty = true, TheDrop = true, FriendlyFire = true, SlowHealing = true
+        };
         var encounter = new Encounter(_play, new SeededDice(seed), table);
 
         var state = encounter.Begin(Party(), visibility: Visibility.Poor) with { Table = table };
@@ -170,6 +174,21 @@ public sealed class PlayEnginePropertyTests
 
         // And every band of p.75's cover, including the one that refuses before anything is rolled.
         Assert.Equal(Enum.GetValues<Cover>().Order(), policy.Covers.Order());
+
+        // p.80's Hard Targets is inside the property too: somebody in the fight is a machine, and
+        // the generator both aims at a weak point and does not.
+        Assert.Contains(state.Combatants.Values, c => c.HardTarget);
+        Assert.Equal([false, true], policy.WeakPoints.Order());
+
+        // p.79's Close Range too: the generator declares a thrown weapon and does not, and the
+        // party carries a Power whose own Range reaches past the nearest band.
+        Assert.Equal([false, true], policy.ThrownWeapons.Order());
+        Assert.Contains(state.Combatants.Values, c => c.RangedPowers.Count > 0);
+
+        // p.79's Drop is inside it too: somebody has a weapon levelled and somebody has not, which
+        // is the only arrangement in which the doubling reaches the order at all.
+        Assert.Contains(state.Combatants.Values, c => c.Ready);
+        Assert.Contains(state.Combatants.Values, c => !c.Ready);
 
         // The light really was bad and somebody really was invisible, or the paragraph above
         // describes a fight this property did not run.
@@ -344,7 +363,11 @@ public sealed class PlayEnginePropertyTests
             {
                 ["might"] = 8, ["toughness"] = 6, ["agility"] = 5, ["blast"] = 7
             },
-            ["toughness", "agility"]));
+            ["toughness", "agility"],
+            // <b>A Blast, whose own Ch.2 Range is <c>ranged</c></b>, so p.79's Close Range rule is
+            // inside the property rather than beside it: the generator rolls that Trait on a Power
+            // row and the pair opens at Close.
+            rangedPowers: new HashSet<string>(StringComparer.Ordinal) { "blast" }));
 
         return
         [
@@ -357,7 +380,9 @@ public sealed class PlayEnginePropertyTests
                 {
                     ["might"] = 10, ["toughness"] = 8, ["agility"] = 6
                 },
-                ["toughness", "agility"], size: 5),
+                // <b>And with a weapon levelled</b>, so p.79's Drop reaches the order of action
+                // inside the property rather than beside it.
+                ["toughness", "agility"], size: 5, ready: true),
 
             // A fifth of their size, which is the band at the other end — and invisible, which p.75
             // makes equivalent to no visibility for whoever is facing them.
@@ -369,7 +394,11 @@ public sealed class PlayEnginePropertyTests
                 },
                 ["toughness", "agility"], size: 0.2, invisible: true),
 
-            Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 6, "threat")
+            // <b>A machine, so p.80's Hard Targets is inside the property rather than beside
+            // it</b>: their passive defence doubles while that setting is on, and an attacker may
+            // buy the doubling off at four dice.
+            Combatant.Minions(
+                "minions", "the Minions", threat: 4, groupSize: 6, "threat", hardTarget: true)
         ];
     }
 }

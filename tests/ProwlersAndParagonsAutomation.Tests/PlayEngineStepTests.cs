@@ -3875,7 +3875,8 @@ public sealed class PlayEngineStepTests
         string defenceTrait, int defenceRank, double attackerSize = Combatant.SameSize,
         double targetSize = Combatant.SameSize, bool attackerInvisible = false,
         bool targetInvisible = false, IReadOnlySet<string>? attackerPowers = null,
-        IReadOnlySet<string>? targetPowers = null, int attackRank = 8)
+        IReadOnlySet<string>? targetPowers = null, int attackRank = 8,
+        bool targetHardTarget = false)
     {
         var attacker = Combatant.Hero(
             "hero", "the Hero", edge: 9, health: 12, resolve: 0,
@@ -3887,7 +3888,7 @@ public sealed class PlayEngineStepTests
             "villain", "the Villain", edge: 7, health: 12,
             new Dictionary<string, int>(StringComparer.Ordinal) { [defenceTrait] = defenceRank },
             [defenceTrait], side: "villains", size: targetSize, invisible: targetInvisible,
-            powers: targetPowers);
+            powers: targetPowers, hardTarget: targetHardTarget);
 
         return (attacker, target);
     }
@@ -3906,12 +3907,13 @@ public sealed class PlayEngineStepTests
     /// real reading rather than a saturated one.</para>
     /// </summary>
     private (int Thrown, IReadOnlyList<LedgerLine> Lines) Exchange(
-        Combatant attacker, Combatant target, Attack attack, Visibility light = Visibility.Clear)
+        Combatant attacker, Combatant target, Attack attack, Visibility light = Visibility.Clear,
+        TableRules? table = null)
     {
         const int Plenty = 300;
 
         var dice = new ScriptedDice([.. Enumerable.Repeat(4, Plenty)]);
-        var encounter = new Encounter(_play, dice);
+        var encounter = new Encounter(_play, dice, table);
         var state = encounter.Begin([attacker, target], visibility: light);
 
         // Begin makes no roll with random initiative off, so everything the source hands out from
@@ -4936,6 +4938,1960 @@ public sealed class PlayEngineStepTests
             Prose(File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "mcp-play", "PLAY-POLICY.md"))),
             StringComparison.Ordinal);
     }
+
+
+    // ── p.80's Hard Targets ──────────────────────────────────────────────────
+
+    /// <summary>The Hard Targets table setting, and nothing else.</summary>
+    private static readonly TableRules HardTargetsOn = TableRules.Book with { HardTargets = true };
+
+    /// <summary>
+    /// <b>A hard target's passive defence answers at twice its rank, and its active one does
+    /// not.</b>
+    ///
+    /// <para>p.80 says "double a hard target's passive defense rank" and says nothing about the
+    /// dodging kind: a tank is no harder to duck for being a tank. Both halves are driven, and the
+    /// factor is read as a difference rather than typed — the doubled pool has to be exactly one
+    /// whole rank more than the undoubled one.</para>
+    ///
+    /// <para><b>The switch off is the baseline and is measured first.</b> A setting that is off has
+    /// to change nothing, which is what makes every balance figure this engine produces a figure
+    /// about the game the book prints; the same combatant declared a hard target in a fight that
+    /// did not take the setting throws exactly the dice they would have thrown anyway.</para>
+    /// </summary>
+    [Fact]
+    public void AHardTargetsPassiveDefenceDoublesAndItsActiveDefenceDoesNot()
+    {
+        const int Rank = 6;
+
+        // Subdual, so `lethal_and_subdual` leaves the Toughness whole and the only thing moving the
+        // defence pool is the doubling under test.
+        var blow = new Attack("hero", "villain", "might", DamageKind.Subdual);
+
+        var (attacker, soft) = Pair("toughness", Rank);
+        var open = Exchange(attacker, soft, blow, table: HardTargetsOn);
+
+        var (_, machine) = Pair("toughness", Rank, targetHardTarget: true);
+        var doubled = Exchange(attacker, machine, blow, table: HardTargetsOn);
+
+        Assert.Equal(open.Thrown + Rank, doubled.Thrown);
+
+        // The switch off changes nothing at all, for the same combatant.
+        var off = Exchange(attacker, machine, blow);
+
+        Assert.Equal(open.Thrown, off.Thrown);
+        Assert.DoesNotContain(off.Lines, l =>
+            string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal));
+
+        // And the active kind never moves: a dodging machine dodges at its own rank.
+        var (dodgeAttacker, dodger) = Pair("agility", Rank);
+        var dodge = Exchange(dodgeAttacker, dodger, blow, table: HardTargetsOn);
+
+        var (_, dodgingMachine) = Pair("agility", Rank, targetHardTarget: true);
+        var machineDodge = Exchange(dodgeAttacker, dodgingMachine, blow, table: HardTargetsOn);
+
+        Assert.Equal(dodge.Thrown, machineDodge.Thrown);
+    }
+
+    /// <summary>
+    /// <b>The doubling multiplies the rank before the printed halving, not after it.</b>
+    ///
+    /// <para>p.80 doubles a <em>rank</em>; p.75's table and <c>lethal_and_subdual</c> then halve
+    /// what answers this attack. Both directions are computed and the wrong one is required to be
+    /// wrong, because on an odd rank they differ: a Toughness of 7 against a lethal blow is 14 and
+    /// then 7 the page's way round, and 4 — the Glossary rounds a half up — and then 8 the other,
+    /// which is a die more than p.80 allows.</para>
+    /// </summary>
+    [Fact]
+    public void AHardTargetsRankIsDoubledBeforeThePrintedHalvingAndNotAfter()
+    {
+        const int Odd = 7;
+
+        // Lethal, so p.75 halves the Toughness — and odd, so the two orders disagree.
+        var blow = new Attack("hero", "villain", "might");
+
+        var (attacker, machine) = Pair("toughness", Odd, targetHardTarget: true);
+        var hard = Exchange(attacker, machine, blow, table: HardTargetsOn);
+
+        var (_, soft) = Pair("toughness", Odd);
+        var open = Exchange(attacker, soft, blow, table: HardTargetsOn);
+
+        // The fixture's own control: the halving really is in play, so this is a statement about
+        // the order of the two operations and not about a rank nothing touched.
+        Assert.Equal(Halved(Odd), open.Thrown - AttackPool);
+        Assert.NotEqual(Odd, Halved(Odd));
+
+        Assert.Equal(AttackPool + Halved(Odd * 2), hard.Thrown);
+        Assert.NotEqual(AttackPool + (Halved(Odd) * 2), hard.Thrown);
+    }
+
+    /// <summary>The attack rank <see cref="Pair"/> gives its attacker, which is the whole pool in the open.</summary>
+    private const int AttackPool = 8;
+
+    /// <summary>
+    /// <b>Aiming at a vulnerable part costs exactly the dice p.80 prints and cancels the
+    /// doubling.</b>
+    ///
+    /// <para>The penalty is read off <c>penalty_dice_to_negate_it</c> rather than restated, and the
+    /// negation is measured against the doubled exchange beside it — so the two halves of the
+    /// sentence are driven separately: the attack pool falls by the printed figure, and the defence
+    /// pool falls back to the rank on the sheet.</para>
+    /// </summary>
+    [Fact]
+    public void AimingAtAVulnerablePartCostsThePrintedDiceAndCancelsTheDoubling()
+    {
+        const int Rank = 6;
+
+        var rule = _play.GetGritty("gritty_hard_targets").HardTargets!;
+
+        // The control on the reading: a penalty of nothing would make every equality below hold of
+        // an engine that applied no rule at all.
+        Assert.NotEqual(0, rule.PenaltyDiceToNegateIt);
+
+        var blow = new Attack("hero", "villain", "might", DamageKind.Subdual);
+        var weakPoint = blow with { VulnerablePart = true };
+
+        var (attacker, machine) = Pair("toughness", Rank, targetHardTarget: true);
+
+        var doubled = Exchange(attacker, machine, blow, table: HardTargetsOn);
+        var aimed = Exchange(attacker, machine, weakPoint, table: HardTargetsOn);
+
+        // The doubling is gone — one whole rank off — and the attacker paid the printed dice for it.
+        Assert.Equal(doubled.Thrown - Rank + rule.PenaltyDiceToNegateIt, aimed.Thrown);
+
+        var line = Assert.Single(aimed.Lines, l =>
+            string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal));
+
+        Assert.Contains(rule.NegationAvailableAgainst, line.Text, StringComparison.Ordinal);
+        Assert.Contains("GM's call", line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A declaration that buys nothing says so and is not charged for.</b>
+    ///
+    /// <para>Two ways to reach it: the target is not a hard target, or the table never took the
+    /// setting. Neither takes the four dice — an attacker cannot pay to negate a doubling that is
+    /// not there — and both write a line saying which of the two it was, because a flag accepted
+    /// and quietly ignored is the worst of the three possible behaviours.</para>
+    /// </summary>
+    [Fact]
+    public void AVulnerablePartDeclarationThatNegatesNothingSaysSoAndCostsNothing()
+    {
+        var blow = new Attack("hero", "villain", "might", DamageKind.Subdual);
+        var weakPoint = blow with { VulnerablePart = true };
+
+        var (attacker, soft) = Pair("toughness", 6);
+        var (_, machine) = Pair("toughness", 6, targetHardTarget: true);
+
+        var open = Exchange(attacker, soft, blow, table: HardTargetsOn);
+
+        var atFlesh = Exchange(attacker, soft, weakPoint, table: HardTargetsOn);
+        var switchOff = Exchange(attacker, machine, weakPoint);
+
+        Assert.Equal(open.Thrown, atFlesh.Thrown);
+        Assert.Equal(open.Thrown, switchOff.Thrown);
+
+        Assert.Contains("is none of", Line(atFlesh, "gritty_hard_targets"), StringComparison.Ordinal);
+        Assert.Contains(
+            "did not take Hard Targets", Line(switchOff, "gritty_hard_targets"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The Penetrating recommendation is named on the ledger and not applied.</b>
+    ///
+    /// <para>p.80 closes by advising a table that vehicle-scale weapons and the strongest
+    /// characters should carry the Penetrating Pro. That is advice about how a character is built,
+    /// which is the <em>first</em> engine's question and one <c>play/</c> may not answer — so it is
+    /// quoted rather than applied, and the line says as much in as many words.</para>
+    /// </summary>
+    [Fact]
+    public void ThePenetratingRecommendationIsQuotedRatherThanApplied()
+    {
+        var rule = _play.GetGritty("gritty_hard_targets").HardTargets!;
+
+        var (attacker, machine) = Pair("toughness", 6, targetHardTarget: true);
+        var hit = Exchange(
+            attacker, machine, new Attack("hero", "villain", "might", DamageKind.Subdual),
+            table: HardTargetsOn);
+
+        var line = Line(hit, "gritty_hard_targets");
+
+        Assert.Contains(rule.RecommendedProForVehicleScaleWeapons, line, StringComparison.Ordinal);
+        Assert.Contains("is not applied", line, StringComparison.Ordinal);
+        Assert.Contains(rule.AppliesTo, line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>An entry that has stopped saying "doubled" is a rule this engine refuses to apply.</b>
+    ///
+    /// <para>The factor is not in the data and cannot be: <c>passive_defense_rank</c> is a printed
+    /// word, so the engine reads the word and supplies the 2 — the same shape as
+    /// <c>seize_initiative_gm_alternative</c>'s "doubles", and recorded as a reading for the same
+    /// reason. A silent fallback to 2 against an entry somebody had corrected would apply a rule
+    /// the book no longer prints, which is the failure this whole store exists to prevent.</para>
+    ///
+    /// <para>The control is the same exchange against the shipped file, which resolves and cites
+    /// the entry — so the throw is about the wording and not about an exchange that never ran.</para>
+    /// </summary>
+    [Fact]
+    public void AHardTargetsEffectThisEngineNoLongerRecognisesIsAThrow()
+    {
+        const string Printed = "\"passive_defense_rank\": \"doubled\"";
+        const string Reworded = "\"passive_defense_rank\": \"sturdier than these rules suggest\"";
+
+        var (attacker, machine) = Pair("toughness", 6, targetHardTarget: true);
+        var blow = new Attack("hero", "villain", "might", DamageKind.Subdual);
+
+        // The control: against the shipped bytes this resolves and the rule is cited.
+        var shipped = Exchange(attacker, machine, blow, table: HardTargetsOn);
+
+        Assert.Contains(shipped.Lines, l =>
+            string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal));
+
+        var reworded = SubstitutedPlayRules.With(PlayRulesRepository.GrittyFile, Printed, Reworded);
+        var encounter = new Encounter(reworded, new ScriptedDice([.. Enumerable.Repeat(4, 300)]), HardTargetsOn);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            encounter.Step(encounter.Begin([attacker, machine]), blow));
+
+        Assert.Contains("gritty_hard_targets", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("sturdier than these rules suggest", thrown.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A wall is not a combatant, so Hard Targets never doubles a cover's Structure.</b>
+    ///
+    /// <para>p.80 plainly covers "thick, inanimate objects", and a wall being shot through is one —
+    /// but the declaration this engine takes is made on a <em>combatant</em>, and the Structure is
+    /// a bare number the caller supplied for one attack. So the number stands as sent, and a caller
+    /// who wants a doubled wall doubles it. Driven rather than asserted in a comment: the target's
+    /// own doubled defence is the greater here, and a Structure that had doubled too would have
+    /// answered instead.</para>
+    /// </summary>
+    [Fact]
+    public void HardTargetsNeverDoublesACoversStructure()
+    {
+        const int Rank = 3;
+        const int Structure = 5;
+
+        var (attacker, machine) = Pair("toughness", Rank, targetHardTarget: true);
+
+        var through = new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, CoverStructure: Structure);
+
+        var shot = Exchange(attacker, machine, through, table: HardTargetsOn);
+
+        // Their own Toughness doubles to 6 and answers; a Structure doubled to 10 would have.
+        Assert.Equal(AttackPool + (Rank * 2), shot.Thrown);
+        Assert.NotEqual(AttackPool + (Structure * 2), shot.Thrown);
+
+        Assert.Contains(
+            "is the greater, so that answers instead",
+            Line(shot, "modifier_cover"),
+            StringComparison.Ordinal);
+    }
+
+
+    // ── p.79's Close Range ───────────────────────────────────────────────────
+
+    /// <summary>The Close Range table setting, and nothing else.</summary>
+    private static readonly TableRules CloseRangeOn = TableRules.Book with { CloseRangePenalty = true };
+
+    /// <summary>
+    /// <b>A ranged attack from inside Close Range costs the dodger exactly the dice p.79 prints,
+    /// and a close combat attack costs them nothing.</b>
+    ///
+    /// <para>The figure is read off <c>penalty_dice_to_active_defense</c> rather than restated, and
+    /// the rule's own condition is driven from both sides: a Ranged Weapon takes it and a fist does
+    /// not, which is the difference p.75's table draws and this engine reads off the row's printed
+    /// type rather than off a list of its own.</para>
+    ///
+    /// <para><b>The switch off is the baseline and is measured first.</b> A setting that is off has
+    /// to change nothing — the same exchange, the same pair, the same band, and the same pool.</para>
+    /// </summary>
+    [Fact]
+    public void ARangedAttackFromInsideCloseRangeCostsTheDodgerThePrintedDice()
+    {
+        var penalty = _play.GetGritty("gritty_close_range").CloseRangePenalty!.PenaltyDiceToActiveDefense;
+
+        // The control on the reading: a penalty of nothing would make every equality below hold of
+        // an engine applying no rule at all.
+        Assert.NotEqual(0, penalty);
+
+        var (attacker, dodger) = Pair("agility", 6);
+
+        var fist = new Attack("hero", "villain", "might");
+        var gun = new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon);
+
+        // A fight opens at Close Range unless the GM says otherwise, which is where this rule bites.
+        var punched = Exchange(attacker, dodger, fist, table: CloseRangeOn);
+        var shot = Exchange(attacker, dodger, gun, table: CloseRangeOn);
+
+        Assert.Equal(punched.Thrown + penalty, shot.Thrown);
+        Assert.DoesNotContain(punched.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+
+        // The switch off changes nothing, for the same shot.
+        var off = Exchange(attacker, dodger, gun);
+
+        Assert.Equal(punched.Thrown, off.Thrown);
+        Assert.DoesNotContain(off.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>It costs the dodging kind of defence and nothing else.</b>
+    ///
+    /// <para>The entry's field is <c>penalty_dice_to_active_defense</c> in as many words: a soak is
+    /// a soak whatever is being shot at you. The control is the same shot against a dodger, which
+    /// does move — so the equality below is a statement about the defence and not about a shot that
+    /// never happened.</para>
+    /// </summary>
+    [Fact]
+    public void CloseRangeNeverMovesAPassiveDefence()
+    {
+        var gun = new Attack("hero", "villain", "might", DamageKind.Subdual, AttackType.RangedWeapon);
+
+        var (attacker, soaker) = Pair("toughness", 6);
+        var soaked = Exchange(attacker, soaker, gun, table: CloseRangeOn);
+        var openSoak = Exchange(attacker, soaker, gun);
+
+        Assert.Equal(openSoak.Thrown, soaked.Thrown);
+
+        var (_, dodger) = Pair("agility", 6);
+        var dodged = Exchange(attacker, dodger, gun, table: CloseRangeOn);
+        var openDodge = Exchange(attacker, dodger, gun);
+
+        Assert.NotEqual(openDodge.Thrown, dodged.Thrown);
+    }
+
+    /// <summary>
+    /// <b>It only reaches a pair who are at Close Range with each other.</b>
+    ///
+    /// <para>p.79 prices a gun in your face, and the same gun from across the street is the
+    /// ordinary exchange. The bands are pairwise on the state because p.73's are, so this is driven
+    /// by opening the fight at Distant Range rather than by moving a flag.</para>
+    /// </summary>
+    [Fact]
+    public void CloseRangeDoesNotReachAShotFromTheNextRangeClassOut()
+    {
+        var (attacker, dodger) = Pair("agility", 6);
+        var gun = new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon);
+
+        var dice = new ScriptedDice([.. Enumerable.Repeat(4, 300)]);
+        var encounter = new Encounter(_play, dice, CloseRangeOn);
+        var state = encounter.Begin([attacker, dodger], opening: RangeBand.Distant);
+
+        var step = encounter.Step(state, gun);
+        var far = 300 - dice.Remaining;
+
+        // The control: the shot really was resolved, so the comparison below is not of two zeroes.
+        Assert.Contains(step.Added, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(step.Added, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+
+        // And the same shot at Close Range does cost the dice, so the band is what decided it.
+        Assert.NotEqual(far, Exchange(attacker, dodger, gun, table: CloseRangeOn).Thrown);
+    }
+
+    /// <summary>
+    /// <b>A Power is ranged when its own Ch.2 Range says so, and that is read off the sheet.</b>
+    ///
+    /// <para>p.75's table declines to classify its two Power rows — their attacking Trait is the
+    /// bare <c>Power</c> column — so whether a Physical Power reaches past Close Range is a property
+    /// of the Power. <c>CombatantFactory</c> answers it, and the two Powers driven here are a Blast,
+    /// whose printed Range is <c>ranged</c>, and an Armor, whose printed Range is <c>self</c>.</para>
+    ///
+    /// <para>The controls come out of the character rules rather than being assumed: each Power's
+    /// Range is asserted before the exchange that turns on it.</para>
+    /// </summary>
+    [Fact]
+    public void APowerIsRangedWhenItsOwnPrintedRangeSaysSoAndNotOtherwise()
+    {
+        var rules = new RulesFixture();
+        var penalty = _play.GetGritty("gritty_close_range").CloseRangePenalty!.PenaltyDiceToActiveDefense;
+
+        // The controls: the two Powers really do print the two Ranges this fixture turns on.
+        Assert.Equal("ranged", rules.Rules.GetPower("blast")!.Range, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal("self", rules.Rules.GetPower("armor")!.Range, StringComparer.OrdinalIgnoreCase);
+
+        var sheet = rules.LegalSheet();
+        sheet.Name = "the Hero";
+
+        // Enough Edge to be first in the order, so the exchange below is theirs to make.
+        sheet.AbilityRanks["perception"] = 6;
+        sheet.AbilityRanks["agility"] = 6;
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 8));
+        sheet.SelectedPowers.Add(new SelectedPower("armor", 8));
+
+        var attacker = CombatantFactory.From(
+            sheet, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
+
+        Assert.Contains("blast", attacker.RangedPowers, StringComparer.Ordinal);
+        Assert.DoesNotContain("armor", attacker.RangedPowers, StringComparer.Ordinal);
+
+        // The other control: both came back at a real rank, so neither exchange below is a pool of
+        // nothing. The two ranks are read rather than assumed equal — the character engine decides
+        // what a Power is worth on a sheet, and this fixture is about the Range beside it.
+        Assert.True(attacker.Rank("blast") > 0, "the Blast came back at 0d");
+        Assert.True(attacker.Rank("armor") > 0, "the Armor came back at 0d");
+
+        var (_, dodger) = Pair("agility", 6);
+
+        var blast = new Attack("hero", "villain", "blast", Type: AttackType.PhysicalPower);
+        var swung = blast with { TraitId = "armor" };
+
+        var shot = Exchange(attacker, dodger, blast, table: CloseRangeOn);
+        var clubbed = Exchange(attacker, dodger, swung, table: CloseRangeOn);
+
+        // The two pools differ by the two Powers' own ranks and by the penalty, and by nothing
+        // else: the Blast is ranged and pays it, the Armor is not and does not.
+        Assert.Equal(
+            attacker.Rank("blast") - attacker.Rank("armor") + penalty,
+            shot.Thrown - clubbed.Thrown);
+
+        Assert.Contains(shot.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal)
+            && l.Text.Contains($"is {penalty}d", StringComparison.Ordinal));
+
+        // <b>And the Power the reading declined says so rather than saying nothing.</b> The dice do
+        // not move — the equality above is what holds that — but a switch that is on and did not
+        // reach an attack is the one case this ledger exists to make visible, and until this
+        // fixture demanded the line there was none: a Power whose own Range is zone or special
+        // walked out of the rule in silence, indistinguishable from a rule that had been dropped.
+        var declined = Assert.Single(clubbed.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+
+        Assert.Contains("armor", declined.Text, StringComparison.Ordinal);
+        Assert.Contains("its own Ch.2 Range is not ranged", declined.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The page's own exception is the caller's word, and a declaration that turned nothing off
+    /// says so.</b>
+    ///
+    /// <para>p.79 tells a table to ignore the rule for "ordinary thrown weapons and other
+    /// short-range attacks that can only be used at Close Range". A fight here has no equipment in
+    /// it, so nothing but the person running it can tell a pistol from a throwing knife — and the
+    /// default is a pistol, because <c>range_classes</c> makes reaching Distant Range the rule and
+    /// prints thrown weapons beside it as the exception.</para>
+    /// </summary>
+    [Fact]
+    public void AThrownWeaponIsTheCallersWordAndADeclarationThatBuysNothingSaysSo()
+    {
+        var rule = _play.GetGritty("gritty_close_range").CloseRangePenalty!;
+
+        var (attacker, dodger) = Pair("agility", 6);
+
+        var gun = new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon);
+        var knife = gun with { CloseRangeOnly = true };
+        var fist = new Attack("hero", "villain", "might", CloseRangeOnly: true);
+
+        var shot = Exchange(attacker, dodger, gun, table: CloseRangeOn);
+        var thrown = Exchange(attacker, dodger, knife, table: CloseRangeOn);
+        var punched = Exchange(attacker, dodger, fist, table: CloseRangeOn);
+
+        Assert.Equal(shot.Thrown - rule.PenaltyDiceToActiveDefense, thrown.Thrown);
+        Assert.Equal(thrown.Thrown, punched.Thrown);
+
+        Assert.Contains(rule.IgnoredFor, Line(thrown, "gritty_close_range"), StringComparison.Ordinal);
+        Assert.Contains(
+            "would not have reached it anyway",
+            Line(punched, "gritty_close_range"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A pair of entries that no longer name a range class past Close is a throw.</b>
+    ///
+    /// <para>The whole of what makes p.79's rule apply to an attack is that such an attack could
+    /// have been made from farther off, and this engine establishes that by reading two strings:
+    /// the entry's <c>applies_only_to_attacks_usable_at</c> and <c>range_classes</c>'
+    /// <c>ranged_attacks_reach</c>. A penalty applied when its own condition can no longer be
+    /// established is the shape of defect the ledger exists to prevent, so it throws.</para>
+    ///
+    /// <para>Both sides are driven, and the control is the same exchange against the shipped bytes.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(
+        "\"ranged_attacks_reach\": \"Close Range or Distant Range\"",
+        "\"ranged_attacks_reach\": \"about as far as you would expect\"",
+        PlayRulesRepository.CombatFile)]
+    [InlineData(
+        "\"applies_only_to_attacks_usable_at\": \"Distant or Extreme Range\"",
+        "\"applies_only_to_attacks_usable_at\": \"anything you could have shot from farther off\"",
+        PlayRulesRepository.GrittyFile)]
+    public void ARangeReachThisEngineCanNoLongerEstablishIsAThrow(
+        string find, string replace, string file)
+    {
+        var (attacker, dodger) = Pair("agility", 6);
+        var gun = new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon);
+
+        // The control: against the shipped bytes the exchange resolves and cites the rule.
+        var shipped = Exchange(attacker, dodger, gun, table: CloseRangeOn);
+
+        Assert.Contains(shipped.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+
+        var reworded = SubstitutedPlayRules.With(file, find, replace);
+        var encounter = new Encounter(
+            reworded, new ScriptedDice([.. Enumerable.Repeat(4, 300)]), CloseRangeOn);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            encounter.Step(encounter.Begin([attacker, dodger]), gun));
+
+        Assert.Contains("gritty_close_range", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(RangeBand.Close), thrown.Message, StringComparison.Ordinal);
+    }
+
+
+    // ── p.79's Drop ──────────────────────────────────────────────────────────
+
+    /// <summary>The Drop table setting, and nothing else.</summary>
+    private static readonly TableRules TheDropOn = TableRules.Book with { TheDrop = true };
+
+    /// <summary>Two combatants, one of whom may have a weapon levelled.</summary>
+    private static List<Combatant> Standoff(bool heroReady, bool villainReady) =>
+    [
+        Combatant.Hero(
+            "hero", "the Hero", edge: 5, health: 10, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 },
+            ["toughness"], ready: heroReady),
+        Combatant.Villain(
+            "villain", "the Villain", edge: 8, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 },
+            ["toughness"], ready: villainReady)
+    ];
+
+    /// <summary>
+    /// <b>A readied weapon doubles its holder's effective Edge, and it puts them in front of
+    /// somebody who was ahead of them.</b>
+    ///
+    /// <para>Driven as an order rather than as a number, because the order is the only thing an
+    /// Edge decides — a doubling nothing sorted on would be a field this engine wrote and never
+    /// read. The Hero's 5 against the Villain's 8 is the pair that shows it: the doubling has to be
+    /// real to move them, and 5 is deliberately below 8 so that an engine which had merely recorded
+    /// the flag would leave the order alone.</para>
+    ///
+    /// <para><b>The switch off is the baseline and is measured first.</b> A setting that is off has
+    /// to change nothing: the same two combatants, the same Edges and the same order.</para>
+    /// </summary>
+    [Fact]
+    public void AReadiedWeaponDoublesItsHoldersEffectiveEdgeAndMovesTheOrder()
+    {
+        var off = new Encounter(_play, new SeededDice(79)).Begin(Standoff(heroReady: true, villainReady: false));
+
+        // The control, and the baseline: with the setting off the flag changes nothing at all.
+        Assert.Equal(["villain", "hero"], off.TurnOrder);
+        Assert.Equal(5, off.EffectiveEdge["hero"]);
+        Assert.DoesNotContain(off.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal));
+
+        var drawn = new Encounter(_play, new SeededDice(79), TheDropOn)
+            .Begin(Standoff(heroReady: true, villainReady: false));
+
+        Assert.Equal(["hero", "villain"], drawn.TurnOrder);
+        Assert.Equal(10, drawn.EffectiveEdge["hero"]);
+
+        // And the character who is not ready is untouched, which is the half that makes it a
+        // doubling of the holder rather than a penalty on everybody else.
+        Assert.Equal(off.EffectiveEdge["villain"], drawn.EffectiveEdge["villain"]);
+
+        var line = Assert.Single(drawn.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("the Hero", StringComparison.Ordinal));
+
+        var rule = _play.GetGritty("gritty_the_drop").TheDrop!;
+
+        Assert.Contains(rule.HeldBy, line.Text, StringComparison.Ordinal);
+        Assert.Contains(rule.HeldAgainst, line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Where everybody is ready, nobody has the drop on anybody — and the order says so.</b>
+    ///
+    /// <para>This is the case that makes one global doubling exact rather than approximate: an
+    /// order compares two characters at a time, and two ready ones double alike, so 2a against 2b
+    /// sorts exactly as a against b. The fixture drives both ends of that — everybody ready and
+    /// nobody ready — and requires the order to be the one the setting-off run produced.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void WhereEverybodyIsReadyOrNobodyIsTheOrderIsTheOneTheBookPrints(bool hero, bool villain)
+    {
+        var baseline = new Encounter(_play, new SeededDice(79)).Begin(Standoff(false, false));
+        var drawn = new Encounter(_play, new SeededDice(79), TheDropOn).Begin(Standoff(hero, villain));
+
+        Assert.Equal(baseline.TurnOrder, drawn.TurnOrder);
+        Assert.Equal(baseline.EffectiveEdge, drawn.EffectiveEdge);
+
+        // The control: the rule was reached and said so, rather than being skipped in silence.
+        Assert.Contains(drawn.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("nobody has the drop on anybody", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The half of p.79 a single order cannot carry is named, not applied.</b>
+    ///
+    /// <para><c>also_held_by</c> gives the drop to a shooter against anyone closing to engage them
+    /// — held against one opponent and not the rest, which one order of action cannot express,
+    /// because doubled against one and not another admits a cycle. The line quotes the clause and
+    /// the GM's final say over the whole rule, which is what stops a reader taking the setting for
+    /// the whole page.</para>
+    /// </summary>
+    [Fact]
+    public void TheClauseAboutClosingToEngageIsNamedRatherThanApplied()
+    {
+        var rule = _play.GetGritty("gritty_the_drop").TheDrop!;
+
+        var drawn = new Encounter(_play, new SeededDice(79), TheDropOn)
+            .Begin(Standoff(heroReady: true, villainReady: false));
+
+        var named = Assert.Single(drawn.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("is not applied", StringComparison.Ordinal));
+
+        Assert.Contains(rule.AlsoHeldBy, named.Text, StringComparison.Ordinal);
+        Assert.Contains(rule.FinalSay, named.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A ready group of Minions has no Edge to double, and the ledger says so rather than
+    /// doubling a zero.</b>
+    ///
+    /// <para>p.73 gives a Minion group no Edge at all and puts them after everyone else, and
+    /// <c>minions_have_an_edge</c> is read rather than assumed. A line announcing that their
+    /// effective Edge had been doubled from 0 to 0 would be a rule reported and not applied, which
+    /// is the one thing this engine's ledger exists to prevent.</para>
+    /// </summary>
+    [Fact]
+    public void AReadyGroupOfMinionsHasNoEdgeToDouble()
+    {
+        var fight = new List<Combatant>
+        {
+            Combatant.Hero("hero", "the Hero", edge: 5, health: 10, resolve: 0,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]),
+            Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 3, "threat", ready: true)
+        };
+
+        var drawn = new Encounter(_play, new SeededDice(79), TheDropOn).Begin(fight);
+
+        Assert.Equal(0, drawn.EffectiveEdge["minions"]);
+        Assert.Equal(["hero", "minions"], drawn.TurnOrder);
+
+        Assert.Contains(drawn.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("nothing here to double", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Two Heroes on opposite sides, so both can hold Resolve and either can buy p.73's seize —
+    /// the Drop's Edges are the caller's, so the order below is arithmetic rather than luck.
+    /// </summary>
+    private static List<Combatant> Standing(int north, int south, bool northReady)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 6, ["toughness"] = 4
+        };
+
+        return
+        [
+            Combatant.Hero(
+                "north", "the Hero of the North", edge: north, health: 10, resolve: 2, traits,
+                ["toughness"], side: "north", ready: northReady),
+            Combatant.Hero(
+                "south", "the Hero of the South", edge: south, health: 10, resolve: 2, traits,
+                ["toughness"], side: "south")
+        ];
+    }
+
+    /// <summary>The order of action on the page after <paramref name="seizer"/> buys p.73's seize.</summary>
+    private IReadOnlyList<string> AfterTheSeize(
+        TableRules table, IReadOnlyList<Combatant> fight, string? seizer)
+    {
+        var encounter = new Encounter(_play, new SeededDice(73), table);
+        var state = encounter.Begin(fight);
+
+        if (seizer is not null)
+            state = encounter.Step(state, new SpendResolve(seizer, ResolveSpend.SeizeInitiative)).State;
+
+        return encounter.Step(state, new EndPage("")).State.TurnOrder;
+    }
+
+    /// <summary>
+    /// <b>p.79's Drop does not overtake p.73's seize, and the page never says whether it should.</b>
+    ///
+    /// <para>Seizing the initiative puts a character "first on every page of the action" — it is not
+    /// an Edge effect at all, and the Drop only doubles an Edge — so composing them the way this
+    /// engine composes everything leaves a seizer in front of a doubled figure however large it
+    /// gets. That is a reading rather than a transcription, because neither page mentions the other,
+    /// and it is in <c>docs/guide/play-engine.md</c>'s table with this fixture beside it.</para>
+    ///
+    /// <para><b>The control is the same fight without the purchase</b>, where the doubled Edge does
+    /// win — otherwise this would pass against an engine in which the Drop did nothing at all.</para>
+    /// </summary>
+    [Fact]
+    public void TheDropDoesNotOvertakeASeizedInitiative()
+    {
+        // The North's 5 doubles to 10 and beats the South's 4, which is the control: the Drop is
+        // deciding this order until the purchase is made.
+        Assert.Equal(
+            ["north", "south"],
+            AfterTheSeize(TheDropOn, Standing(north: 5, south: 4, northReady: true), seizer: null));
+
+        // And the purchase takes the front regardless of it.
+        Assert.Equal(
+            ["south", "north"],
+            AfterTheSeize(TheDropOn, Standing(north: 5, south: 4, northReady: true), seizer: "south"));
+    }
+
+    /// <summary>
+    /// <b>Where the GM takes p.73's alternative, a ready buyer's Edge is multiplied by four, and
+    /// that is a reading this fixture is here to make arguable.</b>
+    ///
+    /// <para>Two printed sentences each double an effective Edge — <c>the_drop.effect</c> and
+    /// <c>seize_initiative_gm_alternative</c>'s — and no page in Chapters 3 to 5 contemplates both
+    /// at once. This engine applies each where it is triggered, so a ready character who buys the
+    /// seize under the GM's alternative acts on four times their figure. <b>Nothing settles that
+    /// against the alternative of capping it at twice</b>, and a composition this large arriving
+    /// silently out of two unrelated branches is exactly the shape of reading the guide's table
+    /// exists for.</para>
+    ///
+    /// <para>The figures are chosen so that only the fourfold answer wins: the North's 5 is 10
+    /// under either doubling alone and 20 under both, against a South of 18. So the first assertion
+    /// is a control on the second — one doubling is not enough — and an engine that applied the
+    /// Drop and then ignored the alternative, or the other way round, fails the second.</para>
+    /// </summary>
+    [Fact]
+    public void BothDoublingsCompoundOnAReadyCharacterWhoSeizesTheInitiative()
+    {
+        var table = TheDropOn with { GmAlternativeToSeizingInitiative = true };
+
+        // One doubling is not enough: 5 doubled is 10, and the South is on 18.
+        Assert.Equal(
+            ["south", "north"],
+            AfterTheSeize(table, Standing(north: 5, south: 18, northReady: true), seizer: null));
+
+        Assert.Equal(
+            ["south", "north"],
+            AfterTheSeize(table, Standing(north: 5, south: 18, northReady: false), seizer: "north"));
+
+        // Both together are: 5 doubled by the Drop and doubled again by the GM's alternative.
+        Assert.Equal(
+            ["north", "south"],
+            AfterTheSeize(table, Standing(north: 5, south: 18, northReady: true), seizer: "north"));
+    }
+
+    /// <summary>
+    /// <b>An entry that has stopped saying "doubled" is a rule this engine refuses to apply.</b>
+    ///
+    /// <para><c>the_drop.effect</c> is a printed sentence rather than a multiplier, so the engine
+    /// reads the word and supplies the 2 — the third rule in this chapter to work that way, beside
+    /// <c>seize_initiative_gm_alternative</c> and <c>gritty_hard_targets</c>. A silent fallback
+    /// against an entry somebody had corrected would apply a rule the book no longer prints.</para>
+    /// </summary>
+    [Fact]
+    public void ADropEffectThisEngineNoLongerRecognisesIsAThrow()
+    {
+        const string Printed = "\"effect\": \"the holder's effective Edge is doubled against them\"";
+        const string Reworded = "\"effect\": \"the holder goes first, whatever their Edge\"";
+
+        // The control: against the shipped bytes the fight opens and the rule is cited.
+        var shipped = new Encounter(_play, new SeededDice(79), TheDropOn).Begin(Standoff(true, false));
+
+        Assert.Contains(shipped.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal));
+
+        var reworded = SubstitutedPlayRules.With(PlayRulesRepository.GrittyFile, Printed, Reworded);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            new Encounter(reworded, new SeededDice(79), TheDropOn).Begin(Standoff(true, false)));
+
+        Assert.Contains("gritty_the_drop", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("goes first, whatever their Edge", thrown.Message, StringComparison.Ordinal);
+    }
+
+
+    // ── p.80's Friendly Fire ─────────────────────────────────────────────────
+
+    /// <summary>The Friendly Fire table setting, and nothing else.</summary>
+    private static readonly TableRules FriendlyFireOn = TableRules.Book with { FriendlyFire = true };
+
+    /// <summary>
+    /// A shooter, the person they are shooting at, and however many other characters are in the
+    /// tangle with the target — all of them at Close Range, which is where a fight opens.
+    /// </summary>
+    private static List<Combatant> Scrum(int bystanders)
+    {
+        var fight = new List<Combatant>
+        {
+            Combatant.Hero(
+                "hero", "the Hero", edge: 12, health: 10, resolve: 0,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 }, ["toughness"]),
+            Combatant.Villain(
+                "villain", "the Villain", edge: 7, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 }, ["toughness"])
+        };
+
+        for (var i = 1; i <= bystanders; i++)
+        {
+            fight.Add(Combatant.Extra(
+                $"bystander{i}", $"Bystander {i}", edge: 3, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 },
+                ["toughness"], side: "villains"));
+        }
+
+        return fight;
+    }
+
+    /// <summary>One shot into a scrum, and everything the engine did about it.</summary>
+    private (int Thrown, IReadOnlyList<LedgerLine> Lines, EncounterState State) Shoot(
+        IReadOnlyList<Combatant> fight, TableRules? table, params int[] faces)
+    {
+        var dice = new ScriptedDice(faces);
+        var encounter = new Encounter(_play, dice, table);
+        var state = encounter.Begin(fight);
+
+        Assert.Equal(faces.Length, dice.Remaining);
+
+        var step = encounter.Step(
+            state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+        return (faces.Length - dice.Remaining, step.Added, step.State);
+    }
+
+    /// <summary>
+    /// <b>Shooting into a melee costs exactly the dice p.80 prints, and shooting at somebody alone
+    /// costs nothing.</b>
+    ///
+    /// <para>"Engaged in close combat or otherwise bunched up with other characters" is derived
+    /// from p.73's range bands rather than declared, so the fixture drives it by putting a
+    /// bystander in the fight and taking them out again — the same shooter, the same target, the
+    /// same band.</para>
+    ///
+    /// <para><b>The switch off is the baseline and is measured first.</b></para>
+    /// </summary>
+    [Fact]
+    public void ShootingIntoAMeleeCostsExactlyTheDiceThePagePrints()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+
+        // The control on the reading: a penalty of nothing would make the equalities below hold of
+        // an engine that applied no rule at all.
+        Assert.NotEqual(0, rule.PenaltyDice);
+
+        // Faces of 6 so the shot lands and no second attack is triggered — this fixture is about
+        // the penalty, and the stray round is the one below.
+        int[] plenty = [.. Enumerable.Repeat(6, 60)];
+
+        var alone = Shoot(Scrum(bystanders: 0), FriendlyFireOn, plenty);
+        var crowd = Shoot(Scrum(bystanders: 1), FriendlyFireOn, plenty);
+
+        Assert.Equal(alone.Thrown + rule.PenaltyDice, crowd.Thrown);
+        Assert.DoesNotContain(alone.Lines, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal));
+
+        // The switch off changes nothing, in the same crowd.
+        var off = Shoot(Scrum(bystanders: 1), table: null, plenty);
+
+        Assert.Equal(alone.Thrown, off.Thrown);
+        Assert.DoesNotContain(off.Lines, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A bystander the target is not close to is not in the melee, and the band is what decides
+    /// it.</b>
+    ///
+    /// <para>"Engaged in close combat or otherwise bunched up with other characters" is derived
+    /// from p.73's range bands rather than declared, and every fixture for that derivation opened
+    /// the fight where the bands put everybody at Close — so the presence of a third character and
+    /// the band they were standing in were never told apart. <b>A rule that had counted anybody in
+    /// the fight at all would have passed every one of them.</b></para>
+    ///
+    /// <para>Here the same three characters open a class further out, the shooter walks up to the
+    /// target, and the bystander stays where they were. The shot then costs exactly what a shot at
+    /// somebody standing alone costs — read off the dice rather than off the prose — and no stray
+    /// round is sent.</para>
+    /// </summary>
+    [Fact]
+    public void ABystanderTheTargetIsNotCloseToIsNotInTheMelee()
+    {
+        int[] plenty = [.. Enumerable.Repeat(6, 80)];
+
+        // The two figures this is measured between: nobody else in the fight, and somebody else
+        // standing in the tangle. They have to differ, or the assertion below means nothing.
+        var alone = Shoot(Scrum(bystanders: 0), FriendlyFireOn, plenty);
+        var crowd = Shoot(Scrum(bystanders: 1), FriendlyFireOn, plenty);
+
+        Assert.NotEqual(alone.Thrown, crowd.Thrown);
+
+        var dice = new ScriptedDice(plenty);
+        var encounter = new Encounter(_play, dice, FriendlyFireOn);
+        var state = encounter.Begin(Scrum(bystanders: 1), opening: RangeBand.Distant);
+
+        // The shooter walks up to the target, which p.74 gives them two pages' worth of; the
+        // bystander does not move, so they are a class further out than the melee.
+        state = encounter.Step(state, new Move("hero", "villain")).State;
+        state = encounter.Step(state, new Move("hero", "villain")).State;
+
+        Assert.Equal(RangeBand.Close, state.RangeBetween("hero", "villain"));
+        Assert.Equal(RangeBand.Distant, state.RangeBetween("bystander1", "villain"));
+
+        var before = dice.Remaining;
+
+        var step = encounter.Step(
+            state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+        Assert.Equal(alone.Thrown, before - dice.Remaining);
+
+        Assert.DoesNotContain(step.Added, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal));
+
+        Assert.Equal(
+            step.State["bystander1"].FullHealth, step.State["bystander1"].CurrentHealth);
+    }
+
+    /// <summary>
+    /// <b>A close combat attack into the same scrum costs nothing</b>, because p.80 prices a ranged
+    /// one. Derived off p.75's table by the row's printed type, the same reading p.79's Close Range
+    /// rule uses — so this is one fixture holding both.
+    /// </summary>
+    [Fact]
+    public void FriendlyFireIsPricedOnARangedAttackAndNotOnAFist()
+    {
+        int[] plenty = [.. Enumerable.Repeat(6, 60)];
+
+        var dice = new ScriptedDice(plenty);
+        var encounter = new Encounter(_play, dice, FriendlyFireOn);
+        var state = encounter.Begin(Scrum(bystanders: 1));
+
+        var punch = encounter.Step(state, new Attack("hero", "villain", "might"));
+
+        // The control: the attack really was resolved.
+        Assert.Contains(punch.Added, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(punch.Added, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A shot that lands nothing sends a second attack, and the second attack is resolved rather
+    /// than announced.</b>
+    ///
+    /// <para>This is the half of the rule a ledger line on its own would have got wrong: the page
+    /// says "you must make a second attack", and an engine that wrote the sentence and rolled
+    /// nothing would leave the bystander untouched while the record said otherwise. So the fixture
+    /// checks the bystander's Health, not the prose — and requires the stray round to have been
+    /// thrown, defended against and applied.</para>
+    ///
+    /// <para>The faces are scripted so that the first shot lands nothing and the second one lands:
+    /// the shooter throws its pool of ones, the target defends, and then the stray round's pool
+    /// comes up sixes against a defence of ones.</para>
+    /// </summary>
+    [Fact]
+    public void AShotThatLandsNothingSendsASecondAttackThatIsActuallyResolved()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        // p.75's Ranged Weapon row halves a Toughness, so the defence pool is half the rank.
+        var soak = Halved(4);
+
+        // 8d Might less the printed penalty, all missing; then the target's soak, likewise; then
+        // one die for the GM's pick; then the stray round's whole 8d, of which two land; then the
+        // bystander's soak, missing.
+        int[] faces =
+        [
+            .. Enumerable.Repeat(1, 8 + rule.PenaltyDice),
+            .. Enumerable.Repeat(1, soak),
+            3,
+            4, 4, .. Enumerable.Repeat(1, 6),
+            .. Enumerable.Repeat(1, soak)
+        ];
+
+        var shot = Shoot(Scrum(bystanders: 1), FriendlyFireOn, faces);
+
+        // The control: every scripted face was consumed, so the engine made exactly the rolls this
+        // fixture accounts for — the first attack, the defence, the pick, and the stray round.
+        Assert.Equal(faces.Length, shot.Thrown);
+
+        var bystander = shot.State["bystander1"];
+
+        Assert.True(
+            bystander.CurrentHealth < bystander.FullHealth,
+            "the stray round was announced and never landed: the bystander is untouched");
+
+        // Two successes against nothing, at the printed rate.
+        Assert.Equal(bystander.FullHealth - (2 * rate), bystander.CurrentHealth);
+
+        var sent = Assert.Single(shot.Lines, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal)
+            && l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        Assert.Contains(rule.SecondAttackIsAgainst, sent.Text, StringComparison.Ordinal);
+        Assert.Contains(rule.SecondTargetSelected, sent.Text, StringComparison.Ordinal);
+        Assert.Contains("a die came up 3", sent.Text, StringComparison.Ordinal);
+
+        // And the stray round itself was at no penalty, which is the entry's own second figure.
+        Assert.Contains(shot.Lines, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal)
+            && l.Text.Contains("went wide", StringComparison.Ordinal)
+            && l.Text.Contains(rule.SecondAttackPenaltyDice.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A shot that landed something sends nothing</b>, which is the other side of the entry's
+    /// own <c>second_attack_triggered_at_net_successes</c>. Driven at the threshold rather than
+    /// past it: the same fixture, with the first shot beating the defence by one.
+    /// </summary>
+    [Fact]
+    public void AShotThatLandedSomethingSendsNoSecondAttack()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+
+        Assert.Equal(0, rule.SecondAttackTriggeredAtNetSuccesses);
+
+        // One success on the attack — one four is one under play_meta's map — against a defence
+        // that scores nothing.
+        int[] faces =
+        [
+            4, .. Enumerable.Repeat(1, 8 + rule.PenaltyDice - 1),
+            .. Enumerable.Repeat(1, Halved(4))
+        ];
+
+        var shot = Shoot(Scrum(bystanders: 1), FriendlyFireOn, faces);
+
+        // The control: every face was consumed and no more were asked for, so no second attack was
+        // rolled — which is the thing under test rather than an absence in the prose.
+        Assert.Equal(faces.Length, shot.Thrown);
+
+        var bystander = shot.State["bystander1"];
+
+        Assert.Equal(bystander.FullHealth, bystander.CurrentHealth);
+        Assert.DoesNotContain(shot.Lines, l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A stray round never sends another one.</b>
+    ///
+    /// <para>p.80 asks for "a second attack", not for a cascade, and the guard is worth driving
+    /// because the second attack goes through the whole of <see cref="Encounter.Step"/>'s attack
+    /// path — including the rule that sent it. Two bystanders, both shots missing everything, and
+    /// the dice source is handed exactly the faces two attacks need: a third would throw.</para>
+    /// </summary>
+    [Fact]
+    public void AStrayRoundNeverSendsAnotherStrayRound()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+
+        int[] faces =
+        [
+            .. Enumerable.Repeat(1, 8 + rule.PenaltyDice),    // the first attack, missing
+            .. Enumerable.Repeat(1, Halved(4)),               // the target's defence
+            2,                                                // the GM's pick
+            .. Enumerable.Repeat(1, 8),                       // the stray round, at no penalty
+            .. Enumerable.Repeat(1, Halved(4))                // the bystander's defence
+        ];
+
+        var shot = Shoot(Scrum(bystanders: 2), FriendlyFireOn, faces);
+
+        // The control: ScriptedDice throws when it runs out, so consuming exactly this many faces
+        // is the assertion that a third attack was never rolled.
+        Assert.Equal(faces.Length, shot.Thrown);
+
+        Assert.Single(shot.Lines, l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The name p.80's random pick landed on, out of the line that records the choice — or null
+    /// where the shot landed something and no second attack was sent.
+    /// </summary>
+    private static string? PickedOutOf(IReadOnlyList<LedgerLine> lines)
+    {
+        var line = lines.SingleOrDefault(l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        return line?.Text.Split("which is ", StringSplitOptions.None)[1]
+            .Split(". It is the", StringSplitOptions.None)[0];
+    }
+
+    /// <summary>
+    /// Every scripted face one exchange in a scrum of <paramref name="bystanders"/> needs, with
+    /// <paramref name="pick"/> standing in for the GM's dice — both shots missing everything, so the
+    /// only variable is who the second one goes to.
+    /// </summary>
+    private int[] AMissIntoAScrum(int bystanders, params int[] pick) =>
+    [
+        .. Enumerable.Repeat(1, 8 + _play.GetGritty("gritty_friendly_fire").FriendlyFire!.PenaltyDice),
+        .. Enumerable.Repeat(1, Halved(4)),
+        .. pick,
+        .. Enumerable.Repeat(1, 8),
+        .. Enumerable.Repeat(1, Halved(4))
+    ];
+
+    /// <summary>
+    /// <b>Everybody in the melee can be the one the stray round finds — including the seventh, the
+    /// eighth and the ninth.</b>
+    ///
+    /// <para>p.80 has the GM select the second target "randomly", and this engine takes the choice
+    /// off <see cref="IDiceSource"/> so a seeded run reproduces it. <b>One d6 cannot make that
+    /// choice out of more than six.</b> Read as <c>(face - 1) % count</c> it reaches indices 0 to 5
+    /// and no further, so in the scrum below three of the nine could never be hit at all while the
+    /// ledger went on saying the target had been selected randomly — a set silently cut down to the
+    /// size of the die.</para>
+    ///
+    /// <para>The fixture walks every face the engine can be handed, which for a melee of nine is
+    /// every pair of them, and requires the names that came back to be the whole melee. <b>The
+    /// control is the count</b>: an engine reaching six of the nine passes every other assertion
+    /// here, and the equality against the roster is what catches it.</para>
+    ///
+    /// <para>The smaller scrum beside it is the other control — a melee inside one die's reach
+    /// still resolves off one die, so this is not a fixture that would pass an engine which threw
+    /// dice until something came up.</para>
+    /// </summary>
+    [Fact]
+    public void EverybodyInTheMeleeCanBeTheOneTheStrayRoundFinds()
+    {
+        var reached = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var first in Enumerable.Range(1, 6))
+        {
+            foreach (var second in Enumerable.Range(1, 6))
+            {
+                var shot = Shoot(
+                    Scrum(bystanders: 9), FriendlyFireOn, AMissIntoAScrum(9, first, second));
+
+                // The control: every face was consumed, so the pick really was made off these dice
+                // and the stray round really was resolved.
+                Assert.Equal(shot.Thrown, AMissIntoAScrum(9, first, second).Length);
+
+                var picked = PickedOutOf(shot.Lines);
+
+                Assert.NotNull(picked);
+                reached.Add(picked);
+            }
+        }
+
+        var everyone = new SortedSet<string>(
+            Enumerable.Range(1, 9).Select(i => $"Bystander {i}"), StringComparer.Ordinal);
+
+        Assert.Equal(everyone, reached);
+
+        // And a melee a single die can span is still settled by a single die, so the fix is dice
+        // enough for the melee rather than dice for their own sake.
+        var small = Shoot(Scrum(bystanders: 2), FriendlyFireOn, AMissIntoAScrum(2, 5));
+
+        Assert.Equal(small.Thrown, AMissIntoAScrum(2, 5).Length);
+        Assert.Contains("a die came up 5", small.Lines.Single(l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal)).Text,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The pick is reproducible from the seed, which is what taking it off
+    /// <see cref="IDiceSource"/> is for.</b>
+    ///
+    /// <para>A balance figure is quoted with its seed, so a fight that picked its stray target out
+    /// of some other randomness would be a fight nobody could replay. Two runs on one seed have to
+    /// agree, and the control beside it is that a different seed is capable of disagreeing —
+    /// otherwise an engine that always picked the first name in the melee would satisfy the
+    /// equality perfectly.</para>
+    /// </summary>
+    [Fact]
+    public void TwoSeededRunsPickTheSameUnluckyBystander()
+    {
+        string? Pick(int seed)
+        {
+            var encounter = new Encounter(_play, new SeededDice(seed), FriendlyFireOn);
+            var state = encounter.Begin(Scrum(bystanders: 9));
+
+            var step = encounter.Step(
+                state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+            return PickedOutOf(step.Added);
+        }
+
+        var picks = Enumerable.Range(1, 60)
+            .Select(seed => (Seed: seed, Name: Pick(seed)))
+            .Where(run => run.Name is not null)
+            .ToList();
+
+        // The control: some of these seeds do send a stray round, so the equality below is about
+        // picks that happened rather than about sixty absences agreeing with each other.
+        Assert.NotEmpty(picks);
+
+        foreach (var (seed, name) in picks) Assert.Equal(name, Pick(seed));
+
+        // And the other control: the choice moves with the seed, so an engine that always named the
+        // first character in the melee could not satisfy this.
+        Assert.True(
+            picks.Select(run => run.Name).Distinct(StringComparer.Ordinal).Count() > 1,
+            "every seed picked the same character, so the pick is not coming off the dice");
+    }
+
+
+    /// <summary>
+    /// <b>The stray round is answered by the second target's own defence, it can find the shooter's
+    /// own side, and it costs the shooter neither a point of Resolve nor their turn.</b>
+    ///
+    /// <para><b>Hitting your own people is the whole of what p.80 is about</b> — "another target
+    /// involved in the melee", with no word about sides — so the fixture puts a Hero-side ally in
+    /// the tangle and requires the round to find them. Nothing in <c>Melee</c> partitions on
+    /// <see cref="Combatant.Side"/>, and this is what says so from outside.</para>
+    ///
+    /// <para><b>The defence is driven by counting faces rather than by reading the prose.</b> The
+    /// ally's Toughness is twice the first target's, so the pool the second exchange throws is a
+    /// different number from the pool the first one threw, and a stray round answered by the wrong
+    /// character's rank runs the scripted dice out or leaves faces on the table. That is a
+    /// mechanical difference an engine copying the first defence across could not fake.</para>
+    ///
+    /// <para>The two figures beside it are the ones p.80 never charges for: the shot is a
+    /// consequence of the first attack, not a second action, so the shooter's Resolve is untouched
+    /// and it is still their turn when it is over.</para>
+    /// </summary>
+    [Fact]
+    public void TheStrayRoundFindsTheShootersOwnAllyAndIsAnsweredByTheirOwnDefence()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        var fight = new List<Combatant>
+        {
+            Combatant.Hero(
+                "hero", "the Hero", edge: 12, health: 10, resolve: 2,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 }, ["toughness"]),
+            Combatant.Villain(
+                "villain", "the Villain", edge: 7, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 }, ["toughness"]),
+            Combatant.Extra(
+                "ally", "the Sidekick", edge: 3, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 8 },
+                ["toughness"], side: Combatant.HeroSide)
+        };
+
+        // The control on the fixture's own arithmetic: the two defences really are different pools,
+        // so counting faces can tell them apart.
+        Assert.NotEqual(Halved(4), Halved(8));
+
+        int[] faces =
+        [
+            .. Enumerable.Repeat(1, 8 + rule.PenaltyDice),   // the shot into the scrum, missing
+            .. Enumerable.Repeat(1, Halved(4)),              // the Villain's own soak
+            3,                                               // the GM's pick, of one candidate
+            4, 4, .. Enumerable.Repeat(1, 6),                // the stray round: two successes
+            .. Enumerable.Repeat(1, Halved(8))               // and the Sidekick's own soak
+        ];
+
+        var dice = new ScriptedDice(faces);
+        var encounter = new Encounter(_play, dice, FriendlyFireOn);
+        var state = encounter.Begin(fight);
+
+        var step = encounter.Step(
+            state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+        // The control: every face was consumed and no more asked for, which is the assertion that
+        // the second exchange threw the Sidekick's pool and not the Villain's.
+        Assert.Equal(0, dice.Remaining);
+
+        var sent = Assert.Single(step.Added, l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        Assert.Contains("the Sidekick", sent.Text, StringComparison.Ordinal);
+
+        var ally = step.State["ally"];
+
+        Assert.Equal(Combatant.HeroSide, ally.Side);
+        Assert.Equal(ally.FullHealth - (2 * rate), ally.CurrentHealth);
+
+        // And what the second attack does not cost: p.80 makes it a consequence of the first shot
+        // rather than a second action.
+        Assert.Equal(state["hero"].Resolve, step.State["hero"].Resolve);
+        Assert.Equal("hero", step.State.Current!.Id);
+    }
+
+    /// <summary>
+    /// <b>The stray round can find the shooter's own Minions, and it defeats them the way any
+    /// attack on a group does.</b>
+    ///
+    /// <para>A group of Minions is a target like any other and p.80's melee is derived from p.73's
+    /// range bands, which know nothing about who brought whom — so a mob standing beside the person
+    /// their own side was shooting at is in the tangle. Worth driving separately because a Minion
+    /// group takes a different path out of the attack: there is no Health to remove, and what the
+    /// round does is take bodies off the count.</para>
+    /// </summary>
+    [Fact]
+    public void TheStrayRoundCanFindTheShootersOwnMinions()
+    {
+        var rule = _play.GetGritty("gritty_friendly_fire").FriendlyFire!;
+
+        var fight = new List<Combatant>
+        {
+            Combatant.Hero(
+                "hero", "the Hero", edge: 12, health: 10, resolve: 0,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 }, ["toughness"]),
+            Combatant.Villain(
+                "villain", "the Villain", edge: 7, health: 10,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 }, ["toughness"]),
+            Combatant.Minions(
+                "mob", "our own robots", threat: 2, groupSize: 4, threatTraitId: "threat",
+                side: Combatant.HeroSide)
+        };
+
+        int[] faces =
+        [
+            .. Enumerable.Repeat(1, 8 + rule.PenaltyDice),   // the shot into the scrum, missing
+            .. Enumerable.Repeat(1, Halved(4)),              // the Villain's own soak
+            2,                                               // the GM's pick
+            .. Enumerable.Repeat(6, 8),                      // the stray round, landing hard
+            .. Enumerable.Repeat(1, 30)                       // whatever the mob answers with
+        ];
+
+        var dice = new ScriptedDice(faces);
+        var encounter = new Encounter(_play, dice, FriendlyFireOn);
+        var state = encounter.Begin(fight);
+
+        var step = encounter.Step(
+            state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+        var sent = Assert.Single(step.Added, l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        Assert.Contains("our own robots", sent.Text, StringComparison.Ordinal);
+
+        // The state, not the prose: bodies came off the count that the shooter's own side brought.
+        Assert.Equal(Combatant.HeroSide, step.State["mob"].Side);
+        Assert.True(
+            step.State["mob"].GroupSize < state["mob"].GroupSize,
+            "the round was announced against the mob and never landed on it");
+    }
+
+
+    // ── p.80's Slow Healing ──────────────────────────────────────────────────
+
+    /// <summary>Slow Healing, and nothing else.</summary>
+    private static readonly TableRules SlowHealingOn = TableRules.Book with { SlowHealing = true };
+
+    /// <summary>
+    /// A Hero beaten down to the defeat figure with a point of Resolve left to get up on, and a
+    /// Villain standing over them.
+    /// </summary>
+    private (EncounterState State, Encounter Fight) Floored(TableRules table)
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        var hero = Combatant.Hero(
+            "hero", "the Hero", edge: 12, health: 8, resolve: 2,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 2 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain(
+            "villain", "the Villain", edge: 7, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 2 },
+            ["toughness"]);
+
+        var fight = new Encounter(_play, new ScriptedDice([.. Enumerable.Repeat(4, 400)]), table);
+        var state = fight.Begin([hero, villain]);
+
+        // Put the Hero on the floor without rolling for it, so this fixture is about what happens
+        // next rather than about how they got there.
+        state = state.With(state["hero"].WithHealth(floor));
+
+        Assert.True(state["hero"].Defeated(floor), "the fixture did not actually put the Hero down");
+
+        return (state, fight);
+    }
+
+    /// <summary>
+    /// <b>Under Slow Healing a character brought round comes up on the Health they went down with,
+    /// and stays up.</b>
+    ///
+    /// <para>p.80 takes away the healing "when you regain consciousness after a defeat", which is
+    /// exactly what p.76's instant recovery is — so the purchase still buys the character their feet
+    /// and buys them no Health at all. <b>The state is what is checked</b>: an engine that had
+    /// written the sentence and left <see cref="Combatant.Defeated"/> answering true would have the
+    /// character down again on the very next line, and the point would have bought a ledger
+    /// entry.</para>
+    ///
+    /// <para><b>The setting off is the baseline and is measured first</b>, and it is the entry's own
+    /// figure rather than a number typed here.</para>
+    /// </summary>
+    [Fact]
+    public void SlowHealingBringsACharacterRoundOnTheHealthTheyWentDownWith()
+    {
+        var restores = _play.GetCombat("instant_recovery").InstantRecovery!.AfterADamagingDefeatRestoresHealth;
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        // The control on the reading: p.76 really does restore something, or "restores nothing" is
+        // a statement about a rule that never gave anything back.
+        Assert.True(restores > floor);
+
+        var (open, ordinary) = Floored(TableRules.Book);
+        var healed = ordinary.Step(open, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.Equal(restores, healed["hero"].CurrentHealth);
+        Assert.False(healed["hero"].ConsciousAtZeroOrLess);
+        Assert.False(healed["hero"].Defeated(floor));
+
+        var (slow, gritty) = Floored(SlowHealingOn);
+        var up = gritty.Step(slow, new SpendResolve("hero", ResolveSpend.InstantRecovery));
+
+        Assert.Equal(floor, up.State["hero"].CurrentHealth);
+        Assert.True(up.State["hero"].ConsciousAtZeroOrLess);
+
+        // The half that makes it a state rather than a flag: they are on their feet at a Health
+        // that would otherwise have them out of the fight.
+        Assert.False(up.State["hero"].Defeated(floor));
+
+        var line = Assert.Single(up.Added, l =>
+            string.Equals(l.Rule, "gritty_slow_healing", StringComparison.Ordinal));
+
+        Assert.Contains("single point of damage", line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A character standing at the defeat figure goes down again to one point of damage.</b>
+    ///
+    /// <para>The other half of p.80's sentence, and the reason the first half is safe to apply: a
+    /// character who may be conscious at nothing "is defeated if you take even a single point of
+    /// damage in this condition". Driven at one point rather than at a comfortable number, because
+    /// the page's word is <em>single</em> and an engine that had used the ordinary defeat test would
+    /// pass at anything larger.</para>
+    /// </summary>
+    [Fact]
+    public void OnePointOfDamagePutsAStandingCharacterBackDown()
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        Assert.Equal(1, rate);   // the fixture's control: one net success really is one point
+
+        var (slow, fight) = Floored(SlowHealingOn);
+        var state = fight.Step(slow, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.False(state["hero"].Defeated(floor));
+
+        // The Villain's turn, and a single net success: 6d Might for one success against the Hero's
+        // halved 2d Toughness, which scores nothing.
+        state = fight.Step(state, new EndTurn("hero")).State;
+
+        var scripted = new ScriptedDice([4, 1, 1, 1, 1, 1, 1, 1]);
+        var villainsTurn = new Encounter(_play, scripted, SlowHealingOn);
+
+        var struck = villainsTurn.Step(
+            state, new Attack("villain", "hero", "might", DamageKind.Subdual)).State;
+
+        Assert.Equal(floor, struck["hero"].CurrentHealth);
+        Assert.False(struck["hero"].ConsciousAtZeroOrLess);
+        Assert.True(struck["hero"].Defeated(floor), "one point of damage left them standing");
+    }
+
+    /// <summary>
+    /// <b>A character p.80 leaves conscious is a character who can act: they attack, they hurt
+    /// somebody, and they spend the Resolve they have left.</b>
+    ///
+    /// <para>"You may be conscious while at 0 or negative Health" is the whole of what this state
+    /// is, and being in the fight is what conscious means — so <see cref="Combatant.Defeated"/>
+    /// reading <see cref="Combatant.ConsciousAtZeroOrLess"/> is not a bookkeeping detail, it is
+    /// every refusal in <c>Encounter.Step</c> at once. Every intent that is a character doing
+    /// something is refused for a defeated actor, so an engine that had set the flag and left the
+    /// defeat test alone would have sold a point of Resolve for a character who could stand there
+    /// and nothing else.</para>
+    ///
+    /// <para><b>The control is the same fight without the setting</b>, where the Hero is down and
+    /// each of the same two intents is refused by name. Without it this fixture would pass against
+    /// an engine that had stopped refusing a defeated character anything.</para>
+    /// </summary>
+    [Fact]
+    public void ACharacterStandingAtNothingActsLikeAnybodyElse()
+    {
+        (EncounterState State, IReadOnlyList<LedgerLine> Lines) Fight(TableRules table)
+        {
+            var (opening, fight) = Floored(table);
+            var state = fight.Step(opening, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+            var lines = new List<LedgerLine>();
+
+            var struck = fight.Step(state, new Attack("hero", "villain", "might", DamageKind.Subdual));
+            lines.AddRange(struck.Added);
+
+            var seized = fight.Step(struck.State, new SpendResolve("hero", ResolveSpend.SeizeInitiative));
+            lines.AddRange(seized.Added);
+
+            return (seized.State, lines);
+        }
+
+        var standing = Fight(SlowHealingOn);
+
+        Assert.True(standing.State["hero"].ConsciousAtZeroOrLess);
+
+        // They attacked, and it landed: the state moved, not just the ledger.
+        Assert.Contains(standing.Lines, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+        Assert.True(standing.State["villain"].CurrentHealth < standing.State["villain"].FullHealth);
+
+        // And they bought something with the point they had left.
+        Assert.Contains("hero", standing.State.Seized, StringComparer.Ordinal);
+        Assert.Equal(0, standing.State["hero"].Resolve);
+
+        // The control: the same attack by a Hero on the same Health who never stood up, which the
+        // engine refuses. Without it this would pass against an engine that had stopped refusing a
+        // defeated character anything.
+        var (floored, ordinary) = Floored(TableRules.Book);
+        var refused = ordinary.Step(floored, new Attack("hero", "villain", "might", DamageKind.Subdual));
+
+        Assert.DoesNotContain(refused.Added, l =>
+            l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        Assert.Equal(
+            refused.State["villain"].FullHealth, refused.State["villain"].CurrentHealth);
+    }
+
+    /// <summary>
+    /// <b>A charge's own impact is damage too, and it puts a standing character back down.</b>
+    ///
+    /// <para>p.80's sentence is about damage and not about attacks: "you are defeated if you take
+    /// even a single point of damage in this condition". <b>An attack aimed at the character is not
+    /// the only way they take one.</b> p.78 hurts the <em>charger</em> — "the charger makes their
+    /// own passive defense roll against the attack to see whether the impact hurts them" — through
+    /// a path that writes a Health of its own, and that path never asked the question. A character
+    /// on their feet at nothing could charge a braced opponent, take two points on the ledger and
+    /// walk away still standing.</para>
+    ///
+    /// <para><b>With Fatal Damage off the state hid it completely</b>, which is why this is driven
+    /// against the defeat flag rather than against a Health: the clamp at the defeat figure leaves a
+    /// character already on that figure exactly where they were, so the impact left no trace at all
+    /// beyond a ledger line saying it had happened.</para>
+    ///
+    /// <para>The controls are the impact and the switch. The impact is required to be a real
+    /// figure, so this cannot pass against a charge that hurt nobody; and the same exchange with
+    /// Slow Healing off is required to leave a character who never stood up in the first
+    /// place.</para>
+    /// </summary>
+    [Fact]
+    public void AChargesOwnImpactPutsAStandingCharacterBackDown()
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        // 6d of Might and the charge's two for eight dice, of which two land; the Villain's 2d
+        // passive Toughness comes up sixes for four, so the charge lands nothing and the
+        // self-damage is reduced by nothing; then the charger's own 2d passive answers their own
+        // two successes with none, which is two points of impact.
+        int[] faces = [4, 4, 1, 1, 1, 1, 1, 1, 6, 6, 1, 1];
+
+        var (slow, fight) = Floored(SlowHealingOn);
+        var state = fight.Step(slow, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.True(state["hero"].ConsciousAtZeroOrLess);
+        Assert.False(state["hero"].Defeated(floor));
+
+        var dice = new ScriptedDice(faces);
+
+        var charged = new Encounter(_play, dice, SlowHealingOn)
+            .Step(state, new Attack("hero", "villain", "might", DamageKind.Subdual, Charge: true));
+
+        // The control: the charge really did come back on the charger, and for a figure rather than
+        // for nothing — an impact of zero would satisfy "still standing" honestly.
+        var impact = Assert.Single(charged.Added, l =>
+            l.Text.Contains("the impact of", StringComparison.Ordinal));
+
+        Assert.Contains("the impact of 2 ", impact.Text, StringComparison.Ordinal);
+        Assert.Equal(0, dice.Remaining);
+
+        Assert.False(charged.State["hero"].ConsciousAtZeroOrLess);
+        Assert.True(
+            charged.State["hero"].Defeated(floor),
+            "the charger took the impact of their own charge and stayed on their feet");
+
+        // And the switch off is the baseline: a Hero who never stood up is down the whole time, so
+        // the flag above is Slow Healing's and not something every charge does.
+        var (ordinary, plain) = Floored(TableRules.Book);
+        var up = plain.Step(ordinary, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.False(up["hero"].ConsciousAtZeroOrLess);
+    }
+
+    /// <summary>
+    /// <b>An attack that lands nothing leaves them standing</b> — "even a single point" is a point,
+    /// and a miss is not one. The control on the fixture above: without this, an engine that put a
+    /// standing character down on every attack aimed at them would pass it perfectly.
+    /// </summary>
+    [Fact]
+    public void AMissLeavesAStandingCharacterOnTheirFeet()
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        var (slow, fight) = Floored(SlowHealingOn);
+        var state = fight.Step(slow, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        state = fight.Step(state, new EndTurn("hero")).State;
+
+        // Nothing on either side, so the attack has no net successes and does no damage.
+        var scripted = new ScriptedDice([.. Enumerable.Repeat(1, 8)]);
+        var missed = new Encounter(_play, scripted, SlowHealingOn)
+            .Step(state, new Attack("villain", "hero", "might", DamageKind.Subdual)).State;
+
+        Assert.True(missed["hero"].ConsciousAtZeroOrLess);
+        Assert.False(missed["hero"].Defeated(floor));
+    }
+
+    /// <summary>
+    /// <b>Page one says which clauses this scene carries and which it cannot.</b>
+    ///
+    /// <para>Half of p.80's rule is about the days after a fight, and a setting announced as on
+    /// while only part of it runs is the shape of defect this ledger exists to prevent. So the
+    /// out-of-scene half is named — every band of the daily rate, the after-battle healing, the
+    /// Medicine limit — and so are the entry's own two notes: the lowest band's hourly figure, which
+    /// is this project's arithmetic, and the ambiguity about which way the Medicine rate halves.
+    /// </para>
+    ///
+    /// <para>Every figure is read out of the shipped entry, so a corrected file moves the fixture
+    /// with it.</para>
+    /// </summary>
+    [Fact]
+    public void PageOneSaysWhichHalfOfSlowHealingTheSceneCarries()
+    {
+        var entry = _play.GetGritty("gritty_slow_healing");
+        var rule = entry.SlowHealing!;
+
+        var (state, _) = Floored(SlowHealingOn);
+
+        var opening = state.Ledger.Lines
+            .Where(l => string.Equals(l.Rule, "gritty_slow_healing", StringComparison.Ordinal))
+            .ToList();
+
+        // Three: the setting's own announcement, then the two halves of what it reaches.
+        Assert.Equal(3, opening.Count);
+        Assert.Contains("table setting SlowHealing is on", opening[0].Text, StringComparison.Ordinal);
+
+        var inside = opening[1].Text;
+        var outside = opening[2].Text;
+
+        Assert.Contains("regaining consciousness", inside, StringComparison.Ordinal);
+        Assert.Contains("any damage at all", inside, StringComparison.Ordinal);
+
+        // Every band of the daily rate, by the figures the file carries.
+        Assert.Equal(4, rule.Bands.Count);
+
+        foreach (var band in rule.Bands)
+        {
+            Assert.Contains(
+                $"{band.HealthPerDay} a day", outside, StringComparison.Ordinal);
+        }
+
+        // The lowest band prints no hourly figure and the interpretation supplies one.
+        Assert.Null(rule.Bands[0].OnePointEveryHours);
+        Assert.Contains(
+            $"1 every {entry.Interpretation!.OnePointEveryHoursForTheLowestBand} hours",
+            outside,
+            StringComparison.Ordinal);
+
+        Assert.Contains(rule.MedicineHealingLimit, outside, StringComparison.Ordinal);
+        Assert.Contains(entry.Ambiguity!, outside, StringComparison.Ordinal);
+
+        // And the setting off says none of it.
+        var (quiet, _) = Floored(TableRules.Book);
+
+        Assert.DoesNotContain(quiet.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_slow_healing", StringComparison.Ordinal));
+    }
+
+
+    // ── The baseline every one of these figures is measured against ──────────
+
+    /// <summary>
+    /// A fight with a Hero, a Villain and a mob in it, either declaring every fact this slice added
+    /// to a <see cref="Combatant"/> or declaring none of them.
+    ///
+    /// <para><b>The readiness is deliberately mixed.</b> p.79's Drop doubles a holder's Edge
+    /// against everyone who has not got one levelled, so a party in which everybody is ready
+    /// doubles every figure and comes out in the order it went in — which would make the run below
+    /// agree with its baseline for the wrong reason. Only the Villain and the mob are ready, and
+    /// the Villain's doubled Edge would overtake the Hero's.</para>
+    /// </summary>
+    private static List<Combatant> Declaring(bool everything)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 6, ["agility"] = 4, ["toughness"] = 4
+        };
+
+        return
+        [
+            Combatant.Hero(
+                "hero", "the Hero", edge: 9, health: 10, resolve: 3, traits, ["toughness", "agility"],
+                hardTarget: everything),
+            Combatant.Villain(
+                "villain", "the Villain", edge: 8, health: 10, traits, ["toughness", "agility"],
+                hardTarget: everything, ready: everything),
+            Combatant.Minions(
+                "mob", "the robots", threat: 5, groupSize: 4, threatTraitId: "threat",
+                hardTarget: everything, ready: everything)
+        ];
+    }
+
+    /// <summary>
+    /// <b>A fact declared for a switch that is off leaves the whole fight where it was — the order,
+    /// every Health, and the ledger line for line.</b>
+    ///
+    /// <para>This is the baseline every balance figure off this engine is quoted against, and it is
+    /// the property the five switches in this slice most needed and had least of: each of them was
+    /// driven with its own setting off, and none of them was driven against a run that had never
+    /// heard of the setting at all. <b>The difference matters because the declarations are new
+    /// fields on <see cref="Combatant"/></b> — a <c>hard_target</c> read one branch too early, or a
+    /// <c>ready</c> that doubled an Edge before the switch was consulted, moves a measurement that
+    /// is supposed to be the book's own.</para>
+    ///
+    /// <para>Two whole runs to the end on one seed, one party declaring every flag and one
+    /// declaring none, compared on the state and on the ledger. <b>The control is that the run did
+    /// something</b>: it has to have turned pages, thrown dice and taken Health off somebody, or
+    /// two empty fights would agree perfectly.</para>
+    /// </summary>
+    [Fact]
+    public void EveryDeclarationThisSliceAddedChangesNothingWhileItsSwitchIsOff()
+    {
+        EncounterState Run(bool declaring)
+        {
+            var encounter = new Encounter(_play, new SeededDice(80), TableRules.Book);
+
+            return encounter.RunToEnd(
+                encounter.Begin(Declaring(declaring)), new AttackTheWeakest(_play), maxPages: 30);
+        }
+
+        var plain = Run(declaring: false);
+        var declared = Run(declaring: true);
+
+        // The control: this was a fight and not a formality.
+        Assert.True(plain.Page > 1, "the baseline run never turned a page");
+        Assert.True(plain.Ledger.Lines.Count > 20, "the baseline run barely happened");
+        Assert.Contains(
+            plain.Combatants.Values,
+            c => c.Kind != CombatantKind.MinionGroup && c.CurrentHealth < c.FullHealth);
+
+        Assert.Equal(plain.TurnOrder, declared.TurnOrder);
+        Assert.Equal(plain.Page, declared.Page);
+
+        foreach (var id in plain.Combatants.Keys)
+        {
+            Assert.Equal(plain[id].CurrentHealth, declared[id].CurrentHealth);
+            Assert.Equal(plain[id].GroupSize, declared[id].GroupSize);
+            Assert.Equal(plain[id].Defeated(DefeatFloor), declared[id].Defeated(DefeatFloor));
+        }
+
+        Assert.Equal(
+            plain.Ledger.Lines.Select(l => $"{l.Page}|{l.Rule}|{l.Text}"),
+            declared.Ledger.Lines.Select(l => $"{l.Page}|{l.Rule}|{l.Text}"));
+    }
+
+    /// <summary>The defeat figure, for a fixture that has no encounter of its own to ask.</summary>
+    private int DefeatFloor => _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+    /// <summary>
+    /// <b>The two declarations this slice added to an <see cref="Attack"/> throw the same pool and
+    /// take the same Health while their switches are off.</b>
+    ///
+    /// <para>The same reasoning as the fixture above, on the other kind of declaration. Both flags
+    /// price something — <c>vulnerable_part</c> costs four dice and <c>close_range_only</c> saves a
+    /// dodger two — so a flag consulted before its switch would be visible in the pool, and the pool
+    /// is what the scripted dice count.</para>
+    ///
+    /// <para><b>Only the ledger may differ, and only in one direction</b>: a weak point declared
+    /// against a table that never took Hard Targets says so, because a caller who believed they had
+    /// bought something should be told they had not. That line is the only difference allowed here,
+    /// and it is required to be present rather than merely tolerated.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoDeclarationsOnAnAttackChangeNoPoolWhileTheirSwitchesAreOff()
+    {
+        (int Thrown, EncounterState State, IReadOnlyList<LedgerLine> Lines) Shot(bool declaring)
+        {
+            var dice = new ScriptedDice([.. Enumerable.Repeat(4, 60)]);
+            var encounter = new Encounter(_play, dice, TableRules.Book);
+            var state = encounter.Begin(Declaring(everything: false));
+
+            var step = encounter.Step(state, new Attack(
+                "hero", "villain", "might", DamageKind.Subdual, AttackType.RangedWeapon,
+                VulnerablePart: declaring, CloseRangeOnly: declaring));
+
+            return (60 - dice.Remaining, step.State, step.Added);
+        }
+
+        var plain = Shot(declaring: false);
+        var declared = Shot(declaring: true);
+
+        // The control: an attack was resolved and it took Health off somebody, so this is not two
+        // refusals agreeing.
+        Assert.Contains(plain.Lines, l => l.Text.Contains("defends with", StringComparison.Ordinal));
+        Assert.True(plain.State["villain"].CurrentHealth < plain.State["villain"].FullHealth);
+
+        Assert.Equal(plain.Thrown, declared.Thrown);
+        Assert.Equal(plain.State["villain"].CurrentHealth, declared.State["villain"].CurrentHealth);
+
+        // The one line the declarations are allowed to add, and it has to be there.
+        Assert.Contains(declared.Lines, l =>
+            string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal)
+            && l.Text.Contains("this table did not take Hard Targets", StringComparison.Ordinal));
+
+        Assert.Equal(
+            plain.Lines.Select(l => l.Text),
+            declared.Lines
+                .Where(l => !string.Equals(l.Rule, "gritty_hard_targets", StringComparison.Ordinal))
+                .Select(l => l.Text));
+    }
+
+    /// <summary>
+    /// <b>Page one no longer says "not yet implemented" for the five this slice applied, and still
+    /// says it for the two it did not.</b>
+    ///
+    /// <para>That sentence is the whole of what a reader has to tell an applied setting from an
+    /// accepted one, and it is generated off <see cref="Encounter.SwitchesNotYetApplied"/> rather
+    /// than written per rule — so a switch removed from the code's list and left in the sentence,
+    /// or the other way round, is the exact drift this fixture exists to catch. Driven on the
+    /// printed text of a run with all twelve of them on at once.</para>
+    /// </summary>
+    [Fact]
+    public void PageOneNamesTheFiveAsAppliedAndTheGearLimitAsNot()
+    {
+        var everything = TableRules.Book with
+        {
+            CloseRangePenalty = true,
+            TheDrop = true,
+            FriendlyFire = true,
+            HardTargets = true,
+            SlowHealing = true,
+            RaisedGearLimit = true,
+            GearLimitRank = 9
+        };
+
+        var state = new Encounter(_play, new SeededDice(80), everything)
+            .Begin(Declaring(everything: false));
+
+        string Announcement(string name) => Assert.Single(
+            state.Ledger.Lines,
+            l => l.Text.StartsWith($"table setting {name} is on", StringComparison.Ordinal)).Text;
+
+        foreach (var applied in new[]
+        {
+            nameof(TableRules.CloseRangePenalty), nameof(TableRules.TheDrop),
+            nameof(TableRules.FriendlyFire), nameof(TableRules.HardTargets),
+            nameof(TableRules.SlowHealing)
+        })
+        {
+            Assert.DoesNotContain("not yet implemented", Announcement(applied), StringComparison.Ordinal);
+        }
+
+        // And the two the engine still declines, which is what keeps the assertions above from
+        // being satisfied by a page that had stopped saying "not yet implemented" about anything.
+        foreach (var listed in new[]
+        {
+            nameof(TableRules.RaisedGearLimit), nameof(TableRules.GearLimitRank)
+        })
+        {
+            Assert.Contains("not yet implemented", Announcement(listed), StringComparison.Ordinal);
+        }
+    }
+
+
+    // ── p.80's Gear Limit, and why both its switches are still listed ────────
+
+    /// <summary>
+    /// <b>Nothing in a fight here is held to a Gear Limit, and the raised one cannot honestly be
+    /// applied before the default one is.</b>
+    ///
+    /// <para>p.80 defines the limit as "the maximum effective Trait rank you can bring to bear
+    /// <em>when using mundane equipment</em>", and its worked example is a Might roll plus a sword's
+    /// +2d Weapon Bonus. Both halves of that are missing here, and this fixture drives both rather
+    /// than asserting them.</para>
+    ///
+    /// <para><b>There is no equipment in a fight.</b> An <see cref="Attack"/> names a Trait id and
+    /// no item, and a <see cref="Combatant"/> carries no gear — so a character built from a sheet
+    /// carrying a sword is byte-for-byte the character built from the same sheet without one, and
+    /// nothing downstream could tell an attack made with it from a bare-handed one.</para>
+    ///
+    /// <para><b>And there is no Weapon Bonus to cap.</b> <c>data/rules/</c> has no such figure at
+    /// all: Ch.6's catalogue is not extracted, and a <c>SelectedGear</c> is a name with optional
+    /// custom features on it. So a limit would have nothing to bite on even if an attack could name
+    /// a weapon.</para>
+    ///
+    /// <para><b>The consequence is the reason both switches stay listed</b>, and it is checked
+    /// rather than written down: <see cref="TableRules.GearLimit"/> computes the figure and no rule
+    /// in <c>play/</c> reads it. A run that turns <c>RaisedGearLimit</c> on is a run whose numbers
+    /// do not carry it, and page one says so.</para>
+    ///
+    /// <para><b>This test is written to fail when the gap closes.</b> A divergence recorded as a
+    /// check that still passes after the fix is one nobody notices was closed — the same shape as
+    /// the Expertise carve-out this repository already went through.</para>
+    /// </summary>
+    [Fact]
+    public void NothingInAFightIsHeldToAGearLimitSoBothSwitchesStayListed()
+    {
+        var rules = new RulesFixture();
+
+        var bare = rules.LegalSheet();
+        bare.Name = "the Hero";
+        bare.AbilityRanks["might"] = 8;
+
+        var armed = rules.LegalSheet();
+        armed.Name = "the Hero";
+        armed.AbilityRanks["might"] = 8;
+        armed.Gear.Add(new SelectedGear("a basic sword"));
+
+        // The control: the sword really is on the second sheet, so the equality below is between
+        // two different characters rather than between two copies of one.
+        Assert.Empty(bare.Gear);
+        Assert.Single(armed.Gear);
+
+        var without = CombatantFactory.From(bare, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
+        var with = CombatantFactory.From(armed, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
+
+        // A piece of gear reaches nothing an encounter can see.
+        Assert.Equal(without.TraitRanks.OrderBy(t => t.Key, StringComparer.Ordinal), with.TraitRanks.OrderBy(t => t.Key, StringComparer.Ordinal));
+        Assert.Equal(without.Rank("might"), with.Rank("might"));
+
+        // And an attack has nowhere to name one, so the limit could not be applied per attack
+        // either: every field of p.75's attack is a Trait, a row, or a modifier.
+        Assert.DoesNotContain(
+            typeof(Attack).GetProperties().Select(p => p.Name),
+            name => name.Contains("Gear", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("Weapon", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("Item", StringComparison.OrdinalIgnoreCase));
+
+        Assert.DoesNotContain(
+            typeof(Combatant).GetProperties().Select(p => p.Name),
+            name => name.Contains("Gear", StringComparison.OrdinalIgnoreCase));
+
+        // The figure exists and is the entry's; nothing reads it. That is the whole reason the two
+        // switches are still on Encounter.SwitchesNotYetApplied.
+        var entry = _play.GetGritty("gritty_raised_gear_limit").GearLimit!;
+
+        Assert.Equal(entry.DefaultRank, TableRules.Book.GearLimit(_play));
+
+        var readers = Directory
+            .EnumerateFiles(Path.Combine(RulesFixture.RepoRoot, "play"), "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                        && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(f => File.ReadAllText(f).Contains("GearLimit(", StringComparison.Ordinal))
+            .Select(f => Path.GetFileName(f))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        // The control on the scan: it really can find a name, and the one it finds is the
+        // definition rather than a use.
+        Assert.Equal(["TableRules.cs"], readers);
+
+        Assert.Contains(nameof(TableRules.RaisedGearLimit), Encounter.SwitchesNotYetApplied);
+        Assert.Contains(nameof(TableRules.GearLimitRank), Encounter.SwitchesNotYetApplied);
+    }
+
+    /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
+    private static string Line((int Thrown, IReadOnlyList<LedgerLine> Lines) exchange, string ruleId) =>
+        Assert.Single(exchange.Lines, l => string.Equals(l.Rule, ruleId, StringComparison.Ordinal)).Text;
 
     /// <summary>
     /// Markdown with its emphasis and its hard wrapping taken out, so a sentence is looked for as a
