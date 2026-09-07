@@ -2331,12 +2331,17 @@ public sealed partial class Encounter
                 entry.Id, entry.SourceRef, lines);
         }
 
-        lines.Add(new LedgerLine(
-            state.Page, npc.Id, entry.Id, entry.SourceRef,
-            $"the GM spends Adversity on {npc.Name}, which buys {as_}: p.85 says one point does "
-            + "whatever a point of Resolve could have done, on behalf of any NPC"));
+        // <b>The announcement is written after the purchase and only if the pool actually paid.</b>
+        // It used to be written before the dispatch, and every one of these can refuse — no roll on
+        // the table, nobody down under an effect, the wrong kind of blow — so a refusal left "the GM
+        // spends Adversity on X, which buys Y" standing above a line saying nothing happened, with
+        // the pool untouched. A reader counting spends off the ledger and a reader reading the pool
+        // would have given two different accounts of the same fight, which is the one thing a ledger
+        // exists to make impossible. It is *inserted* at the position it would have occupied, so the
+        // reading order is still the announcement and then what it bought.
+        var at = lines.Count;
 
-        return as_ switch
+        var after = as_ switch
         {
             ResolveSpend.ExtraDice => BuyDice(state, npc, spend.Points, lines, fromAdversity: true),
             ResolveSpend.Reroll => BuyReroll(state, npc, lines, fromAdversity: true),
@@ -2348,6 +2353,19 @@ public sealed partial class Encounter
                 nameof(spend), other,
                 "AdversityBuys names a purchase the GM's pool has no branch for.")
         };
+
+        // The pool is what says a point was spent: `Charge` is the only thing that moves it, and it
+        // is reached only past every refusal each purchase makes.
+        if (after.Adversity != state.Adversity)
+        {
+            lines.Insert(at, new LedgerLine(
+                state.Page, npc.Id, entry.Id, entry.SourceRef,
+                $"the GM spends {state.Adversity - after.Adversity} Adversity on {npc.Name}, which "
+                + $"buys {as_}: p.85 says one point does whatever a point of Resolve could have "
+                + "done, on behalf of any NPC"));
+        }
+
+        return after;
     }
 
     /// <summary>

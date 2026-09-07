@@ -2781,6 +2781,111 @@ public sealed class PlayEngineStepTests
         Assert.Equal(0, dice.Remaining);
     }
 
+    /// <summary>
+    /// <b>A purchase the GM's pool did not make does not say it did.</b>
+    ///
+    /// <para>p.85's first spend announces itself — "the GM spends Adversity on X, which buys Y" —
+    /// and then hands the purchase to the same code a Hero's own point runs. Every one of those can
+    /// refuse: there is no roll on the table, nobody is down under an effect, the blow was the wrong
+    /// kind. The announcement was written before the purchase was attempted, so a refusal left a
+    /// line claiming a point had been spent standing above a line saying nothing happened, with the
+    /// pool untouched — a reader counting spends off the ledger and a reader reading the pool would
+    /// have given two different accounts of the same fight.</para>
+    ///
+    /// <para><b>Every purchase the GM may name is driven</b>, and the situation is one in which none
+    /// of them can succeed. The positive control is the other half of the same test: with a roll on
+    /// the table the announcement is there and the pool has moved, so this is not a check satisfied
+    /// by an engine that had stopped announcing anything.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolSaysNothingMovedWhenNothingMoved()
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 3 },
+            ["toughness"]);
+
+        // Every line that claims the GM paid says so in these words — p.85's announcement and the
+        // purchase's own line both — and no refusal anywhere does.
+        const string Claim = "Adversity on";
+
+        var encounter = new Encounter(_play, new SeededDice(31));
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        // The control on the fixture: there is a pool to spend, so a refusal below is the purchase's
+        // and not "the GM has 0 Adversity".
+        Assert.True(opened.Adversity > 0);
+
+        foreach (var purchase in Enum.GetValues<ResolveSpend>())
+        {
+            var step = encounter.Step(opened, new SpendAdversity(
+                "villain", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
+
+            Assert.True(opened.Adversity == step.State.Adversity,
+                $"the GM's pool moved buying {purchase} on a page where nothing had happened yet.");
+
+            Assert.DoesNotContain(step.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
+        }
+
+        // The positive control: with a roll on the table the announcement is made and the pool falls.
+        var rolled = encounter.Step(opened, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed)).State;
+
+        var bought = encounter.Step(rolled, new SpendAdversity(
+            "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.ExtraDice));
+
+        Assert.Contains(bought.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
+        Assert.True(bought.State.Adversity < rolled.Adversity);
+    }
+
+    /// <summary>
+    /// <b>p.85's "on behalf of any NPC" means any NPC, and the pool pays once.</b>
+    ///
+    /// <para>A Minion group is an NPC like any other and holds no Resolve — <c>Combatant.Hero</c> is
+    /// the only factory that takes a pool — so the GM's point is the only way one of these purchases
+    /// reaches them at all. The figure asserted is the pool's arithmetic and never a die roll: the
+    /// price is the entry's own <c>cost_resolve</c> times the points asked for, and a purchase that
+    /// charged the gate's figure as well as the entry's would take twice that.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolBuysForAMinionGroupAndIsChargedExactlyOnce()
+    {
+        var cost = _play.GetResolve("spend_challenge_roll_dice").Spend!.CostResolve!.Value;
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var minions = Combatant.Minions("robots", "the robots", threat: 5, groupSize: 4, "threat");
+
+        var encounter = new Encounter(_play, new SeededDice(33));
+        var state = encounter.Begin([hero, minions], challengeLevel: 3);
+
+        // The Minions act last, so the page has to reach them before they can swing.
+        state = encounter.Step(state, new Hold("hero")).State;
+        state = encounter.Step(state, new EndTurn("hero")).State;
+
+        state = encounter.Step(state, new Attack(
+            "robots", "hero", "threat", DamageKind.Subdual, AttackType.Unarmed)).State;
+
+        // The controls: the roll on the table is the Minions' own, and they hold no Resolve to draw
+        // on — so what pays below can only be the GM's pool.
+        Assert.Equal("robots", state.LastAttack!.Actor);
+        Assert.Equal(0, state["robots"].Resolve);
+
+        var before = state.Adversity;
+
+        var bought = encounter.Step(state, new SpendAdversity(
+            "robots", AdversitySpend.AnythingResolveCan, Points: 2, AsResolve: ResolveSpend.ExtraDice));
+
+        Assert.Equal(before - (cost * 2), bought.State.Adversity);
+        Assert.Equal(0, bought.State["robots"].Resolve);
+        Assert.Equal(3, bought.State["hero"].Resolve);
+    }
+
     // ── Citations ────────────────────────────────────────────────────────────
 
     /// <summary>
