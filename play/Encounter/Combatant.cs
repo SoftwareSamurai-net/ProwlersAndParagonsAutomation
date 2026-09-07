@@ -29,8 +29,8 @@ public enum CombatantKind
 }
 
 /// <summary>
-/// An item a character has in their hands, which in this engine only ever arrives one way: p.76's
-/// full grab took it off somebody.
+/// An item a character has in their hands, which arrives one of two ways: they walked into the
+/// fight with it, or p.76's full grab took it off somebody.
 ///
 /// <para><b>There is no inventory here and this is not one.</b> A <c>CharacterSheet</c>'s gear is a
 /// name with optional custom features on it, nothing downstream can tell an attack made with a sword
@@ -39,17 +39,42 @@ public enum CombatantKind
 /// lure's target and a misfortune's narration are, and the only thing the engine claims about it is
 /// what p.76 says: who has it, and whether the page it was won on has been spent.</para>
 ///
+/// <para><b>The opening hand is the caller's word too, and it is what makes a grab honest.</b>
+/// p.76 aims a grab at "a weapon or other handheld item away from your opponent" — so a grab
+/// presupposes an opponent who <em>has</em> one, and an engine that took the item's existence off
+/// the grabber's own say-so would hand a winner control of an object nobody was ever recorded as
+/// carrying and print a line saying the loser had lost it. <see cref="Combatant.Carrying"/> is where
+/// the fact goes in, and <see cref="BeforeTheFight"/> is the page it is stamped with.</para>
+///
 /// <para><b>The page it was won on is what makes "that same page" enforceable.</b> p.76 lets the
 /// winner "use it or toss it aside on that same page"; an item won and neither used nor tossed by
 /// the time the page turns is dropped, which <see cref="Encounter.Step"/> does at
 /// <see cref="EndPage"/>. <see cref="Used"/> is what discharges the clause — an item the winner
 /// actually swung stays with them, and what becomes of it after that is the GM's, because the page
-/// stops talking.</para>
+/// stops talking. An item that was <em>carried in</em> is under no such clause at all: p.76's page
+/// is a limit on what a grab wins, and nothing in Chapters 3–5 takes a weapon off somebody who
+/// simply brought one.</para>
 /// </summary>
 /// <param name="Name">What it is, in the caller's own words.</param>
-/// <param name="WonOnPage">The page the full grab that took it landed on.</param>
+/// <param name="WonOnPage">
+/// The page the full grab that took it landed on, or <see cref="BeforeTheFight"/> where nobody won
+/// it and the character walked in with it.
+/// </param>
 /// <param name="Used">Whether the holder has attacked with it since.</param>
-public sealed record HeldItem(string Name, int WonOnPage, bool Used = false);
+public sealed record HeldItem(string Name, int WonOnPage, bool Used = false)
+{
+    /// <summary>
+    /// The page stamped on an item nobody won: the character brought it into the fight.
+    ///
+    /// <para>A fight's first page is 1, so this can never be the page that is ending — which is
+    /// exactly the behaviour p.76 asks for, since the clause it would fire is a limit on what a
+    /// grab wins and no grab won this.</para>
+    /// </summary>
+    public const int BeforeTheFight = 0;
+
+    /// <summary>Whether nobody won this: it was carried into the fight.</summary>
+    public bool CarriedIn => WonOnPage == BeforeTheFight;
+}
 
 /// <summary>
 /// An immutable snapshot of one participant in a fight.
@@ -605,6 +630,24 @@ public sealed class Combatant
             Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers,
             new HeldItem(item, wonOnPage));
     }
+
+    /// <summary>
+    /// This combatant walking into the fight with <paramref name="item"/> in their hands — the
+    /// caller's word, the way <see cref="Size"/>, <see cref="Invisible"/>, <see cref="HardTarget"/>
+    /// and <see cref="Ready"/> are.
+    ///
+    /// <para><b>It exists because a grab has to have something to be aimed at.</b> p.76 defines a
+    /// grab as an attempt to take a handheld item "away from your opponent"; with no way to say what
+    /// anybody walked in with, every grab in a real fight was for an item its target was not
+    /// recorded as holding, and the winner ended up holding an object that came from nowhere while
+    /// the ledger said the loser had lost it. <see cref="Encounter.Step"/> refuses a grab for an
+    /// item the target is not holding, so this is where the item comes from.</para>
+    ///
+    /// <para>It is stamped <see cref="HeldItem.BeforeTheFight"/>, which is never a page that ends,
+    /// because p.76's one-page clause is a limit on what a <em>grab</em> wins and no grab won this.
+    /// </para>
+    /// </summary>
+    public Combatant Carrying(string item) => Holds(item, HeldItem.BeforeTheFight);
 
     /// <summary>
     /// This combatant having swung what they are holding — p.76's "can use it".

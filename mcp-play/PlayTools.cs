@@ -184,9 +184,12 @@ public sealed class PlayTools
             + "\"threat_rank\": 6, \"count\": 4, \"side\": \"villains\"}. kind and side are yours "
             + "to say: nothing derives them from the sheet. Either shape may also carry \"size\", "
             + "\"invisible\", \"hard_target\" — a machine, vehicle or thick object, whose "
-            + "passive defences double while the hard_targets setting is on — and \"ready\", a "
+            + "passive defences double while the hard_targets setting is on — \"ready\", a "
             + "weapon or Power aimed and ready, which under the_drop doubles their Edge for the "
-            + "order of action.")]
+            + "order of action, and \"holding\", the one handheld item this combatant walks in "
+            + "with. That last is what p.76's grab is aimed at: a grab for an item its target is "
+            + "not holding is refused with nothing rolled, so say what a character is carrying "
+            + "here or nobody can be disarmed of it.")]
         JsonElement combatants,
         [Description(
             "The switches this table threw before play, as a JSON object of booleans — "
@@ -262,10 +265,11 @@ public sealed class PlayTools
             + "anything else that only works up close, which the close_range_penalty setting "
             + "ignores. A grapple with \"move\": \"grab\" needs an \"item\" — p.76 aims a grab at "
             + "an object and a hold at a person, so a grab naming nothing is refused with nothing "
-            + "rolled. A full grab puts that item in the winner's hands for the page: an attack may "
-            + "name it as \"item\" (which changes no figure and keeps it past the page turn), "
-            + "\"toss\" throws it away, and neither spends the turn. Anything else still held when "
-            + "the page ends is tossed aside.")]
+            + "rolled, and so is a grab for an item the target is not holding. A full grab puts "
+            + "that item in the winner's hands for the page: an attack may name it as \"item\" "
+            + "(which changes no figure and keeps it past the page turn), \"toss\" throws it "
+            + "away, and neither spends the turn. Anything else a grab won and nobody swung is "
+            + "tossed aside when the page ends.")]
         JsonElement intent)
     {
         if (string.IsNullOrWhiteSpace(encounterId) || !_encounters.TryGetValue(encounterId, out var held))
@@ -594,6 +598,14 @@ public sealed class PlayTools
                 ["invisible"]             = combatant.Invisible,
                 ["hard_target"]           = combatant.HardTarget,
                 ["ready"]                 = combatant.Ready,
+
+                // <b>And what they walked in holding, for the same reason.</b> p.76 aims a grab at
+                // an item its target has, so a fight opened with a weapon in somebody's hands is a
+                // fight where a grab is possible and one opened without is a fight where every grab
+                // is refused. That is a difference between two measurements, and a rate echoed
+                // without it is a figure about a fight nobody can reconstruct. It is the opening
+                // hand rather than the closing one: a run ends N times and this object is one.
+                ["holding"]               = combatant.Holding?.Name,
 
                 ["defeat_rate"]           = Rate(defeats[combatant.Id], runs),
                 ["mean_health_remaining"] = combatant.Kind == CombatantKind.MinionGroup
@@ -1185,11 +1197,26 @@ public sealed class PlayTools
         // Edge to double. The refusal is the engine's and it is on the ledger; this only reads.
         var ready = Flag(entry, "ready");
 
+        // <b>p.76's grab needs an opponent with something to take, and this is the only way to say
+        // so.</b> A grab is "an attempt to take a weapon or other handheld item away from your
+        // opponent"; nothing on a character sheet can answer for a hand — gear there is a name with
+        // custom features on it and the play engine may not read the character rules at all — so it
+        // is the caller's word, like the size and the light. Read before the Minion branch for the
+        // reason the size is: a mob can be the one carrying the artefact.
+        var holding = Text(entry, "holding").Trim();
+
         if (string.Equals(kind, "minions", StringComparison.Ordinal))
         {
-            return TryReadMinions(
-                entry, position, side, id, size, invisible, hardTarget, ready,
-                out combatant, out problem);
+            if (!TryReadMinions(
+                    entry, position, side, id, size, invisible, hardTarget, ready,
+                    out combatant, out problem))
+            {
+                return false;
+            }
+
+            if (holding.Length > 0) combatant = combatant.Carrying(holding);
+
+            return true;
         }
 
         if (entry["character"] is not { } character)
@@ -1231,6 +1258,8 @@ public sealed class PlayTools
                 id.Length == 0 ? null : id,
                 side.Length == 0 ? null : side,
                 size, invisible, hardTarget, ready);
+
+            if (holding.Length > 0) combatant = combatant.Carrying(holding);
 
             return true;
         }
@@ -1870,12 +1899,19 @@ public sealed class PlayTools
                     // p.76's full grab: what it put in their hands, the page it was won on, and
                     // whether they have swung it — which is what decides whether the page turn
                     // takes it away again.
+                    //
+                    // <b>An item nobody won reports no page, and 0 is not that.</b> A combatant may
+                    // walk into the fight holding something, which is the caller's word and the
+                    // fact a grab is aimed at; p.76's one-page clause is a limit on what a grab
+                    // wins, so it never applied to one of these. Publishing the engine's internal
+                    // 0 would read as "won on page zero", which is a page no fight has.
                     ["holding"]            = c.Holding is null
                         ? null
                         : new JsonObject
                         {
                             ["item"]         = c.Holding.Name,
-                            ["won_on_page"]  = c.Holding.WonOnPage,
+                            ["won_on_page"]  = c.Holding.CarriedIn ? null : c.Holding.WonOnPage,
+                            ["carried_in"]   = c.Holding.CarriedIn,
                             ["used"]         = c.Holding.Used
                         },
                     // p.80's Slow Healing: on their feet at a Health that would otherwise have

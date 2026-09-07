@@ -2094,6 +2094,13 @@ public sealed partial class Encounter
                 + "rolled");
         }
 
+        if (grapple.Move == GrappleMove.Grab
+            && GrabbingWhatTheyDoNotHold(state, actor, target, grapple.Item!.Trim(), entry, rule, lines)
+                is { } absent)
+        {
+            return absent;
+        }
+
         // p.76: Might against Might, both ways. The roll and the threshold are the entry's own.
         var trait = Normalise(rule.Roll);
 
@@ -2318,6 +2325,62 @@ public sealed partial class Encounter
     }
 
     /// <summary>
+    /// Whether a grab is aimed at something its target is not recorded as holding, refused on the
+    /// ledger with nothing rolled.
+    ///
+    /// <para><b>p.76 aims a grab at "a weapon or other handheld item away from your opponent", and
+    /// the engine used to take the object's existence off the grabber's own say-so.</b> The result
+    /// was a line that lied in both directions: on three net successes the winner held an object
+    /// nobody had ever been recorded as carrying, and the ledger said in as many words what losing it
+    /// meant for a loser who had never had it. Nothing on the wire could open a fight holding
+    /// anything, so <em>every</em> grab a caller made was of that kind.</para>
+    ///
+    /// <para><b>So the target's hand is a fact and it is the caller's word</b>, the way
+    /// <see cref="Combatant.Size"/> and <see cref="Combatant.Invisible"/> are:
+    /// <see cref="Combatant.Carrying"/> puts it there at the start of the fight and a full grab moves
+    /// it afterwards. The refusal names what the target <em>is</em> holding, because "they have not
+    /// got that" sends a caller guessing.</para>
+    ///
+    /// <para><b>The contested object of a partial grab is the one exception, and it is the page's
+    /// own.</b> A half-measure leaves the item in nobody's hands and has the pair "make opposed Might
+    /// rolls on your turn to act to try gaining control" — so the second roll of a deadlock is aimed
+    /// at an object neither of them holds, and refusing it would make the printed way out of a
+    /// partial grab unreachable.</para>
+    /// </summary>
+    private EncounterState? GrabbingWhatTheyDoNotHold(
+        EncounterState state, Combatant actor, Combatant target, string item, CombatEntry entry,
+        CombatGrapplingModel rule, List<LedgerLine> lines)
+    {
+        if (target.Holding is { } theirs
+            && string.Equals(theirs.Name, item, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (Contested(state, actor.Id, target.Id, item)) return null;
+
+        return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+            $"{target.Name} is not holding {item} — "
+            + (target.Holding is { } other
+                ? $"what they have in their hands is {other.Name}"
+                : "they are recorded as holding nothing")
+            + $". A grab is {rule.AGrabIs}, so there has to be something of theirs to take: say what "
+            + "a combatant walked in with when the fight is opened, or take it off them with a grab "
+            + "first. Nothing was rolled");
+    }
+
+    /// <summary>
+    /// Whether a standing partial grab between these two is over this object — p.76's "you and your
+    /// opponent are fighting over an item".
+    /// </summary>
+    private static bool Contested(EncounterState state, string a, string b, string item) =>
+        state.Grapples.Any(g =>
+            g.Move == GrappleMove.Grab
+            && g.Kind == GrappleKind.Partial
+            && Between(g, a, b)
+            && string.Equals(g.Item, item, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
     /// Whether an intent names an item its actor is not holding, refused on the ledger citing
     /// <c>grab</c> — the only entry in Chapters 3–5 that puts an object in anybody's hands.
     ///
@@ -2339,11 +2402,12 @@ public sealed partial class Encounter
         return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
             $"{actor.Name} is not holding {item} — "
             + (actor.Holding is { } other
-                ? $"what a grab won them is {other.Name}"
-                : "no grab of this fight has put anything in their hands")
-            + $". A full grab is {entry.Grab!.FullMeans} and this engine has no other way for anybody "
-            + "to be holding anything, so an item it does not know about is one it cannot resolve "
-            + "anything with. Nothing was rolled");
+                ? $"what they have in their hands is {other.Name}"
+                : "they are recorded as holding nothing")
+            + $". A full grab is {entry.Grab!.FullMeans}, and the only other way anybody here holds "
+            + "anything is by having walked into the fight with it, which is said when the fight is "
+            + "opened. An item this engine does not know about is one it cannot resolve anything "
+            + "with. Nothing was rolled");
     }
 
     /// <summary>
@@ -2359,12 +2423,19 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{actor.Name} attacks with {item}, which a full grab won them on page {held.WonOnPage}: "
+            $"{actor.Name} attacks with {item}, which "
+            + (held.CarriedIn
+                ? "they brought into the fight"
+                : $"a full grab won them on page {held.WonOnPage}")
+            + ": "
             + $"{nameof(grab.FullAllowsUsingOrTossingItTheSamePage)} is "
             + $"{grab.FullAllowsUsingOrTossingItTheSamePage} and it does not spend their turn. "
             + "No figure of this attack is changed by it — nothing in this repository's rules data "
-            + "gives a weapon a bonus or says which Trait it backs — and having been used, it stays "
-            + "with them past the page turn, where what becomes of it is the GM's"));
+            + "gives a weapon a bonus or says which Trait it backs — and "
+            + (held.CarriedIn
+                ? "no grab won it, so p.76's one page was never a limit on it"
+                : "having been used, it stays with them past the page turn, where what becomes of "
+                  + "it is the GM's")));
 
         return state.With(actor.Used());
     }

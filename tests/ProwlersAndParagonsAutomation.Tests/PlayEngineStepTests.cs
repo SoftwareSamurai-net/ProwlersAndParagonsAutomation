@@ -3068,6 +3068,18 @@ public sealed class PlayEngineStepTests
     ];
 
     /// <summary>
+    /// The same three, with the sword in the hand p.76 aims a grab at.
+    ///
+    /// <para><b>A grab needs an opponent who has something to take</b>, and this is how a caller
+    /// says so — <see cref="Combatant.Carrying"/> is the wire's <c>holding</c> field. Every fixture
+    /// below that means a grab to <em>land</em> opens from here; the ones that mean it to be refused
+    /// open from <see cref="Wrestlers"/>.</para>
+    /// </summary>
+    private static List<Combatant> ArmedWrestlers() =>
+        [.. Wrestlers().Select(c =>
+            string.Equals(c.Id, "held", StringComparison.Ordinal) ? c.Carrying("the sword") : c)];
+
+    /// <summary>
     /// <b>A grab is stored as a grab and a hold as a hold, in both bands.</b>
     ///
     /// <para>The engine keyed on the word "full" in p.76's table and wrote every result down as a
@@ -3094,11 +3106,13 @@ public sealed class PlayEngineStepTests
         var encounter = new Encounter(_play, dice);
 
         // p.76's grab is aimed at an object, so one has to be named or nothing is rolled — see
-        // AGrabThatNamesNoItemIsRefusedBeforeAnythingIsRolled.
+        // AGrabThatNamesNoItemIsRefusedBeforeAnythingIsRolled — and the target has to be holding it,
+        // which is what ArmedWrestlers says. See
+        // AGrabForSomethingTheTargetIsNotHoldingIsRefusedBeforeAnythingIsRolled.
         var item = move == GrappleMove.Grab ? "the sword" : null;
 
         var step = encounter.Step(
-            encounter.Begin(Wrestlers()), new GrappleIntent("holder", "held", move, item));
+            encounter.Begin(ArmedWrestlers()), new GrappleIntent("holder", "held", move, item));
 
         Assert.Equal(0, dice.Remaining);
 
@@ -3247,6 +3261,132 @@ public sealed class PlayEngineStepTests
     // ── p.76's grab, and the item it wins ────────────────────────────────────
 
     /// <summary>
+    /// <b>A grab for an item its target is not holding is refused with nothing rolled, and the
+    /// winner is not handed an object that came from nowhere.</b>
+    ///
+    /// <para>p.76: a grab is "an attempt to take a weapon or other handheld item away from your
+    /// opponent". The object had to be the caller's word — there is no inventory here — but the
+    /// engine took its <em>existence</em> from the caller too, and nothing on the wire could open a
+    /// fight holding anything, so every grab a real caller ever made was for an item its target was
+    /// not recorded as carrying. At three net successes the winner ended up holding it and the ledger
+    /// said, in as many words, what losing it meant for somebody who had never had it. A ledger line
+    /// that says a thing happened is the one thing this engine sells.</para>
+    ///
+    /// <para>The control is the other half, and it is the fixture below this one: the same grab
+    /// against a target who <em>is</em> holding the sword rolls and lands.</para>
+    /// </summary>
+    [Fact]
+    public void AGrabForSomethingTheTargetIsNotHoldingIsRefusedBeforeAnythingIsRolled()
+    {
+        var dice = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
+        var encounter = new Encounter(_play, dice);
+
+        var refused = encounter.Step(
+            encounter.Begin(Wrestlers()),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword"));
+
+        Assert.Contains(refused.Added, l =>
+            string.Equals(l.Rule, "grappling", StringComparison.Ordinal)
+            && l.Text.Contains("the held Hero is not holding the sword", StringComparison.Ordinal)
+            && l.Text.Contains("they are recorded as holding nothing", StringComparison.Ordinal));
+
+        // Nothing rolled, nothing announced, and above all nothing conjured into anybody's hands.
+        Assert.Equal(20, dice.Remaining);
+        Assert.DoesNotContain(refused.Added, l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
+        Assert.Empty(refused.State.Grapples);
+        Assert.Null(refused.State["holder"].Holding);
+
+        // And the line that used to lie is not written at all.
+        Assert.DoesNotContain(refused.Added, l =>
+            l.Text.Contains("what losing the sword means", StringComparison.Ordinal));
+
+        // The refusal names what the target does have, because "they have not got that" sends a
+        // caller guessing. Here the sword has already changed hands to a third party.
+        var opened = encounter.Begin(Wrestlers());
+        var elsewhere = opened.With(opened["held"].Carrying("a shield"));
+
+        var wrong = encounter.Step(
+            elsewhere, new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword"));
+
+        Assert.Contains(wrong.Added, l =>
+            string.Equals(l.Rule, "grappling", StringComparison.Ordinal)
+            && l.Text.Contains("what they have in their hands is a shield", StringComparison.Ordinal));
+
+        Assert.Equal(20, dice.Remaining);
+
+        // The control: with the sword in the target's hands the same grab is resolved, and takes the
+        // faces the two refusals left on the table.
+        var held = encounter.Step(
+            opened.With(opened["held"].Carrying("the sword")),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword"));
+
+        Assert.Equal(0, dice.Remaining);
+        Assert.Contains(held.Added, l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
+        Assert.Equal("the sword", held.State["holder"].Holding!.Name);
+    }
+
+    /// <summary>
+    /// <b>The second roll of a partial grab is aimed at an object neither of them holds, and is
+    /// allowed.</b>
+    ///
+    /// <para>p.76: "you and your opponent are fighting over an item ... you each get to make opposed
+    /// Might rolls on your turn to act to try gaining control." A partial grab takes the item out of
+    /// everybody's hands, so the guard above would have refused the printed way out of a deadlock —
+    /// and a partial grab takes both characters' active defences away against everyone else, so a
+    /// contest nothing could end would take them away for the rest of the fight.</para>
+    ///
+    /// <para>The control is that the exception is exactly as wide as the page: a <em>different</em>
+    /// object, contested by nobody, is still refused while the same deadlock stands.</para>
+    /// </summary>
+    [Fact]
+    public void EitherPartyMayGoOnRollingForTheItemAPartialGrabIsOver()
+    {
+        var partial = new ScriptedDice([.. FacesFor(10, 2), .. FacesFor(10, 0)]);
+        var opening = new Encounter(_play, partial);
+
+        var opened = opening.Begin(Wrestlers());
+
+        var deadlock = opening.Step(
+            opened.With(opened["held"].Carrying("the sword")),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword")).State;
+
+        // The controls: the deadlock really is one, and the half-measure moved nothing — the
+        // grabber has not got the sword, so their next roll is aimed at an item that is not in
+        // their hands either.
+        Assert.Equal(GrappleKind.Partial, Assert.Single(deadlock.Grapples).Kind);
+        Assert.Null(deadlock["holder"].Holding);
+
+        var dice = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
+        var encounter = new Encounter(_play, dice);
+
+        // The direction the exception is really for: the character who walked in with the sword
+        // rolls to get it back, and the grabber is not holding it — so without p.76's own clause
+        // this roll is the one that would be refused.
+        var back = encounter.Step(
+            deadlock with { TurnIndex = deadlock.TurnOrder.ToList().IndexOf("held") },
+            new GrappleIntent("held", "holder", GrappleMove.Grab, "the sword"));
+
+        Assert.Equal(0, dice.Remaining);
+        Assert.Contains(back.Added, l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
+        Assert.Equal("the sword", back.State["held"].Holding!.Name);
+
+        // The exception is only over the contested object: something else is still refused.
+        var other = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
+
+        var elsewhere = new Encounter(_play, other).Step(
+            deadlock with { TurnIndex = deadlock.TurnOrder.ToList().IndexOf("held") },
+            new GrappleIntent("held", "holder", GrappleMove.Grab, "a shield"));
+
+        Assert.Equal(20, other.Remaining);
+        Assert.Contains(elsewhere.Added, l =>
+            string.Equals(l.Rule, "grappling", StringComparison.Ordinal)
+            && l.Text.Contains("the holder is not holding a shield", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// <b>A grab that names no item is refused before a die is thrown, because p.76 tells the three
     /// moves apart by what they are aimed at.</b>
     ///
@@ -3271,7 +3411,8 @@ public sealed class PlayEngineStepTests
         var encounter = new Encounter(_play, dice);
 
         var refused = encounter.Step(
-            encounter.Begin(Wrestlers()), new GrappleIntent("holder", "held", GrappleMove.Grab, item));
+            encounter.Begin(ArmedWrestlers()),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, item));
 
         Assert.Contains(refused.Added, l =>
             string.Equals(l.Rule, "grappling", StringComparison.Ordinal)
@@ -3288,7 +3429,7 @@ public sealed class PlayEngineStepTests
         // The control: the same move with an object named is resolved, and takes the same faces the
         // refusal left on the table.
         var named = encounter.Step(
-            encounter.Begin(Wrestlers()),
+            encounter.Begin(ArmedWrestlers()),
             new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword"));
 
         Assert.Equal(0, dice.Remaining);
@@ -3317,8 +3458,7 @@ public sealed class PlayEngineStepTests
         var dice = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
         var encounter = new Encounter(_play, dice);
 
-        var opened = encounter.Begin(Wrestlers());
-        var state = opened.With(opened["held"].Holds("the sword", opened.Page));
+        var state = encounter.Begin(ArmedWrestlers());
 
         // The control: the loser really is holding it before the grab, so the assertion afterwards
         // is about something that moved.
@@ -3369,7 +3509,7 @@ public sealed class PlayEngineStepTests
         var encounter = new Encounter(_play, dice);
 
         var step = encounter.Step(
-            encounter.Begin(Wrestlers()),
+            encounter.Begin(ArmedWrestlers()),
             new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword"));
 
         Assert.Equal(0, dice.Remaining);
@@ -3383,9 +3523,12 @@ public sealed class PlayEngineStepTests
         // same item.
         Assert.Equal(["held", "holder"], new[] { grapple.Held, grapple.Holder }.Order(StringComparer.Ordinal));
 
-        // Nobody has it: the deadlock is the whole of the half-measure.
+        // <b>The half-measure moves nothing.</b> Only a full grab hands the object over, so the
+        // grabber has not got it and the character who walked in with it still has hold of it —
+        // "they can't use it, but neither can you" is a prohibition on using it and not a claim
+        // about whose hand it is in.
         Assert.Null(step.State["holder"].Holding);
-        Assert.Null(step.State["held"].Holding);
+        Assert.Equal("the sword", step.State["held"].Holding!.Name);
 
         // And the object is on the ledger line, so a reader of the run knows what they are fighting
         // over rather than that they are fighting.
@@ -3514,7 +3657,7 @@ public sealed class PlayEngineStepTests
         var grabbing = new Encounter(_play, dice);
 
         var state = grabbing.Step(
-            grabbing.Begin(Wrestlers()),
+            grabbing.Begin(ArmedWrestlers()),
             new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword")).State;
 
         // The control: the faces this fixture scripted are the faces the engine took, and the grab
@@ -3588,7 +3731,7 @@ public sealed class PlayEngineStepTests
         Assert.Contains(attack.Added, l =>
             string.Equals(l.Rule, "grab", StringComparison.Ordinal)
             && l.Text.Contains("is not holding a rocket launcher", StringComparison.Ordinal)
-            && l.Text.Contains("what a grab won them is the sword", StringComparison.Ordinal));
+            && l.Text.Contains("what they have in their hands is the sword", StringComparison.Ordinal));
 
         Assert.Equal(18, dice.Remaining);
         Assert.DoesNotContain(attack.Added, l =>
@@ -3609,8 +3752,7 @@ public sealed class PlayEngineStepTests
 
         Assert.Contains(empty.Added, l =>
             string.Equals(l.Rule, "grab", StringComparison.Ordinal)
-            && l.Text.Contains("no grab of this fight has put anything in their hands",
-                StringComparison.Ordinal));
+            && l.Text.Contains("they are recorded as holding nothing", StringComparison.Ordinal));
 
         // The control: the item they really do hold is accepted, and the attack is resolved.
         var allowed = scripted.Step(state, new Attack("holder", "held", "might", Item: "the sword"));
