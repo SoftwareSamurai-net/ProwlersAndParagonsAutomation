@@ -55,7 +55,7 @@ and then take turns in an encounter that does not exist. The character server (`
 paragons`) answers the same way, so one reader works for both.
 
 A `problem` is about the **request**: a tier these rules have not got, an intent this engine does
-not take, a side nobody set. It is never a finding about the character — whether a character is
+not take, a side nobody set, two characters whose sheets disagree about the house rules. It is never a finding about the character — whether a character is
 legal is the other server's question — and it is never a result of the fight. **A refused call
 changed nothing**, so there is no page, no roll and no ledger line behind it, and there is nothing
 in it to narrate: read the message and fix the call.
@@ -80,6 +80,60 @@ they're Villains, Foes, Minions, or Extras", and a Hero named as the `actor` of 
 `anything_resolve_can` is refused with nothing spent. The two pools are the whole of that side of
 the economy: a Hero buys their own dice with their own Resolve, and a point of Adversity that
 bought one for them would be the GM paying to help the party.
+
+## Whose game is this: the table comes with the sheets
+
+**Hand this server the characters as their campaign exported them and the house rules come with
+them.** A stored character carries a `CampaignTable` — the ten optional Gritty Combat Rules, the
+GM's alternative to seizing the initiative, Checking Your Swing, the optional Edge roll and a
+raised Gear Limit — written onto it when it joined a game. That block is the only route a house
+rule has into a fight: **this server holds no account and cannot resolve a campaign**, by design,
+so a Hero fought without its own sheet is a Hero fought under the book.
+
+**Which spelling.** The block is `CampaignTable`, spelled the way the rest of a character is,
+because a combatant's `character` is read by the same strict reader the character server uses. The
+`.json` **export** spells the same block `campaign_table` — that is a different document with a
+different convention, and a sheet carrying it is refused `CHARACTER_UNREADABLE` rather than read as
+a character at no table. That refusal is the point: a house rule quietly dropped is a fight measured
+under the wrong game with nothing in the answer to say so.
+
+**Four cases, and every one of them is either on page one or in the refusal:**
+
+- **The sheets agree.** The fight is resolved under what they carry, and page one says so.
+- **The sheets disagree.** Refused, `TABLE_DISAGREES`, naming both characters and the first setting
+  they differ on. Two blocks that differ are two contrary claims about which game is being played,
+  and taking either would measure a fight under rules half the characters in it were not built for.
+  Export them from the same campaign, or fight them under a table you pass yourself and sheets that
+  carry none.
+- **One of them carries none.** Accepted, and page one names the character that brought nothing.
+  An absent block is silence rather than a contrary claim, so a campaign's Hero against a Villain
+  built in the sandbox is an ordinary fight and not an error. **Do not narrate that character as
+  having agreed to the house rules**; they are being fought under somebody else's.
+  **And read the sentence page one prints, because there are two of them.** A character naming no
+  campaign was built outside any game. A character naming a campaign and still carrying no block is
+  a different thing — either that game adopted nothing, or the copy was taken before it did, and
+  this server cannot tell which. Page one says so and names the campaign. **Do not report that
+  second one as being at no table**: it may be a player's Hero from a game whose rules never
+  travelled, and it has just been fought under somebody else's.
+- **You also pass a table yourself.** It has to agree with the sheets switch by switch. Agreement
+  is fine and comes back as both. A disagreement is refused, `CALL_TABLE_DISAGREES`, naming the
+  setting: neither is quietly preferred, because whichever won, the other is a setting somebody
+  chose and this server threw away.
+
+With nothing on the sheets and nothing passed, the fight is the book as printed, which is what it
+has always been.
+
+**Where the table came from comes back inside `table`, as `source` and `source_note`** — `book`,
+`call`, `sheets`, or `sheets_and_call`. Quote it with the rest: two runs whose switches read alike
+may have got them off the characters or off an argument somebody typed, and a reader deciding
+whether a figure is about *their* game needs to know which. `run_encounters` answers with no ledger,
+so for a measurement that echo is the only place it is written down.
+
+**A character's `ImmortalityCost` is not read here and never will be, and this is the one place to
+say so.** It is a *price* — Ch.2 p.31 hands Immortality's cost to the table — so it changes what a
+character costs and whether it fits a budget, which is the character server's question and not this
+one's. Two combatants whose sheets name different prices for it is not a disagreement about
+anything a fight can see, and this server does not look.
 
 ## Modifiers: cover, size and the light (p.75)
 
@@ -151,14 +205,17 @@ answer is JSON of this server's own making and the arguments are the tool's sign
 - **`start_encounter`** — `combatants`, the table's switches in `table`, a `challengeLevel`, a
   `seed`, an `openingRange` and the scene's `visibility`. Answers
   with an encounter id, the turn order with each combatant's Edge, the opening Adversity pool and
-  the table echoed back. Encounters are held in memory by id, for this session only.
+  the table echoed back. Encounters are held in memory by id, for this session only. **The switches
+  are optional and are usually the sheets'** — see *Whose game is this* above; passing them as well
+  is fine only where they say the same thing.
 - **`take_turn`** — an `encounterId` and **one** `intent`. Acting and rolling are one call: there is
   no separate "roll" step, because an intent is a request and the engine decides what it produces.
   Answers with the ledger lines that step added and the public state.
 - **`run_encounters`** — the same setup, `visibility` included, plus `runs`, `policy` and
   `maxPages`, run headless. That
   last one is the sharpest of the camelCase pair above: the answer prints the page limit back in
-  snake_case, and sending it that way sends an argument the schema has not got.
+  snake_case, and sending it that way sends an argument the schema has not got. Its echoed table
+  carries where the settings came from, so a rate quoted off it is reproducible from its own answer.
 
 A combatant is either a character sheet — the shape the character server's `creation_guide`
 describes — with a `kind` of `hero`, `villain`, `foe` or `extra` and a `side`, or a group of
@@ -167,6 +224,9 @@ Minions with a `threat_rank`, a `count` and a `side`. Either may also carry a `s
 nothing derives them**: the Hero/Villain flag on a sheet is presentation, the same sheet is a
 Villain in one GM's game and a Foe in another's, and Chapter 4's tie-break ladder is about
 precedence rather than teams — a fight between Heroes is a fight the book prints.
+
+**A sheet may also carry its campaign's house rules, and that is how a fight learns them** — see
+*Whose game is this* above.
 
 **A sheet has to name a tier these rules have.** The tier fixes the Trait Cap, and Ch.5 p.83
 measures a Hero's opening Resolve down from it — so a tier that cannot be looked up is refused

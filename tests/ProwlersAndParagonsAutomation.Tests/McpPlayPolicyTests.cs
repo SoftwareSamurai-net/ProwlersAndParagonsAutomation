@@ -451,4 +451,45 @@ public sealed class McpPlayPolicyTests
             catch (UnauthorizedAccessException) { }
         }
     }
+
+    /// <summary>
+    /// <b>Every problem code the policy prints is a code this server can actually answer with, and
+    /// the two the table rules add are among them.</b>
+    ///
+    /// <para>A refusal is a dead end unless the document that a conversation reads names it: a
+    /// model handed <c>TABLE_DISAGREES</c> with nothing in the guide about it will either narrate
+    /// around the refusal or invent a repair, and both are worse than the fight not starting. The
+    /// other direction is the one that goes stale: a code renamed in <c>PlayTools</c> leaves this
+    /// document telling every conversation to expect one that can no longer arrive.</para>
+    ///
+    /// <para><b>Against the codes the server can emit</b>, which
+    /// <c>McpPlayServerTests.TheseAreEveryCodeTheServerCanEmit</c> reads out of the source and
+    /// drives one by one — so this is not a second list to keep in step. The control is that the
+    /// parse finds code spans at all: a regular expression that had stopped matching would agree
+    /// with any document whatever.</para>
+    /// </summary>
+    [Fact]
+    public void EveryProblemCodeThePolicyNamesIsOneTheServerCanAnswerWith()
+    {
+        var named = new Regex(@"`([A-Z][A-Z_]{3,})`", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(Text)
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // The control: the parse found something. Two of these are the whole point of the section
+        // that was added with them, so their absence is a finding rather than a quiet pass.
+        Assert.Contains("TABLE_DISAGREES", named, StringComparer.Ordinal);
+        Assert.Contains("CALL_TABLE_DISAGREES", named, StringComparer.Ordinal);
+
+        var real = McpPlayServerTests.ProblemCodes;
+
+        Assert.True(real.Count > 20, $"only {real.Count} problem codes were found to check against.");
+
+        var invented = named.Except(real).ToList();
+
+        Assert.True(invented.Count == 0,
+            "mcp-play/PLAY-POLICY.md names these refusals and this server cannot answer with any "
+            + "of them, so a conversation is told to expect a code that never arrives: "
+            + string.Join(", ", invented) + ".");
+    }
 }

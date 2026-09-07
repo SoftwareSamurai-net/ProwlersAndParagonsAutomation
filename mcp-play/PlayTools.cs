@@ -233,8 +233,8 @@ public sealed class PlayTools
             ["opening_range"]   = Wire(setup.Opening.ToString()),
             ["adversity"]       = state.Adversity,
             ["turn_order"]      = TurnOrder(state),
-            ["table"]           = TableEcho(setup.Table, setup.Visibility),
-            ["ledger"]          = Lines([.. TierLines(setup), .. state.Ledger.Lines])
+            ["table"]           = TableEcho(setup.Table, setup.Visibility, setup.Source, setup.SourceNote),
+            ["ledger"]          = Lines([TableSourceLine(setup), .. TierLines(setup), .. state.Ledger.Lines])
         });
     }
 
@@ -619,7 +619,7 @@ public sealed class PlayTools
                 ["note"] = "a policy is a guess about how people play, not a rule — this figure is "
                            + "about a party that plays this way"
             },
-            ["table"]           = TableEcho(setup.Table, setup.Visibility),
+            ["table"]           = TableEcho(setup.Table, setup.Visibility, setup.Source, setup.SourceNote),
 
             ["challenge_level"] = setup.ChallengeLevel,
             ["opening_range"]   = Wire(setup.Opening.ToString()),
@@ -643,14 +643,44 @@ public sealed class PlayTools
     /// engine derives Resolve from, kept so that the opening ledger can say which one was used. A
     /// group of Minions has no sheet and so no entry.
     /// </param>
+    /// <param name="Source">Where <paramref name="Table"/> came from.</param>
+    /// <param name="SourceNote">
+    /// The same in a sentence, naming the sheets — what page one of the run says, and what a
+    /// report's echo carries so a measurement is reproducible from its own answer.
+    /// </param>
     private sealed record Setup(
         IReadOnlyList<Combatant> Combatants,
         IReadOnlyDictionary<string, string> Tiers,
         TableRules Table,
+        TableSource Source,
+        string SourceNote,
         int ChallengeLevel,
         int Seed,
         RangeBand Opening,
         Visibility Visibility);
+
+    /// <summary>
+    /// Where the table a fight is resolved under came from.
+    ///
+    /// <para><b>It is published rather than inferred.</b> A rate is quoted with its table, and two
+    /// runs whose echoed tables read the same may have got them from different places — one off a
+    /// campaign's characters and one off an argument somebody typed. A reader deciding whether a
+    /// measurement is of <em>their</em> game needs to know which.</para>
+    /// </summary>
+    private enum TableSource
+    {
+        /// <summary>Nobody said anything: the book as printed, which is p.79's own baseline.</summary>
+        Book,
+
+        /// <summary>The caller's argument, and no sheet carries a table.</summary>
+        Call,
+
+        /// <summary>The sheets handed in, which agree.</summary>
+        Sheets,
+
+        /// <summary>Both, saying the same thing switch by switch.</summary>
+        SheetsAndCall
+    }
 
     private static readonly IReadOnlyDictionary<string, string> NoTiers =
         new Dictionary<string, string>(StringComparer.Ordinal);
@@ -665,10 +695,11 @@ public sealed class PlayTools
         out Setup setup,
         out JsonObject problem)
     {
-        setup = new Setup([], NoTiers, TableRules.Book, 0, 0, RangeBand.Close, Visibility.Clear);
+        setup = new Setup(
+            [], NoTiers, TableRules.Book, TableSource.Book, "", 0, 0, RangeBand.Close, Visibility.Clear);
         problem = new JsonObject();
 
-        if (!TryReadTable(table, out var rules, out problem)) return false;
+        if (!TryReadTable(table, out var onTheCall, out problem)) return false;
         if (!TryReadRange(openingRange, out var opening, out problem)) return false;
         if (!TryReadVisibility(visibility, out var light, out problem)) return false;
 
@@ -689,7 +720,8 @@ public sealed class PlayTools
             return false;
         }
 
-        if (!TryReadCombatants(combatants, out var everyone, out var tiers, out problem)) return false;
+        if (!TryReadCombatants(combatants, out var everyone, out var tiers, out var carried, out var barefaced, out problem))
+            return false;
 
         // <b>A fight needs two sides, and this is refused rather than run.</b> `Over` and every
         // policy partition on `Combatant.Side` alone, so a fight in which everybody shares one
@@ -711,9 +743,221 @@ public sealed class PlayTools
             return false;
         }
 
-        setup = new Setup(everyone, tiers, rules, challengeLevel ?? 0, seed ?? 0, opening, light);
+        // <b>The table comes off the sheets, and this is where the fight learns it.</b> The
+        // encounter server holds no account and cannot resolve a campaign id — see
+        // docs/guide/mcp-and-headless.md — so the only way a house rule reaches a fight is on the
+        // characters in it. Read after the combatants for that reason, and refused rather than
+        // reconciled where two of them disagree.
+        if (!TryAgreeTable(onTheCall, everyone, carried, barefaced,
+                out var rules, out var source, out var note, out problem))
+        {
+            return false;
+        }
+
+        setup = new Setup(
+            everyone, tiers, rules, source, note, challengeLevel ?? 0, seed ?? 0, opening, light);
         return true;
     }
+
+    /// <summary>
+    /// The table this fight is resolved under, out of the sheets that carry one and the argument
+    /// the caller may also have passed — or a refusal naming what disagrees with what.
+    ///
+    /// <para><b>Four cases, and the middle two are where the reasoning is.</b></para>
+    ///
+    /// <para><b>Two sheets carrying different tables is a refusal</b>, <c>TABLE_DISAGREES</c>,
+    /// naming both characters and the first setting they differ on. Two blocks that disagree are
+    /// two contrary claims about which game is being played, and there is no honest way to pick:
+    /// taking either one measures a fight under rules half its combatants were not built for, and
+    /// the report's echo would say the table came from "the sheets" while naming only one of
+    /// them.</para>
+    ///
+    /// <para><b>A sheet carrying no table beside sheets that do is accepted, and page one says
+    /// so.</b> That is deliberately not the same answer, because an absent block is not a contrary
+    /// claim — it is silence. Refusing here would make the commonest fight there is unfightable
+    /// without hand-editing JSON: a campaign's Hero against a Villain somebody built in the
+    /// sandbox, which is exactly what the GM running that campaign does every week. What the
+    /// refusal would protect against — a rule quietly applied to somebody who never agreed to
+    /// it — is answered instead by naming the sheet that carried none on page one and in the
+    /// echo, which is the discipline this server applies to every table setting it accepts.</para>
+    ///
+    /// <para><b>Silence about what, though — and this is where the sentence has to be careful.</b>
+    /// It is tempting to say a sheet without a block has never been in a game that adopted
+    /// anything, and that is <em>not true</em>. <c>CampaignJoin</c> copies the campaign's table
+    /// into an empty field and never over a full one, so a character who joined before the GM
+    /// decided anything keeps a null block for ever and nothing on the campaigns page reports it —
+    /// see docs/guide/browser.md, "The copy going stale is reported in one of its two directions".
+    /// So an absent block is ambiguous three ways: no game at all, a game that plays the book, or a
+    /// stale copy of a game that does not. This server can tell the first of those from the other
+    /// two, because <c>CharacterSheet.CampaignId</c> is on the sheet beside the block, and page one
+    /// says which it is rather than asserting the flattering one. A sentence that told a GM their
+    /// player's Hero was at no table, when it names a campaign whose rules simply never travelled,
+    /// would be this server inventing the reassurance it was built to withhold.</para>
+    ///
+    /// <para><b>A caller who also passes a table has to agree with the sheets, switch by
+    /// switch.</b> Agreement is fine and is echoed as both; a disagreement is
+    /// <c>CALL_TABLE_DISAGREES</c> rather than a silent precedence rule, because either precedence
+    /// is somebody's setting thrown away — and a run whose echo says <c>wound_penalties: true</c>
+    /// off an argument, fought by characters built without it, is the "accepted and quietly
+    /// ignored" every other reader in this file refuses.</para>
+    /// </summary>
+    /// <param name="fromCall">The table argument, or null where the caller passed none.</param>
+    /// <param name="everyone">The fight, in the order it was handed in. <b>That order is not used
+    /// below</b>: carriers are taken by id, so which pair a refusal names — and which switch,
+    /// where three sheets disagree three ways — is a fact about the set of sheets rather than
+    /// about how somebody typed the array.</param>
+    /// <param name="carried">The block each sheet carried, by combatant id, for those that did.</param>
+    /// <param name="barefaced">The character combatants whose sheet carried none, each with the
+    /// campaign its sheet names if it names one. A group of Minions has no sheet at all and is on
+    /// neither list.</param>
+    private static bool TryAgreeTable(
+        TableRules? fromCall,
+        IReadOnlyList<Combatant> everyone,
+        IReadOnlyDictionary<string, CampaignTable> carried,
+        IReadOnlyList<AtNoTable> barefaced,
+        out TableRules rules,
+        out TableSource source,
+        out string note,
+        out JsonObject problem)
+    {
+        problem = new JsonObject();
+
+        // <b>By id, and not in the order the sheets were handed in.</b> Everything below is a
+        // function of which carrier is "the first": which pair a refusal names, and — where three
+        // or more sheets disagree with each other — which switch, because the first difference is
+        // the first difference *from that sheet*. Arrival order would make the same fight refuse
+        // two different ways depending on how the array was typed, so two GMs comparing notes
+        // about one bad export would be reading two different findings. Ids are unique here
+        // (DUPLICATE_COMBATANT is refused above), so ordinal order is total and the answer is a
+        // fact about the set of sheets.
+        var carriers = everyone
+            .Select(c => c.Id)
+            .Where(carried.ContainsKey)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        if (carriers.Count == 0)
+        {
+            rules = fromCall ?? TableRules.Book;
+            source = fromCall is null ? TableSource.Book : TableSource.Call;
+            note = fromCall is null
+                ? "the book as printed: no sheet in this fight carries a table and none was passed "
+                  + "on the call, and p.79 offers the optional rules to a table that asks for them"
+                : "the \"table\" argument on this call — no sheet in this fight carries one";
+            return true;
+        }
+
+        var first = carriers[0];
+        var agreed = TableRules.From(carried[first]);
+
+        // Every carrier against the first, rather than the first against the second: a fight of
+        // four sheets in which the fourth is the odd one out has to be refused too, and naming the
+        // pair is what makes the refusal actionable.
+        foreach (var other in carriers.Skip(1))
+        {
+            if (TableRules.FirstDifference(agreed, TableRules.From(carried[other])) is not { } differs)
+                continue;
+
+            rules = TableRules.Book;
+            source = TableSource.Book;
+            note = "";
+
+            problem = Problem("TABLE_DISAGREES",
+                $"'{first}' and '{other}' carry different house rules: they disagree about "
+                + $"{Wire(differs)}. A fight is resolved under one table, and these two sheets are "
+                + "two contrary claims about which game is being played — taking either would "
+                + "measure a fight under rules half the characters in it were not built for, and "
+                + "the answer would say the table came from the sheets while naming only one of "
+                + "them. Export both characters from the same campaign, or fight them under a "
+                + "table you pass on the call and sheets that carry none.");
+            return false;
+        }
+
+        var without = Barefaced(barefaced);
+
+        if (fromCall is { } given)
+        {
+            if (TableRules.FirstDifference(given, agreed) is { } clash)
+            {
+                rules = TableRules.Book;
+                source = TableSource.Book;
+                note = "";
+
+                problem = Problem("CALL_TABLE_DISAGREES",
+                    $"The \"table\" on this call and the table '{first}' carries disagree about "
+                    + $"{Wire(clash)}. Neither is quietly preferred: whichever won, the other is a "
+                    + "setting somebody chose and this server threw away, and the answer would echo "
+                    + "a table that half this fight was not built for. Pass no table and the sheets' "
+                    + "own is used, or pass the same one they carry.");
+                return false;
+            }
+
+            rules = agreed;
+            source = TableSource.SheetsAndCall;
+            note = $"the sheets handed in, starting with '{first}', and the \"table\" on this call "
+                   + "says the same thing switch by switch" + without;
+            return true;
+        }
+
+        rules = agreed;
+        source = TableSource.Sheets;
+        note = $"the sheets handed in, starting with '{first}', which agree" + without;
+        return true;
+    }
+
+    /// <summary>
+    /// The clause page one adds for the sheets that carried no house rules — and it says, of each
+    /// of them, which kind of silence it is.
+    ///
+    /// <para><b>Two clauses rather than one, because the honest sentence is different.</b> A sheet
+    /// naming no campaign was built outside any game, and being fought under somebody else's table
+    /// takes nothing away from it. A sheet naming a campaign and carrying no block is the case this
+    /// server must not flatter: <c>CampaignJoin</c> writes the campaign's table into an empty field
+    /// only, so the block is missing either because that game adopted nothing or because the copy
+    /// was taken before it did — and the second is a state the browser produces and does not report
+    /// (docs/guide/browser.md). Calling that character "at no table" would tell a GM the thing they
+    /// would most like to hear and have no way to check.</para>
+    ///
+    /// <para><b>Both clauses keep "carries no table"</b>, which is the fact a reader scans for, and
+    /// neither of them says the character agreed to anything.</para>
+    /// </summary>
+    private static string Barefaced(IReadOnlyList<AtNoTable> sheets)
+    {
+        if (sheets.Count == 0) return "";
+
+        // By id, for the reason the carriers are: page one is a description of a fight and not of
+        // the array somebody typed, and two calls listing the same combatants in two orders have
+        // to produce the same sentence or nobody can compare two runs by reading them.
+        var byId = sheets.OrderBy(s => s.Id, StringComparer.Ordinal).ToList();
+
+        var sandbox = byId.Where(s => s.CampaignId is null).Select(s => s.Id).ToList();
+        var clauses = new List<string>();
+
+        if (sandbox.Count > 0)
+        {
+            clauses.Add($"{Sentence(sandbox)} carr{(sandbox.Count == 1 ? "ies" : "y")} no table "
+                        + $"and name{(sandbox.Count == 1 ? "s" : "")} no campaign, so "
+                        + $"{(sandbox.Count == 1 ? "it is" : "they are")} fought under this one");
+        }
+
+        foreach (var sheet in byId.Where(s => s.CampaignId is not null))
+        {
+            clauses.Add($"'{sheet.Id}' carries no table but names campaign "
+                        + $"'{sheet.CampaignId}' — either that game adopted nothing or this copy "
+                        + "was taken before it did, and this server cannot tell which — so it too "
+                        + "is fought under this one");
+        }
+
+        return "; " + string.Join("; ", clauses);
+    }
+
+    /// <summary>A list of ids in a sentence: <c>a</c>, <c>a and b</c>, <c>a, b and c</c>.</summary>
+    private static string Sentence(List<string> ids) => ids.Count switch
+    {
+        1 => $"'{ids[0]}'",
+        _ => string.Join(", ", ids.Take(ids.Count - 1).Select(id => $"'{id}'"))
+             + $" and '{ids[^1]}'"
+    };
 
     /// <summary>
     /// Which tier each character in the fight was built to, on the opening ledger, citing the entry
@@ -725,6 +969,41 @@ public sealed class PlayTools
     /// nothing in the answer said which was used. A reader who may not quote a number the ledger did
     /// not print is exactly the reader who needs the tier printed.</para>
     /// </summary>
+    /// <summary>
+    /// Page one says where this fight's table came from — always, including where the answer is
+    /// "nobody said anything".
+    ///
+    /// <para><b>It is on the ledger and not only in the echo because the echo is a statement of
+    /// what is on, and this is a statement of who decided.</b> A run under a campaign's house
+    /// rules and a run under the same rules typed onto the call are the same numbers and are not
+    /// the same claim, and the second one is the one somebody could have got wrong. Where the
+    /// answer is the book, saying so is worth the line for the reason the switch lines are worth
+    /// theirs: a reader can tell a fight measured under the baseline from a fight whose table
+    /// this server failed to read.</para>
+    ///
+    /// <para><b>Cited to <c>gritty_overview</c>, and the sentence is written so that what the page
+    /// says and what this server says are separable.</b> That entry is p.79's paragraph about a
+    /// table reviewing the optional rules and adopting what it wants before play — it is what makes
+    /// "whose table is this" a question the book asks rather than one this server invented, and it
+    /// is quoted for that and nothing more. <b>Where the switches came from is not on any page</b>:
+    /// no paragraph in the book has an opinion about a <c>table</c> argument on an MCP call or a
+    /// block copied onto a character sheet, so a line reading "the optional rules this fight is
+    /// resolved under came from the sheets handed in" cited to p.79 attributes this server's
+    /// bookkeeping to the rulebook. <b>And p.79 speaks for ten switches, not thirteen</b> —
+    /// Checking Your Swing is p.69's and the two initiative settings are p.73's — so the sentence
+    /// says so rather than letting one citation stand for all of them.</para>
+    /// </summary>
+    private LedgerLine TableSourceLine(Setup setup)
+    {
+        var entry = _play.GetGritty("gritty_overview");
+
+        return new LedgerLine(
+            1, "", entry.Id, entry.SourceRef,
+            "p.79 leaves the optional combat rules to the table, to review and adopt before play; "
+            + "the switches this fight is resolved under — those ten and the three beside them — "
+            + $"came from {setup.SourceNote}");
+    }
+
     private IEnumerable<LedgerLine> TierLines(Setup setup)
     {
         var entry = _play.GetResolve("starting_resolve");
@@ -744,14 +1023,54 @@ public sealed class PlayTools
         }
     }
 
+    private static readonly IReadOnlyDictionary<string, CampaignTable> NoTables =
+        new Dictionary<string, CampaignTable>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// What one sheet says about the game it came from: the house rules it carries, and the
+    /// campaign it names.
+    ///
+    /// <para><b>The two travel together because an absent block on its own does not say enough.</b>
+    /// A sheet carrying no table and naming no campaign was built outside any game. A sheet
+    /// carrying no table and naming one is a different thing — either the game adopted nothing, or
+    /// the copy predates what it adopted, which is a state `CampaignJoin` produces and nothing
+    /// reports (docs/guide/browser.md). Both are accepted; page one says which.</para>
+    /// </summary>
+    private sealed record Membership(CampaignTable? Table, string? CampaignId)
+    {
+        /// <summary>A group of Minions, which has no sheet and so says nothing about any game.</summary>
+        public static Membership None { get; } = new(null, null);
+    }
+
+    /// <param name="carried">
+    /// The house rules each character sheet brought with it, by combatant id, for the sheets that
+    /// carried any. A campaign copies its table onto a character when it joins and the
+    /// <c>.json</c> export carries the block, which is the only route a house rule has into a
+    /// fight: this server holds no account and cannot resolve a campaign.
+    /// </param>
+    /// <summary>
+    /// One combatant whose sheet carried no house rules, and the campaign that sheet names if it
+    /// names one — which is the difference page one has to print. See <see cref="Membership"/>.
+    /// </summary>
+    private sealed record AtNoTable(string Id, string? CampaignId);
+
+    /// <param name="barefaced">
+    /// The character combatants whose sheet carried none, in the order they were handed in, each
+    /// with the campaign it names if it names one. A group of Minions is on neither list — it has
+    /// no sheet to carry anything.
+    /// </param>
     private bool TryReadCombatants(
         JsonElement combatants,
         out IReadOnlyList<Combatant> everyone,
         out IReadOnlyDictionary<string, string> tiers,
+        out IReadOnlyDictionary<string, CampaignTable> carried,
+        out IReadOnlyList<AtNoTable> barefaced,
         out JsonObject problem)
     {
         everyone = [];
         tiers = NoTiers;
+        carried = NoTables;
+        barefaced = [];
         problem = new JsonObject();
 
         var array = AsNode(combatants) as JsonArray;
@@ -766,6 +1085,8 @@ public sealed class PlayTools
 
         var built = new List<Combatant>();
         var byId = new Dictionary<string, string>(StringComparer.Ordinal);
+        var tables = new Dictionary<string, CampaignTable>(StringComparer.Ordinal);
+        var without = new List<AtNoTable>();
         var ids = new HashSet<string>(StringComparer.Ordinal);
 
         for (var i = 0; i < array.Count; i++)
@@ -776,9 +1097,20 @@ public sealed class PlayTools
                 return false;
             }
 
-            if (!TryReadCombatant(entry, i + 1, out var combatant, out var tier, out problem)) return false;
+            if (!TryReadCombatant(entry, i + 1, out var combatant, out var tier, out var from, out problem))
+                return false;
 
             if (tier is not null) byId[combatant.Id] = tier;
+
+            // <b>A group of Minions is on neither list, and that is a decision rather than a
+            // gap.</b> It has no sheet, so it carries no table and names no campaign — putting it
+            // on the barefaced list would have page one announce that the robots brought no house
+            // rules, which is noise of a kind that trains a reader to stop reading the line. What
+            // it cannot do is carry a table nobody notices: there is no field on a Minion group to
+            // put one in, so silence here is complete rather than partial.
+            if (from.Table is not null) tables[combatant.Id] = from.Table;
+            else if (combatant.Kind != CombatantKind.MinionGroup)
+                without.Add(new AtNoTable(combatant.Id, from.CampaignId));
 
             if (!ids.Add(combatant.Id))
             {
@@ -793,18 +1125,27 @@ public sealed class PlayTools
 
         everyone = built;
         tiers = byId;
+        carried = tables;
+        barefaced = without;
         return true;
     }
 
     /// <summary>The kinds a combatant may be, on the wire.</summary>
     public static IReadOnlyList<string> Kinds { get; } = ["hero", "villain", "foe", "extra", "minions"];
 
+    /// <param name="membership">
+    /// The house rules the sheet carried and the campaign it names, either of which may be null —
+    /// and <see cref="Membership.None"/> where the combatant is a group of Minions, which has no
+    /// sheet at all.
+    /// </param>
     private bool TryReadCombatant(
-        JsonObject entry, int position, out Combatant combatant, out string? tier, out JsonObject problem)
+        JsonObject entry, int position, out Combatant combatant, out string? tier,
+        out Membership membership, out JsonObject problem)
     {
         combatant = Combatant.Extra("placeholder", "placeholder", 0, 1,
             new Dictionary<string, int>(StringComparer.Ordinal), []);
         tier = null;
+        membership = Membership.None;
         problem = new JsonObject();
 
         var kind = Text(entry, "kind").Trim().ToLowerInvariant();
@@ -856,6 +1197,19 @@ public sealed class PlayTools
 
         if (!TryReadSheet(character, position, out var sheet, out problem)) return false;
         if (!TryReadTier(sheet, position, out tier, out problem)) return false;
+
+        // <b>The one thing this server reads off a sheet that is not about the character.</b>
+        // `CharacterSheet.CampaignTable` is written by joining a campaign and copied by the
+        // `.json` export, so it is how a table's house rules reach a fight — this server holds no
+        // account and cannot resolve a `CampaignId`.
+        //
+        // <b>The id is read beside it because an absent block is two different states.</b> A sheet
+        // naming no campaign was built outside any game; a sheet naming one and carrying no block
+        // is either in a game that adopted nothing or a copy taken before it did — see
+        // docs/guide/browser.md on the stale direction that nothing reports. Neither is a contrary
+        // claim, so both are accepted, and page one tells them apart rather than printing one
+        // sentence that is true of only one of them. See TryAgreeTable.
+        membership = new Membership(sheet.CampaignTable, sheet.CampaignId);
 
         var rung = kind switch
         {
@@ -1077,9 +1431,19 @@ public sealed class PlayTools
     public static IReadOnlyList<string> TableSettings { get; } =
         [.. TableRules.Switches.Select(s => Wire(s.Name)).Distinct(StringComparer.Ordinal)];
 
-    private static bool TryReadTable(JsonElement? table, out TableRules rules, out JsonObject problem)
+    /// <summary>
+    /// The table the caller passed, or null where they passed none.
+    ///
+    /// <para><b>Absent and "the book" are different answers here, and that is the change this
+    /// reader needed.</b> It used to hand back <see cref="TableRules.Book"/> for both, which was
+    /// fine while the argument was the only source there was. Now that the sheets can carry one,
+    /// an omitted argument has to mean <em>the caller said nothing</em> — otherwise every fight
+    /// under a campaign's house rules would look like a caller demanding the book, and the
+    /// disagreement refusal would fire on every single one of them.</para>
+    /// </summary>
+    private static bool TryReadTable(JsonElement? table, out TableRules? rules, out JsonObject problem)
     {
-        rules = TableRules.Book;
+        rules = null;
         problem = new JsonObject();
 
         if (AsNode(table) is not { } node) return true;
@@ -1537,9 +1901,21 @@ public sealed class PlayTools
     /// from one produced by a build that had lost a switch, and the reader of a balance figure is
     /// exactly the person who needs to know which game was measured.
     /// </summary>
-    private static JsonObject TableEcho(TableRules table, Visibility visibility)
+    /// <param name="source">Where the table came from — see <see cref="TableSource"/>.</param>
+    /// <param name="note">The same in a sentence, naming the sheets.</param>
+    private static JsonObject TableEcho(
+        TableRules table, Visibility visibility, TableSource source, string note)
     {
         var echo = new JsonObject();
+
+        // <b>Where the table came from travels inside it, for the reason the light does.</b> The
+        // play policy says a rate is quoted with four things and one of them is `table`; two runs
+        // whose echoed switches read alike may have got them from different places, and a reader
+        // deciding whether a measurement is of their game needs to know whether the settings came
+        // off the characters or off an argument somebody typed. `run_encounters` returns no ledger,
+        // so this is the only place that answer is written down in a report.
+        echo["source"] = Wire(source.ToString());
+        echo["source_note"] = note;
 
         // <b>The light is echoed inside the table and not beside it, and that placement is the
         // point.</b> The play policy says a rate is quoted with four things and one of them is
