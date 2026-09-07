@@ -2337,7 +2337,7 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{(fromAdversity ? "the GM spends " + cost + " Adversity on " + actor.Name : actor.Name + " spends " + cost + " Resolve")}"
+            Paid(actor, cost, fromAdversity)
             + $" for {extra} more dice after the roll, scoring "
             + $"{roll.Successes} more: {last.AttackSuccesses} becomes {last.AttackSuccesses + roll.Successes}, "
             + $"and the roll on the table is now {last.AttackPool + extra}d"));
@@ -2371,6 +2371,40 @@ public sealed partial class Encounter
     private static EncounterState Charge(
         EncounterState state, Combatant actor, int cost, bool fromAdversity) =>
         fromAdversity ? ChargeAdversity(state, cost) : state.With(actor.Spending(cost));
+
+    /// <summary>
+    /// How a ledger line says a purchase was paid for: whose pool paid, and how much.
+    ///
+    /// <para><b>One helper rather than ten copies of a ternary.</b> All ten purchases now say the
+    /// same sentence in the two currencies, and a copy that drifted would report a Hero's Resolve
+    /// leaving the GM's pool. The strings are the ones the first six already printed.</para>
+    /// </summary>
+    private static string Paid(Combatant actor, int cost, bool fromAdversity) =>
+        fromAdversity
+            ? $"the GM spends {cost} Adversity on {actor.Name}"
+            : $"{actor.Name} spends {cost} Resolve";
+
+    /// <summary>
+    /// p.85's first purchase against a group of Minions, refused by name where the page gives the
+    /// group nothing to buy.
+    ///
+    /// <para><b>A Minion group reaches these four purchases because p.85 sends it there</b> — the
+    /// pool is spent "on behalf of any NPC whether they're Villains, Foes, Minions, or Extras", so
+    /// <c>npc_kinds</c> admits one — and four of the ten have nothing for one when it arrives. A
+    /// point taken for a state change nothing could receive is the defect this engine's ledger rules
+    /// exist to prevent, and it is the argument p.79's luring refuses a lure that names nobody on.
+    /// </para>
+    ///
+    /// <para>The reason is the purchase's own and is passed in; the rule cited is the entry that
+    /// gives the group nothing, so a reader of the line lands on the page that decided it rather
+    /// than on the page selling the purchase.</para>
+    /// </summary>
+    private static EncounterState RefuseTheMinions(
+        EncounterState state, Combatant actor, string ruleId, string sourceRef,
+        List<LedgerLine> lines, string why) =>
+        Refuse(state, actor.Id, ruleId, sourceRef, lines,
+            $"{actor.Name} is a group of Minions, and {why} — so a point of Adversity would buy "
+            + "them nothing here, and it is refused rather than spent");
 
     /// <summary>
     /// Ch.5 p.84: one point picks the whole roll back up — and p.85's tip puts a floor under it, so
@@ -2414,7 +2448,7 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{(fromAdversity ? "the GM spends " + cost + " Adversity on " + actor.Name : actor.Name + " spends " + cost + " Resolve")}"
+            Paid(actor, cost, fromAdversity)
             + $" to reroll {last.AttackPool}d: {roll.Successes} "
             + $"against the first {last.AttackSuccesses}, keeping {kept}"));
 
@@ -2505,7 +2539,7 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{(fromAdversity ? $"the GM spends {rule.CostResolve} Adversity on {actor.Name}" : $"{actor.Name} spends {rule.CostResolve} Resolve")}"
+            Paid(actor, rule.CostResolve, fromAdversity)
             + $" to keep hold of {state[held.Target].Name}: the {held.Name} that put them out now "
             + $"lasts to {rule.ExtendsTo}, and stops counting down in pages"
             + (rule.MayBeRepeatedSceneAfterScene
@@ -2603,7 +2637,7 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{(fromAdversity ? $"the GM spends {rule.CostResolve} Adversity on {actor.Name}" : $"{actor.Name} spends {rule.CostResolve} Resolve")}"
+            Paid(actor, rule.CostResolve, fromAdversity)
             + $" to knock {target.Name} back off {inflicted} points of "
             + $"{rule.RequiresDamageType} damage: thrown by {rule.TargetIsThrownAsIfByAMightRankEqualTo} "
             + $"of {last.AttackRank}, which p.74 reaches {printed}"
@@ -2799,7 +2833,7 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{(fromAdversity ? $"the GM spends {rule.CostResolve} Adversity on {actor.Name}" : $"{actor.Name} spends {rule.CostResolve} Resolve")}"
+            Paid(actor, rule.CostResolve, fromAdversity)
             + $" to lure {attacker.Name}: their {last.AttackSuccesses} was beaten by {margin}, so "
             + $"the attack strikes {newTarget.Name} instead, who answers with {trait} {pool}d for "
             + $"{answered}. It costs {actor.Name} {rule.RedirectingOntoAPersonCosts}"));
@@ -2902,7 +2936,7 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{(fromAdversity ? $"the GM spends {rule.CostResolveToMakeSixesExplode} Adversity on {actor.Name}" : $"{actor.Name} spends {rule.CostResolveToMakeSixesExplode} Resolve")}"
+            Paid(actor, rule.CostResolveToMakeSixesExplode, fromAdversity)
             + $" to explode the team attack's {face}s: {thrown} thrown again over {rounds} "
             + $"round{(rounds == 1 ? "" : "s")} for {gained} more, so {last.AttackSuccesses} becomes "
             + $"{last.AttackSuccesses + gained}"));
@@ -2919,10 +2953,39 @@ public sealed partial class Encounter
         return after with { LastAttack = improved };
     }
 
-    private EncounterState SeizeInitiative(EncounterState state, Combatant actor, List<LedgerLine> lines)
+    /// <summary>
+    /// Ch.4 p.73's <c>seizing_initiative</c>: a point buys a place at the front for the rest of the
+    /// fight, or — where the GM has taken the alternative — doubles the buyer's effective Edge.
+    ///
+    /// <para><b>The GM's pool buys it for an NPC, and the purchase's own limits are unchanged by
+    /// which pool pays.</b> p.85's first Adversity spend is "whatever a point of Resolve could have
+    /// done, on behalf of any NPC", so the duration is still the whole fight and a second purchase
+    /// by the same character is still refused; only <see cref="Charge"/> knows the difference.</para>
+    ///
+    /// <para><b>A group of Minions is refused, and p.73 is what refuses them.</b> The default effect
+    /// is a place ahead of everyone and the alternative is a doubled Edge, and the same page denies
+    /// a Minion group both: <c>minions_have_an_edge</c> is false, so there is nothing to double, and
+    /// <c>minions_act</c> puts them after everyone else, which is the outermost key of this engine's
+    /// own order. So the point would leave the pool and the order would not move — see the readings
+    /// table in <c>docs/guide/play-engine.md</c>, where the two printed sentences are set against
+    /// each other.</para>
+    /// </summary>
+    private EncounterState SeizeInitiative(
+        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
     {
         var entry = _play.GetCombat("seizing_initiative");
         var rule = entry.SeizeInitiative!;
+
+        if (actor.Kind == CombatantKind.MinionGroup)
+        {
+            var ties = _play.GetCombat("edge_ties");
+            var tie = ties.TieBreak!;
+
+            return RefuseTheMinions(state, actor, ties.Id, ties.SourceRef, lines,
+                $"p.73 gives them no Edge at all (minions_have_an_edge is {tie.MinionsHaveAnEdge}) "
+                + $"and has them act {tie.MinionsAct}: there is nothing for the GM's alternative to "
+                + "double, and nothing this order would move");
+        }
 
         if (state.Seized.Contains(actor.Id, StringComparer.Ordinal))
         {
@@ -2930,7 +2993,11 @@ public sealed partial class Encounter
                 $"{actor.Name} has already seized the initiative, and it lasts {rule.Duration}");
         }
 
-        if (CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines)) return state;
+        if (!fromAdversity
+            && CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines))
+        {
+            return state;
+        }
 
         var alternative = state.Table.GmAlternativeToSeizingInitiative
             ? _play.GetCombat("seize_initiative_gm_alternative")
@@ -2938,14 +3005,15 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, alternative?.Id ?? entry.Id, alternative?.SourceRef ?? entry.SourceRef,
-            $"{actor.Name} spends {rule.CostResolve} Resolve to seize the initiative — "
+            Paid(actor, rule.CostResolve, fromAdversity) + " to seize the initiative — "
             + (alternative is null
                 ? $"{rule.Effect}, for {rule.Duration}"
                 : $"the GM has taken the alternative, so it {alternative.GmAlternative!.Effect} instead, "
                   + $"for the duration it inherits from {alternative.Interpretation!.DurationIsInheritedFrom}")
             + "; it takes effect when the page turns"));
 
-        return state.With(actor.Spending(rule.CostResolve)) with { Seized = [.. state.Seized, actor.Id] };
+        return Charge(state, actor, rule.CostResolve, fromAdversity)
+            with { Seized = [.. state.Seized, actor.Id] };
     }
 
     /// <summary>
@@ -2959,8 +3027,20 @@ public sealed partial class Encounter
     /// interpretation, because the authors' own arithmetic is the better witness to what they meant,
     /// and the ledger line cites the entry's <c>ambiguity</c> so a reader of the run can see the
     /// choice was made rather than assumed.</para>
+    ///
+    /// <para><b>The GM's pool buys it for an NPC, and every one of the page's own conditions
+    /// stays.</b> Fatal Damage still has to be one of the table's settings, the blow still has to
+    /// have reached the threshold, and the same point still stabilises where
+    /// <c>resolve_also_stabilises_if_necessary</c> asks it to — p.85 changes which pool pays and
+    /// nothing else.</para>
+    ///
+    /// <para><b>A group of Minions is refused, and p.77 is what refuses them.</b> The threshold this
+    /// buys back from is the negative of a full Health, and <c>attacking_minions</c>'
+    /// <c>minions_have_health</c> is false: a Minion group is defeated by bodies rather than by a
+    /// pool, so there is no threshold to be past and no blow to buy back.</para>
     /// </summary>
-    private EncounterState AvoidFatalDamage(EncounterState state, Combatant actor, List<LedgerLine> lines)
+    private EncounterState AvoidFatalDamage(
+        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
     {
         var entry = _play.GetGritty("gritty_fatal_damage");
         var fatal = entry.FatalDamage!;
@@ -2971,6 +3051,8 @@ public sealed partial class Encounter
                 "Fatal Damage is not one of this table's settings, so there is no threshold to buy back from");
         }
 
+        if (actor.Kind == CombatantKind.MinionGroup) return TheMinionsHaveNoClock(state, actor, lines);
+
         var threshold = -actor.FullHealth;
 
         // <b>Two refusals that used to be a throw and a rescue of somebody who did not need one.</b>
@@ -2979,7 +3061,7 @@ public sealed partial class Encounter
         // in a stack trace. And the arithmetic below sets a Health rather than reducing one, so
         // against a character nowhere near the line it did not rescue them, it dropped them to one
         // point above a threshold they were far above already.
-        if (actor.Resolve < fatal.CostResolveToAvoid)
+        if (!fromAdversity && actor.Resolve < fatal.CostResolveToAvoid)
         {
             return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} has {actor.Resolve} Resolve and buying back a fatal blow costs "
@@ -3014,13 +3096,13 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{actor.Name} spends {fatal.CostResolveToAvoid} Resolve against a fatal blow: "
+            Paid(actor, fatal.CostResolveToAvoid, fromAdversity) + " against a fatal blow: "
             + $"{actor.CurrentHealth} becomes {rescued}, one point above the threshold of {threshold}. "
             + "The printed word says one point below it and the printed example says above; the "
             + $"entry's ambiguity records the contradiction: {fatal.ResolveReducesDamageTo} is what "
             + "p.79 says, and the example is what this follows"));
 
-        var rescuedActor = actor.Spending(fatal.CostResolveToAvoid).WithHealth(rescued);
+        var rescuedActor = actor.WithHealth(rescued);
 
         if (fatal.ResolveAlsoStabilisesIfNecessary && actor.Dying)
         {
@@ -3032,14 +3114,27 @@ public sealed partial class Encounter
             rescuedActor = rescuedActor.Bleeding(dying: false);
         }
 
-        return state.With(rescuedActor);
+        // <b>The rescued combatant is written in before the charge and the charge is handed that
+        // one</b>, because a Hero's half of <see cref="Charge"/> writes the actor it is given: given
+        // the combatant this purchase started from, it would put the unrescued Health back.
+        return Charge(state.With(rescuedActor), rescuedActor, fatal.CostResolveToAvoid, fromAdversity);
     }
 
     /// <summary>
     /// p.79's <c>cost_resolve_to_stabilise_immediately</c>: a point stops the clock with no roll.
+    ///
+    /// <para><b>The GM's pool buys it for an NPC</b>, and the one condition the page puts on it is
+    /// unchanged: somebody has to be bleeding out. p.79's roll is available as often as necessary
+    /// and so is this, which is why there is no per-scene limit to carry across.</para>
+    ///
+    /// <para><b>A group of Minions is refused for the reason the rescue above refuses one</b>: the
+    /// clock is started by lethal damage taking a Health past a threshold, and
+    /// <c>attacking_minions.minions_have_health</c> is false, so a Minion group never has one to
+    /// stop. Refusing by name rather than falling into "is not dying" is the difference between the
+    /// page having nothing for them and the fight not being in a state for it.</para>
     /// </summary>
     private EncounterState StabiliseWithResolve(
-        EncounterState state, Combatant actor, List<LedgerLine> lines)
+        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
     {
         var entry = _play.GetGritty("gritty_fatal_damage");
         var fatal = entry.FatalDamage!;
@@ -3050,13 +3145,15 @@ public sealed partial class Encounter
                 "Fatal Damage is not one of this table's settings, so nobody is dying to be steadied");
         }
 
+        if (actor.Kind == CombatantKind.MinionGroup) return TheMinionsHaveNoClock(state, actor, lines);
+
         if (!actor.Dying)
         {
             return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} is not dying, so there is no clock to stop");
         }
 
-        if (CannotAfford(
+        if (!fromAdversity && CannotAfford(
                 state, actor, fatal.CostResolveToStabiliseImmediately, entry.Id, entry.SourceRef, lines))
         {
             return state;
@@ -3064,10 +3161,32 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{actor.Name} spends {fatal.CostResolveToStabiliseImmediately} Resolve to stabilise at "
-            + $"once, on {actor.CurrentHealth} Health"));
+            Paid(actor, fatal.CostResolveToStabiliseImmediately, fromAdversity)
+            + $" to stabilise at once, on {actor.CurrentHealth} Health"));
 
-        return state.With(actor.Spending(fatal.CostResolveToStabiliseImmediately).Bleeding(dying: false));
+        var steadied = actor.Bleeding(dying: false);
+
+        return Charge(
+            state.With(steadied), steadied, fatal.CostResolveToStabiliseImmediately, fromAdversity);
+    }
+
+    /// <summary>
+    /// The refusal p.79's two Fatal Damage purchases both make of a group of Minions, cited to the
+    /// entry that decides it rather than to the entry selling the purchase.
+    ///
+    /// <para>Both turn on a Health total — the threshold is the negative of a full one and the clock
+    /// starts when lethal damage takes a Health past it — and p.77 says a Minion group has none.
+    /// A group is defeated by bodies, so it is never past a threshold and never on a clock.</para>
+    /// </summary>
+    private EncounterState TheMinionsHaveNoClock(
+        EncounterState state, Combatant actor, List<LedgerLine> lines)
+    {
+        var minions = _play.GetCombat("attacking_minions");
+
+        return RefuseTheMinions(state, actor, minions.Id, minions.SourceRef, lines,
+            "p.77 gives them no Health at all (minions_have_health is "
+            + $"{minions.AttackingMinions!.MinionsHaveHealth}): a group is defeated by the bodies "
+            + "taken out of it, so there is no threshold to be past and no dying clock to stop");
     }
 
     /// <summary>
@@ -3084,12 +3203,38 @@ public sealed partial class Encounter
     /// <para>What is <em>not</em> applied is <c>taken_on: "your next turn to act"</c>. This engine
     /// does not turn-gate a Resolve purchase — a defeated character has no turn to be theirs — and
     /// the guide records it as a reading rather than leaving it silent.</para>
+    ///
+    /// <para><b>The GM's pool buys it for an NPC, and the two limits the page prints stay.</b>
+    /// <c>limit_per_scene</c> is counted on the character rather than on the pool, so a Villain
+    /// bought back onto their feet is not bought back a second time out of the GM's money; and
+    /// p.79's <c>instant_recovery_requires_being_stable</c> still refuses one who is bleeding out.
+    /// </para>
+    ///
+    /// <para><b>A group of Minions is refused, and p.77 is what refuses them.</b> Both halves of
+    /// this purchase need something a Minion group has not got: the Health half is
+    /// <c>minions_have_health</c>, which is false, and the effect half cannot arise, because p.77
+    /// resolves a special effect against a group by taking bodies out of it — the defeated Minions
+    /// "are subject to it for the rest of the scene" — so a group never carries an effect there is
+    /// anything to shake off.</para>
     /// </summary>
-    private EncounterState InstantRecovery(EncounterState state, Combatant actor, List<LedgerLine> lines)
+    private EncounterState InstantRecovery(
+        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
     {
         var entry = _play.GetCombat("instant_recovery");
         var rule = entry.InstantRecovery!;
         var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        if (actor.Kind == CombatantKind.MinionGroup)
+        {
+            var minions = _play.GetCombat("attacking_minions");
+            var mob = minions.AttackingMinions!;
+
+            return RefuseTheMinions(state, actor, minions.Id, minions.SourceRef, lines,
+                $"p.77 gives them no Health to bring back (minions_have_health is "
+                + $"{mob.MinionsHaveHealth}) and resolves an effect against a group by taking bodies "
+                + $"out of it instead — {mob.OnASpecialEffect} — so there is neither a defeat to "
+                + "recover from nor an effect to shake off");
+        }
 
         if (actor.InstantRecoveriesUsed >= rule.LimitPerScene)
         {
@@ -3121,7 +3266,11 @@ public sealed partial class Encounter
                 $"{actor.Name} is on their feet and free of any effect, so there is nothing to recover from");
         }
 
-        if (CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines)) return state;
+        if (!fromAdversity
+            && CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines))
+        {
+            return state;
+        }
 
         // p.80's Slow Healing: "you do not heal ... when you regain consciousness after a defeat".
         // So the point still brings them round and it brings back nothing else.
@@ -3135,7 +3284,7 @@ public sealed partial class Encounter
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
-            $"{actor.Name} spends {rule.CostResolve} Resolve on an instant recovery: "
+            Paid(actor, rule.CostResolve, fromAdversity) + " on an instant recovery: "
             + (actor.CurrentHealth <= floor
                 ? $"back on their feet with {health} Health"
                 : $"still on {health} Health")
@@ -3155,7 +3304,12 @@ public sealed partial class Encounter
                 + "condition a single point of damage puts them straight back down"));
         }
 
-        return state.With(actor.Spending(rule.CostResolve).Recovered(health, standing))
+        // The recovered combatant goes in before the charge and the charge is handed that one, for
+        // the reason the Fatal Damage rescue above says: a Hero's half of Charge writes the actor it
+        // is given, and the one this started from is still on the floor.
+        var recovered = actor.Recovered(health, standing);
+
+        return Charge(state.With(recovered), recovered, rule.CostResolve, fromAdversity)
             with { Effects = effects };
     }
 
@@ -3306,6 +3460,10 @@ public sealed partial class Encounter
         {
             ResolveSpend.ExtraDice => BuyDice(state, npc, spend.Points, lines, fromAdversity: true),
             ResolveSpend.Reroll => BuyReroll(state, npc, lines, fromAdversity: true),
+            ResolveSpend.SeizeInitiative => SeizeInitiative(state, npc, lines, fromAdversity: true),
+            ResolveSpend.InstantRecovery => InstantRecovery(state, npc, lines, fromAdversity: true),
+            ResolveSpend.AvoidFatalDamage => AvoidFatalDamage(state, npc, lines, fromAdversity: true),
+            ResolveSpend.Stabilise => StabiliseWithResolve(state, npc, lines, fromAdversity: true),
             ResolveSpend.KeepingHold => KeepHold(state, npc, lines, fromAdversity: true),
             ResolveSpend.Knockback => Knockback(state, npc, lines, fromAdversity: true),
             ResolveSpend.Luring => Lure(state, npc, spend.Target, lines, fromAdversity: true),
@@ -3339,15 +3497,21 @@ public sealed partial class Encounter
     /// <c>anything_resolve_can</c> may name is held to this by driving every member of the enum
     /// through <see cref="Step"/>.</para>
     ///
-    /// <para><b>What is not on it is not a rule about the GM.</b> p.85 says a point of Adversity
-    /// does whatever a point of Resolve could have done; the four missing purchases are the ones
-    /// this engine still charges to the buyer's own pool, and an NPC has none. That is an engine
-    /// limit and the ledger says so in those words.</para>
+    /// <para><b>It is every purchase now, and the gate is kept rather than deleted.</b> p.85 says a
+    /// point of Adversity does whatever a point of Resolve could have done, and the four that used
+    /// to be missing — <c>SeizeInitiative</c>, <c>InstantRecovery</c>, <c>AvoidFatalDamage</c> and
+    /// <c>Stabilise</c> — charged the buyer's own pool, which an NPC has none of. They go through
+    /// <see cref="Charge"/> now. What the gate is worth with nothing left out is the <em>next</em>
+    /// purchase: a member added to <see cref="ResolveSpend"/> and not added here is answered with a
+    /// <c>not yet implemented</c> line, where the dispatch below would throw in the middle of a
+    /// fight. A list that has to be edited twice is the point, not an oversight.</para>
     /// </summary>
     private static readonly HashSet<ResolveSpend> AdversityBuys =
     [
-        ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.KeepingHold,
-        ResolveSpend.Knockback, ResolveSpend.Luring, ResolveSpend.TeamAttack
+        ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.SeizeInitiative,
+        ResolveSpend.InstantRecovery, ResolveSpend.AvoidFatalDamage, ResolveSpend.Stabilise,
+        ResolveSpend.KeepingHold, ResolveSpend.Knockback, ResolveSpend.Luring,
+        ResolveSpend.TeamAttack
     ];
 
     /// <summary>
