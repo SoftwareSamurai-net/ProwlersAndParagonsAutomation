@@ -3085,6 +3085,143 @@ public sealed class McpPlayServerTests
         });
 
 
+    /// <summary>
+    /// <b>Both flags cross the wire on a group of Minions too, and both are read there.</b>
+    ///
+    /// <para>A Minion group is not a character sheet, so it takes a different branch out of the
+    /// reader — <c>TryReadMinions</c> rather than <c>CombatantFactory</c> — and a field threaded
+    /// through one and not the other is the same silent loss the <c>ready</c> flag itself arrived
+    /// with. A swarm of machines is the obvious hard target, and p.79's own example of somebody
+    /// with a weapon levelled is a crook, so neither flag is a thing only a Hero can carry.</para>
+    ///
+    /// <para><b>Each is proved by the engine's answer rather than by the echo.</b> The mob's
+    /// hardness is proved by the Threat rank the Hero's attack has to beat; the echo is asserted
+    /// beside it, since a state a conversation reads should say what was read.</para>
+    /// </summary>
+    [Fact]
+    public async Task BothFlagsCrossTheWireOnAGroupOfMinionsAndAreReadThere() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Swarm(bool declared)
+            {
+                var fight = TwoSides();
+                fight.RemoveAt(1);
+
+                var mob = new JsonObject
+                {
+                    ["kind"] = "minions", ["id"] = "mob", ["name"] = "the robots",
+                    ["threat_rank"] = 5, ["count"] = 4, ["side"] = "villains"
+                };
+
+                if (declared)
+                {
+                    mob["hard_target"] = true;
+                    mob["ready"] = true;
+                }
+
+                fight.Add(mob);
+
+                var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["hard_targets"] = true, ["the_drop"] = true },
+                    ["seed"] = 80
+                });
+
+                return await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack", ["actor"] = "hero", ["target"] = "mob",
+                        ["trait_id"] = "might", ["damage"] = "subdual", ["type"] = "unarmed"
+                    }
+                });
+            }
+
+            // The control: neither flag declared, so the mob answers on the Threat rank it was
+            // opened with and no line cites the rule.
+            var plain = await Swarm(declared: false);
+
+            Assert.Contains("threat 5d", RollLine(plain), StringComparison.Ordinal);
+            Assert.False(Cites(plain, "gritty_hard_targets"));
+
+            var swarm = await Swarm(declared: true);
+
+            // hard_target reached the Minion branch: the Threat answers at twice its rank.
+            Assert.Contains("threat 10d", RollLine(swarm), StringComparison.Ordinal);
+            Assert.True(Cites(swarm, "gritty_hard_targets"));
+
+            var mob = swarm["state"]!["combatants"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "mob", StringComparison.Ordinal));
+
+            Assert.True(mob!["hard_target"]!.GetValue<bool>());
+            Assert.True(mob["ready"]!.GetValue<bool>());
+        });
+
+    /// <summary>
+    /// <b><c>run_encounters</c> echoes each combatant's <c>hard_target</c> and <c>ready</c>.</b>
+    ///
+    /// <para>Same argument as the size and invisibility beside them, and the same defect one level
+    /// on: a rate is quoted with four things and none of them can carry a fact about a character,
+    /// so a run measured against a machine whose passive defences were doubled — or against a side
+    /// holding the drop — came back looking exactly like a run in which neither was true. The
+    /// control is the same call declaring neither, which is required to echo the defaults, so a
+    /// server printing a constant cannot satisfy both.</para>
+    /// </summary>
+    [Fact]
+    public async Task RunEncountersEchoesEachCombatantsHardTargetAndReadiness() =>
+        await WithClient(async client =>
+        {
+            var fight = TwoSides();
+
+            fight[0]!["ready"] = true;
+            fight[1]!["hard_target"] = true;
+
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = fight,
+                ["table"] = new JsonObject { ["hard_targets"] = true, ["the_drop"] = true },
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = 80
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>());
+
+            var rows = answer["by_combatant"]!.AsArray()
+                .ToDictionary(c => c!["id"]!.GetValue<string>(), c => c!, StringComparer.Ordinal);
+
+            Assert.True(rows["hero"]["ready"]!.GetValue<bool>());
+            Assert.False(rows["hero"]["hard_target"]!.GetValue<bool>());
+
+            Assert.True(rows["villain"]["hard_target"]!.GetValue<bool>());
+            Assert.False(rows["villain"]["ready"]!.GetValue<bool>());
+
+            // The control: the same fight said nothing about either, and the echo says so.
+            var quiet = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject { ["hard_targets"] = true, ["the_drop"] = true },
+                ["runs"] = PlayTools.FewestRuns,
+                ["seed"] = 80
+            });
+
+            Assert.True(quiet["ok"]!.GetValue<bool>());
+
+            foreach (var row in quiet["by_combatant"]!.AsArray())
+            {
+                Assert.False(row!["hard_target"]!.GetValue<bool>());
+                Assert.False(row["ready"]!.GetValue<bool>());
+            }
+
+            // And the control that the two were used rather than merely carried through: the same
+            // seed against the same characters measures a different fight.
+            Assert.NotEqual(
+                quiet["mean_pages"]!.GetValue<double>(),
+                answer["mean_pages"]!.GetValue<double>());
+        });
+
+
     // ── p.80's Friendly Fire, over the wire ───────────────────────────────
 
     /// <summary>
