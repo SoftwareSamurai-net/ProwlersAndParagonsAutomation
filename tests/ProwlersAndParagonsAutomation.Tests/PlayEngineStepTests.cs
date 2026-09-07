@@ -1704,6 +1704,89 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>The fourfold reading, reached out of the GM's pool, in a fight with a Minion group in
+    /// it.</b>
+    ///
+    /// <para><see cref="BothDoublingsCompoundOnAReadyCharacterWhoSeizesTheInitiative"/> holds the
+    /// composition itself and holds it between two Heroes buying with their own Resolve, because
+    /// that is the only way either of them could buy it before this slice. <b>The buyer p.85 wrote
+    /// the purchase for is an NPC</b>, and an NPC reaches p.73's seize down a different branch, in
+    /// a fight where the other two things this engine's order sorts on are live: a Minion group,
+    /// which <c>minions_act</c> puts outside the whole comparison, and p.79's Drop, which p.73
+    /// declines to give that group anything to double.</para>
+    ///
+    /// <para>The figures are the composition's: a Villain on 5 against a Hero on 9, both ready, so
+    /// the Drop makes it 10 against 18 and the Hero leads — and the alternative doubles the 10 to 20
+    /// against a figure the seize itself never touches. The first assertion is the control, and the
+    /// second is the reading.</para>
+    ///
+    /// <para><b>And the Minions stay last through both</b>, which is the interaction worth driving:
+    /// <c>minions_act</c> is the outermost key of this order, so a ready group that the Drop could
+    /// not double and a purchase that the same page refuses them leave them exactly where p.73 puts
+    /// them.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolReachesBothDoublingsWithAMinionGroupInTheFight()
+    {
+        var table = TableRules.Book with { TheDrop = true, GmAlternativeToSeizingInitiative = true };
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero(
+            "hero", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"], ready: true);
+
+        var villain = Combatant.Villain(
+            "villain", "the Villain", edge: 5, health: 10, traits, ["toughness"], ready: true);
+
+        // Ready as well, and p.73 gives them no Edge for the Drop to double — the line saying so is
+        // asserted below, because a group quietly doubled would still sort last and say nothing.
+        var mob = Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat", ready: true);
+
+        // <b>And somebody with nothing levelled, because p.79's Drop is held against a person.</b>
+        // A fight in which everybody is ready is a fight in which nobody has the drop on anybody,
+        // and the entry says so on page one rather than doubling every figure for nothing.
+        var foe = Combatant.Foe("foe", "the Foe", edge: 3, health: 6, traits, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(19), table);
+        var opened = encounter.Begin([hero, villain, mob, foe], challengeLevel: 2);
+
+        // The controls on the fixture: a pool, the Drop doubling the two who have an Edge, and
+        // nothing to double for the group.
+        Assert.True(opened.Adversity >= 1, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.Equal(18, opened.EffectiveEdge["hero"]);
+        Assert.Equal(10, opened.EffectiveEdge["villain"]);
+
+        Assert.Contains(opened.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("the Minions", StringComparison.Ordinal)
+            && l.Text.Contains("nothing here to double", StringComparison.Ordinal));
+
+        // One doubling is not enough: the Hero leads on 18 against the Villain's doubled 10.
+        Assert.Equal(["hero", "villain", "foe", "mob"], opened.TurnOrder);
+
+        var bought = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(opened.Adversity - 1, bought.State.Adversity);
+        Assert.Equal(0, bought.State["villain"].Resolve);
+
+        // Both together are: 5 doubled by the Drop and doubled again by the GM's alternative goes
+        // ahead of a figure the purchase never touched — and the Minions are still last.
+        var turned = encounter.Step(bought.State, new EndPage("")).State;
+
+        Assert.Equal(["villain", "hero", "foe", "mob"], turned.TurnOrder);
+
+        // And the group cannot buy its way out of that placement, off the page that made it.
+        var onTheMob = encounter.Step(turned, new SpendAdversity(
+            "mob", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.SeizeInitiative));
+
+        Assert.Equal(turned.Adversity, onTheMob.State.Adversity);
+        Assert.DoesNotContain("mob", onTheMob.State.Seized);
+        Assert.Equal(
+            ["villain", "hero", "foe", "mob"],
+            encounter.Step(onTheMob.State, new EndPage("")).State.TurnOrder);
+    }
+
+    /// <summary>
     /// <b>p.76's instant recovery, bought out of the GM's pool for an NPC who has just gone down.</b>
     ///
     /// <para>Every limit the page prints survives the change of pool. The Health it brings back is
@@ -1800,6 +1883,83 @@ public sealed class PlayEngineStepTests
         Assert.Contains(onTheMob.Added, l =>
             string.Equals(l.Rule, "attacking_minions", StringComparison.Ordinal)
             && l.Text.Contains("no Health to bring back", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>p.76's once-a-scene is counted per character, and the two pools do not share a count.</b>
+    ///
+    /// <para>The fixture above drives the limit down one pool: a Villain bought back onto their feet
+    /// is not bought back a second time out of the GM's money. <b>What it cannot say is that the
+    /// limit is the character's rather than the purchase's</b> — a count kept on the encounter, or
+    /// on the pool that paid, would satisfy every assertion there and would refuse a Villain the
+    /// recovery a Hero had already taken. p.76 puts the sentence on the buyer: "you can only use
+    /// instant recovery once per scene".</para>
+    ///
+    /// <para>So a Hero spends their own Resolve and comes round, and then the GM's pool brings a
+    /// Villain round in the same scene — and the second purchase against each of them is refused
+    /// while the other's count stands where it was.</para>
+    /// </summary>
+    [Fact]
+    public void TheOnceASceneLimitIsTheCharactersAndNotThePools()
+    {
+        var rule = _play.GetCombat("instant_recovery").InstantRecovery!;
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        Assert.Equal(1, rule.LimitPerScene);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant
+            .Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"])
+            .WithHealth(floor);
+
+        var villain = Combatant
+            .Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+            .WithHealth(floor);
+
+        var encounter = new Encounter(_play, new SeededDice(23));
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        // The controls on the fixture: a pool to spend, and both of them really down.
+        Assert.True(opened.Adversity >= 2, $"the fight opened on {opened.Adversity} Adversity");
+        Assert.True(opened["hero"].Defeated(floor));
+        Assert.True(opened["villain"].Defeated(floor));
+
+        // The Hero's own point, out of their own pool.
+        var heroUp = encounter.Step(opened, new SpendResolve("hero", ResolveSpend.InstantRecovery)).State;
+
+        Assert.Equal(2, heroUp["hero"].Resolve);
+        Assert.Equal(opened.Adversity, heroUp.Adversity);
+        Assert.Equal(1, heroUp["hero"].InstantRecoveriesUsed);
+        Assert.Equal(0, heroUp["villain"].InstantRecoveriesUsed);
+
+        // And the GM's, for the Villain, in the same scene: a count kept anywhere but on the
+        // character would refuse this one because the Hero had already taken theirs.
+        var both = encounter.Step(heroUp, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(heroUp.Adversity - rule.CostResolve, both.State.Adversity);
+        Assert.Equal(rule.AfterADamagingDefeatRestoresHealth, both.State["villain"].CurrentHealth);
+        Assert.Equal(1, both.State["villain"].InstantRecoveriesUsed);
+        Assert.Equal(1, both.State["hero"].InstantRecoveriesUsed);
+
+        // And each of them is refused a second, on their own count and with nothing spent.
+        var down = both.State
+            .With(both.State["hero"].WithHealth(floor))
+            .With(both.State["villain"].WithHealth(floor));
+
+        var heroAgain = encounter.Step(down, new SpendResolve("hero", ResolveSpend.InstantRecovery));
+
+        Assert.Equal(2, heroAgain.State["hero"].Resolve);
+        Assert.Contains(heroAgain.Added, l =>
+            l.Text.Contains("has already taken 1 instant recovery this scene", StringComparison.Ordinal));
+
+        var villainAgain = encounter.Step(down, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.InstantRecovery));
+
+        Assert.Equal(down.Adversity, villainAgain.State.Adversity);
+        Assert.Contains(villainAgain.Added, l =>
+            l.Text.Contains("has already taken 1 instant recovery this scene", StringComparison.Ordinal));
     }
 
     /// <summary>
