@@ -250,7 +250,7 @@ public sealed class PlayTools
         [Description("The id start_encounter answered with.")]
         string? encounterId,
         [Description(
-            "One intent, as a JSON object with a \"kind\" of: attack, move, hold, grapple, "
+            "One intent, as a JSON object with a \"kind\" of: attack, move, hold, grapple, toss, "
             + "break_free, spend_resolve, spend_adversity, stabilise, end_turn, end_page. "
             + "For example {\"kind\": \"attack\", \"actor\": \"gatecrasher\", \"target\": "
             + "\"mecha\", \"trait_id\": \"blast\", \"type\": \"physical_power\"}. An attack also "
@@ -260,7 +260,12 @@ public sealed class PlayTools
             + "which under the hard_targets setting costs four dice and cancels the target's "
             + "doubled passive defence, and \"close_range_only\" for an ordinary thrown weapon or "
             + "anything else that only works up close, which the close_range_penalty setting "
-            + "ignores.")]
+            + "ignores. A grapple with \"move\": \"grab\" needs an \"item\" — p.76 aims a grab at "
+            + "an object and a hold at a person, so a grab naming nothing is refused with nothing "
+            + "rolled. A full grab puts that item in the winner's hands for the page: an attack may "
+            + "name it as \"item\" (which changes no figure and keeps it past the page turn), "
+            + "\"toss\" throws it away, and neither spends the turn. Anything else still held when "
+            + "the page ends is tossed aside.")]
         JsonElement intent)
     {
         if (string.IsNullOrWhiteSpace(encounterId) || !_encounters.TryGetValue(encounterId, out var held))
@@ -1590,7 +1595,7 @@ public sealed class PlayTools
     /// <summary>The intents this engine takes, by the name a caller passes.</summary>
     public static IReadOnlyList<string> IntentKinds { get; } =
     [
-        "attack", "move", "hold", "grapple", "break_free",
+        "attack", "move", "hold", "grapple", "toss", "break_free",
         "spend_resolve", "spend_adversity", "stabilise", "end_turn", "end_page"
     ];
 
@@ -1646,7 +1651,12 @@ public sealed class PlayTools
                     Flag(entry, "vulnerable_part"),
                     // p.79's Close Range, and its own exception. A fight here has no equipment in
                     // it, so a thrown weapon is the caller's word or it is nothing at all.
-                    Flag(entry, "close_range_only"));
+                    Flag(entry, "close_range_only"),
+                    // p.76's "use it ... on that same page". Refused unless the actor is holding
+                    // exactly this, because a full grab is the only way anything reaches their
+                    // hands here — an item this engine does not know about is one a caller would
+                    // otherwise conjure into the fight by naming it.
+                    Text(entry, "item") is { Length: > 0 } wielded ? wielded : null);
                 return true;
 
             case "move":
@@ -1659,7 +1669,17 @@ public sealed class PlayTools
 
             case "grapple":
                 if (!TryReadEnum<GrappleMove>(entry, "move", GrappleMove.Grab, out var move, out problem)) return false;
-                read = new GrappleIntent(actor, Text(entry, "target").Trim(), move);
+                read = new GrappleIntent(
+                    actor, Text(entry, "target").Trim(), move,
+                    // p.76 aims a grab at an object and a hold at a person, so a grab that names
+                    // nothing is refused on the ledger with nothing rolled. Left null here rather
+                    // than refused as a bad argument: it is a rule of the book and the ledger is
+                    // where a rule's refusal belongs.
+                    Text(entry, "item") is { Length: > 0 } grabbed ? grabbed.Trim() : null);
+                return true;
+
+            case "toss":
+                read = new Toss(actor, Text(entry, "item").Trim());
                 return true;
 
             case "break_free":
@@ -1847,6 +1867,17 @@ public sealed class PlayTools
                     ["invisible"]          = c.Invisible,
                     ["hard_target"]        = c.HardTarget,
                     ["ready"]              = c.Ready,
+                    // p.76's full grab: what it put in their hands, the page it was won on, and
+                    // whether they have swung it — which is what decides whether the page turn
+                    // takes it away again.
+                    ["holding"]            = c.Holding is null
+                        ? null
+                        : new JsonObject
+                        {
+                            ["item"]         = c.Holding.Name,
+                            ["won_on_page"]  = c.Holding.WonOnPage,
+                            ["used"]         = c.Holding.Used
+                        },
                     // p.80's Slow Healing: on their feet at a Health that would otherwise have
                     // them out, and one point of damage from being out again.
                     ["conscious_at_zero_or_less"] = c.ConsciousAtZeroOrLess,
@@ -1870,7 +1901,10 @@ public sealed class PlayTools
                     ["holder"] = g.Holder,
                     ["held"]   = g.Held,
                     ["move"]   = Wire(g.Move.ToString()),
-                    ["kind"]   = Wire(g.Kind.ToString())
+                    ["kind"]   = Wire(g.Kind.ToString()),
+                    // What the two of them have hold of, for a grab; null for a hold, which is
+                    // aimed at a person.
+                    ["item"]   = g.Item
                 })
             ]),
 

@@ -1476,6 +1476,237 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A grab's <c>item</c> crosses the wire, in both directions of p.76's own distinction.</b>
+    ///
+    /// <para>A field the reader does not have is a field the SDK drops in silence — which is exactly
+    /// how p.79's team flag was lost, with the policy telling every conversation to send it and
+    /// nothing here reading it. So both halves are driven: a grab that names nothing is refused with
+    /// nothing rolled, and the same grab naming an object is rolled and read off the Grappling
+    /// table.</para>
+    ///
+    /// <para>The second half is the control the first cannot supply. A reader that dropped
+    /// <c>item</c> on the floor would refuse <em>every</em> grab, and a test asserting only the
+    /// refusal would call that green.</para>
+    /// </summary>
+    [Fact]
+    public async Task AGrabsItemCrossesTheWire() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 11
+            });
+
+            var id = opened["encounter_id"]!.GetValue<string>();
+            var actor = opened["turn_order"]!.AsArray()[0]!["id"]!.GetValue<string>();
+            var other = opened["turn_order"]!.AsArray()[1]!["id"]!.GetValue<string>();
+
+            var bare = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = id,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "grapple", ["actor"] = actor, ["target"] = other, ["move"] = "grab"
+                }
+            });
+
+            Assert.True(bare["ok"]!.GetValue<bool>());
+            Assert.Contains("has not said what", bare["added"]!.ToJsonString(), StringComparison.Ordinal);
+            Assert.DoesNotContain("grappling_table", bare["added"]!.ToJsonString(), StringComparison.Ordinal);
+
+            var named = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = id,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "grapple", ["actor"] = actor, ["target"] = other,
+                    ["move"] = "grab", ["item"] = "the sword"
+                }
+            });
+
+            Assert.Contains("grappling_table", named["added"]!.ToJsonString(), StringComparison.Ordinal);
+            Assert.DoesNotContain("has not said what", named["added"]!.ToJsonString(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>An attack's <c>item</c> crosses the wire, and an item nobody holds is refused with nothing
+    /// rolled.</b>
+    ///
+    /// <para>A full grab is the only way anything reaches a combatant's hands here, so an attack
+    /// naming a weapon out of the air is a claim about equipment this engine cannot answer for — and
+    /// a reader that dropped the field would resolve it as an ordinary attack and put a fabricated
+    /// weapon on the ledger. The refusal is the control that the field arrived.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAttacksItemCrossesTheWire() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 11
+            });
+
+            var id = opened["encounter_id"]!.GetValue<string>();
+            var actor = opened["turn_order"]!.AsArray()[0]!["id"]!.GetValue<string>();
+            var other = opened["turn_order"]!.AsArray()[1]!["id"]!.GetValue<string>();
+
+            var swung = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = id,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = actor, ["target"] = other,
+                    ["trait_id"] = "might", ["item"] = "a rocket launcher"
+                }
+            });
+
+            var ledger = swung["added"]!.ToJsonString();
+
+            Assert.Contains("is not holding a rocket launcher", ledger, StringComparison.Ordinal);
+            Assert.DoesNotContain("defends with", ledger, StringComparison.Ordinal);
+
+            // The control: the same attack without the field is resolved, so the refusal is about
+            // the item and not about attacks being switched off.
+            var plain = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = id,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack", ["actor"] = actor, ["target"] = other, ["trait_id"] = "might"
+                }
+            });
+
+            Assert.Contains("defends with", plain["added"]!.ToJsonString(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b><c>toss</c> is an intent this server takes.</b>
+    ///
+    /// <para>The two answers it must not give are the ones this asserts against: <c>NO_SUCH_INTENT</c>
+    /// would mean the kind never reached the reader, and a resolved toss would mean an item nobody
+    /// holds was thrown away. What it gives instead is the ledger refusal p.76's own entry makes,
+    /// which is what a kind the server has and a fight not in a state for looks like.</para>
+    /// </summary>
+    [Fact]
+    public async Task TossIsAnIntentThisServerTakes() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 11
+            });
+
+            var answer = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = opened["encounter_id"]!.GetValue<string>(),
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "toss",
+                    ["actor"] = opened["turn_order"]!.AsArray()[0]!["id"]!.GetValue<string>(),
+                    ["item"] = "the sword"
+                }
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>());
+            Assert.Contains("toss", PlayTools.IntentKinds, StringComparer.Ordinal);
+            Assert.Contains("no grab of this fight has put anything in their hands",
+                answer["added"]!.ToJsonString(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>Who holds what comes back on the public state, and so does what a pair is fighting
+    /// over.</b>
+    ///
+    /// <para>A client reads the state to decide what to do next, and p.76 gives a winner one page to
+    /// use or toss the object — so a fight that had taken a sword off somebody and did not say so
+    /// would leave a model narrating from a fact it could not see. <c>holding</c> carries the item,
+    /// the page it was won on and whether it has been swung, which is what decides whether the page
+    /// turn takes it away.</para>
+    ///
+    /// <para>The control is that the same field reads null for a combatant who has taken nothing, so
+    /// this cannot pass on a key that is always there and always says the same thing.</para>
+    /// </summary>
+    [Fact]
+    public async Task WhoHoldsWhatComesBackOnTheState() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 11
+            });
+
+            var id = opened["encounter_id"]!.GetValue<string>();
+            var actor = opened["turn_order"]!.AsArray()[0]!["id"]!.GetValue<string>();
+            var other = opened["turn_order"]!.AsArray()[1]!["id"]!.GetValue<string>();
+
+            JsonNode? state = null;
+
+            // A full grab needs three net successes, which no seed promises on one roll — so the
+            // fight is played until one lands, and the loop's bound plus the assertion after it are
+            // what say it did rather than that it was hoped for.
+            for (var page = 0; page < 12 && state is null; page++)
+            {
+                var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "grapple", ["actor"] = actor, ["target"] = other,
+                        ["move"] = "grab", ["item"] = "the sword"
+                    }
+                });
+
+                if (turn["state"]!["grapples"]!.AsArray()
+                        .Any(g => g!["kind"]!.GetValue<string>() == "full"))
+                {
+                    state = turn["state"];
+                }
+
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject { ["kind"] = "end_turn", ["actor"] = actor }
+                });
+
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject { ["kind"] = "end_turn", ["actor"] = other }
+                });
+
+                await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = id,
+                    ["intent"] = new JsonObject { ["kind"] = "end_page", ["actor"] = actor }
+                });
+            }
+
+            Assert.NotNull(state);
+
+            var grapple = Assert.Single(state["grapples"]!.AsArray());
+
+            Assert.Equal("grab", grapple!["move"]!.GetValue<string>());
+            Assert.Equal("the sword", grapple["item"]!.GetValue<string>());
+
+            var combatants = state["combatants"]!.AsArray()
+                .ToDictionary(c => c!["id"]!.GetValue<string>(), c => c!["holding"]);
+
+            // The loser has taken nothing, whichever band the contest landed in — the control that
+            // says this key is not simply always filled in.
+            Assert.Null(combatants[other]);
+
+            Assert.Equal("full", grapple["kind"]!.GetValue<string>());
+
+            Assert.Equal("the sword", combatants[actor]!["item"]!.GetValue<string>());
+            Assert.False(combatants[actor]!["used"]!.GetValue<bool>());
+            Assert.True(combatants[actor]!["won_on_page"]!.GetValue<int>() >= 1);
+        });
+
+    /// <summary>
     /// <b>An intent this engine does not have is refused by name, and the refusal lists the ones it
     /// does.</b> A model that guessed a verb has to be able to correct itself from the answer, and
     /// "unknown intent" on its own sends it guessing again.
