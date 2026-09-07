@@ -4533,6 +4533,136 @@ public sealed class PlayEngineStepTests
         Assert.Contains(printed, line.Text, StringComparison.Ordinal);
     }
 
+
+    /// <summary>
+    /// <b>A compensating Power answers whichever of the two reasons put the character in the dark,
+    /// and that it answers both is a reading rather than a printed rule.</b>
+    ///
+    /// <para><b>p.75 hangs the "unless" off one sentence and this engine applies it to both.</b> The
+    /// printed clause is "You effectively have no visibility against an invisible opponent unless
+    /// you have a Power that compensates for this, like Blind Fighting or Radar" — so what the page
+    /// says in as many words is that the Power answers an <em>invisible opponent</em>. The entry
+    /// carries <c>powers_that_compensate_given</c> under <c>visibility</c> as a whole rather than
+    /// under the invisible clause, and a Power called Blind Fighting that did nothing about
+    /// darkness would be a strange rule, so the engine reads it as covering the scene's light too.
+    /// That is a reading, it is the permissive direction, and the guide's readings table records it.
+    /// </para>
+    ///
+    /// <para><b>Only the light half was driven.</b> Narrowing the compensation to
+    /// <c>!unseen &amp;&amp; Compensating(roller)</c> — the engine declining to compensate for
+    /// exactly the case p.75 attaches the clause to — left every test in this class and every one in
+    /// the two MCP classes green. Both causes are driven here, each against its own unhelped
+    /// control.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("blind_fighting", false)]
+    [InlineData("blind_fighting", true)]
+    [InlineData("radar", false)]
+    [InlineData("radar", true)]
+    public void ACompensatingPowerAnswersWhicheverReasonPutTheRollerInTheDark(
+        string powerId, bool invisibleOpponent)
+    {
+        var entry = _play.GetCombat("modifier_visibility");
+        var dice = BandDice("modifier_visibility", b => b.Visibility, "none");
+
+        // The scene's light where the cause is the light, and clear air where the cause is an
+        // opponent nobody can see: one cause at a time, so neither can stand in for the other.
+        var light = invisibleOpponent ? Visibility.Clear : Visibility.None;
+
+        var (blindAttacker, blindTarget) =
+            Pair("toughness", 6, targetInvisible: invisibleOpponent);
+
+        var (seeingAttacker, seeingTarget) = Pair(
+            "toughness", 6, targetInvisible: invisibleOpponent,
+            attackerPowers: new HashSet<string>(StringComparer.Ordinal) { powerId });
+
+        var (openAttacker, openTarget) = Pair("toughness", 6);
+        var open = Exchange(openAttacker, openTarget, new Attack("hero", "villain", "might"));
+
+        // The control: without the Power, this cause really does cost the "none" band — so the
+        // equality below is about the Power and not about a cause that was never applied.
+        var blind = Exchange(blindAttacker, blindTarget, new Attack("hero", "villain", "might"), light);
+
+        Assert.Equal(open.Thrown + dice, blind.Thrown);
+
+        // And with it, the pool is the one it was in clear air against somebody visible.
+        var seeing = Exchange(
+            seeingAttacker, seeingTarget, new Attack("hero", "villain", "might"), light);
+
+        Assert.Equal(open.Thrown, seeing.Thrown);
+
+        var line = Assert.Single(
+            seeing.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal("hero", line.Actor);
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains("unpenalised", line.Text, StringComparison.Ordinal);
+
+        // The line names which cause it answered, so a reader can tell the two apart — and names
+        // the Power in the book's own spelling rather than in the id's.
+        Assert.Contains(
+            invisibleOpponent ? "cannot be seen" : "the visibility here is none",
+            line.Text, StringComparison.Ordinal);
+
+        Assert.Contains(
+            Assert.Single(
+                entry.Visibility!.PowersThatCompensateGiven,
+                p => string.Equals(p.ToLowerInvariant().Replace(' ', '_'), powerId, StringComparison.Ordinal)),
+            line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Two things can make the visibility bad at once, and the worse of them is the one that
+    /// applies.</b>
+    ///
+    /// <para>An invisible opponent in poor light is both of p.75's cases at the same time, and the
+    /// page's answer is the worse one: <c>an_invisible_opponent_counts_as_no_visibility</c> is not
+    /// a further −1d on top of the fog, it is the "none" band. The two bands are different figures,
+    /// so an engine that took the scene's light, or that added the two, gives a different pool —
+    /// and neither could be told from the right answer while the only fixtures drove one cause at
+    /// a time.</para>
+    ///
+    /// <para>The three controls are the same fight with one cause each and with neither, so the
+    /// figure asserted is the "none" band reached through the combination rather than through
+    /// either half of it.</para>
+    /// </summary>
+    [Fact]
+    public void AnInvisibleOpponentInPoorLightIsTheWorseOfTheTwoBandsAndNotTheirSum()
+    {
+        var entry = _play.GetCombat("modifier_visibility");
+        var poor = BandDice("modifier_visibility", b => b.Visibility, "poor");
+        var none = BandDice("modifier_visibility", b => b.Visibility, "none");
+
+        // The control on the claim: the two bands are different, so "the worse wins" is observable.
+        Assert.True(Math.Abs(none) > Math.Abs(poor),
+            $"the two bands are {none}d and {poor}d, so this fixture cannot tell them apart");
+
+        var attack = new Attack("hero", "villain", "might");
+
+        var (openAttacker, openTarget) = Pair("toughness", 6);
+        var open = Exchange(openAttacker, openTarget, attack);
+
+        // Each cause on its own, as the controls.
+        var fog = Exchange(openAttacker, openTarget, attack, Visibility.Poor);
+        Assert.Equal(open.Thrown + poor, fog.Thrown);
+
+        var (atGhost, ghost) = Pair("toughness", 6, targetInvisible: true);
+        var unseen = Exchange(atGhost, ghost, attack);
+        Assert.Equal(open.Thrown + none, unseen.Thrown);
+
+        // Both at once: the worse band, and not the sum of the two.
+        var both = Exchange(atGhost, ghost, attack, Visibility.Poor);
+
+        Assert.Equal(open.Thrown + none, both.Thrown);
+        Assert.NotEqual(open.Thrown + none + poor, both.Thrown);
+
+        // And the line says which of the two it counted, so the pool is not the only evidence.
+        var line = Assert.Single(
+            both.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Contains("cannot be seen", line.Text, StringComparison.Ordinal);
+        Assert.Contains($"{none}d", line.Text, StringComparison.Ordinal);
+    }
     /// <summary>
     /// <b>The default statement both documents make is true of the code and is still in both of
     /// them.</b>
