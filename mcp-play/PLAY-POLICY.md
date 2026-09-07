@@ -81,6 +81,40 @@ they're Villains, Foes, Minions, or Extras", and a Hero named as the `actor` of 
 the economy: a Hero buys their own dice with their own Resolve, and a point of Adversity that
 bought one for them would be the GM paying to help the party.
 
+## Modifiers: cover, size and the light (p.75)
+
+**Three things move a pool besides the sheet, and each is yours to say — nothing derives any of
+them.** By default none of them applies: every figure this server produces is measured **in clear
+air, in the open, against somebody the same size** unless you said otherwise.
+
+- **Cover** goes on the attack, because it is a fact about one line of sight. Send `"cover"` as
+  `light`, `heavy` or `almost_full` for a band on the attack roll, or `complete` for a target hidden
+  altogether — **which cannot be hit**, and is refused with nothing rolled.
+- **Attacking through the obstacle** is a separate declaration and it is `"cover_structure"`: send
+  the obstacle's Structure rank. Two printed things then follow and both are applied — the attack
+  rank has to be **greater** than the Structure or nothing is rolled, and the target may answer with
+  the Structure as a **passive** defence, which can be the roll that stops the attack. Leave it out
+  to shoot at whatever of the target is exposed and pay the band alone.
+- **Size** goes on the combatant, as `"size"` — a bare number whose only meaning is the ratio
+  between two of them, in whatever unit your fight is using; omit it and everybody is the same size.
+  It moves the **defender's active defence rolls and nothing else**: a Toughness, an Armor and a
+  cover's Structure never move for it, however big the attacker is. This server derives the band
+  from the two sizes, so do not try to send one.
+- **Visibility** goes on the fight, as `"visibility"` on `start_encounter` and `run_encounters`:
+  `clear`, `poor` or `none`. It costs **attack rolls and active defence rolls alike**, on both sides
+  of every exchange. It comes back inside `table`, so a rate quoted with its table carries it.
+- **An invisible opponent** is a fact about a pair rather than about the scene, so it is
+  `"invisible"` on a combatant. p.75 counts one as no visibility at all. **Carrying the Invisibility
+  Power is not the same as being invisible** — Ch.2 prints "you *can* turn invisible" — so this
+  server does not read it off the sheet and you say when somebody has actually gone.
+- **Blind Fighting and Radar are read off the sheet** and cancel the penalty for whoever carries
+  one; the ledger line says which Power compensated. p.75 gives those two as examples ("a Power
+  that compensates for this, like…"), so if you have ruled that some other Power covers it, do not
+  put that character in the dark.
+
+A pool taken below one die is not a pool of nothing: p.67 throws one die that scores only on a six.
+So a −3d against a 2d Trait is a real roll with a real, small chance, and the ledger shows it.
+
 ## Quoting a measurement
 
 `run_encounters` answers with a rate. **A rate is only ever quoted with the four things printed
@@ -95,7 +129,9 @@ every answer for exactly this reason.
   focuses fire on whoever is nearly down and buys a reroll when a roll came close, which is one
   real table habit out of several. A balance figure is a figure about a party that plays that way.
 - **Table settings.** The default is the book's baseline, which is every optional Gritty rule
-  **off**. A run with `wound_penalties` on is measuring a different game from one without it.
+  **off**, in clear air. A run with `wound_penalties` on is measuring a different game from one
+  without it, and so is a run in the dark — which is why the scene's `visibility` comes back inside
+  that same object rather than beside it.
 
 Say what was measured, in those terms, or do not say it.
 
@@ -107,19 +143,21 @@ answer is JSON of this server's own making and the arguments are the tool's sign
 
 - **`combat_guide`** — this document. It takes no arguments.
 - **`start_encounter`** — `combatants`, the table's switches in `table`, a `challengeLevel`, a
-  `seed` and an `openingRange`. Answers
+  `seed`, an `openingRange` and the scene's `visibility`. Answers
   with an encounter id, the turn order with each combatant's Edge, the opening Adversity pool and
   the table echoed back. Encounters are held in memory by id, for this session only.
 - **`take_turn`** — an `encounterId` and **one** `intent`. Acting and rolling are one call: there is
   no separate "roll" step, because an intent is a request and the engine decides what it produces.
   Answers with the ledger lines that step added and the public state.
-- **`run_encounters`** — the same setup plus `runs`, `policy` and `maxPages`, run headless. That
+- **`run_encounters`** — the same setup, `visibility` included, plus `runs`, `policy` and
+  `maxPages`, run headless. That
   last one is the sharpest of the camelCase pair above: the answer prints the page limit back in
   snake_case, and sending it that way sends an argument the schema has not got.
 
 A combatant is either a character sheet — the shape the character server's `creation_guide`
 describes — with a `kind` of `hero`, `villain`, `foe` or `extra` and a `side`, or a group of
-Minions with a `threat_rank`, a `count` and a `side`. **`kind` and `side` are yours to say and
+Minions with a `threat_rank`, a `count` and a `side`. Either may also carry a `size` and an
+`invisible` flag; see **Modifiers** above. **`kind` and `side` are yours to say and
 nothing derives them**: the Hero/Villain flag on a sheet is presentation, the same sheet is a
 Villain in one GM's game and a Foe in another's, and Chapter 4's tie-break ladder is about
 precedence rather than teams — a fight between Heroes is a fight the book prints.
@@ -137,16 +175,10 @@ a run that touched one is a run you can tell apart from one that did not. **Do n
 effect from this list as though it happened**, and do not quote a balance figure from a run that
 turned one of these table settings on without saying that the numbers do not carry it.
 
-**`Encounter.EntriesNotYetApplied`** — rules of the book this server names and does not apply:
-
-| Entry | What it is |
-|---|---|
-| `modifier_cover` | p.75. Nothing on an attack can say a target is behind something. |
-| `modifier_size` | p.75. Nothing says how big anybody is. |
-| `modifier_visibility` | p.75. Nothing says what the light is like. |
-
-The last three matter to anybody reading a number off this server: every figure it produces was
-measured **in clear air, in the open, against somebody the same size**.
+**`Encounter.EntriesNotYetApplied` is empty**, and that is a claim held to the engine rather than a
+sentence: no rule of Chapters 3–5 that this server names is left unapplied. p.75's cover, size and
+visibility were the last three on that list and are applied now — see **Modifiers** below. What is
+still not modelled is the table settings under it, and what `anything_resolve_can` may name.
 
 **`Encounter.SwitchesNotYetApplied`** — table settings you may turn on, which are announced on
 page one of the run and do not move the numbers:
