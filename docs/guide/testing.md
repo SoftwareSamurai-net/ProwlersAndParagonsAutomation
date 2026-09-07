@@ -518,7 +518,18 @@ reason.
 |---|---|---|
 | `ADMIN` | the link signed somebody in; `/admin` rendered its own heading; the banner *still* names that account on that page | the page says there is nothing here for this account, **and** does not carry the list |
 | `RULES` | `/rules` rendered; the banner **there** names the seeded account; a search box arrived; a search came back | ≥1 passage with a printed page citation and real prose — then, in a context that never signed in, a `401` from `/api/rulebook/` **read off the wire** and the page saying so |
-| `ACCOUNT_SAVE` | signed in; a non-`GET` to `/api/characters` was answered under 400; a second context began with storage that had never heard of the character; it signed in | the wizard in the second context holds the character |
+| `ACCOUNT_SAVE` | signed in; a non-`GET` to `/api/characters` was answered under 400; **the shell says "Saved" while the whole name is in the field**; a second context began with storage that had never heard of the character; it signed in | the wizard in the second context holds the character |
+
+**`ACCOUNT_SAVE`'s third control is new, and the run that argued for it reported the defect
+correctly.** "A write was answered" says a write happened; it does not say *which* body was in it,
+and a name typed one character at a time is a run of writes. So the check could open its second
+browser having only established that the first letter reached the account — and when it found
+`Account Bound H` there, "the app wrote a prefix and lost the rest" and "this harness looked too
+early" were indistinguishable from the verdict. `CharacterSession.Saved` carries the version a
+completed write started at, and the shell's word stands only while that version is the character's
+current one, so waiting for "Saved" *with the whole name in the field* is waiting for the finished
+name rather than for a prefix of it. It was the app — see `Autosave`, which now keeps one
+write open at a time — but the check had no way to say so.
 
 **`ADMIN` is the one that is easiest to get vacuous and the brief said so in advance.** "Not
 allowed" is satisfied by a page that failed to load, by a page that refused because nobody was
