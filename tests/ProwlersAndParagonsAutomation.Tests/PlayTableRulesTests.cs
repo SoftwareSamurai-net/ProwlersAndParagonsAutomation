@@ -1,3 +1,4 @@
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Play.Dice;
 using ProwlersAndParagonsAutomation.Play.Encounter;
 using ProwlersAndParagonsAutomation.Play.Rules;
@@ -234,5 +235,105 @@ public sealed class PlayTableRulesTests
         var one = counter.Roll(1, new ScriptedDice(4));
         Assert.False(one.FlooredToOneDie);
         Assert.Equal(1, one.Successes);
+    }
+
+    // ── What a campaign stored, as what a fight is resolved under ─────────
+
+    /// <summary>
+    /// <b>A campaign's block crosses the seam whole, and the crossing is checked against the
+    /// switch list rather than against a second list written here.</b>
+    ///
+    /// <para><c>CampaignTableNamesTests</c> reads <c>TableRules.From</c> as source, which catches
+    /// a switch left out of the copy. This is the behaviour on the other side of that scan: every
+    /// setting turned on over there is on over here, driven through <see cref="TableRules.IsOn"/>
+    /// by the same name list a report echoes. Its control is that the fixture really did turn
+    /// everything on — an all-false block would satisfy an all-false conversion.</para>
+    /// </summary>
+    [Fact]
+    public void EverySwitchACampaignTurnedOnIsOnTheTableAFightIsResolvedUnder()
+    {
+        var campaign = new CampaignTable
+        {
+            ActiveDefensesCost = true,
+            CloseRangePenalty = true,
+            TheDrop = true,
+            FatalDamage = true,
+            FriendlyFire = true,
+            HardTargets = true,
+            RaisedGearLimit = true,
+            SlowHealing = true,
+            ToughMinions = true,
+            WoundPenalties = true,
+            GmAlternativeToSeizingInitiative = true,
+            CheckingYourSwing = true,
+            RandomInitiative = true,
+            GearLimitRank = 12
+        };
+
+        // The control: the fixture above has to have turned something on, or the conversion below
+        // could drop every switch and still agree with it.
+        Assert.False(campaign.IsTheBook);
+
+        var table = TableRules.From(campaign);
+
+        var names = TableRules.Switches.Select(s => s.Name).Distinct(StringComparer.Ordinal).ToList();
+
+        Assert.True(names.Count >= 11, $"only {names.Count} settings were found to check.");
+
+        var off = names.Where(name => !table.IsOn(name)).ToList();
+
+        Assert.True(off.Count == 0,
+            "A campaign turned these on and the table the fight is resolved under has them off: "
+            + string.Join(", ", off));
+
+        // The one that is a figure rather than a flag: 12 has to arrive as 12, not as "set".
+        Assert.Equal(12, table.GearLimitRank);
+
+        // And the whole list comes back on the report a rate is quoted with.
+        Assert.Equal(names.Order(StringComparer.Ordinal), table.On().Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A campaign that stored nothing is the book, and so is one that stored a block with
+    /// nothing on.</b> p.79 offers the ten as optional, so a table that has said nothing has said
+    /// "the book as printed" — which is what lets a character saved before any of this existed
+    /// fight under the game it was always playing.
+    /// </summary>
+    [Fact]
+    public void ACampaignThatAdoptedNothingIsTheBook()
+    {
+        Assert.Equal(TableRules.Book, TableRules.From(null));
+        Assert.Equal(TableRules.Book, TableRules.From(new CampaignTable()));
+        Assert.Empty(TableRules.From(CampaignTable.Book).On());
+    }
+
+    /// <summary>
+    /// <b>Two tables that disagree are told apart by the setting they disagree about, and two that
+    /// agree are not told apart at all.</b>
+    ///
+    /// <para>The naming is the whole product here: a fight refused because its sheets disagree is
+    /// refused with the switch in the message, so somebody can go and fix the one that is wrong.
+    /// The rank is compared as a figure rather than as a presence, which
+    /// <see cref="TableRules.IsOn"/> alone would not do.</para>
+    /// </summary>
+    [Fact]
+    public void TheFirstDisagreementIsNamedAndAgreementIsSilent()
+    {
+        var book = TableRules.Book;
+        var gritty = TableRules.From(new CampaignTable { WoundPenalties = true });
+
+        Assert.Null(TableRules.FirstDifference(book, TableRules.From(new CampaignTable())));
+        Assert.Null(TableRules.FirstDifference(gritty, gritty with { }));
+
+        Assert.Equal(nameof(TableRules.WoundPenalties), TableRules.FirstDifference(book, gritty));
+        Assert.Equal(nameof(TableRules.WoundPenalties), TableRules.FirstDifference(gritty, book));
+
+        // Two raised limits at different ranks are two different games, and IsOn cannot see it.
+        var nine = TableRules.From(new CampaignTable { RaisedGearLimit = true, GearLimitRank = 9 });
+        var twelve = TableRules.From(new CampaignTable { RaisedGearLimit = true, GearLimitRank = 12 });
+
+        Assert.True(nine.IsOn(nameof(TableRules.GearLimitRank)));
+        Assert.True(twelve.IsOn(nameof(TableRules.GearLimitRank)));
+        Assert.Equal(nameof(TableRules.GearLimitRank), TableRules.FirstDifference(nine, twelve));
     }
 }

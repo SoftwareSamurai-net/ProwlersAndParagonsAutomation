@@ -1,3 +1,4 @@
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Play.Rules;
 
 namespace ProwlersAndParagonsAutomation.Play.Encounter;
@@ -125,6 +126,96 @@ public sealed record TableRules
         new(nameof(RandomInitiative), PlayRulesRepository.CombatFile, "edge_order"),
         new(nameof(GearLimitRank), PlayRulesRepository.GrittyFile, "gritty_raised_gear_limit")
     ];
+
+    /// <summary>
+    /// The switches a campaign stored, as the switches this engine reads.
+    ///
+    /// <para><b>Two types for one list, and this is the seam between them.</b>
+    /// <see cref="CampaignTable"/> lives in <c>engine/</c> because it is a record a campaign
+    /// stores and a character carries — the browser writes it, an account's server relays it
+    /// without parsing a word, and the <c>.json</c> export copies it onto the sheet so a Hero can
+    /// be handed to somebody else's fight. Not one of its settings is about what a character
+    /// <em>costs</em>, so no rules code over there reads one. This is where they become something
+    /// a fight can be resolved under.</para>
+    ///
+    /// <para><b>Switch by switch, and every one of them named.</b> A loop over reflection would be
+    /// shorter and would be the wrong shape: the two lists are held together by
+    /// <c>CampaignTableNamesTests</c>, which reads this method as source and requires every
+    /// setting to be assigned from the one with the same name — so a switch added to
+    /// <see cref="CampaignTable"/> and forgotten here is a failing build rather than a house rule
+    /// a GM turns on and no fight will ever carry. Its positive control is that the scan finds a
+    /// non-empty set, because a regular expression that has stopped matching agrees with an empty
+    /// list perfectly.</para>
+    ///
+    /// <para><b><see cref="GearLimitRank"/> crosses too</b>, and it is the one that is a number
+    /// rather than a flag. It is copied whether or not <see cref="RaisedGearLimit"/> is on, for the
+    /// reason the two are separate fields at all: a rank left behind while the switch is off is a
+    /// figure the table has not adopted, and <see cref="GearLimit"/> is the one place that
+    /// question is asked.</para>
+    ///
+    /// <para><b>A campaign that stored nothing is the book</b>, which is what
+    /// <c>CampaignTable.IsTheBook</c> says on the other side: p.79 offers the ten as optional, so a
+    /// table that has said nothing has said "the book as printed".</para>
+    /// </summary>
+    /// <param name="campaign">What the campaign turned on, or null for the book as printed.</param>
+    public static TableRules From(CampaignTable? campaign)
+    {
+        if (campaign is null) return Book;
+
+        return new TableRules
+        {
+            ActiveDefensesCost = campaign.ActiveDefensesCost,
+            CloseRangePenalty = campaign.CloseRangePenalty,
+            TheDrop = campaign.TheDrop,
+            FatalDamage = campaign.FatalDamage,
+            FriendlyFire = campaign.FriendlyFire,
+            HardTargets = campaign.HardTargets,
+            RaisedGearLimit = campaign.RaisedGearLimit,
+            SlowHealing = campaign.SlowHealing,
+            ToughMinions = campaign.ToughMinions,
+            WoundPenalties = campaign.WoundPenalties,
+            GmAlternativeToSeizingInitiative = campaign.GmAlternativeToSeizingInitiative,
+            CheckingYourSwing = campaign.CheckingYourSwing,
+            RandomInitiative = campaign.RandomInitiative,
+            GearLimitRank = campaign.GearLimitRank
+        };
+    }
+
+    /// <summary>
+    /// The first setting two tables disagree about, in <see cref="Switches"/> order, or null where
+    /// they are the same game.
+    ///
+    /// <para><b>Switch by switch rather than by comparing the two records</b>, and the reason is
+    /// the answer rather than the question: a caller that has found a disagreement has to be able
+    /// to <em>name</em> it. "These two characters are not playing the same game" is a refusal
+    /// nobody can act on; "one of them has <c>WoundPenalties</c> on and the other has not" is one
+    /// somebody can go and fix. Equality would also answer the question — this is a record — and
+    /// would answer it with a bare <c>false</c>.</para>
+    ///
+    /// <para><see cref="Switches"/> order is what makes "the first" a fact rather than a
+    /// coincidence of how a dictionary happened to enumerate, so the same pair of tables always
+    /// names the same setting.</para>
+    /// </summary>
+    public static string? FirstDifference(TableRules a, TableRules b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+
+        foreach (var name in Switches.Select(s => s.Name).Distinct(StringComparer.Ordinal))
+        {
+            // The rank is compared as a figure and not as a presence: IsOn answers only whether
+            // one was set at all, so a table on 9 and a table on 12 would agree under it.
+            if (string.Equals(name, nameof(GearLimitRank), StringComparison.Ordinal))
+            {
+                if (a.GearLimitRank != b.GearLimitRank) return name;
+                continue;
+            }
+
+            if (a.IsOn(name) != b.IsOn(name)) return name;
+        }
+
+        return null;
+    }
 
     /// <summary>Whether the named switch is on, by the name <see cref="Switches"/> uses.</summary>
     public bool IsOn(string switchName) => switchName switch
