@@ -139,6 +139,27 @@ Three properties of it are load-bearing:
 
 **Four of the ten refuse a group of Minions, and the pages that refuse them are p.73 and p.77.** A Minion group is on `npc_kinds`, so it gets as far as the purchase, and then the purchase has nothing for it: seizing is a place at the front or a doubled Edge, and `minions_have_an_edge` is false while `minions_act` puts them after everyone else — which is the outermost key of this engine's own order, so the point would move nothing. The other three all turn on a Health total, and `attacking_minions.minions_have_health` is false: a group is defeated by bodies, so there is no defeat to come round from, no fatal threshold to be past and no clock to stop. An effect cannot leave one to shake off either, because p.77 resolves an effect against a group by taking bodies out of it. Each refusal cites the entry that decided it rather than the entry selling the purchase, so a reader lands on the page that says no. **Who it may be bought for is `npc_kinds` and is read**, the way p.85's other two eligibility lists are: a Hero is refused with nothing spent. That sentence is what makes this a purchase at all, and it was the half nothing read — every one of the six purchases was reachable for a Hero, so a point of the GM's pool bought a Hero the die their own Resolve would have bought, which is the one thing a two-pool economy exists to make impossible. The other three Adversity spends are rules of their own, and each is a scene rather than a roll — see below.
 
+**Each of those four refusals quotes the field it was derived from, and the field is read back out
+before it does.** The line says "p.77 gives them no Health at all (`minions_have_health` is False)",
+which is a claim about a printed page made by interpolating a value — so an entry corrected the
+other way would have gone on refusing and printed *its own contradiction*. `edge_ties`'
+`minions_have_an_edge` and `minions_act` and `attacking_minions`' `minions_have_health` are
+therefore throws when they stop saying it, the same shape as `gritty_the_drop`'s and
+`seize_initiative_gm_alternative`'s printed words. `minions_act` is the sharper of the three,
+because the order of action turns on the same phrase: a group that had stopped acting last would
+have been refused a seized initiative on the grounds that the order would not move, while it would.
+
+**A purchase priced below a whole point is refused rather than paid backwards, and the number of
+points is the caller's.** Two things read it and neither could see the case. p.85's pool gate
+compares the pool with what the *intent* asked for, and nine of the ten purchases charge their own
+printed price and ignore that figure — so a spend of `0` points walked the gate on an empty pool and
+then charged one, leaving the GM on **−1 Adversity**. p.84's dice purchase multiplies by the figure
+instead, so `−5` points took a cost of −5 out of a pool: the GM's pool *grew*, and a Hero buying −5
+dice minted five Resolve the same way, with `CannotAfford` unable to see it because a pool is always
+at least a negative cost. Every price in Chapters 4 and 5 is a whole number of points and none is
+below one, so both are ledger refusals now, with `Combatant.Spending` throwing on a negative cost
+behind them.
+
 **p.85's suppress-a-Flaw spend: what is state, and what is narration.** One point stops a Flaw "getting the better of" a Villain, a Foe or an Extra "for the rest of a scene", and no character may benefit "more than once per issue". **Nothing in `play/` makes a Flaw bite** — the page says an NPC's Flaws come into play "whenever the opportunity presents itself", which is a GM's judgement and not a roll — so *what the suppression saves the character from* never reaches the state, and the ledger line says in as many words that it is the GM's to narrate. Everything the page states in figures does reach it: `cost_adversity` leaves the pool exactly once, only the three kinds on `eligible_characters` may be bought out (a Hero or a Minion group is refused by name, off that list rather than off a list here), and `Combatant.SuppressedFlaw` carries the Flaw the GM named. **That field is read**, which is what keeps it from being a flag nothing looks at: the second purchase against the same character is refused, and it is on the public state the encounter server publishes. A purchase that names no Flaw is refused with nothing spent, the shape a lure that names nobody is refused in — this engine holds no Flaws, so an unnamed one would put "some weakness or other" on the ledger.
 
 **p.85's misfortune: the pool is the whole of the mechanism, and the entry says so.** One point throws "a misfortune at the Heroes". The entry's own `ambiguity` records that **nothing here is mechanical** — a misfortune is three examples and two prohibitions, with no roll, no threshold, no duration and no way of resisting one printed anywhere — so a point leaving the pool is not most of this rule, it *is* this rule, and an engine that invented a mechanic for it would be inventing one the book does not have. What the ledger carries beside the point is the GM's own sentence, taken off `SpendAdversity.Narration`: **a spend that does not say what the misfortune is is refused with nothing spent**, because a pool that has moved with no words behind it is a line nobody can narrate from and nobody can audit. The line quotes what the page asks of one — a challenge rather than a punishment, never a heavy-handed plot device — and says the misfortune itself is the GM's to narrate.

@@ -332,6 +332,13 @@ say what was wrong and leave the pool alone. **A refusal is not a `not yet imple
 first means the rules said no here, and the second means this engine has not got the rule. Narrate
 neither as though it happened.
 
+**`points` is a whole number of points and at least one.** Only `extra_dice` reads it for anything
+but the price — a point buys a die, so three points buy three — and every other purchase charges the
+price its own page prints. A spend of none or of fewer than none is refused with nothing spent and
+nothing bought: it used to take a purchase out of a pool that could not pay for it, and a negative
+one ran the arithmetic backwards and *added* to the pool. Send the number of points you mean, or
+leave it out and get one.
+
 **`suppress_flaw` buys a Villain, a Foe or an Extra out of one of their Flaws for the rest of the
 scene, and takes a `narration`.** Say which Flaw, in `narration`, or the spend is refused with
 nothing spent — this engine holds no Flaws of its own, so an unnamed one would put a suppression of
