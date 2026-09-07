@@ -96,8 +96,12 @@ public sealed class WebPresentationTests
             .Order(StringComparer.Ordinal)
             .ToList();
 
+    /// <summary>
+    /// A scanning regex. See <see cref="ScanRegex"/> for why these are linear-time rather than
+    /// backtracking under a five-second cap.
+    /// </summary>
     private static Regex Rx(string pattern, RegexOptions options = RegexOptions.None) =>
-        new(pattern, options, TimeSpan.FromSeconds(5));
+        ScanRegex.Build(pattern, options);
 
     /// <summary>The projects whose type names must never reach the page.</summary>
     private static readonly string[] ProjectsWithTypes = ["engine", "sheets"];

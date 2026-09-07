@@ -21,8 +21,12 @@ public sealed class JoinPageTests
     private static string JoinCss => File.ReadAllText(Path.Combine(WwwRoot, "css", "join.css"));
     private static string ThemeCss => File.ReadAllText(Path.Combine(WwwRoot, "css", "theme.css"));
 
+    /// <summary>
+    /// A scanning regex. See <see cref="ScanRegex"/> for why these are linear-time rather than
+    /// backtracking under a five-second cap.
+    /// </summary>
     private static Regex Rx(string pattern, RegexOptions options = RegexOptions.None) =>
-        new(pattern, options, TimeSpan.FromSeconds(5));
+        ScanRegex.Build(pattern, options);
 
     private static string WithoutComments(string css) =>
         Rx(@"/\*.*?\*/", RegexOptions.Singleline).Replace(css, " ");
