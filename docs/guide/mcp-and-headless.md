@@ -433,15 +433,29 @@ lives there, and nothing about it is repeated here.
   the same honesty one level up. Its two controls are that the other side carries a number in the
   same answer and the Minions carry a count of the survivors, because "the field is null" is also
   what a report that lost the field looks like.
-- **The `.mcp.json` launch is tested against a binary that is not older than the code, and it enters
+- **The `.mcp.json` launch is tested against a binary built from the code on disk, and it enters
   a tool body.** Two holes in one guard. It published only when `mcp-play-server/` was *missing*, so
   a directory published once and never again made it a test of a binary from another week — green
-  while the registration, the tools, either engine or the shared arguments had all moved on
-  underneath it; it now compares the published DLL against every file under `mcp-play/`, `play/`,
-  `engine/` and `mcp-shared/` (all files, not just `*.cs`: the policy document is an embedded
-  resource and the project files decide what is copied beside the binary), publishes when any is
-  newer, and fails naming the file if it is still stale — the usual cause being the running server
-  CLAUDE.md says to stop first. And it drove nothing but `initialize`, which the SDK answers before a
+  while the registration, the tools, either engine, the shared arguments or the rules data had all
+  moved on underneath it; it now compares every file under `mcp-play/`, `play/`, `engine/`,
+  `mcp-shared/` and `data/rules` (all files, not just `*.cs`: the policy document is an embedded
+  resource, `data/rules` is JSON, and the project files decide what is copied beside the binary)
+  against a fingerprint of the sources the last successful publish was asked to build, recorded in
+  `mcp-play-server/.published-from`; it publishes when they differ, and fails naming the file if
+  they still do — the usual cause being the running server CLAUDE.md says to stop first, whose
+  failed copy deliberately records nothing. `data/rules` belongs on that list for the same reason
+  as the code trees, not a weaker one — `ProwlersAndParagons.McpPlay.csproj` copies both the
+  character rules and `data/rules/play` beside the binary, and a rule edited and never republished
+  is invisible to a running server exactly as a stale source file would be.
+  **That question is about content, and asking it about modification times was a papercut three
+  agents hit in one day.** The build is deterministic, so editing a source and restoring it byte for
+  byte — what every mutation check here does — leaves the source newer than the binary while
+  producing byte-identical output: `publish` skips the copy, the timestamp does not move, and the
+  guard fails *again* telling the reader to publish, which is the one thing that cannot fix it.
+  The workarounds were `rm -rf mcp-play-server` and `touch`, and a guard whose remedy does not work
+  is one people learn to route around. **The character server's guard is still bare `File.Exists`
+  and has never had this fault**; if it ever grows a staleness check, it grows this one.
+  And it drove nothing but `initialize`, which the SDK answers before a
   line of `PlayTools` is reached: standard output was being judged over a program that had not yet
   run any of this repository's code, which is precisely the hole the character server shipped a stray
   write through. It now calls `start_encounter` on that launch — the call that finds both rules
