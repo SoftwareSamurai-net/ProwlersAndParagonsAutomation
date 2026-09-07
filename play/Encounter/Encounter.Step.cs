@@ -849,8 +849,31 @@ public sealed partial class Encounter
 
         if (row.Type.Contains("Ranged", StringComparison.OrdinalIgnoreCase)) return true;
 
-        return string.Equals(row.AttackTrait, PowerColumn, StringComparison.Ordinal)
-               && attacker.RangedPowers.Contains(attack.TraitId);
+        return TheRowLeavesItToTheSheet(attack) && attacker.RangedPowers.Contains(attack.TraitId);
+    }
+
+    /// <summary>
+    /// Whether p.75's table declines to classify this attack's reach — which is exactly the rows
+    /// whose attacking Trait is the bare <c>Power</c> column, and is where
+    /// <see cref="Combatant.RangedPowers"/> is consulted instead.
+    ///
+    /// <para><b>It is separate from <see cref="IsARangedAttack"/> because the ledger needs the
+    /// question as well as the answer.</b> A fist that collects no Close Range penalty collected
+    /// none because p.73 puts a close combat attack against an adjacent target and the rule was
+    /// never about it; a Power that collects none collected none because this engine read the
+    /// Power's own Ch.2 Range and decided. The second is a reading and says so on the line.</para>
+    /// </summary>
+    private bool TheRowLeavesItToTheSheet(Attack attack)
+    {
+        var table = _play.GetCombat("attack_and_defense_table").AttackDefenseTable!;
+        var printed = PrintedType(attack.Type);
+
+        var row = table.SingleOrDefault(r => string.Equals(r.Type, printed, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException(
+                $"attack_and_defense_table has no row '{printed}', so this engine cannot tell "
+                + "whether p.79's Close Range rule reaches this attack.");
+
+        return string.Equals(row.AttackTrait, PowerColumn, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -884,7 +907,9 @@ public sealed partial class Encounter
 
         var ranged = IsARangedAttack(attacker, attack);
 
-        if (!ranged || state.RangeBetween(attacker.Id, target.Id) != RangeBand.Close)
+        var close = state.RangeBetween(attacker.Id, target.Id) == RangeBand.Close;
+
+        if (!ranged || !close)
         {
             if (attack.CloseRangeOnly)
             {
@@ -893,6 +918,24 @@ public sealed partial class Encounter
                     $"{attacker.Name}'s attack is declared one of {rule.IgnoredFor}, and the rule "
                     + $"would not have reached it anyway: {(ranged ? "the two are not at Close Range" : "this is not a ranged attack")}. "
                     + $"{target.Name}'s defence is unmoved"));
+            }
+
+            // <b>A Power the reading declined to call ranged says so.</b> Everything else that
+            // lands here is a fist or a swung weapon, which p.73 puts against an adjacent target
+            // and which the rule was never about; a Power row is the case where this engine made a
+            // choice, and a choice made in silence is one nobody can argue with. See
+            // TheRowLeavesItToTheSheet.
+            if (!ranged && close && TheRowLeavesItToTheSheet(attack))
+            {
+                lines.Add(new LedgerLine(
+                    state.Page, target.Id, entry.Id, entry.SourceRef,
+                    $"{attacker.Name} is inside Close Range of {target.Name}, and p.75's table leaves "
+                    + $"it to the sheet whether {attack.TraitId} is one of the {rule.AppliesAgainst} "
+                    + $"— its own Ch.2 Range is not ranged, so it is not one this engine will apply "
+                    + "a penalty to. Only ranged counts: self and touch plainly cannot be used at a "
+                    + "distance, and zone and special are neither said to nor said not to, so the "
+                    + "narrow reading is the one that never costs a dodger dice the page may not "
+                    + $"have meant them to lose. {target.Name}'s active defence keeps its dice"));
             }
 
             return 0;

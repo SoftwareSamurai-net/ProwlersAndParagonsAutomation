@@ -5352,9 +5352,19 @@ public sealed class PlayEngineStepTests
             shot.Thrown - clubbed.Thrown);
 
         Assert.Contains(shot.Lines, l =>
+            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal)
+            && l.Text.Contains($"is {penalty}d", StringComparison.Ordinal));
+
+        // <b>And the Power the reading declined says so rather than saying nothing.</b> The dice do
+        // not move — the equality above is what holds that — but a switch that is on and did not
+        // reach an attack is the one case this ledger exists to make visible, and until this
+        // fixture demanded the line there was none: a Power whose own Range is zone or special
+        // walked out of the rule in silence, indistinguishable from a rule that had been dropped.
+        var declined = Assert.Single(clubbed.Lines, l =>
             string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
-        Assert.DoesNotContain(clubbed.Lines, l =>
-            string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal));
+
+        Assert.Contains("armor", declined.Text, StringComparison.Ordinal);
+        Assert.Contains("its own Ch.2 Range is not ranged", declined.Text, StringComparison.Ordinal);
     }
 
     /// <summary>
