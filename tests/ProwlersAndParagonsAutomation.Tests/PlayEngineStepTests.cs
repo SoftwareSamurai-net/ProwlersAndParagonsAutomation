@@ -2030,17 +2030,25 @@ public sealed class PlayEngineStepTests
     /// implemented since.</para>
     ///
     /// <para><b><c>EntriesNotYetApplied</c> is empty, and an empty-equals-empty comparison proves
-    /// nothing</b> — which is why the entries half is checked from the <em>other</em> end: the guide
-    /// must carry no such table at all, so a table quietly reappearing in the document without the
-    /// engine agreeing goes red here. The switches table stays non-empty and is what keeps the parse
-    /// itself honest: a <see cref="ListedUnder"/> that had stopped finding rows would fail on it
-    /// rather than pass in silence on both.</para>
+    /// nothing</b> — so the entries half branches on the engine's own list. It used to assert the
+    /// set was empty and then require the guide to carry the words "is empty", which is a guard
+    /// that reads the document and never reads the engine into it: <b>adding one id to
+    /// <see cref="Encounter.EntriesNotYetApplied"/> left both document assertions green</b>, because
+    /// a document nobody had changed still said what it had always said. Only the
+    /// <see cref="Assert.Empty{T}(System.Collections.Generic.IEnumerable{T})"/> above them moved,
+    /// which is a fact about the code and not the two-way agreement this test is named for.</para>
+    ///
+    /// <para>Now the guide's obligation depends on the list: empty means the sentence and no table,
+    /// and non-empty means a table naming exactly the ids — so the id the mutation adds is one the
+    /// parse cannot find, and both directions of the disagreement are red. The switches table stays
+    /// non-empty and is what keeps the parse itself honest: a <see cref="ListedUnder"/> that had
+    /// stopped finding rows would fail on it rather than pass in silence on both.</para>
     /// </summary>
     [Fact]
     public void TheGuidesNotAppliedListsAreTheEnginesNotAppliedLists()
     {
         // The control: the parse found a table with rows in it. Both halves below lean on this one
-        // working, and the entries half cannot supply its own control while the set is empty.
+        // working, and the entries half cannot supply its own while the set is empty.
         var switches = ListedUnder("**`Encounter.SwitchesNotYetApplied`**");
 
         Assert.NotEmpty(switches);
@@ -2049,15 +2057,28 @@ public sealed class PlayEngineStepTests
             Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
             switches.Order(StringComparer.Ordinal));
 
-        // The entries half, from the other end: nothing is unapplied, so the guide carries no table
-        // of unapplied entries — and it still has to name the field, or a reader has no way to tell
-        // "empty" from "this document has stopped tracking it".
-        Assert.Empty(Encounter.EntriesNotYetApplied);
+        if (Encounter.EntriesNotYetApplied.Count == 0)
+        {
+            // Nothing is unapplied, so the guide carries no table of unapplied entries — and it
+            // still has to name the field, or a reader has no way to tell "empty" from "this
+            // document has stopped tracking it".
+            Assert.Contains(
+                "`Encounter.EntriesNotYetApplied` is empty", Guide(), StringComparison.Ordinal);
 
-        Assert.Contains("`Encounter.EntriesNotYetApplied` is empty", Guide(), StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "**`Encounter.EntriesNotYetApplied`**", Guide(), StringComparison.Ordinal);
 
+            return;
+        }
+
+        // Something is unapplied, so the guide names it in a table and stops saying there is
+        // nothing to name.
         Assert.DoesNotContain(
-            "**`Encounter.EntriesNotYetApplied`**", Guide(), StringComparison.Ordinal);
+            "`Encounter.EntriesNotYetApplied` is empty", Guide(), StringComparison.Ordinal);
+
+        Assert.Equal(
+            Encounter.EntriesNotYetApplied.Order(StringComparer.Ordinal),
+            ListedUnder("**`Encounter.EntriesNotYetApplied`**").Order(StringComparer.Ordinal));
     }
 
     /// <summary>

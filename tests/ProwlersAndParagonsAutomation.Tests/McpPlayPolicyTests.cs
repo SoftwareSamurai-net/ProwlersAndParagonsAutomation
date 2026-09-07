@@ -157,12 +157,20 @@ public sealed class McpPlayPolicyTests
     ///
     /// <para>Both directions, and both sets non-empty first — an empty-equals-empty comparison is
     /// the shape of a guard that proves nothing.</para>
+    ///
+    /// <para><b>The entries half branches on the engine rather than requiring a sentence.</b> It
+    /// used to assert the set was empty and then require this document to carry the words "is
+    /// empty" — which is a guard that reads the document and never reads the engine into it: adding
+    /// an id to <see cref="Encounter.EntriesNotYetApplied"/> left both document assertions green,
+    /// because a document nobody changed still said what it had always said. The branch below makes
+    /// the document's obligation depend on the engine's list, so an entry the engine declines to
+    /// apply and this document does not name goes red on the parse that cannot find a table.</para>
     /// </summary>
     [Fact]
     public void ThePolicysNotAppliedListsAreTheEnginesNotAppliedLists()
     {
-        // The control, and the only half that can still supply one: the parse found a table with
-        // rows in it. `EntriesNotYetApplied` is empty, so its half is checked from the other end.
+        // The control, and the only half that can supply its own: the parse found a table with rows
+        // in it. Whichever branch the entries half takes below leans on this one working.
         var switches = ListedUnder("**`Encounter.SwitchesNotYetApplied`**");
 
         Assert.NotEmpty(switches);
@@ -171,13 +179,24 @@ public sealed class McpPlayPolicyTests
             Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
             switches.Order(StringComparer.Ordinal));
 
-        Assert.Empty(Encounter.EntriesNotYetApplied);
+        if (Encounter.EntriesNotYetApplied.Count == 0)
+        {
+            // Nothing is unapplied, so the document says so in as many words and carries no table —
+            // a table reappearing here without the engine agreeing is the direction that would
+            // otherwise tell every conversation not to narrate an effect that now works.
+            Assert.Contains("`Encounter.EntriesNotYetApplied` is empty", Flowed, StringComparison.Ordinal);
+            Assert.DoesNotContain("**`Encounter.EntriesNotYetApplied`**", Text, StringComparison.Ordinal);
 
-        // The document says so in as many words and carries no table of unapplied entries — so a
-        // table reappearing here without the engine agreeing is red, which is the direction that
-        // would otherwise tell every conversation not to narrate an effect that now works.
-        Assert.Contains("`Encounter.EntriesNotYetApplied` is empty", Flowed, StringComparison.Ordinal);
-        Assert.DoesNotContain("**`Encounter.EntriesNotYetApplied`**", Text, StringComparison.Ordinal);
+            return;
+        }
+
+        // Something is unapplied, so the document names it — in a table, and without the sentence
+        // that says there is nothing to name.
+        Assert.DoesNotContain("`Encounter.EntriesNotYetApplied` is empty", Flowed, StringComparison.Ordinal);
+
+        Assert.Equal(
+            Encounter.EntriesNotYetApplied.Order(StringComparer.Ordinal),
+            ListedUnder("**`Encounter.EntriesNotYetApplied`**").Order(StringComparer.Ordinal));
     }
 
     /// <summary>
