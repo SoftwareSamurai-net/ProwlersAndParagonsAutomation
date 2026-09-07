@@ -1018,15 +1018,19 @@ public sealed partial class Encounter
 
         if (net > rule.SecondAttackTriggeredAtNetSuccesses) return state;
 
-        var face = _dice.Roll(1)[0];
-        var unlucky = melee[(face - 1) % melee.Count];
+        var (faces, index) = ThePick(melee.Count);
+        var unlucky = melee[index % melee.Count];
+
+        var rolled = faces.Count == 1
+            ? $"a die came up {faces[0]}"
+            : $"{faces.Count} dice came up {string.Join(" and ", faces)}";
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
             $"{net} net successes is {rule.SecondAttackTriggeredAtNetSuccesses} or fewer, so the "
             + $"shot goes somewhere: p.80 asks for a second attack against {rule.SecondAttackIsAgainst}, "
             + $"selected {rule.SecondTargetSelected} by the {rule.SecondTargetSelectedBy.ToUpperInvariant()} — "
-            + $"a die came up {face} against {melee.Count} of them, which is {unlucky.Name}. It is the "
+            + $"{rolled} against {melee.Count} of them, which is {unlucky.Name}. It is the "
             + "same weapon at a different person: what the attacker declared about the first shot — "
             + "cover, going all-out, charging, an area or team attack, a weak point — was about that "
             + "target and does not come with it"));
@@ -1044,6 +1048,49 @@ public sealed partial class Encounter
         };
 
         return ResolveAttack(state, stray, lines, strayShot: true);
+    }
+
+    /// <summary>
+    /// The GM's random pick, off <see cref="IDiceSource"/>: the faces thrown and the index they
+    /// spell, for a melee of <paramref name="candidates"/>.
+    ///
+    /// <para><b>Enough dice are thrown that every candidate can be picked, which one cannot
+    /// do.</b> A d6 read as <c>(face - 1) % count</c> reaches indices 0 to 5 and no further, so in a
+    /// melee of seven the seventh character could never be hit, of nine the last three could not,
+    /// and the ledger would go on saying the target was "selected randomly" while naming a set the
+    /// die had quietly cut down to six. p.80 says the GM selects the second target randomly, and a
+    /// character who cannot be selected at all is not part of a random selection.</para>
+    ///
+    /// <para>So the faces are read as one number in base six — <c>face - 1</c> per die, most
+    /// significant first — and as many are thrown as it takes for that number to span the melee:
+    /// one die up to six of them, two up to thirty-six, and so on. <b>At least one is always
+    /// thrown</b>, even where the melee holds one character and there is nothing to choose between:
+    /// the face is the audit trail, and a pick recorded with no die behind it is one nobody can
+    /// reproduce from the seed printed beside the run.</para>
+    ///
+    /// <para><b>What this does not claim is a uniform distribution.</b> Six faces do not divide
+    /// four candidates evenly and no number of d6 divides seven at all, so the low indices stay a
+    /// little likelier; the property being bought here is that the set of reachable candidates is
+    /// the whole melee, which is the half a fixture can hold the engine to and the half that was
+    /// wrong.</para>
+    /// </summary>
+    private (IReadOnlyList<int> Faces, int Index) ThePick(int candidates)
+    {
+        var faces = new List<int>();
+        var span = 1L;
+        var index = 0;
+
+        do
+        {
+            var face = _dice.Roll(1)[0];
+
+            faces.Add(face);
+            index = (index * 6) + (face - 1);
+            span *= 6;
+        }
+        while (span < candidates);
+
+        return (faces, index);
     }
 
     /// <summary>

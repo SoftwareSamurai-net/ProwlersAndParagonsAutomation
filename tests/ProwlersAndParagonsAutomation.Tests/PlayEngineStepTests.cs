@@ -5848,6 +5848,133 @@ public sealed class PlayEngineStepTests
             l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The name p.80's random pick landed on, out of the line that records the choice — or null
+    /// where the shot landed something and no second attack was sent.
+    /// </summary>
+    private static string? PickedOutOf(IReadOnlyList<LedgerLine> lines)
+    {
+        var line = lines.SingleOrDefault(l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        return line?.Text.Split("which is ", StringSplitOptions.None)[1]
+            .Split(". It is the", StringSplitOptions.None)[0];
+    }
+
+    /// <summary>
+    /// Every scripted face one exchange in a scrum of <paramref name="bystanders"/> needs, with
+    /// <paramref name="pick"/> standing in for the GM's dice — both shots missing everything, so the
+    /// only variable is who the second one goes to.
+    /// </summary>
+    private int[] AMissIntoAScrum(int bystanders, params int[] pick) =>
+    [
+        .. Enumerable.Repeat(1, 8 + _play.GetGritty("gritty_friendly_fire").FriendlyFire!.PenaltyDice),
+        .. Enumerable.Repeat(1, Halved(4)),
+        .. pick,
+        .. Enumerable.Repeat(1, 8),
+        .. Enumerable.Repeat(1, Halved(4))
+    ];
+
+    /// <summary>
+    /// <b>Everybody in the melee can be the one the stray round finds — including the seventh, the
+    /// eighth and the ninth.</b>
+    ///
+    /// <para>p.80 has the GM select the second target "randomly", and this engine takes the choice
+    /// off <see cref="IDiceSource"/> so a seeded run reproduces it. <b>One d6 cannot make that
+    /// choice out of more than six.</b> Read as <c>(face - 1) % count</c> it reaches indices 0 to 5
+    /// and no further, so in the scrum below three of the nine could never be hit at all while the
+    /// ledger went on saying the target had been selected randomly — a set silently cut down to the
+    /// size of the die.</para>
+    ///
+    /// <para>The fixture walks every face the engine can be handed, which for a melee of nine is
+    /// every pair of them, and requires the names that came back to be the whole melee. <b>The
+    /// control is the count</b>: an engine reaching six of the nine passes every other assertion
+    /// here, and the equality against the roster is what catches it.</para>
+    ///
+    /// <para>The smaller scrum beside it is the other control — a melee inside one die's reach
+    /// still resolves off one die, so this is not a fixture that would pass an engine which threw
+    /// dice until something came up.</para>
+    /// </summary>
+    [Fact]
+    public void EverybodyInTheMeleeCanBeTheOneTheStrayRoundFinds()
+    {
+        var reached = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var first in Enumerable.Range(1, 6))
+        {
+            foreach (var second in Enumerable.Range(1, 6))
+            {
+                var shot = Shoot(
+                    Scrum(bystanders: 9), FriendlyFireOn, AMissIntoAScrum(9, first, second));
+
+                // The control: every face was consumed, so the pick really was made off these dice
+                // and the stray round really was resolved.
+                Assert.Equal(shot.Thrown, AMissIntoAScrum(9, first, second).Length);
+
+                var picked = PickedOutOf(shot.Lines);
+
+                Assert.NotNull(picked);
+                reached.Add(picked);
+            }
+        }
+
+        var everyone = new SortedSet<string>(
+            Enumerable.Range(1, 9).Select(i => $"Bystander {i}"), StringComparer.Ordinal);
+
+        Assert.Equal(everyone, reached);
+
+        // And a melee a single die can span is still settled by a single die, so the fix is dice
+        // enough for the melee rather than dice for their own sake.
+        var small = Shoot(Scrum(bystanders: 2), FriendlyFireOn, AMissIntoAScrum(2, 5));
+
+        Assert.Equal(small.Thrown, AMissIntoAScrum(2, 5).Length);
+        Assert.Contains("a die came up 5", small.Lines.Single(l =>
+            l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal)).Text,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The pick is reproducible from the seed, which is what taking it off
+    /// <see cref="IDiceSource"/> is for.</b>
+    ///
+    /// <para>A balance figure is quoted with its seed, so a fight that picked its stray target out
+    /// of some other randomness would be a fight nobody could replay. Two runs on one seed have to
+    /// agree, and the control beside it is that a different seed is capable of disagreeing —
+    /// otherwise an engine that always picked the first name in the melee would satisfy the
+    /// equality perfectly.</para>
+    /// </summary>
+    [Fact]
+    public void TwoSeededRunsPickTheSameUnluckyBystander()
+    {
+        string? Pick(int seed)
+        {
+            var encounter = new Encounter(_play, new SeededDice(seed), FriendlyFireOn);
+            var state = encounter.Begin(Scrum(bystanders: 9));
+
+            var step = encounter.Step(
+                state, new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon));
+
+            return PickedOutOf(step.Added);
+        }
+
+        var picks = Enumerable.Range(1, 60)
+            .Select(seed => (Seed: seed, Name: Pick(seed)))
+            .Where(run => run.Name is not null)
+            .ToList();
+
+        // The control: some of these seeds do send a stray round, so the equality below is about
+        // picks that happened rather than about sixty absences agreeing with each other.
+        Assert.NotEmpty(picks);
+
+        foreach (var (seed, name) in picks) Assert.Equal(name, Pick(seed));
+
+        // And the other control: the choice moves with the seed, so an engine that always named the
+        // first character in the melee could not satisfy this.
+        Assert.True(
+            picks.Select(run => run.Name).Distinct(StringComparer.Ordinal).Count() > 1,
+            "every seed picked the same character, so the pick is not coming off the dice");
+    }
+
 
     // ── p.80's Slow Healing ──────────────────────────────────────────────────
 
