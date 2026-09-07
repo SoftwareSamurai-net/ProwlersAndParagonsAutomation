@@ -1365,6 +1365,110 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>p.85's suppress-a-Flaw spend: the pool pays, the character carries it, and the ledger says
+    /// the rest is the GM's.</b>
+    ///
+    /// <para>Half this rule is not a mechanic at all — nothing in <c>play/</c> makes a Flaw bite, so
+    /// what the suppression saves the character from cannot reach the state and the line says so
+    /// rather than announcing an effect nothing received. The other half is entirely stated in
+    /// figures and every one of them is driven here: the price, the three eligible kinds, and the
+    /// one purchase per character per issue.</para>
+    ///
+    /// <para><b>Nothing here rolls a die, and the dice source is what proves it.</b> One face is
+    /// scripted and required to be untouched at the end: <see cref="ScriptedDice"/> throws when it
+    /// runs out, so an engine that had started rolling for this purchase fails either way.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPointBuysAFlawOffAnNpcAndTheSuppressionIsRead()
+    {
+        var entry = _play.GetResolve("adversity_spend_suppress_flaw");
+        var rule = entry.Spend!;
+
+        // The controls on the data: a price, the three kinds the page names, and one per character.
+        Assert.Equal(1, rule.CostAdversity);
+        Assert.Equal(["Villain", "Foe", "Extra"], rule.EligibleCharacters);
+        Assert.Equal(1, rule.LimitPerCharacterPerIssue);
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 5, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 9, health: 20, traits, ["toughness"]);
+        var robots = Combatant.Minions("robots", "the robots", threat: 5, groupSize: 4, "threat");
+
+        var dice = new ScriptedDice(6);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain, robots], challengeLevel: 2);
+        var opening = state.Adversity;
+
+        // The controls on the fixture: there is a pool to spend, and nobody carries a suppression.
+        Assert.True(opening >= rule.CostAdversity, $"the GM opened on {opening} Adversity");
+        Assert.Null(state["villain"].SuppressedFlaw);
+
+        // Four refusals, and none of them spends anything. The price the page prints...
+        var priced = encounter.Step(state, new SpendAdversity(
+            "villain", AdversitySpend.SuppressFlaw, Points: 2, Narration: "a hot temper"));
+
+        Assert.Equal(opening, priced.State.Adversity);
+        Assert.Null(priced.State["villain"].SuppressedFlaw);
+
+        // ...the three kinds it buys for, which a Hero is not...
+        var onAHero = encounter.Step(state, new SpendAdversity(
+            "hero", AdversitySpend.SuppressFlaw, Narration: "a hot temper"));
+
+        Assert.Equal(opening, onAHero.State.Adversity);
+        Assert.Contains(onAHero.Added, l =>
+            l.Text.Contains("is a Hero", StringComparison.Ordinal));
+
+        // ...nor is a group of Minions, whom p.85 leaves off the list...
+        var onMinions = encounter.Step(state, new SpendAdversity(
+            "robots", AdversitySpend.SuppressFlaw, Narration: "a hot temper"));
+
+        Assert.Equal(opening, onMinions.State.Adversity);
+        Assert.Contains(onMinions.Added, l =>
+            l.Text.Contains("is a Minion", StringComparison.Ordinal));
+
+        // ...and a purchase that does not say which Flaw, which this engine holds none of.
+        var unnamed = encounter.Step(state, new SpendAdversity("villain", AdversitySpend.SuppressFlaw));
+
+        Assert.Equal(opening, unnamed.State.Adversity);
+        Assert.Null(unnamed.State["villain"].SuppressedFlaw);
+
+        // The purchase: one point out of the GM's pool, and the Villain carries what was named.
+        var bought = encounter.Step(state, new SpendAdversity(
+            "villain", AdversitySpend.SuppressFlaw, Narration: "a hot temper"));
+
+        Assert.Equal(opening - rule.CostAdversity, bought.State.Adversity);
+        Assert.Equal("a hot temper", bought.State["villain"].SuppressedFlaw);
+
+        // The NPC's own pool was never touched — they have none, and that is the point of p.85.
+        Assert.Equal(0, bought.State["villain"].Resolve);
+        Assert.Equal(3, bought.State["hero"].Resolve);
+
+        var line = bought.Added.Single(l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+        Assert.Contains("a hot temper", line.Text, StringComparison.Ordinal);
+        Assert.Contains(rule.Duration!, line.Text, StringComparison.Ordinal);
+
+        // And the line hands the half this engine cannot model back to the GM rather than claiming it.
+        Assert.Contains("the GM's to narrate", line.Text, StringComparison.Ordinal);
+
+        // The limit, driven: a second purchase against the same character buys nothing, whichever
+        // Flaw it names — the page's sentence is about the character.
+        var again = encounter.Step(bought.State, new SpendAdversity(
+            "villain", AdversitySpend.SuppressFlaw, Narration: "a glass jaw"));
+
+        Assert.Equal(bought.State.Adversity, again.State.Adversity);
+        Assert.Equal("a hot temper", again.State["villain"].SuppressedFlaw);
+        Assert.Contains(again.Added, l =>
+            l.Text.Contains("already been bought out of a hot temper", StringComparison.Ordinal));
+
+        // The whole of that, and not one die was thrown.
+        Assert.Equal(1, dice.Remaining);
+    }
+
+    /// <summary>
     /// <b>An odd pool banking automatic successes keeps the even half and nothing for the leftover
     /// die.</b>
     ///

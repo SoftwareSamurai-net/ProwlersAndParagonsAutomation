@@ -768,6 +768,61 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A spend's <c>narration</c> crosses the wire, and what it bought comes back on the public
+    /// state.</b>
+    ///
+    /// <para>p.85's three own purchases each take the GM's own words, because the mechanical half of
+    /// every one of them is a point leaving the pool and the rest is the fiction. A reader that had
+    /// no such field would drop it, and the spend would be refused for want of a thing the caller
+    /// had sent — which is the shape the team flag failed in, and the reason
+    /// <c>PLAY-POLICY.md</c>'s spelling guard cannot catch it: that guard is scoped to <em>tool
+    /// arguments</em>, and the fields of an intent are not among them.</para>
+    ///
+    /// <para>So the words are required to come back on the ledger line, which says the field
+    /// arrived, and <c>flaw_suppressed</c> is required to come back on the combatant, which is the
+    /// half a ledger line cannot show: this purchase leaves state behind, and a client deciding
+    /// whether to buy a second one reads it there.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASuppressedFlawsNarrationCrossesTheWireAndComesBackOnTheState() =>
+        await WithClient(async client =>
+        {
+            var encounter = (await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 81
+            }))["encounter_id"]!.GetValue<string>();
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["actor"] = "villain",
+                    ["spend"] = "suppress_flaw",
+                    ["narration"] = "a hot temper"
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            var added = turn["added"]!.AsArray();
+
+            Assert.Contains(added, l => string.Equals(
+                l!["rule"]!.GetValue<string>(), "adversity_spend_suppress_flaw", StringComparison.Ordinal));
+
+            // The field arrived: without it the spend is refused for naming no Flaw at all.
+            Assert.Contains(added, l =>
+                l!["text"]!.GetValue<string>().Contains("a hot temper", StringComparison.Ordinal));
+
+            var villain = turn["state"]!["combatants"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "villain", StringComparison.Ordinal));
+
+            Assert.Equal("a hot temper", villain!["flaw_suppressed"]!.GetValue<string>());
+        });
+
+    /// <summary>
     /// <b>A range class is named, never numbered.</b>
     ///
     /// <para><c>Enum.TryParse</c> accepts the numeral of a member — and for a plain enum it accepts

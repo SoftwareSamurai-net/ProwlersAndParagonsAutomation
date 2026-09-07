@@ -225,9 +225,14 @@ public sealed class McpPlayPolicyTests
             var encounter = new Encounter(_f.Play, new SeededDice(21));
             var state = encounter.Begin([hero, villain]);
 
+            // Each spend is handed what its own rule asks for, so a purchase lands in the resolved
+            // pile because it resolved and not because it was refused for want of an argument:
+            // p.85's first purchase has to name a Resolve purchase, and its three own purchases have
+            // to say, in the GM's words, what the point bought.
             var step = encounter.Step(state, new SpendAdversity(
                 "villain", kind,
-                AsResolve: kind == AdversitySpend.AnythingResolveCan ? ResolveSpend.ExtraDice : null));
+                AsResolve: kind == AdversitySpend.AnythingResolveCan ? ResolveSpend.ExtraDice : null,
+                Narration: "a hot temper"));
 
             (step.Added.Any(l => l.Text.Contains("not yet implemented", StringComparison.Ordinal))
                 ? refused

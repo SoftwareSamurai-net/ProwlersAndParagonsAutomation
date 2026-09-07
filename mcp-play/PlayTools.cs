@@ -1175,7 +1175,14 @@ public sealed class PlayTools
 
                 read = new SpendAdversity(
                     actor, gm, Number(entry, "points") ?? 1, asResolve,
-                    Text(entry, "target") is { Length: > 0 } onto ? onto.Trim() : null);
+                    Text(entry, "target") is { Length: > 0 } onto ? onto.Trim() : null,
+                    // <b>p.85's three own purchases each need the GM's own words, and a field the
+                    // reader does not have is a field the SDK drops in silence.</b> That is exactly
+                    // how the team flag was lost: the policy told every conversation to send it and
+                    // nothing here read it. The spelling guard over that document is scoped to tool
+                    // arguments and the fields of an intent are not among them, so each of these is
+                    // driven over the wire in McpPlayServerTests instead.
+                    Text(entry, "narration") is { Length: > 0 } said ? said.Trim() : null);
                 return true;
 
             case "stabilise":
@@ -1318,6 +1325,7 @@ public sealed class PlayTools
                     ["resolve"]            = c.HoldsResolve ? c.Resolve : null,
                     ["dying"]              = c.Dying,
                     ["defeated_by_effect"] = c.DefeatedByEffect,
+                    ["flaw_suppressed"]    = c.SuppressedFlaw,
                     ["defeated"]           = c.Defeated(floor)
                 })
             ]),

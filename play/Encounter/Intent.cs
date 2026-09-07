@@ -219,12 +219,26 @@ public sealed record SpendResolve(
 /// <see cref="SpendResolve.Target"/> carries, so p.85's "whatever a point of Resolve could have
 /// done" can do the whole of what that purchase does rather than most of it.
 /// </param>
+/// <param name="Narration">
+/// What the GM says the point buys, in their own words, for the three purchases whose effect is a
+/// thing that happens in the fiction rather than to a roll.
+///
+/// <para><b>It is required by those three and refused when it is missing, because the alternative
+/// is a point spent on nothing.</b> p.85 defines a misfortune by three examples and two
+/// prohibitions and attaches no roll, threshold or duration to it; an act of villainy is "anything
+/// necessary to advance the story"; a suppressed Flaw is a named weakness on a character this
+/// engine holds no Flaws for. In every one of the three the mechanical half is the point leaving
+/// the pool and the rest is the GM's, so the ledger carries their sentence — a purchase recorded
+/// as having happened and nothing said about what it was is a line nobody can narrate from and
+/// nobody can audit. It is the same refusal p.79's luring makes of a lure that names nobody.</para>
+/// </param>
 public sealed record SpendAdversity(
     string Actor,
     AdversitySpend Kind,
     int Points = 1,
     ResolveSpend? AsResolve = null,
-    string? Target = null) : Intent(Actor);
+    string? Target = null,
+    string? Narration = null) : Intent(Actor);
 
 /// <summary>
 /// p.79's Fatal Damage rule: spending a turn steadying somebody who is bleeding out, rolling the

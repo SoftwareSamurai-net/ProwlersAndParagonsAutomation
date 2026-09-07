@@ -97,8 +97,7 @@ public sealed partial class Encounter
     /// </summary>
     public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        // The GM's three, Ch.5 p.85.
-        "adversity_spend_suppress_flaw",
+        // The GM's, Ch.5 p.85.
         "adversity_spend_misfortune",
         "adversity_spend_villainy",
 

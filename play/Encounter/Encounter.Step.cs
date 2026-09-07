@@ -1,4 +1,5 @@
 using ProwlersAndParagonsAutomation.Play.Rules;
+using ProwlersAndParagonsAutomation.Play.Rules.Models;
 
 namespace ProwlersAndParagonsAutomation.Play.Encounter;
 
@@ -1464,9 +1465,7 @@ public sealed partial class Encounter
     /// </summary>
     private static EncounterState Charge(
         EncounterState state, Combatant actor, int cost, bool fromAdversity) =>
-        fromAdversity
-            ? state with { Adversity = state.Adversity - cost }
-            : state.With(actor.Spending(cost));
+        fromAdversity ? ChargeAdversity(state, cost) : state.With(actor.Spending(cost));
 
     /// <summary>
     /// Ch.5 p.84: one point picks the whole roll back up — and p.85's tip puts a floor under it, so
@@ -2302,11 +2301,18 @@ public sealed partial class Encounter
         // <b>p.85's first purchase is the one that is not a rule of its own.</b> "Whatever a point of
         // Resolve could have done, on behalf of any NPC" is the Resolve purchases with different
         // money behind them, so the intent names which one and the engine runs it against the GM's
-        // pool. The other three are effects on a scene rather than on a roll, and stay listed.
-        if (spend.Kind != AdversitySpend.AnythingResolveCan)
+        // pool. The other three are rules of their own and each is applied below.
+        switch (spend.Kind)
         {
-            return NotYetImplementedSpend(
-                state, spend.Actor, spend.Kind.ToString(), entry.Id, entry.SourceRef, lines);
+            case AdversitySpend.SuppressFlaw:
+                return SuppressFlaw(state, entry, spend, lines);
+
+            case AdversitySpend.AnythingResolveCan:
+                break;
+
+            default:
+                return NotYetImplementedSpend(
+                    state, spend.Actor, spend.Kind.ToString(), entry.Id, entry.SourceRef, lines);
         }
 
         var npc = state[spend.Actor];
@@ -2388,6 +2394,113 @@ public sealed partial class Encounter
         ResolveSpend.ExtraDice, ResolveSpend.Reroll, ResolveSpend.KeepingHold,
         ResolveSpend.Knockback, ResolveSpend.Luring, ResolveSpend.TeamAttack
     ];
+
+    /// <summary>
+    /// Ch.5 p.85's <c>adversity_spend_suppress_flaw</c>: a point buys a Villain, a Foe or an Extra
+    /// out of one of their Flaws for the rest of the scene.
+    ///
+    /// <para><b>Half of this rule is state and half of it is narration, and the ledger line says
+    /// which is which.</b> Nothing in <c>play/</c> makes a Flaw bite — the page says an NPC's Flaws
+    /// come into play "whenever the opportunity presents itself", which is the GM's judgement and
+    /// not a roll this engine could win or lose — so what the suppression saves the character from
+    /// never reaches the state. What does reach it is everything the page states in figures: the
+    /// pool pays <c>cost_adversity</c> exactly once, only the three kinds on
+    /// <c>eligible_characters</c> may be bought out, and the character carries the suppression for
+    /// the rest of the scene, which is what refuses the second purchase against them.</para>
+    ///
+    /// <para><b>The limit is read as the sentence prints it: per character.</b> "No character can
+    /// benefit from this more than once per issue" names a character and not a Flaw, and the
+    /// entry's own <c>ambiguity</c> records that the two differ for anybody carrying more than one.
+    /// So a second purchase is refused whichever Flaw it names, and the refusal quotes the
+    /// ambiguity rather than settling it.</para>
+    ///
+    /// <para><b>A purchase that does not say which Flaw is refused with nothing spent</b>, the same
+    /// shape p.79's luring refuses a lure that names nobody: this engine holds no Flaws, so an
+    /// unnamed one would put a suppression of "some weakness or other" on the ledger and on the
+    /// public state, which is a record nobody can narrate from and nobody can audit.</para>
+    /// </summary>
+    private EncounterState SuppressFlaw(
+        EncounterState state, ResolveEntry entry, SpendAdversity spend, List<LedgerLine> lines)
+    {
+        var rule = entry.Spend!;
+        var cost = rule.CostAdversity!.Value;
+
+        if (WrongPrice(state, entry, spend, cost, lines) is { } priced) return priced;
+
+        var npc = state[spend.Actor];
+        var printed = PrintedKind(npc.Kind);
+        var eligible = rule.EligibleCharacters!;
+
+        if (!eligible.Contains(printed, StringComparer.Ordinal))
+        {
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"p.85 buys a Flaw off a {string.Join(", a ", eligible)}, and {npc.Name} is a "
+                + printed);
+        }
+
+        if (npc.SuppressedFlaw is { } already)
+        {
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"{npc.Name} has already been bought out of {already} this issue, and the page "
+                + $"allows {rule.LimitPerCharacterPerIssue} per character per issue. The limit is "
+                + "printed per character rather than per Flaw, which the entry's own ambiguity "
+                + "says is unclear for anybody carrying two — this engine refuses on the character");
+        }
+
+        if (spend.Narration is not { Length: > 0 } flaw)
+        {
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"a point prevents {rule.Prevents}, and this spend does not say which Flaw — name "
+                + "it, because this engine holds none of them and a suppression of nothing in "
+                + "particular is a suppression of nothing");
+        }
+
+        var bite = rule.NpcFlawsBiteWhenTheOpportunityArises == true
+                   && rule.NpcsCannotChooseWhenTheirFlawsBite == true
+            ? "An NPC's Flaws bite when the opportunity arises and the NPC cannot choose when, so "
+            : "";
+
+        lines.Add(new LedgerLine(
+            state.Page, npc.Id, entry.Id, entry.SourceRef,
+            $"the GM spends {cost} Adversity on {npc.Name}: {flaw} is prevented from "
+            + $"{rule.Prevents} for {rule.Duration}, which is the whole of this encounter. "
+            + $"{bite}what that saves {npc.Name} from is the GM's to narrate — this engine has "
+            + "recorded the point and the suppression and nothing else"));
+
+        return ChargeAdversity(state, cost).With(npc.Suppressing(flaw));
+    }
+
+    /// <summary>
+    /// The refusal every one of p.85's three own purchases makes of a spend that asks for a number
+    /// of points the page does not price, or a throwaway null where it asks for the printed one.
+    ///
+    /// <para><b>Silently charging the printed price for a spend of three would be worse than
+    /// refusing.</b> Each of the three is priced at one point and buys one thing; a caller who asks
+    /// for three has either misread the page or meant three purchases, and an engine that took one
+    /// and said nothing would leave a pool and a ledger that disagree about what was bought.</para>
+    /// </summary>
+    private static EncounterState? WrongPrice(
+        EncounterState state, ResolveEntry entry, SpendAdversity spend, int cost,
+        List<LedgerLine> lines) =>
+        spend.Points == cost
+            ? null
+            : Refuse(state, spend.Actor, entry.Id, entry.SourceRef, lines,
+                $"p.85 prices {entry.Name} at {cost} Adversity and this spend asks for "
+                + $"{spend.Points}. Nothing was spent");
+
+    /// <summary>
+    /// A <see cref="CombatantKind"/> as p.85 spells it, so the eligible and excluded lists on those
+    /// entries can be read rather than restated here.
+    ///
+    /// <para>The one that is not the member's own name is <see cref="CombatantKind.MinionGroup"/>:
+    /// this engine's combatant is the group, and the page names the individual.</para>
+    /// </summary>
+    private static string PrintedKind(CombatantKind kind) =>
+        kind == CombatantKind.MinionGroup ? "Minion" : kind.ToString();
+
+    /// <summary>The GM's pool, less what a purchase cost. The one thing that moves it.</summary>
+    private static EncounterState ChargeAdversity(EncounterState state, int cost) =>
+        state with { Adversity = state.Adversity - cost };
 
     // ── Turns and pages ──────────────────────────────────────────────────────
 
