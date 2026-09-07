@@ -139,6 +139,7 @@ public sealed class PlayEnginePropertyTests
 
         var policy = new RandomPolicy(new SeededDice(seed * 7919));
         var moved = false;
+        var reached = new HashSet<ResolveSpend>();
 
         for (var i = 0; i < 60 && !state.Over; i++)
         {
@@ -158,7 +159,16 @@ public sealed class PlayEnginePropertyTests
             // p.85's first purchase, on every turn, naming the next of a Hero's ten on behalf of an
             // NPC — see the hook's own comment for why it is not another branch of the cycle.
             if (policy.GmBuysForAnNpc(state) is { } gm)
-                state = StepAndCheck(encounter, state, gm, ref moved);
+            {
+                state = StepAndCheck(encounter, state, gm, ref moved, out var said);
+
+                // <b>What the generator named and what <c>Step</c> reached are different facts, and
+                // this is where they are told apart.</b> p.85's pool gate refuses a spend before any
+                // purchase is dispatched, so a run whose pool has run dry names all ten and reaches
+                // none of them — and a control counting names would be satisfied by ten refusals.
+                if (!said.Any(l => l.Text.Contains(ForWantOfAPoint, StringComparison.Ordinal)))
+                    reached.Add(gm.AsResolve!.Value);
+            }
 
             state = StepAndCheck(encounter, state, new EndTurn(actor.Id), ref moved);
         }
@@ -214,10 +224,38 @@ public sealed class PlayEnginePropertyTests
         // anything_resolve_can the generator emitted named nothing and was refused for it — so the
         // whole of that purchase sat outside a property whose subject is every branch of Step.
         Assert.Equal(Enum.GetValues<ResolveSpend>().Order(), policy.GmNamed.Order());
+
+        // <b>And every one of them got past p.85's pool gate, which is the half the set above
+        // cannot say.</b> <c>GmNamed</c> records what the generator asked for, which is a fact about
+        // the generator; the gate refuses a spend before any purchase is dispatched, so a fight
+        // whose pool had run dry would name all ten and enter none of their branches — and a control
+        // counting names would read ten refusals as ten branches exercised. That is the shape of
+        // guard fault this repository has shipped four times: a feature that did not run mistaken
+        // for one that worked.
+        //
+        // <b>The pool holds today because most of these purchases are refused by their own rules —
+        // no roll on the table, nobody down, nobody dying — and a refusal costs nothing.</b> That is
+        // an arithmetic accident of this fight rather than a property of the engine, which is
+        // exactly why it is measured here instead of assumed. Watched red by opening the fight on a
+        // pool of 0.
+        var unreached = Enum.GetValues<ResolveSpend>().Except(reached).Order().ToList();
+
+        Assert.True(
+            unreached.Count == 0,
+            $"the GM's pool did not pay for {string.Join(", ", unreached)}: each was named by the "
+            + "generator and refused for want of a point before p.85's first purchase dispatched "
+            + "anything, so the branch it names was never entered. The fight has to open on enough "
+            + "Adversity to reach the branches this property claims to cover — raise the Challenge "
+            + "Level it begins with, or top the pool up between turns.");
     }
 
     private static EncounterState StepAndCheck(
-        Encounter encounter, EncounterState state, Intent intent, ref bool moved)
+        Encounter encounter, EncounterState state, Intent intent, ref bool moved) =>
+        StepAndCheck(encounter, state, intent, ref moved, out _);
+
+    private static EncounterState StepAndCheck(
+        Encounter encounter, EncounterState state, Intent intent, ref bool moved,
+        out IReadOnlyList<LedgerLine> added)
     {
         var before = Serialise(state);
         var result = encounter.Step(state, intent);
@@ -227,8 +265,20 @@ public sealed class PlayEnginePropertyTests
 
         if (!string.Equals(before, Serialise(result.State), StringComparison.Ordinal)) moved = true;
 
+        added = result.Added;
+
         return result.State;
     }
+
+    /// <summary>
+    /// The refusal p.85's pool gate makes before any purchase is dispatched, as
+    /// <c>ResolveAdversitySpend</c> writes it: "the GM has 0 Adversity and the spend costs 1".
+    ///
+    /// <para><b>It is matched on because a purchase refused here never reached the branch it
+    /// names.</b> The generator records what it asked for, which is a fact about the generator; this
+    /// phrase is what separates that from a fact about <see cref="Encounter.Step"/>.</para>
+    /// </summary>
+    private const string ForWantOfAPoint = "Adversity and the spend costs";
 
     private static readonly JsonSerializerOptions SerialisationOptions = new() { IncludeFields = false };
 
