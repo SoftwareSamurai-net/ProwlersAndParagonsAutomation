@@ -84,37 +84,72 @@ public sealed class ScanRegexTests
     }
 
     /// <summary>
+    /// The blob the linearity control runs on: 192k of unbroken token characters, the shape a
+    /// minified bundle or a base64 payload has, and the shape whose cost under backtracking is
+    /// quadratic in its length.
+    /// </summary>
+    private static string PathologicalBlob => new('A', 192_000);
+
+    /// <summary>
     /// The linear engine is not merely requested but actually pays off, on the input that
-    /// produced the sighting.
+    /// produced the sighting — asserted <b>without a stopwatch on the passing side</b>.
     /// </summary>
     /// <remarks>
-    /// <para><b>A wall-clock budget in a test is normally a flake waiting to happen, and the size
-    /// of this one was chosen by watching it fail rather than by taste.</b> It is not measuring
-    /// performance — it is a tripwire for the pattern going quadratic again. The linear engine
-    /// scans this input in well under a millisecond; the backtracking engine needs about eleven
-    /// seconds for it on an idle machine. Five seconds sits between the two with four orders of
-    /// magnitude of headroom over the real cost, so no amount of runner load reaches it while a
-    /// return to quadratic cannot miss it.</para>
+    /// <para><b>This control used to be a wall-clock budget, and the budget was the flake class
+    /// this whole change was sent to remove.</b> It timed <c>Build</c> plus one match of a 192k
+    /// blob and required the pair under five seconds, on the stated grounds that the real cost is
+    /// "well under a millisecond" and the headroom therefore "four orders of magnitude". Both
+    /// figures were wrong, because <em>the timed region includes constructing the matcher</em>:
+    /// building the non-backtracking matcher for this pattern dominates the match by roughly
+    /// fifty to one. Measured on a ten-core machine, cold, in a fresh process: <b>23ms idle, 39ms
+    /// under 30-way CPU load, and 528–756ms under the ~176 load average that produced the
+    /// original sighting.</b> That last figure is a <b>6.6x</b> margin against the five-second
+    /// cap, not four orders of magnitude — and the spinners it was measured against were bare
+    /// userspace loops with no allocation, where a real runner also has GC and parallel xunit
+    /// workers. A 6.6x wall-clock margin on the exact machine state this repository has already
+    /// been bitten by is a flake, so the stopwatch is gone.</para>
     ///
-    /// <para>An earlier draft used a 128k run against a fifteen-second budget and <em>passed
-    /// with the pattern forced back onto the backtracking engine</em> — the mutation was caught
-    /// only because the fallback was broken deliberately and this test was watched. That is the
-    /// whole reason the figures are what they are.</para>
+    /// <para><b>What replaces it keeps the only clock on the side that must fail.</b> The
+    /// positive control — that this blob really is the pathological shape, and so that the
+    /// assertion below is about something — is that the <em>backtracking</em> twin of the same
+    /// pattern cannot finish it inside a short cap. Runner load can only push that further into
+    /// timing out, so load can never turn this green-to-red; the failure direction needs a
+    /// machine 13x faster than the one measured (192k costs 13.3s backtracking here, against a
+    /// 1s cap), and if that machine ever exists this goes <em>red</em> saying the control
+    /// stopped controlling, which is the safe direction for a control to break in.</para>
+    ///
+    /// <para>The linear side then carries <see cref="Regex.InfiniteMatchTimeout"/> and no
+    /// deadline of any kind, so no amount of load can produce a verdict from it. <b>It is
+    /// deliberately not a second stopwatch</b>: what makes the answer trustworthy is that the
+    /// engine really is the non-backtracking one, which is asserted here and, across every
+    /// pattern, by the theory above. An engine that silently reverted would fail that assertion
+    /// rather than this one.</para>
+    ///
+    /// <para>Cost: about a second of suite time, spent inside the cap on the twin. That is the
+    /// price of a control that cannot flake, against a 19-second project.</para>
     /// </remarks>
     [Fact]
     public void TheCredentialPatternStaysLinearOnALongRunOfTokenCharacters()
     {
-        // 192k of unbroken token characters: the shape a minified bundle or a base64 blob has.
-        // The cost of this input under backtracking is quadratic in the length of the run.
-        var blob = new string('A', 192_000);
+        var blob = PathologicalBlob;
 
-        var started = DateTime.UtcNow;
-        Assert.DoesNotMatch(ScanRegex.Build(CredentialPattern), blob);
-        var took = DateTime.UtcNow - started;
+        // [CONTROL] The blob really is pathological for this pattern. Without this, everything
+        // below holds just as well against an input the backtracking engine would also breeze
+        // through — which is this repository's most common guard fault, a check that passes
+        // because the thing it is about never happened.
+        var backtracking = new Regex(CredentialPattern, RegexOptions.None, TimeSpan.FromSeconds(1));
+        Assert.Throws<RegexMatchTimeoutException>(() => backtracking.IsMatch(blob));
 
-        Assert.True(took < TimeSpan.FromSeconds(5),
-            $"scanning 192k of token characters took {took.TotalSeconds:F1}s, against under a "
-            + "millisecond on the linear engine. The credential pattern has stopped being "
-            + "linear, which is what timed it out on a loaded machine before ScanRegex existed.");
+        var linear = ScanRegex.Build(CredentialPattern);
+
+        Assert.True(linear.Options.HasFlag(RegexOptions.NonBacktracking),
+            "the credential pattern is no longer on the linear engine, so the input above — which "
+            + "the line before this proved the backtracking engine cannot finish in a second — is "
+            + "now being scanned by that engine. This is the failure that timed out a credential "
+            + "scan on a loaded machine before ScanRegex existed.");
+
+        // No deadline at all on this one, so no amount of runner load can reach a verdict here.
+        Assert.Equal(Regex.InfiniteMatchTimeout, linear.MatchTimeout);
+        Assert.DoesNotMatch(linear, blob);
     }
 }
