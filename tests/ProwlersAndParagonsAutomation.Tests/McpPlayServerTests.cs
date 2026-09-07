@@ -819,7 +819,7 @@ public sealed class McpPlayServerTests
             var villain = turn["state"]!["combatants"]!.AsArray().Single(c =>
                 string.Equals(c!["id"]!.GetValue<string>(), "villain", StringComparison.Ordinal));
 
-            Assert.Equal("a hot temper", villain!["flaw_suppressed"]!.GetValue<string>());
+            Assert.Equal("a hot temper", villain!["flaw_suppressed"]?.GetValue<string>());
         });
 
     /// <summary>
