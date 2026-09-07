@@ -305,7 +305,7 @@ table beside `characters` with the same five columns. The contract is `docs/CHAR
 ## A campaign's clone of a character, and the one place the scoping rule bends
 
 `worker/memberships.js` is `campaigns.js` with two payload slots and a version, and **it has to stay
-that boring**. Eight addresses — seven under `/api/memberships`, one under
+that boring**. Nine addresses — eight under `/api/memberships`, one under
 `/api/campaigns/{id}/code` — inside the existing signed-in block. `d1/migrations/0006` adds
 `campaign_members` and `campaigns.join_code`. The contract is `docs/CHARACTERS-API.md`.
 
@@ -386,6 +386,37 @@ that boring**. Eight addresses — seven under `/api/memberships`, one under
   record of what was agreed — on the strength of one click that may have been a mistake. Deleting an
   *account* does cascade, on both columns, and there is a test on each: a membership names two
   accounts and means nothing with either gone.
+- **`GET /api/memberships/{id}/table` is the second read scoped to somebody who does not own the
+  campaign, and unlike the join code it is scoped to a row rather than to a secret.** Everything
+  under `/api/campaigns` belongs to the GM, so a player's browser resolves no campaign at all for a
+  game that is alive; what their screen draws is the copy of the table's rules written onto their
+  character when it joined, and a GM who changes the game afterwards moves nothing on it. This is
+  what lets the screen say so — `PROGRESS.md` item 30, and see [`browser.md`](browser.md) for the
+  two lists it draws.
+  - **`player_user_id = ?` and no GM arm.** `getMembership`'s `OR` exists because a membership has
+    two owners; this read is for the half of that pair who cannot reach the campaign any other way.
+    A GM reads their own campaign at its own address, and **a second address answering the owner is
+    a second place that could disagree about what a campaign is** — so the GM of that very row is
+    answered the same 404 a stranger is. An id that never existed and a campaign the GM has deleted
+    answer it too, in the same words: a split would say whether an id exists, which is the reason
+    the detail read above gives one sentence to two of them.
+  - **`db.campaignForMember`'s join carries `c.user_id = m.gm_user_id`**, the same clause
+    `getMembership`'s `EXISTS` does. A `g_…` is unique per account rather than globally and a
+    campaign's id reaches every member of it, so matching on the id alone would hand a player a
+    campaign belonging to an account they never joined. There is a test with two GMs on one id.
+  - **What it excludes, and how that is held.** The answer is two keys — `campaignId` and
+    `payload` — so no account id, no label, no join code, no character, no clone and nothing about
+    another member. Asserted **by key set** rather than by a handful of absences, because an
+    absence is satisfied by whatever nobody thought to name, and the fields a later hand adds here
+    are the convenient ones: an id to save a lookup, the label to save a read.
+  - **Still nothing is parsed.** The payload goes out as it came in, the way `join` answers the
+    same bytes. A route lifting `Table` and `ImmortalityCost` out would be this server knowing the
+    shape of a campaign — the rule two sections up, and the failure would be silent: nulls, from
+    the first time the shape moved.
+  - **Nothing was added to `KNOWN_ROUTES` or `routePattern`.** That list is compared against the
+    path that arrived, so an entry naming a caller-chosen id could never match one; the sub-paths
+    under a membership are filed under `/api/memberships/{id}` for exactly the reason the verbs
+    are. `errors.js` says so where somebody would go looking.
 - **The detail read sends no timestamps, and they were there for one commit.**
   `AccountsContractTests` caught the server sending `approvedAt` and `pendingAt` on a read the client
   bound nothing to — the exact drift that test exists for. Removed rather than bound: the timestamps

@@ -161,6 +161,17 @@ public static class CampaignJoin
     public const string UnknownCampaign = "UNKNOWN_CAMPAIGN";
 
     /// <summary>
+    /// The character joined before the table decided anything, so it carries no copy of the rules
+    /// the game now has.
+    ///
+    /// <para>Named here because it is the one finding a screen has to be able to ask for
+    /// <em>before</em> it has anything to compare: a member's browser cannot resolve their own
+    /// campaign, so <c>Campaigns.razor</c> hands <see cref="Inspect"/> the live table it read
+    /// through the membership instead. See that page's <c>ResolveCampaign</c>.</para>
+    /// </summary>
+    public const string HouseRulesNotCopied = "CAMPAIGN_HOUSE_RULES_NOT_COPIED";
+
+    /// <summary>
     /// Put a character into a campaign, or report why it is not being put into one.
     ///
     /// <para>The only case that writes anything is the one where the character has no tier yet
@@ -300,6 +311,12 @@ public static class CampaignJoin
     ///   <item><c>CAMPAIGN_IMMORTALITY_COST_MISMATCH</c> — both have set a price and they differ.
     ///     A price is Hero Points, so this is a character whose spend was counted against a figure
     ///     its table did not set.</item>
+    ///   <item><c>CAMPAIGN_HOUSE_RULES_NOT_COPIED</c> — the game has set a price or turned a rule
+    ///     on and the character carries neither, because it joined before the GM decided. <b>The
+    ///     other direction of the two checks above</b>, both of which need each side to have set
+    ///     something and so say nothing at all about this one. Reported before the mismatch below
+    ///     because it can move a figure: a character costed at the book's 3 for Immortality at a
+    ///     table charging 12.</item>
     ///   <item><c>CAMPAIGN_TABLE_MISMATCH</c> — both carry optional rules and they are not the
     ///     same ones. <b>Last, because it is the one finding that moves no figure</b>: the
     ///     switches decide what happens in a fight and nothing about cost or legality.</item>
@@ -371,6 +388,33 @@ public static class CampaignJoin
                 + "belongs to. The character's own is what its Hero Points were counted against. "
                 + "Nothing has been changed either way.",
                 CharacterImmortalityCost: ourPrice, CampaignImmortalityCost: theirPrice);
+        }
+
+        // **The other direction of the two checks above, and it was silent for a whole slice.**
+        // Both of those need the campaign *and* the character to have set something, so a
+        // character that joined before the GM decided anything produces neither: the sheet carries
+        // nothing, the table charges 12, and the engine goes on pricing Immortality at the book's
+        // 3 with no panel saying so. That is item 30, and it is a real report rather than a
+        // bookkeeping difference — a price is Hero Points.
+        //
+        // **Reported and never repaired, which is this class's whole rule.** Copying the table's
+        // rules in now would move somebody's spend while they were reading a list, and it would do
+        // it behind the back of the one guarantee joining makes: a write into an empty field
+        // happens at the join and nowhere else. So the remedy in the sentence is joining again,
+        // which fires the same `??=` into the same still-empty field.
+        //
+        // **Before the mismatch below because it can move a figure and that one cannot.** The
+        // price is the half that matters; the switch block is carried along with it because a
+        // character that took neither took neither, and two findings for one join is two sentences
+        // saying the same thing.
+        if ((campaign.ImmortalityCost is not null && sheet.ImmortalityCost is null)
+            || (campaign.Table is { IsTheBook: false } && sheet.CampaignTable is null))
+        {
+            return new CampaignFinding(HouseRulesNotCopied,
+                "This character joined before the game set its house rules, so it carries none of "
+                + "them and is costed by the book. Join again to take the table's rules as they "
+                + "stand. Nothing has been changed either way.",
+                CampaignImmortalityCost: campaign.ImmortalityCost);
         }
 
         // Last, because it is the finding that changes no figure: the optional rules decide what

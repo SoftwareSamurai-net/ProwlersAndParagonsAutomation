@@ -927,25 +927,66 @@ the storage half, which shipped a slice earlier.
   first version of the check, which was in the validator. `CAMPAIGN_IMMORTALITY_COST_MISMATCH` is
   the cap's rule for a price. `CAMPAIGN_TABLE_MISMATCH` is reported **last**, because it is the one
   finding that moves no figure.
-- **The member's list of house rules is read off the character, not off the campaign, and the
-  server forces that.** A campaign's payload is scoped to the account that owns it — a player
-  cannot fetch the game they are in, which is why `Inspect` answers `UNKNOWN_CAMPAIGN` to a member
-  — so the campaign's own copy is not something the panel could draw for the person who most needs
-  it. The character's copy is the answer for that character anyway: it was written on joining, it
+- **The member's list of house rules is read off the character, not off the campaign, and that is
+  what the character is costed by.** The campaign's own copy could not be drawn at all until item
+  30: a campaign's payload is scoped to the account that owns it, which is why `Inspect` answers
+  `UNKNOWN_CAMPAIGN` to a member. It is drawn now, as a **second** list beside this one and never
+  in place of it — see the bullets below. The character's copy is the answer for that character anyway: it was written on joining, it
   is what the engine prices from, and it is what travels to a fight. **Nothing is drawn at all for
   a character playing the book**, which is the same question `CampaignTable.IsTheBook` answers for
   the printed sheet: a heading over thirteen "no"s is true of every game.
-- **The copy going stale is reported in one of its two directions, and the other is silent.** Both
-  `Inspect` checks require the campaign *and* the character to have set something, so a character
-  that joined before the GM decided anything — sheet null, campaign now charging 12 — produces no
-  finding at all and no panel to print one under, while the engine prices Immortality at the book's
-  3. Driven and confirmed. **This is item 15's cap exactly** — the same both-set condition, and
-  this file's claim that "a character with none has already inherited the campaign's" is true only
-  of a campaign that had already decided at the time of the join — so it wants settling once for
-  the cap, the price and the switch block together rather than fixed for whichever one is being
-  worked on. What makes it survivable meanwhile is that **a re-join picks it up**: `??=` fires into
-  the still-empty field, `TookHouseRules` is true and the join says so, which is why the panel's
-  sentence points at joining again rather than at the GM.
+- **The panel shows two lists now, and the second is the live table.** `GET
+  /api/memberships/{id}/table` answers the campaign a membership names, authorised by the reader's
+  own `campaign_members` row rather than by ownership — see
+  [`accounts-server.md`](accounts-server.md) — so a member can finally be shown what their table
+  has decided. `ApiMembershipStore.TableAsync` reads it through the same `StoredCampaign` reader a
+  join uses, and `Campaigns.razor` asks **only where `AccountCampaignStore` answered nothing**,
+  which is a member and never a GM: the GM already reads their campaign, and the address would
+  answer them 404 anyway. **The GM's screen is unchanged and costs no extra request**, which a
+  test asserts by driving their own page and requiring no `/table` call on the wire.
+  - **Two lists rather than one, because they are two different facts.** *House rules on this
+    character* is what the sheet is costed by and what travels to a fight; *House rules at the
+    table now* is what the next character to join would take. They were the same list at the
+    moment of the join and nothing keeps them in step, which is why both headings say whose they
+    are. Nothing is repaired: joining again is still the only writer.
+  - **The differences are `CampaignDiff.BetweenTables`, not a second comparison.** Same thirteen
+    names and the same `Fatal Damage off → on` idiom the GM's approval screen reads, computed in
+    one place — a second one here would be a second chance to name a switch differently from the
+    book. It compares the **house** cap rather than the cap in force, unlike `CapOf` one screen
+    over: a GM needs the ceiling a submission was judged by, and a member is reading what their
+    table house-ruled, where "the tier's" is the honest answer for a game that set none.
+  - **And handing the live campaign to `Inspect` is what makes five of its six findings reachable
+    by a member at all.** Every mismatch is computed from a campaign that resolved and a player's
+    browser resolved none, so a character built to the wrong tier for its game was told on no
+    screen. `Inspect` is unchanged in what it compares; what changed is that it is now handed
+    something to compare against. `WorthSaying` stays exactly as it was — a live read that fails
+    still produces `UNKNOWN_CAMPAIGN`, and the membership row is still the evidence that suppresses
+    it.
+  - **A local reading the live campaign's cap is called `campaign`, and that is load-bearing.**
+    `TraitCapReadTests` treats every receiver but `sheet` and `campaign` as a tier, so the first
+    spelling of `LiveHouseRules` cost the page a third sanctioned tier read — and the sanction is
+    what would then have permitted a real one.
+- **The copy going stale is reported in one of its two directions, and the other is now reported
+  too.** `CAMPAIGN_HOUSE_RULES_NOT_COPIED` is the empty-copy half: the game has set a price or
+  turned a rule on and the character carries neither, because it joined before the GM decided.
+  Both mismatch checks need each side to have set something — item 15's condition, unchanged — so
+  that state produced no finding at all while the engine went on costing Immortality at the book's
+  3 at a table charging 12. It is reported **before** `CAMPAIGN_TABLE_MISMATCH` because it can move
+  a figure and that one cannot, it carries the table's price so `Ranks` can say the number, and its
+  remedy is joining again — the one act that writes into the still-empty field. **Reported, never
+  repaired**: copying the price in from a panel would move somebody's spend while they were reading
+  a list.
+- **The both-set condition is still item 15's and is still right; what changed is that its blind
+  spot now has a finding of its own.** Both mismatch checks compare only where the campaign *and*
+  the character have set something, which is correct for a mismatch — a campaign that has set no
+  price is not overruling anybody. The claim this file used to make beside it, that "a character
+  with none has already inherited the campaign's", is true only of a campaign that had already
+  decided at the time of the join, and that gap is what `CAMPAIGN_HOUSE_RULES_NOT_COPIED` covers.
+  **The cap is deliberately not folded into it**: a character with no house cap is built to its
+  tier's, which is a real ceiling rather than a missing copy, and the live list says what the table
+  caps at so a reader can see the difference without being told they are missing something. What
+  the finding's sentence points at is joining again, because that is where `??=` fires into the
+  still-empty field, `TookHouseRules` goes true and the join says so.
 - **So the panel has to say it is a copy, and the first version said the opposite.** A join writes
   into empty fields only and nothing else writes at all, so a GM who edits the campaign afterwards
   changes nothing on a character already in it — `Inspect` reports that disagreement and a member

@@ -441,7 +441,7 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
-    /// The membership wire keys are spelled the same at both ends, on all five shapes.
+    /// The membership wire keys are spelled the same at both ends, on all six shapes.
     ///
     /// <para><b>Structural at both ends, for the reason this file records for the character
     /// keys.</b> The client's are read off the records it binds and sends; the server's off the
@@ -500,6 +500,31 @@ public sealed class AccountsContractTests
         Assert.True(detailReads.SequenceEqual(detailSends, StringComparer.Ordinal),
             "the server sends [" + string.Join(", ", detailSends) + "] on one membership and the "
             + "client binds [" + string.Join(", ", detailReads) + "]");
+
+        // ── The live table: `table`'s own literal against `WiredTable` ───────────────────
+        //
+        // **Two keys, and the smallness is what has to be held.** This is the one campaign read a
+        // player can make, and what bounds it is that the server sends the campaign's id and its
+        // opaque payload and nothing else — no account id, no label, no join code. A field added
+        // here for convenience is a field a member is told about somebody else's account, and the
+        // browser would bind it silently the moment the record grew a property to match.
+        var table = Regex.Match(membershipsJs,
+            @"return json\(\{\s*campaignId: row\.campaign_id,(?<body>(?:(?!\}\);).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(table.Success,
+            "worker/memberships.js no longer answers a membership's live table as an object "
+            + "literal, so this test cannot see what that read sends and would pass whatever it "
+            + "sent.");
+
+        var tableSends = LiteralKeys("campaignId: row.campaign_id," + table.Groups["body"].Value);
+
+        Assert.True(tableSends.Length == 2,
+            "the server sends " + tableSends.Length + " fields on a membership's live table and "
+            + "should send two — the campaign's id and its payload: "
+            + string.Join(", ", tableSends));
+
+        Assert.Equal(BoundKeys(store, "WiredTable"), tableSends);
 
         // ── The three the client sends, each read by the server ──────────────────────────
         //

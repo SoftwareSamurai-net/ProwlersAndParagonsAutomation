@@ -112,19 +112,23 @@ public sealed class CampaignMemberViewTests
     }
 
     /// <summary>
-    /// <b>The house-rules panel says whose copy it is showing, because it cannot show the
-    /// game's.</b>
+    /// <b>The house-rules panel says whose copy it is showing, and now shows the game's beside
+    /// it.</b>
     ///
     /// <para>Driven all the way through the state it is about: the player joins, the GM then edits
-    /// the campaign, and the player's panel keeps printing what was copied in at the join. Nothing
-    /// refreshes it — a join writes into empty fields only, and there is no other writer — and no
-    /// finding says so, because the finding that would is computed from a campaign a member cannot
-    /// resolve. So the panel is the only thing on this screen in a position to be honest about what
-    /// it is, and "only the GM can change them" was the sentence that made it dishonest: true of
-    /// the game and false of the list underneath it.</para>
+    /// the campaign, and the player's own list keeps printing what was copied in at the join.
+    /// Nothing refreshes it — a join writes into empty fields only, and there is no other writer —
+    /// so the copy going stale is the state, asserted rather than wished away.</para>
+    ///
+    /// <para><b>What changed with item 30 is the second list, not the first.</b> The copy is still
+    /// what the character is costed by and what travels to a fight; <c>GET
+    /// /api/memberships/{id}/table</c> is what lets the same panel say what the table has decided
+    /// since. Both headings name whose list they are, because "only the GM can change them" was
+    /// true of the game and false of the list underneath it, and a reader has no way to tell those
+    /// apart from a screen that states the first.</para>
     /// </summary>
     [Fact]
-    public async Task TheHouseRulesPanelSaysItIsTheCharactersCopyAndNotTheGamesLiveOne()
+    public async Task TheHouseRulesPanelSaysItIsTheCharactersCopyAndShowsTheTableBesideIt()
     {
         var (ctx, page) = await AMemberOf(new CampaignTable { FatalDamage = true }, immortality: 9);
         await using var _ = ctx;
@@ -143,17 +147,164 @@ public sealed class CampaignMemberViewTests
 
         var after = ctx.Render<Campaigns>();
 
-        // The copy is stale, silently — this is the state, asserted rather than wished away.
-        Assert.Contains("Fatal Damage", after.Markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("Tough Minions", after.Markup, StringComparison.Ordinal);
-        Assert.Contains("Immortality costs 9 HP", after.Markup, StringComparison.Ordinal);
+        // The control on everything below: the live read really happened, and it is the new
+        // player-scoped address rather than the campaign one a member is answered 404 by.
+        Assert.Contains(ctx.Api.Asked,
+            a => a.StartsWith("GET /api/memberships/", StringComparison.Ordinal)
+                 && a.EndsWith("/table", StringComparison.Ordinal));
 
-        // So the panel has to say that is what it is. It is the character's copy, taken at the
-        // join, and a change the GM makes does not reach it.
+        // The copy is stale, silently. Still true, and still the reason the panel has to say so.
+        Assert.Contains("House rules on this character", after.Markup, StringComparison.Ordinal);
+        Assert.Contains("Fatal Damage", after.Markup, StringComparison.Ordinal);
+        Assert.Contains("Immortality costs 9 HP", after.Markup, StringComparison.Ordinal);
         Assert.Contains("when it joined", after.Markup, StringComparison.Ordinal);
         Assert.Contains("joins again", after.Markup, StringComparison.Ordinal);
 
-        // And it must not claim to be the game's live answer. This is the sentence that shipped.
+        // And the table as it stands is beside it, under a heading that says which is which.
+        Assert.Contains("House rules at the table now", after.Markup, StringComparison.Ordinal);
+        Assert.Contains("Tough Minions", after.Markup, StringComparison.Ordinal);
+        Assert.Contains("Immortality costs 12 HP", after.Markup, StringComparison.Ordinal);
+
+        // Two lists, not one that has replaced the other — the whole point of the pair.
+        Assert.Equal(2, after.FindAll("ul.house-rules-read").Count);
+
+        // A sentence per differing setting, in the approval screen's own idiom. Read off the
+        // rendered rows rather than out of the whole markup, because the two lists above contain
+        // every one of these words already and a substring search would pass without a diff.
+        var moved = after.FindAll("ul.diff-rows > li").Select(li => li.TextContent.Trim()).ToList();
+
+        Assert.Contains(moved, t => t.Contains("Fatal Damage", StringComparison.Ordinal)
+                                    && t.Contains("on → off", StringComparison.Ordinal));
+        Assert.Contains(moved, t => t.Contains("Tough Minions", StringComparison.Ordinal)
+                                    && t.Contains("off → on", StringComparison.Ordinal));
+        Assert.Contains(moved, t => t.Contains("Immortality", StringComparison.Ordinal)
+                                    && t.Contains("9 HP → 12 HP", StringComparison.Ordinal));
+
+        // And nothing has been repaired: the sheet is exactly as the join left it.
+        Assert.Equal(9, ctx.Session.Sheet.ImmortalityCost);
+        Assert.True(ctx.Session.Sheet.CampaignTable?.FatalDamage);
+        Assert.False(ctx.Session.Sheet.CampaignTable?.ToughMinions);
+
+        // It must not claim to be the game's live answer. This is the sentence that shipped.
         Assert.DoesNotContain("Only the GM can change them.", after.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A character that joined before the GM decided anything is told it carries nothing.</b>
+    ///
+    /// <para>The direction that reported nothing at all, and the whole of item 30's defect. Both
+    /// of <c>Inspect</c>'s house-rule checks need the campaign <em>and</em> the character to have
+    /// set something — item 15's condition, unchanged — so a sheet with a null price at a table
+    /// charging 12 produced no finding, no panel to print one under, and an engine going on
+    /// costing Immortality at the book's 3.</para>
+    ///
+    /// <para><b>Reported and never repaired</b>, which is why the sentence points at joining again:
+    /// that is the one act that writes into the still-empty field, and copying the price in from a
+    /// panel would move somebody's spend while they were reading a list.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACharacterThatJoinedBeforeTheTableDecidedIsToldItCarriesNoHouseRules()
+    {
+        // A game that had decided nothing at the moment of the join, so the `??=` copied nothing.
+        var (ctx, page) = await AMemberOf();
+        await using var _ = ctx;
+
+        Assert.Null(ctx.Session.Sheet.ImmortalityCost);
+        Assert.Null(ctx.Session.Sheet.CampaignTable);
+        Assert.DoesNotContain("House rules on this character", page.Markup, StringComparison.Ordinal);
+
+        // The GM decides afterwards. Nothing writes this onto the character — there is no writer
+        // but the join — which is exactly the state that used to go unreported.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        ctx.Api.Campaign(CampaignId, "Pinnacle City",
+            StoredCampaign.Write(new Campaign(
+                CampaignId, "Pinnacle City", "standard", null, false,
+                new CampaignTable { SlowHealing = true }, 12)));
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var after = ctx.Render<Campaigns>();
+
+        Assert.Contains("joined before the game set its house rules", after.Markup,
+            StringComparison.Ordinal);
+
+        // The figure, because "costed by the book" is not something a reader can act on without
+        // being told what the table charges instead — the promise `CampaignFinding` makes.
+        Assert.Contains("The game charges 12 HP for Immortality.", after.Markup,
+            StringComparison.Ordinal);
+
+        // The remedy is joining again and nothing has been changed either way.
+        Assert.Contains("Join again", after.Markup, StringComparison.Ordinal);
+        Assert.Null(ctx.Session.Sheet.ImmortalityCost);
+        Assert.Null(ctx.Session.Sheet.CampaignTable);
+    }
+
+    /// <summary>
+    /// <b>A live read that answered nothing leaves the panel exactly as it was.</b>
+    ///
+    /// <para>The other half of the pair, and what keeps the new list from being a thing the screen
+    /// depends on. A game the GM has deleted, a membership that is not the reader's, a payload this
+    /// build cannot read and a server that is not there are one answer to this page: draw the copy
+    /// alone, which is what it drew before any of this existed.</para>
+    /// </summary>
+    [Fact]
+    public async Task WithNoLiveTableTheMemberStillSeesTheCopyTheirCharacterCarries()
+    {
+        var (ctx, page) = await AMemberOf(new CampaignTable { FatalDamage = true }, immortality: 9);
+        await using var _ = ctx;
+
+        // The control: with the game there, both lists are drawn.
+        Assert.Contains("House rules at the table now", page.Markup, StringComparison.Ordinal);
+
+        // Through the real route, as the GM, so the state under test is one a request produces.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        await ctx.Services.GetRequiredService<AccountCampaignStore>().DeleteAsync(CampaignId);
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var after = ctx.Render<Campaigns>();
+
+        Assert.Contains("House rules on this character", after.Markup, StringComparison.Ordinal);
+        Assert.Contains("Fatal Damage", after.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("House rules at the table now", after.Markup, StringComparison.Ordinal);
+        Assert.Empty(after.FindAll("ul.diff-rows"));
+    }
+
+    /// <summary>
+    /// <b>The GM's own screen is unchanged, and costs no request.</b>
+    ///
+    /// <para>A GM reads their campaign at its own address and always could; the table address is
+    /// authorised by a membership row, which a GM has none of for their own game, so asking would
+    /// be a round trip answered 404. The page therefore asks only where the account's own read
+    /// answered nothing — and the second list, which is about a copy going stale, is meaningless
+    /// on a screen whose reader is the one who changes the game.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheGmsOwnScreenNeitherAsksForTheLiveTableNorDrawsASecondList()
+    {
+        await using var ctx = new RenderContext(storesForReal: true);
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        ctx.Api.Campaign(CampaignId, "Pinnacle City",
+            StoredCampaign.Write(new Campaign(
+                CampaignId, "Pinnacle City", "standard", null, false,
+                new CampaignTable { FatalDamage = true }, 9)));
+
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(CharacterId);
+
+        ctx.Session.Sheet.CampaignId = CampaignId;
+        ctx.Session.Sheet.SelectedTierId = "standard";
+        ctx.Session.Sheet.ImmortalityCost = 9;
+        ctx.Session.Sheet.CampaignTable = new CampaignTable { FatalDamage = true };
+
+        var page = ctx.Render<Campaigns>();
+
+        // The control: this reader really does resolve the campaign, so the absence below is a
+        // request not made rather than a page that never got as far as resolving anything.
+        var store = ctx.Services.GetRequiredService<AccountCampaignStore>();
+
+        Assert.NotNull(await store.ForAsync(ctx.Session.Sheet));
+
+        Assert.DoesNotContain(ctx.Api.Asked, a => a.EndsWith("/table", StringComparison.Ordinal));
+        Assert.DoesNotContain("House rules at the table now", page.Markup, StringComparison.Ordinal);
     }
 }
