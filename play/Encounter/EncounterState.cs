@@ -10,7 +10,17 @@ namespace ProwlersAndParagonsAutomation.Play.Encounter;
 /// How long it still has. p.76: the target is defeated when this reaches their current Health, and
 /// breaking free takes half the escaper's net successes off it.
 /// </param>
-public sealed record SpecialEffect(string Target, string Source, string Name, int RemainingPages);
+/// <param name="KeptScenes">
+/// How many times p.76's <c>keeping_hold</c> has been bought for this effect.
+///
+/// <para><b>It is a count and not a flag because the entry says the purchase repeats</b> —
+/// <c>may_be_repeated_scene_after_scene</c>, one scene further for each point paid. Above zero, the
+/// effect's duration is no longer measured in pages at all: it runs "until the end of the following
+/// scene", which is past the end of the encounter this engine is stepping, so
+/// <see cref="Encounter.Step"/> stops ticking it down.</para>
+/// </param>
+public sealed record SpecialEffect(
+    string Target, string Source, string Name, int RemainingPages, int KeptScenes = 0);
 
 /// <summary>How far apart two combatants are, in the three classes p.73 prints.</summary>
 public enum RangeBand
@@ -75,6 +85,33 @@ public sealed record DefencePenalty(int UntilPage, bool ActiveOnly);
 /// p.79's dying clock starts on <em>lethal</em> damage, and a rebuilt attack that had forgotten
 /// which kind it was would start it on a knockout blow.
 /// </param>
+/// <param name="AttackFaces">
+/// The faces the attack pool actually came up with.
+///
+/// <para><b>p.79's team attack rerolls a face, which is why <c>IDiceSource</c> answers in faces at
+/// all.</b> A source that had handed back a count of successes could not tell an engine which dice
+/// were sixes, and "have your 6s explode" would be unimplementable. The list is rewritten as the
+/// explosion goes, so the sixes that have already been rerolled cannot be rerolled again.</para>
+/// </param>
+/// <param name="Team">Whether it was a team attack, which is what the exploding sixes are bought off.</param>
+/// <param name="TraitId">The Trait or Power that was rolled, so a redirected attack is the same attack.</param>
+/// <param name="Type">
+/// Which row of p.75's table the attack came from, which decides what may answer it. p.79's luring
+/// sends the attack at somebody else, and the row is what says which defence <em>they</em> get.
+/// </param>
+/// <param name="DefenceWasActive">
+/// Whether the defence that answered it was an active one. p.79's luring is bought off a dodge —
+/// <c>requires_an_active_defense</c> — so an engine that had not kept this could not tell a lure
+/// from a target who stood there and soaked the blow.
+/// </param>
+/// <param name="AttackRank">
+/// The rank of the Trait that was rolled, before any bonus dice.
+///
+/// <para><b>It is the rank and not the pool, because p.78's knockback is priced off the rank</b> —
+/// "as if they were thrown by someone with a Might rank equal to your attack rank" — and the pool
+/// carries the two dice going all-out lends, the Minions' size bonus and the wound penalty, none of
+/// which is anybody's rank.</para>
+/// </param>
 public sealed record ResolvedAttack(
     string Actor,
     string Target,
@@ -85,7 +122,13 @@ public sealed record ResolvedAttack(
     IReadOnlyList<SpecialEffect> EffectsBefore,
     string? Effect,
     bool Area,
-    DamageKind Damage);
+    DamageKind Damage,
+    int AttackRank,
+    IReadOnlyList<int> AttackFaces,
+    bool Team,
+    string TraitId,
+    AttackType Type,
+    bool DefenceWasActive);
 
 /// <summary>
 /// The whole of a fight at one instant, immutable.
@@ -188,6 +231,28 @@ public sealed record EncounterState
 
     /// <summary>Everything the engine has done, with its citations.</summary>
     public required Ledger Ledger { get; init; }
+
+    /// <summary>
+    /// Who has forfeited a turn they had not yet taken, and so is left out of the next page's order.
+    ///
+    /// <para><b>p.78's knockback and p.79's luring both take a turn away, and a turn taken away has
+    /// to be missing from the order rather than mentioned on the ledger.</b> Where the character had
+    /// still to act on the page the forfeit was bought, the turn they lose is that one and they come
+    /// straight out of <see cref="TurnOrder"/>; where they had already acted, the turn they lose is
+    /// the next page's and their id waits here until <see cref="Encounter.Step"/> builds it.</para>
+    /// </summary>
+    public required IReadOnlyList<string> LosesNextTurn { get; init; }
+
+    /// <summary>
+    /// Everyone who has already been on the receiving end of a team attack this fight.
+    ///
+    /// <para>p.79: "no character can be subject to more than one team attack per battle", which is a
+    /// limit per <em>target</em> and for the whole battle rather than the page — so it is a list on
+    /// the encounter and not something the page turn clears. The sentence beside it names the two
+    /// ways it is lifted, both of which are a person's decision, so the refusal quotes them rather
+    /// than applying them.</para>
+    /// </summary>
+    public required IReadOnlyList<string> TeamAttacked { get; init; }
 
     /// <summary>Whether the fight is over — one side left standing, or the page limit reached.</summary>
     public required bool Over { get; init; }

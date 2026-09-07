@@ -30,6 +30,17 @@ public sealed class SuccessCounter
     private readonly Models.MetaSubOneDieModel _floor;
     private readonly int _dicePerAutomaticSuccess;
 
+    /// <summary>
+    /// The top face of the die, as the map in force enumerates it.
+    ///
+    /// <para><b>p.79's team attack explodes "your 6s", and this is where the six comes from.</b> It
+    /// is the highest face the success map names rather than a literal, for the reason this whole
+    /// class avoids literals: a figure typed here would be a second transcription — of the die this
+    /// time rather than of a rule — and it would go on agreeing with the map right up until somebody
+    /// changed the map.</para>
+    /// </summary>
+    public int HighestFace { get; private set; }
+
     /// <summary>The entry the map in force came from, for a ledger line to cite.</summary>
     public string MapSourceRef { get; }
 
@@ -59,6 +70,8 @@ public sealed class SuccessCounter
             _map = reading.SuccessMap!;
             MapSourceRef = reading.SourceRef;
         }
+
+        HighestFace = _map.Keys.Max(face => int.Parse(face, System.Globalization.CultureInfo.InvariantCulture));
 
         _floor = play.GetMeta("sub_one_die_floor").SubOneDie!;
         _dicePerAutomaticSuccess = play.GetMeta("automatic_successes").AutomaticSuccesses!.DicePerSuccess;

@@ -70,9 +70,9 @@ their behalf.
 **The GM's pool is Adversity**, opened at one point per Hero per issue plus the scene's Challenge
 Level multiplied by the number of Heroes. `spend_adversity` with kind `anything_resolve_can` buys,
 for an NPC, whatever a point of Resolve could have bought — and it has to name *which* purchase in
-`as_resolve`, because a point spent on nothing in particular is a point spent on nothing. **This
-slice runs two of them**, `extra_dice` and `reroll`; every other purchase it may name is recognised
-and answered with a `not yet implemented` line. The table at the end of this document says which is
+`as_resolve`, because a point spent on nothing in particular is a point spent on nothing. **It runs the
+purchases the last table of this document marks bought**; every other purchase it may name is
+recognised and answered with a `not yet implemented` line. The table at the end of this document says which is
 which, and it is the only place to read that from.
 
 ## Quoting a measurement
@@ -135,10 +135,6 @@ turned one of these table settings on without saying that the numbers do not car
 
 | Entry | What it is |
 |---|---|
-| `keeping_hold` | Ch.4 p.76. Carrying a defeating special effect into the next scene. |
-| `knockback` | Ch.4 p.78. Turning a heavy subdual blow into a spectacular flight. |
-| `luring` | Ch.4 p.79. Redirecting a dodged attack into whatever was behind you. |
-| `team_attacks` | Ch.4 p.79. Making a team attack's sixes explode. |
 | `adversity_spend_suppress_flaw` | Ch.5 p.85. Suppressing an NPC's Flaw for a scene. |
 | `adversity_spend_misfortune` | Ch.5 p.85. A piece of misfortune that is a challenge. |
 | `adversity_spend_villainy` | Ch.5 p.85. An act of villainy the Heroes cannot simply prevent. |
@@ -166,28 +162,41 @@ The other five — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefen
 initiative variant beside them — are applied.
 
 **Spends that refuse by name** — the `kind` values `spend_resolve` and `spend_adversity` accept,
-recognise, and answer with a `not yet implemented` line:
+recognise, and answer with a `not yet implemented` line. Every one of a Hero's own purchases is
+resolved; what is left here is three of the GM's four, which are effects on a scene rather than on
+a roll:
 
 | Spend | Tool |
 |---|---|
-| `keeping_hold` | `spend_resolve` |
-| `knockback` | `spend_resolve` |
-| `luring` | `spend_resolve` |
-| `team_attack` | `spend_resolve` |
 | `suppress_flaw` | `spend_adversity` |
 | `misfortune` | `spend_adversity` |
 | `villainy` | `spend_adversity` |
 
 Everything else a spend can name is resolved: `extra_dice`, `reroll`, `seize_initiative`,
-`instant_recovery`, `avoid_fatal_damage` and `stabilise` for a Hero, and `anything_resolve_can`
-for the GM naming `extra_dice` or `reroll`.
+`instant_recovery`, `avoid_fatal_damage`, `stabilise`, `keeping_hold`, `knockback`, `luring` and
+`team_attack` for a Hero, and `anything_resolve_can` for the GM naming one of the purchases the
+last table below marks bought.
 
-**What `anything_resolve_can` may name** — the six above are a *Hero's* purchases, and the GM's
-pool does not yet buy all six. p.85's first purchase is the Resolve purchases with different money
-behind them, and this slice runs the two that are decided after the roll; the rest are recognised
-and answered with a `not yet implemented` line, exactly like the table above. **The two columns
+**`luring` is the one spend that takes a `target`**, because p.79 lets a dodged attack be sent into
+a person rather than into the scenery — and a person is the only thing this engine has to send it
+into. A lure naming nobody is refused, with nothing spent: there is no scenery here to strike.
+
+**`team_attack` is bought off an attack that said it was one.** Send `"team": true` on the attack
+and p.79's +2d is in the pool; the point afterwards makes that roll's sixes explode, and keep
+exploding while they keep coming up. A target may be team-attacked once a battle, and the two ways
+p.79 lifts that — the Heroes being clever about it, or the GM ruling otherwise — are a person's
+call, not this engine's: where the GM has ruled otherwise, attack without the flag. What is *not*
+applied is the coordination, because a turn here is one character's action: the participants
+waiting until the end of the page, and all of them having to name the same enemy, are yours to
+keep track of.
+
+**What `anything_resolve_can` may name** — the ten above are a *Hero's* purchases, and the GM's
+pool does not yet buy all ten. p.85's first purchase is the Resolve purchases with different money
+behind them, and the ones this engine runs from the GM's pool are the ones marked bought below; the
+rest still charge the buyer's own pool, which an NPC has none of, so they are recognised and
+answered with a `not yet implemented` line, exactly like the table above. **The two columns
 disagreeing with the engine is the failure this table exists to prevent** — an earlier version of
-this document advertised all six, four of them refused, and a model reading it had no way to tell
+this document advertised every purchase as the GM's, four of them refused, and a model reading it had no way to tell
 a purchase that had happened from one that had not:
 
 | `as_resolve` | What the GM's pool does with it |
@@ -198,7 +207,7 @@ a purchase that had happened from one that had not:
 | `instant_recovery` | not yet implemented |
 | `avoid_fatal_damage` | not yet implemented |
 | `stabilise` | not yet implemented |
-| `keeping_hold` | not yet implemented |
-| `knockback` | not yet implemented |
-| `luring` | not yet implemented |
-| `team_attack` | not yet implemented |
+| `keeping_hold` | bought |
+| `knockback` | bought |
+| `luring` | bought |
+| `team_attack` | bought |

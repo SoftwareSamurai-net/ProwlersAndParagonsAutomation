@@ -2059,6 +2059,899 @@ public sealed class PlayEngineStepTests
         Assert.False(spend.State["down"].Defeated(encounter.DefeatFloor));
     }
 
+    // ── Chapter 4's Resolve purchases ────────────────────────────────────────
+
+    /// <summary>
+    /// <b>p.76's <c>keeping_hold</c> stops the effect's clock, and the ledger line is not the whole
+    /// of it.</b>
+    ///
+    /// <para>The page prints no worked example of the purchase, so this is a property with its own
+    /// control beside it: the <em>same</em> scripted faces are replayed twice, once with the point
+    /// spent and once without, and the effect that runs out in the second run has to still be
+    /// running in the first. A run on its own would prove nothing — an effect that was still there
+    /// might simply have had pages left.</para>
+    ///
+    /// <para>The counts come first, as everywhere here: the attack is required to have scored the
+    /// successes the script pays for and the target to have been <em>defeated by the effect</em>,
+    /// because "whenever you defeat a target with a special effect" is the entry's trigger and a
+    /// fixture where the effect merely landed would be buying something else.</para>
+    /// </summary>
+    [Fact]
+    public void AKeptHoldStopsCountingDownAndAnUnkeptOneRunsOut()
+    {
+        var rule = _play.GetCombat("keeping_hold").KeepingHold!;
+
+        // The control on the data: the purchase costs something, or "the pool moved" below is empty.
+        Assert.True(rule.CostResolve > 0);
+
+        var kept = Hold(buying: true);
+        var lapsed = Hold(buying: false);
+
+        // The unkept effect ran out on the page its duration says, and the kept one did not.
+        Assert.Contains(lapsed.Ledger.Lines, l =>
+            string.Equals(l.Rule, "special_effects", StringComparison.Ordinal)
+            && l.Text.Contains("runs out", StringComparison.Ordinal));
+        Assert.Empty(lapsed.Effects);
+
+        var still = Assert.Single(kept.Effects);
+        Assert.Equal("Mind Control", still.Name);
+        Assert.Equal(1, still.KeptScenes);
+
+        Assert.Contains(kept.Ledger.Lines, l =>
+            string.Equals(l.Rule, "keeping_hold", StringComparison.Ordinal)
+            && l.Text.Contains(rule.ExtendsTo, StringComparison.Ordinal));
+        Assert.DoesNotContain(kept.Ledger.Lines, l =>
+            string.Equals(l.Rule, "special_effects", StringComparison.Ordinal)
+            && l.Text.Contains("runs out", StringComparison.Ordinal));
+
+        // And the point was paid for it.
+        Assert.Equal(3 - rule.CostResolve, kept["hero"].Resolve);
+        Assert.Equal(3, lapsed["hero"].Resolve);
+    }
+
+    /// <summary>
+    /// The same fight twice: 4d of Mind Control for 4 successes against 2d of Willpower for 1, which
+    /// is 3 net and — half of it, rounding the way p.7 rounds — 2 pages of effect on a target with 2
+    /// Health left, so the effect defeats them. Then two pages pass.
+    /// </summary>
+    private EncounterState Hold(bool buying)
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["mind_control"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 2,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["willpower"] = 2, ["might"] = 5 },
+            ["willpower"]);
+
+        var dice = new ScriptedDice(6, 6, 1, 1, 4, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        var attack = encounter.Step(state, new Attack(
+            "hero", "villain", "mind_control", DamageKind.Psychic, AttackType.MentalPower,
+            Effect: "Mind Control"));
+
+        state = attack.State;
+
+        // The positive controls, before any outcome: the printed counts, and the defeat the entry's
+        // trigger names.
+        Assert.Contains(attack.Added, l =>
+            l.Text.Contains("mind_control 4d for 4 successes", StringComparison.Ordinal)
+            && l.Text.Contains("willpower 2d for 1", StringComparison.Ordinal));
+        Assert.Equal("Mind Control", state["villain"].DefeatedByEffect);
+        Assert.Equal(2, Assert.Single(state.Effects).RemainingPages);
+
+        if (buying) state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.KeepingHold)).State;
+
+        state = encounter.Step(state, new EndTurn("hero")).State;
+        state = encounter.Step(state, new EndTurn("villain")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+
+        // Nothing rolled anything the page does not: the purchase and the page turns take no dice.
+        Assert.Equal(0, dice.Remaining);
+
+        return state;
+    }
+
+    /// <summary>
+    /// <b>A buyer who is out of the fight is refused, and the refusal cites the rule that put them
+    /// there.</b>
+    ///
+    /// <para>This is where Chapter 4's four purchases part company with Chapter 5's. p.76's instant
+    /// recovery and p.79's Fatal Damage rescue are what a character who has just gone down buys, so
+    /// <c>OutOfTheFight</c> deliberately does not guard them; keeping a hold, knocking somebody
+    /// across the street, luring and leading a team attack are things a character does while they
+    /// are still in the fight, and all four are driven here.</para>
+    ///
+    /// <para>The control is the other refusal: standing up, each of these is refused for want of a
+    /// situation rather than for want of a buyer, so the line below is the defeat and not the same
+    /// refusal twice.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(ResolveSpend.KeepingHold, "has nobody down under an effect of theirs")]
+    [InlineData(ResolveSpend.Knockback, "no blow of their own on the table")]
+    [InlineData(ResolveSpend.Luring, "nothing has just been aimed at")]
+    [InlineData(ResolveSpend.TeamAttack, "no roll of their own on the table")]
+    public void ADefeatedBuyerIsRefusedEveryChapterFourPurchase(ResolveSpend kind, string standingRefusal)
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["mind_control"] = 4, ["might"] = 6 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["willpower"] = 2, ["toughness"] = 3 },
+            ["willpower"]);
+
+        var encounter = new Encounter(_play, new SeededDice(4));
+        var state = encounter.Begin([hero, villain]);
+
+        // The control: on their feet, the purchase is refused for want of a situation.
+        var standing = Assert.Single(encounter.Step(state, new SpendResolve("hero", kind)).Added);
+
+        Assert.Contains(standingRefusal, standing.Text, StringComparison.OrdinalIgnoreCase);
+
+        var down = encounter.Step(
+            state.With(hero.WithHealth(encounter.DefeatFloor)),
+            new SpendResolve("hero", kind));
+
+        var line = Assert.Single(down.Added);
+
+        Assert.Equal("damage", line.Rule);
+        Assert.Contains("not the buyer of anything", line.Text, StringComparison.Ordinal);
+        Assert.Equal(3, down.State["hero"].Resolve);
+    }
+
+    /// <summary>
+    /// <b>A knockback throws the target exactly as far as p.74's table says and no farther, and
+    /// takes the turn it says it takes.</b>
+    ///
+    /// <para>p.78 prints no worked example, so this is a property: the distance is looked up in the
+    /// shipped <c>throwing_table</c> here rather than typed, and the band the pair end at has to be
+    /// that row's — and, separately, never past it, which is the half a reading that guessed
+    /// generously would fail.</para>
+    ///
+    /// <para><b>Both halves of "losing their next turn to act" are driven</b>, because which turn it
+    /// is depends on where the page has got to. A target who has still to act loses that turn and
+    /// comes out of this page's order; one who has already acted loses the next page's, and the
+    /// order built when the page turns has to be missing them.</para>
+    ///
+    /// <para>The count comes first as always: the blow is required to have scored the successes the
+    /// script pays for and to have done at least the <c>minimum_damage</c> the entry demands, or the
+    /// purchase under test would be a refusal wearing a knockback's name.</para>
+    /// </summary>
+    [Fact]
+    public void AKnockbackThrowsATargetAsFarAsTheThrowingTableSaysAndTakesATurn()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+        var table = _play.GetCombat("throwing_table").ThrowingTable!;
+
+        // The distance the data says, for the 8d Might these fixtures attack with.
+        var row = table.Single(r => 8 >= r.MinRank && (r.MaxRank is null || 8 <= r.MaxRank));
+        var reach = Enum.Parse<RangeBand>(row.Range.Replace(" Range", "", StringComparison.Ordinal));
+
+        // The controls on the data: the row is not the one the fight opens in, so "it moved" below
+        // is the throw and not the opening band, and the purchase costs something.
+        Assert.NotEqual(RangeBand.Close, reach);
+        Assert.True(rule.CostResolve > 0);
+
+        var (pending, villainStillToAct, _) = Knocked(targetActsFirst: false);
+
+        Assert.Equal(reach, pending.RangeBetween("hero", "villain"));
+        Assert.True((int)pending.RangeBetween("hero", "villain") <= (int)reach,
+            "the throw went farther than the throwing table's own row for that rank");
+
+        // The turn they had not taken is the turn they lose: they are out of this page's order.
+        Assert.Equal(["hero", "villain"], villainStillToAct);
+        Assert.Equal(["hero"], pending.TurnOrder);
+        Assert.Empty(pending.LosesNextTurn);
+
+        // And where they had already acted, it is the next page's order they are missing from.
+        var (turned, _, fight) = Knocked(targetActsFirst: true);
+
+        Assert.Equal(2, turned.Page);
+        Assert.Equal(["hero"], turned.TurnOrder);
+
+        Assert.Contains(turned.Ledger.Lines, l =>
+            string.Equals(l.Rule, "pages_and_turns", StringComparison.Ordinal)
+            && l.Text.Contains("forfeited a turn", StringComparison.Ordinal));
+
+        // <b>And it is one turn, not every turn from here on.</b> p.78 takes the target's next turn
+        // to act; a forfeit left standing on the state would take the page after that as well, and
+        // the one after that, and a combatant nobody ever rolls for is a fight measured short. The
+        // page turn that spends the forfeit has to clear it, so the page after has them back — and
+        // the ledger says it once.
+        var back = fight.Step(fight.Step(turned, new EndTurn("hero")).State, new EndPage("")).State;
+
+        Assert.Equal(3, back.Page);
+        Assert.Equal(["villain", "hero"], back.TurnOrder);
+        Assert.Empty(back.LosesNextTurn);
+
+        Assert.Equal(1, back.Ledger.Lines.Count(l =>
+            string.Equals(l.Rule, "pages_and_turns", StringComparison.Ordinal)
+            && l.Text.Contains("forfeited a turn", StringComparison.Ordinal)));
+
+        // The clause this engine cannot apply is named rather than left to be assumed.
+        Assert.Contains(pending.Ledger.Lines, l =>
+            string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+            && l.Text.Contains(rule.DamageOnStrikingASolidObject, StringComparison.Ordinal)
+            && l.Text.Contains("no scenery", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 8d of Might for 6 successes against 2d of Toughness for none — 6 points of subdual damage,
+    /// which is what the entry's <c>minimum_damage</c> asks for — and then the point spent.
+    /// </summary>
+    /// <param name="targetActsFirst">
+    /// Whether the target has already had their turn when the blow lands, which decides which turn
+    /// the knockback takes off them. The page turns in that case, so the order can be read.
+    /// </param>
+    private (EncounterState State, IReadOnlyList<string> OpeningOrder, Encounter Fight) Knocked(
+        bool targetActsFirst)
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: targetActsFirst ? 11 : 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        var dice = new ScriptedDice(6, 6, 6, 1, 1, 1, 1, 1, 1, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+        var opening = state.TurnOrder;
+
+        if (targetActsFirst)
+        {
+            state = encounter.Step(state, new Hold("villain")).State;
+            state = encounter.Step(state, new EndTurn("villain")).State;
+        }
+
+        var blow = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        state = blow.State;
+
+        // The positive controls: the printed counts, and a blow big enough for the entry's floor.
+        Assert.Contains(blow.Added, l =>
+            l.Text.Contains("might 8d for 6 successes", StringComparison.Ordinal)
+            && l.Text.Contains("toughness 2d for 0", StringComparison.Ordinal));
+
+        Assert.Equal(12 - rule.MinimumDamage, state["villain"].CurrentHealth);
+        Assert.Equal(RangeBand.Close, state.RangeBetween("hero", "villain"));
+
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Knockback)).State;
+
+        Assert.Equal(3 - rule.CostResolve, state["hero"].Resolve);
+
+        if (targetActsFirst)
+        {
+            state = encounter.Step(state, new EndTurn("hero")).State;
+            state = encounter.Step(state, new EndPage("")).State;
+        }
+
+        // The purchase and the page turn roll nothing the page does not.
+        Assert.Equal(0, dice.Remaining);
+
+        return (state, opening, encounter);
+    }
+
+    /// <summary>
+    /// <b>A knockback moves the pair and no other pair.</b>
+    ///
+    /// <para>This is a reading, and <c>docs/guide/play-engine.md</c> says so: p.73's ranges are
+    /// pairwise — "the GM always determines the initial range class between combatants" — because
+    /// there is no board and no distance from a fixed point, so "flies backwards" can only be said
+    /// of the two characters involved. A third character standing by is neither nearer nor farther
+    /// for it, and an engine that had moved every pair the target is in would have thrown the whole
+    /// room apart on one point of Resolve.</para>
+    ///
+    /// <para>The control is the pair that <em>does</em> move: a fixture in which nothing moved at
+    /// all would satisfy every assertion below.</para>
+    /// </summary>
+    [Fact]
+    public void AKnockbackMovesThePairAndLeavesEveryOtherPairWhereItWas()
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        var bystander = Combatant.Villain("bystander", "the bystander", edge: 5, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 8d of Might for 6 successes against 2d of Toughness for none, which is the entry's
+        // minimum_damage exactly.
+        var dice = new ScriptedDice([.. FacesFor(8, 6), .. FacesFor(2, 0)]);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain, bystander], opening: RangeBand.Close);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed)).State;
+
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Knockback)).State;
+
+        // The control: the pair the blow was between did move.
+        Assert.NotEqual(RangeBand.Close, state.RangeBetween("hero", "villain"));
+
+        // And nobody else did. The target is no farther from the bystander for having been thrown,
+        // because there is nothing in p.73 that a pairwise band could be measured against.
+        Assert.Equal(RangeBand.Close, state.RangeBetween("villain", "bystander"));
+        Assert.Equal(RangeBand.Close, state.RangeBetween("hero", "bystander"));
+
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>Knockback is bought off the damage type the entry names and nothing else.</b> p.78 opens
+    /// on "an attack that inflicts subdual damage"; a killing blow of the same size buys nothing,
+    /// and the refusal says which kind it was.
+    /// </summary>
+    [Fact]
+    public void AKnockbackIsBoughtOffSubdualDamageAndNothingElse()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+
+        // The control on the data: the entry names a damage kind this engine has.
+        Assert.True(Enum.TryParse<DamageKind>(rule.RequiresDamageType, ignoreCase: true, out var required));
+        Assert.Equal(DamageKind.Subdual, required);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // A lethal blow halves the 2d Toughness answering it, so this is one die fewer than the
+        // subdual fixture above rolls.
+        var dice = new ScriptedDice(6, 6, 6, 1, 1, 1, 1, 1, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Lethal, AttackType.Unarmed)).State;
+
+        // The control: the blow is big enough, so the refusal below is about the kind and not the size.
+        Assert.Equal(12 - rule.MinimumDamage, state["villain"].CurrentHealth);
+
+        var refused = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Knockback));
+        var line = Assert.Single(refused.Added);
+
+        Assert.Equal("knockback", line.Rule);
+        Assert.Contains(rule.RequiresDamageType, line.Text, StringComparison.Ordinal);
+        Assert.Contains("that blow was lethal", line.Text, StringComparison.Ordinal);
+
+        // Nothing was spent and nobody moved.
+        Assert.Equal(3, refused.State["hero"].Resolve);
+        Assert.Equal(RangeBand.Close, refused.State.RangeBetween("hero", "villain"));
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>A lured attack lands on the person it was lured onto, who rolls their own defence, and the
+    /// lurer loses the turn p.79 charges them.</b>
+    ///
+    /// <para>p.79 prints no worked example, so this is a property with the controls the page itself
+    /// supplies: the attack has to have <em>missed</em> the lurer by at least
+    /// <c>defense_must_exceed_the_attack_roll_by</c> before the purchase is legal at all, so the
+    /// Health the new target loses cannot be damage the lurer had already taken — nothing was taken.
+    /// </para>
+    ///
+    /// <para>The new target answers with their own defence against the <em>same</em> attack roll,
+    /// which is the entry's <c>the_new_target_makes_their_own_defense_roll</c> and is what makes the
+    /// redirect a fresh outcome rather than the old one moved sideways.</para>
+    /// </summary>
+    [Fact]
+    public void ALureSendsTheAttackIntoSomebodyElseAndCostsTheLurerTheirTurn()
+    {
+        var rule = _play.GetCombat("luring").Luring!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        // The controls on the data: the purchase costs something, asks for a margin, and is allowed
+        // to be aimed at a person at all.
+        Assert.True(rule.CostResolve > 0);
+        Assert.True(rule.DefenseMustExceedTheAttackRollBy > 0);
+        Assert.True(rule.MayRedirectOntoAPerson);
+        Assert.True(rule.TheNewTargetMakesTheirOwnDefenseRoll);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 10, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 8, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["agility"] = 8 },
+            ["agility"]);
+
+        var bystander = Combatant.Villain("bystander", "the bystander", edge: 5, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 6d of Might for 1 success, 8d of Agility for 4 — a miss by 3 — and then 2d of the
+        // bystander's Toughness for none against that same 1.
+        var dice = new ScriptedDice(4, 1, 1, 1, 1, 1, 6, 6, 1, 1, 1, 1, 1, 1, 1, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([villain, hero, bystander]);
+
+        Assert.Equal(["villain", "hero", "bystander"], state.TurnOrder);
+
+        var swing = encounter.Step(state, new Attack(
+            "villain", "hero", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        state = swing.State;
+
+        // The positive controls: the printed counts, an active defence, and nothing landed on the
+        // Hero — so the Health the bystander loses below is the redirect and not a transfer.
+        Assert.Contains(swing.Added, l =>
+            l.Text.Contains("might 6d for 1 successes", StringComparison.Ordinal)
+            && l.Text.Contains("agility 8d for 4", StringComparison.Ordinal));
+
+        Assert.True(state.LastAttack!.DefenceWasActive);
+        Assert.Equal(rule.DefenseMustExceedTheAttackRollBy,
+            state.LastAttack.DefenceSuccesses - state.LastAttack.AttackSuccesses);
+        Assert.Equal(10, state["hero"].CurrentHealth);
+        Assert.Equal(10, state["bystander"].CurrentHealth);
+
+        var lured = encounter.Step(state, new SpendResolve(
+            "hero", ResolveSpend.Luring, Target: "bystander"));
+
+        state = lured.State;
+
+        // The attack landed on the bystander: 1 net success against no successes at all.
+        Assert.Equal(10 - rate, state["bystander"].CurrentHealth);
+        Assert.Equal(10, state["hero"].CurrentHealth);
+        Assert.Equal(3 - rule.CostResolve, state["hero"].Resolve);
+
+        Assert.Contains(lured.Added, l =>
+            string.Equals(l.Rule, "luring", StringComparison.Ordinal)
+            && l.Text.Contains("strikes the bystander instead", StringComparison.Ordinal)
+            && l.Text.Contains(rule.RedirectingOntoAPersonCosts, StringComparison.Ordinal));
+
+        // And the turn it costs: the Hero had not acted this page, so this is the turn they lose.
+        Assert.Equal(["villain", "bystander"], state.TurnOrder);
+
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>The three things p.79 asks of a lure, each refused on its own.</b> A passive defence is
+    /// not moving out of the way; a margin below
+    /// <c>defense_must_exceed_the_attack_roll_by</c> is not a lure; and a lure with nobody named has
+    /// only <c>redirects_to</c> to land on, which is scenery this engine has not got. None of the
+    /// three spends a point.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 3, "beat that attack by")]
+    [InlineData(false, 1, "passive defence")]
+    [InlineData(true, 1, "no scenery")]
+    public void ALureIsRefusedWithoutAnActiveDefenceAMarginAndSomebodyToLureItOnto(
+        bool dodges, int attackSuccesses, string why)
+    {
+        var villain = Combatant.Villain("villain", "the Villain", edge: 10, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 },
+            ["toughness"]);
+
+        // The one Trait they have is the one they answer with: p.75's Unarmed row offers Agility and
+        // Toughness to anybody who has them, so a Hero holding both would dodge whatever this row is
+        // about.
+        var hero = Combatant.Hero("hero", "the Hero", edge: 8, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { [dodges ? "agility" : "toughness"] = 8 },
+            [dodges ? "agility" : "toughness"]);
+
+        var bystander = Combatant.Villain("bystander", "the bystander", edge: 5, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        var dice = new ScriptedDice([.. FacesFor(6, attackSuccesses), .. FacesFor(8, 4)]);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([villain, hero, bystander]);
+
+        state = encounter.Step(state, new Attack(
+            "villain", "hero", "might", DamageKind.Subdual, AttackType.Unarmed)).State;
+
+        // The control: the roll really is the one this row is about.
+        Assert.Equal(attackSuccesses, state.LastAttack!.AttackSuccesses);
+        Assert.Equal(4, state.LastAttack.DefenceSuccesses);
+        Assert.Equal(dodges, state.LastAttack.DefenceWasActive);
+
+        var refused = encounter.Step(state, new SpendResolve(
+            "hero", ResolveSpend.Luring,
+            Target: string.Equals(why, "no scenery", StringComparison.Ordinal) ? null : "bystander"));
+
+        var line = Assert.Single(refused.Added);
+
+        Assert.Equal("luring", line.Rule);
+        Assert.Contains(why, line.Text, StringComparison.Ordinal);
+
+        // Nothing was spent, nobody was hit, and nobody lost a turn.
+        Assert.Equal(3, refused.State["hero"].Resolve);
+        Assert.Equal(10, refused.State["bystander"].CurrentHealth);
+        Assert.Equal(["villain", "hero", "bystander"], refused.State.TurnOrder);
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>A team attack's sixes are thrown again, and again while they keep coming.</b>
+    ///
+    /// <para>This is the purchase <c>IDiceSource</c>'s shape exists for: p.79 rerolls a <em>face</em>,
+    /// so a source answering in successes could not say which dice were sixes. The script is chosen
+    /// so that the reroll itself produces one — two sixes go back in, one of them comes up a six
+    /// again, and that one goes back in a third time — and
+    /// <see cref="ScriptedDice.Remaining"/> at zero is what proves the recursion happened rather
+    /// than the engine stopping after one round: a single round would leave the last scripted face
+    /// unasked for.</para>
+    ///
+    /// <para>The counts come first. The pool has to have carried the entry's own
+    /// <c>attack_bonus_dice</c>, and the roll has to have scored what the script pays for, before
+    /// the purchase is asked to add anything to it.</para>
+    /// </summary>
+    [Fact]
+    public void ATeamAttacksSixesExplodeAndKeepExplodingWhileTheyComeUp()
+    {
+        var rule = _play.GetCombat("team_attacks").TeamAttack!;
+        var rate = _play.GetCombat("damage").Damage!.DamagePerNetSuccess;
+
+        // The controls on the data: there is a bonus, the purchase costs something, and the
+        // explosion is meant to recurse — the last is what the third scripted throw is about.
+        Assert.True(rule.AttackBonusDice > 0);
+        Assert.True(rule.CostResolveToMakeSixesExplode > 0);
+        Assert.True(rule.ExplosionRecursesWhileSixesKeepComing);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 10d — 8d of Might and the entry's two — showing two sixes for 4 successes; 2d of Toughness
+        // for none; then the two sixes thrown again as a 6 and a 4, and that 6 thrown again as a 1.
+        var dice = new ScriptedDice(6, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 6, 4, 1);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        var blow = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true));
+
+        state = blow.State;
+
+        // The positive controls: the bonus is in the pool, the roll scored what it should, and the
+        // outcome landed once already — so the Health below moves because of the explosion.
+        Assert.Contains(blow.Added, l =>
+            l.Text.Contains($"might {8 + rule.AttackBonusDice}d for 4 successes", StringComparison.Ordinal)
+            && l.Text.Contains("toughness 2d for 0", StringComparison.Ordinal));
+
+        Assert.Equal(12 - (4 * rate), state["villain"].CurrentHealth);
+        Assert.Equal(["villain"], state.TeamAttacked);
+
+        var exploded = encounter.Step(state, new SpendResolve("hero", ResolveSpend.TeamAttack));
+
+        state = exploded.State;
+
+        // Two sixes are worth 2 successes apiece and a four is worth one, so the reroll adds 3:
+        // 4 successes become 7, and the outcome is recomputed against the target as they were.
+        Assert.Equal(7, state.LastAttack!.AttackSuccesses);
+        Assert.Equal(12 - (7 * rate), state["villain"].CurrentHealth);
+        Assert.Equal(3 - rule.CostResolveToMakeSixesExplode, state["hero"].Resolve);
+
+        Assert.Contains(exploded.Added, l =>
+            string.Equals(l.Rule, "team_attacks", StringComparison.Ordinal)
+            && l.Text.Contains("over 2 rounds", StringComparison.Ordinal));
+
+        // Every scripted face was asked for, which is only true if the reroll's own six was thrown
+        // again — and no six is left on the roll for a second point to buy.
+        Assert.Equal(0, dice.Remaining);
+
+        var again = encounter.Step(state, new SpendResolve("hero", ResolveSpend.TeamAttack));
+
+        Assert.Contains("left on that roll to explode", Assert.Single(again.Added).Text,
+            StringComparison.Ordinal);
+        Assert.Equal(3 - rule.CostResolveToMakeSixesExplode, again.State["hero"].Resolve);
+    }
+
+    /// <summary>
+    /// <b>p.79's one team attack per target per battle, and the two ways out of it quoted rather
+    /// than taken.</b> The limit is per battle, so a page turn does not clear it — which is why the
+    /// second attack here is made on the following page.
+    /// </summary>
+    [Fact]
+    public void ATargetIsTeamAttackedOnceABattleAndThePageTurnDoesNotResetIt()
+    {
+        var rule = _play.GetCombat("team_attacks").TeamAttack!;
+
+        Assert.Equal(1, rule.LimitPerTargetPerBattle);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 40,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(12));
+        var state = encounter.Begin([hero, villain]);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true)).State;
+
+        // The control: the first one went through and is on the record.
+        Assert.Equal(["villain"], state.TeamAttacked);
+
+        state = encounter.Step(state, new EndTurn("hero")).State;
+        state = encounter.Step(state, new EndTurn("villain")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+
+        Assert.Equal(2, state.Page);
+
+        var second = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true));
+
+        var line = Assert.Single(second.Added);
+
+        Assert.Equal("team_attacks", line.Rule);
+        Assert.Contains(rule.TheLimitMayBeLiftedBy, line.Text, StringComparison.Ordinal);
+
+        // Nothing was rolled and nobody was hit: the refusal came before the dice.
+        Assert.Equal(state["villain"].CurrentHealth, second.State["villain"].CurrentHealth);
+        Assert.Equal(["villain"], second.State.TeamAttacked);
+
+        // And without the flag the attack is an ordinary one, which is the way p.79's own exception
+        // is taken: the GM ruling otherwise is not this engine's decision.
+        var ordinary = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        Assert.Contains(ordinary.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The faces on the table are the faces of the roll on the table.</b>
+    ///
+    /// <para><c>ResolvedAttack</c> carries the successes and the faces, and they are two accounts of
+    /// one roll. p.84's reroll picks the whole pool back up, so the faces it came up with are the
+    /// discarded ones — and p.79 explodes "your 6s", which is a rule about the faces. An engine
+    /// that moved the count and left the faces where they were threw the sixes of a roll nobody is
+    /// looking at any more.</para>
+    ///
+    /// <para>The controls come first, as everywhere here: the first roll has to have shown the sixes
+    /// the fixture is about, and the reroll has to have been the one kept — p.85's floor keeps the
+    /// better of the two, so a reroll that came up worse would leave the first roll standing and its
+    /// faces would be the right ones.</para>
+    /// </summary>
+    [Fact]
+    public void ARerollExplodesItsOwnSixesAndNotTheOnesItThrewAway()
+    {
+        // The face is the success map's own top key, not a 6 typed here.
+        var top = new SuccessCounter(_play).HighestFace;
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 5,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 40,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 10d showing two sixes for 4; 2d of Toughness for none; then the reroll of all ten, as
+        // five fours and five ones — five successes, and not a six among them.
+        var dice = new ScriptedDice(
+        [
+            .. FacesFor(10, 4),
+            .. FacesFor(2, 0),
+            .. Enumerable.Repeat(4, 5), .. Enumerable.Repeat(1, 5)
+        ]);
+
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true)).State;
+
+        // The control: the roll the reroll discards is the one with the sixes on it.
+        Assert.Equal(4, state.LastAttack!.AttackSuccesses);
+        Assert.Contains(top, state.LastAttack.AttackFaces);
+
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Reroll)).State;
+
+        // The reroll was the better of the two, so it is the roll on the table — and the faces have
+        // to be its own.
+        Assert.Equal(5, state.LastAttack!.AttackSuccesses);
+        Assert.DoesNotContain(top, state.LastAttack.AttackFaces);
+
+        // So there is nothing left to explode, and the refusal says so rather than throwing dice
+        // nobody is holding.
+        var explode = encounter.Step(state, new SpendResolve("hero", ResolveSpend.TeamAttack));
+
+        Assert.Contains("left on that roll to explode", Assert.Single(explode.Added).Text,
+            StringComparison.Ordinal);
+
+        // Nothing was spent on the refusal: the attack and the reroll are the only points gone.
+        Assert.Equal(4, explode.State["hero"].Resolve);
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>A die bought with Resolve is part of the roll that explodes.</b>
+    ///
+    /// <para><c>spend_reroll_challenge_roll</c>'s <c>includes_dice_bought_with_resolve</c> says in as
+    /// many words that a bought die is one of the roll's own, which is why <c>BuyDice</c> grows the
+    /// pool. Its face is the same claim from the other side: a six a Hero paid for is a six on the
+    /// roll, and p.79 explodes the roll's sixes.</para>
+    ///
+    /// <para>The control is the first roll, which is required to have no six on it at all — so the
+    /// explosion below can only be the bought die, and a fixture where the pool already held one
+    /// would prove nothing.</para>
+    /// </summary>
+    [Fact]
+    public void ADieBoughtWithResolveIsOneOfTheSixesATeamAttackExplodes()
+    {
+        var top = new SuccessCounter(_play).HighestFace;
+        var gained = _play.GetResolve("spend_challenge_roll_dice").Spend!.DiceGained!.Value;
+
+        // The control on the data: a point buys a die, or there is nothing to put a six on.
+        Assert.True(gained > 0);
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 5,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 40,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 10d of fours and ones for five successes and no six; 2d of Toughness for none; the bought
+        // die coming up a six for two more; and that six thrown again as a one.
+        var dice = new ScriptedDice(
+        [
+            .. Enumerable.Repeat(4, 5), .. Enumerable.Repeat(1, 5),
+            .. FacesFor(2, 0),
+            .. Enumerable.Repeat(top, gained),
+            .. Enumerable.Repeat(1, gained)
+        ]);
+
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed, Team: true)).State;
+
+        // The control: no six was rolled, so the one that explodes below is the one that was bought.
+        Assert.Equal(5, state.LastAttack!.AttackSuccesses);
+        Assert.DoesNotContain(top, state.LastAttack.AttackFaces);
+
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.ExtraDice)).State;
+
+        Assert.Equal(5 + (2 * gained), state.LastAttack!.AttackSuccesses);
+        Assert.Contains(top, state.LastAttack.AttackFaces);
+
+        var exploded = encounter.Step(state, new SpendResolve("hero", ResolveSpend.TeamAttack));
+
+        Assert.Contains(exploded.Added, l =>
+            string.Equals(l.Rule, "team_attacks", StringComparison.Ordinal)
+            && l.Text.Contains($"{gained} thrown again", StringComparison.Ordinal));
+
+        // The reroll of it scored nothing, so the count stands where the bought die left it — and
+        // every scripted face was asked for, which is what says the bought six was thrown again.
+        Assert.Equal(5 + (2 * gained), exploded.State.LastAttack!.AttackSuccesses);
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
+    /// <b>A purchase the GM's pool did not make does not say it did.</b>
+    ///
+    /// <para>p.85's first spend announces itself — "the GM spends Adversity on X, which buys Y" —
+    /// and then hands the purchase to the same code a Hero's own point runs. Every one of those can
+    /// refuse: there is no roll on the table, nobody is down under an effect, the blow was the wrong
+    /// kind. The announcement was written before the purchase was attempted, so a refusal left a
+    /// line claiming a point had been spent standing above a line saying nothing happened, with the
+    /// pool untouched — a reader counting spends off the ledger and a reader reading the pool would
+    /// have given two different accounts of the same fight.</para>
+    ///
+    /// <para><b>Every purchase the GM may name is driven</b>, and the situation is one in which none
+    /// of them can succeed. The positive control is the other half of the same test: with a roll on
+    /// the table the announcement is there and the pool has moved, so this is not a check satisfied
+    /// by an engine that had stopped announcing anything.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolSaysNothingMovedWhenNothingMoved()
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 3 },
+            ["toughness"]);
+
+        // Every line that claims the GM paid says so in these words — p.85's announcement and the
+        // purchase's own line both — and no refusal anywhere does.
+        const string Claim = "Adversity on";
+
+        var encounter = new Encounter(_play, new SeededDice(31));
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        // The control on the fixture: there is a pool to spend, so a refusal below is the purchase's
+        // and not "the GM has 0 Adversity".
+        Assert.True(opened.Adversity > 0);
+
+        foreach (var purchase in Enum.GetValues<ResolveSpend>())
+        {
+            var step = encounter.Step(opened, new SpendAdversity(
+                "villain", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
+
+            Assert.True(opened.Adversity == step.State.Adversity,
+                $"the GM's pool moved buying {purchase} on a page where nothing had happened yet.");
+
+            Assert.DoesNotContain(step.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
+        }
+
+        // The positive control: with a roll on the table the announcement is made and the pool falls.
+        var rolled = encounter.Step(opened, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed)).State;
+
+        var bought = encounter.Step(rolled, new SpendAdversity(
+            "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.ExtraDice));
+
+        Assert.Contains(bought.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
+        Assert.True(bought.State.Adversity < rolled.Adversity);
+    }
+
+    /// <summary>
+    /// <b>p.85's "on behalf of any NPC" means any NPC, and the pool pays once.</b>
+    ///
+    /// <para>A Minion group is an NPC like any other and holds no Resolve — <c>Combatant.Hero</c> is
+    /// the only factory that takes a pool — so the GM's point is the only way one of these purchases
+    /// reaches them at all. The figure asserted is the pool's arithmetic and never a die roll: the
+    /// price is the entry's own <c>cost_resolve</c> times the points asked for, and a purchase that
+    /// charged the gate's figure as well as the entry's would take twice that.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolBuysForAMinionGroupAndIsChargedExactlyOnce()
+    {
+        var cost = _play.GetResolve("spend_challenge_roll_dice").Spend!.CostResolve!.Value;
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var minions = Combatant.Minions("robots", "the robots", threat: 5, groupSize: 4, "threat");
+
+        var encounter = new Encounter(_play, new SeededDice(33));
+        var state = encounter.Begin([hero, minions], challengeLevel: 3);
+
+        // The Minions act last, so the page has to reach them before they can swing.
+        state = encounter.Step(state, new Hold("hero")).State;
+        state = encounter.Step(state, new EndTurn("hero")).State;
+
+        state = encounter.Step(state, new Attack(
+            "robots", "hero", "threat", DamageKind.Subdual, AttackType.Unarmed)).State;
+
+        // The controls: the roll on the table is the Minions' own, and they hold no Resolve to draw
+        // on — so what pays below can only be the GM's pool.
+        Assert.Equal("robots", state.LastAttack!.Actor);
+        Assert.Equal(0, state["robots"].Resolve);
+
+        var before = state.Adversity;
+
+        var bought = encounter.Step(state, new SpendAdversity(
+            "robots", AdversitySpend.AnythingResolveCan, Points: 2, AsResolve: ResolveSpend.ExtraDice));
+
+        Assert.Equal(before - (cost * 2), bought.State.Adversity);
+        Assert.Equal(0, bought.State["robots"].Resolve);
+        Assert.Equal(3, bought.State["hero"].Resolve);
+    }
+
     // ── Citations ────────────────────────────────────────────────────────────
 
     /// <summary>
