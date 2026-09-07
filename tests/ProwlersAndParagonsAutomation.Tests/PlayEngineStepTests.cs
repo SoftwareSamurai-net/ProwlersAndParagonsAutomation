@@ -4256,6 +4256,68 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>The announcement is read before what it bought, and the position is the whole of what the
+    /// fix above left to check.</b>
+    ///
+    /// <para>p.85's line used to be written before the dispatch, and every one of these purchases can
+    /// refuse — so a refusal left "the GM spends Adversity on X, which buys Y" standing above a line
+    /// saying nothing happened. It is written after the purchase now and <em>inserted</em> at the
+    /// index it would have occupied, so that a reader still meets the announcement first.
+    /// <b>Nothing held the second half.</b> Appending it instead leaves every test in this
+    /// repository green — 4,849 of them — with the ledger reading "the Villain seizes the
+    /// initiative" and then, underneath, the GM paying for it.</para>
+    ///
+    /// <para>That is not cosmetic in a document whose purpose is that any figure in a run traces to
+    /// a printed page: the announcement is the only line naming p.85, and a reader working down the
+    /// page meets the effect with no purchase above it. Two purchases are driven — one that needs
+    /// nothing to have happened, one that needs somebody on the floor — because the insert is one
+    /// index shared by all ten.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(ResolveSpend.SeizeInitiative, "seizing_initiative")]
+    [InlineData(ResolveSpend.InstantRecovery, "instant_recovery")]
+    public void TheGmsAnnouncementIsReadBeforeThePurchaseItPaidFor(ResolveSpend purchase, string bought)
+    {
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+
+        // Down, so p.76's purchase has somebody to bring round; p.73's does not mind either way.
+        var villain = Combatant
+            .Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+            .WithHealth(floor);
+
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var opened = encounter.Begin([hero, villain], challengeLevel: 2);
+
+        var step = encounter.Step(opened, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: purchase));
+
+        // The control: the pool really paid, or the two lines below are being looked for in a
+        // refusal and their order would mean nothing.
+        Assert.True(step.State.Adversity < opened.Adversity,
+            $"the GM's pool did not pay for {purchase}, so there is no announcement to place.");
+
+        var announcement = step.Added
+            .Select((line, at) => (line, at))
+            .Single(l => string.Equals(
+                l.line.Rule, "adversity_spend_anything_resolve_can", StringComparison.Ordinal));
+
+        var effect = step.Added
+            .Select((line, at) => (line, at))
+            .First(l => string.Equals(l.line.Rule, bought, StringComparison.Ordinal));
+
+        Assert.True(
+            announcement.at < effect.at,
+            $"p.85's announcement is at line {announcement.at} of this step and the {bought} line it "
+            + $"paid for is at {effect.at}: a reader working down the ledger meets the effect before "
+            + "anything says the GM bought it. The line is written after the purchase, because a "
+            + "purchase that refuses must not leave an announcement standing above it, and it is "
+            + "inserted at the index it would have occupied for exactly this reason.");
+    }
+
+    /// <summary>
     /// <b>p.85's "on behalf of any NPC" means any NPC, and the pool pays once.</b>
     ///
     /// <para>A Minion group is an NPC like any other and holds no Resolve — <c>Combatant.Hero</c> is
