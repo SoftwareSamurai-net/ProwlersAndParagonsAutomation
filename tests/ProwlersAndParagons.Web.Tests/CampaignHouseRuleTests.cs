@@ -102,6 +102,56 @@ public sealed class CampaignHouseRuleTests
     }
 
     /// <summary>
+    /// <b>A table that has only re-priced Immortality still says the rules came with it.</b>
+    ///
+    /// <para><b>The one case where the sentence matters most, and the one no test covered.</b>
+    /// Every other test here gives the campaign switches <em>and</em> a price, so
+    /// <c>TakesHouseRules</c>' two clauses were only ever exercised together — dropping the price
+    /// clause entirely left the whole suite green while the join went on copying a figure that
+    /// moves the character's spend and saying nothing about it. A change made and not claimed is
+    /// the same fault as a change claimed and not made, which is what
+    /// <c>CampaignJoinResult</c>'s own remarks were written about; the switches move nothing until
+    /// somebody fights with the sheet, and the price moves Hero Points now.</para>
+    /// </summary>
+    [Fact]
+    public async Task ATableThatHasOnlyRepricedImmortalitySaysSo()
+    {
+        var (ctx, code) = await AGameToJoin(immortality: 9);
+        await using var _ = ctx;
+
+        var page = await JoinWith(ctx, code);
+
+        Assert.Contains("Its house rules came with it", page.Markup, StringComparison.Ordinal);
+
+        Assert.Equal(9, ctx.Session.Sheet.ImmortalityCost);
+        Assert.Null(ctx.Session.Sheet.CampaignTable);
+
+        // And the panel below draws the one thing the table decided.
+        Assert.Contains("Immortality costs 9 HP", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The mirror: a table that has only adopted switches says so too.</b>
+    ///
+    /// <para>The other clause of the same condition, so neither can be dropped without something
+    /// going red. Kept beside its twin rather than folded into it, because a theory over the two
+    /// would let one pass on the other's evidence.</para>
+    /// </summary>
+    [Fact]
+    public async Task ATableThatHasOnlyAdoptedSwitchesSaysSo()
+    {
+        var (ctx, code) = await AGameToJoin(new CampaignTable { TheDrop = true });
+        await using var _ = ctx;
+
+        var page = await JoinWith(ctx, code);
+
+        Assert.Contains("Its house rules came with it", page.Markup, StringComparison.Ordinal);
+
+        Assert.Null(ctx.Session.Sheet.ImmortalityCost);
+        Assert.True(ctx.Session.Sheet.CampaignTable!.TheDrop);
+    }
+
+    /// <summary>
     /// <b>A character that already carries rules keeps them, and the join does not claim
     /// otherwise.</b>
     ///
