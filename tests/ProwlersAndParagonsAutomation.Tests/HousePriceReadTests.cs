@@ -22,6 +22,22 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// below with the reason it is about the book rather than about a character — so the way to smuggle
 /// one in is not to pick a variable name this test has not heard of.</para>
 ///
+/// <para><b>And the count in an entry is compared, which is the half that shipped missing.</b> The
+/// first version tested <c>entry.Calls == 0</c> and otherwise permitted the file outright, so an
+/// entry sanctioning one call exempted every call in that file — the exact failure its own comment
+/// said the count existed to prevent, demonstrated by breaking both of
+/// <c>CharacterSheetRenderer</c>'s calls under an entry declaring one and watching it stay green.
+/// A stale entry was invisible too: a sanctioned file whose calls have gone permits anything
+/// written there next, which is the failure this repository already records for an exemption whose
+/// subject was renamed away. <c>Sanctioned</c> is empty today, and an empty list is a real state
+/// rather than a missing one — nothing in the five projects prices the book for a character.</para>
+///
+/// <para><b>Comments are taken out before the scan</b>, for the reason <c>TraitCapReadTests</c>
+/// takes them out: this file's own subject is discussed in prose all over the code it reads, and a
+/// paragraph writing <c>costs.PowerCost(sp)</c> to explain why that spelling is wrong would
+/// otherwise be reported as an offence. The stripping is per line, because the offence message
+/// carries a line number and a whole-file replace would move it.</para>
+///
 /// <para><b>What it cannot do</b>, stated because <c>CLAUDE.md</c> requires it: it reads source
 /// text, so a call routed through a local helper of somebody's own is invisible to it, and it has
 /// no opinion at all about whether the price passed is the <em>right</em> character's — that is
@@ -43,22 +59,36 @@ public sealed class HousePriceReadTests
         RegexOptions.Compiled, TimeSpan.FromSeconds(5));
 
     /// <summary>
-    /// Calls that price the book rather than a character, by file, with how many and why. The
-    /// count is part of the entry for the reason <c>TraitCapReadTests</c> records: an exemption
-    /// that permitted a file outright would let a second, wrong call in beside a right one.
+    /// Calls that price the book rather than a character, by file, with how many and why.
+    ///
+    /// <para><b>The count is part of the entry and is compared</b>, so an exemption covers the
+    /// calls it was written for and not the next one added beside them. An entry whose calls have
+    /// gone is reported too, rather than silently permitting whatever is written there next.</para>
+    ///
+    /// <para><b>Empty today, and that is the honest state.</b> <c>CostCalculator</c> declares the
+    /// method and forwards the sheet's price from <c>TotalPowersCost</c>, which is a call *with*
+    /// the argument and never reaches this scan; every other call in the five projects passes the
+    /// character's. A 0-count entry was here to say so and had to go — it permitted nothing and
+    /// reported nothing, so it was a sentence pretending to be a guard, which is what this whole
+    /// class exists because of.</para>
     /// </summary>
     private static readonly Dictionary<string, (int Calls, string Why)> Sanctioned =
-        new(StringComparer.Ordinal)
-        {
-            // The declaration and the one place the parameter is forwarded from. `TotalPowersCost`
-            // takes the sheet and passes `sheet.ImmortalityCost`, which is a call *with* the
-            // argument and so never reaches this list.
-            ["engine/CostCalculator.cs"] =
-                (0, "the declaration itself carries no call; the forward in TotalPowersCost "
-                    + "passes the sheet's price and is matched as qualified"),
-        };
+        new(StringComparer.Ordinal);
 
-    private static IEnumerable<(string Path, string Line, int Number)> UnqualifiedCalls()
+    /// <summary>
+    /// One line with its comments taken out. Per line, so the line number in an offence still
+    /// points at the line the reader has to open.
+    /// </summary>
+    private static string WithoutComments(string line)
+    {
+        line = Regex.Replace(line, @"@\*.*?\*@", "", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var slashes = line.IndexOf("//", StringComparison.Ordinal);
+
+        return slashes >= 0 ? line[..slashes] : line;
+    }
+
+    private static IEnumerable<(string Path, string Source)> ScannedSources()
     {
         foreach (var project in Scanned)
         {
@@ -72,20 +102,27 @@ public sealed class HousePriceReadTests
                                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
                                                     StringComparison.Ordinal)))
             {
-                var lines = File.ReadAllLines(file);
+                yield return (
+                    Path.GetRelativePath(RulesFixture.RepoRoot, file).Replace('\\', '/'),
+                    File.ReadAllText(file));
+            }
+        }
+    }
 
-                for (var i = 0; i < lines.Length; i++)
+    private static IEnumerable<(string Path, string Line, int Number)> UnqualifiedCalls()
+    {
+        foreach (var (path, source) in ScannedSources())
+        {
+            var lines = source.ReplaceLineEndings("\n").Split('\n');
+
+            for (var i = 0; i < lines.Length; i++)
+            {
+                foreach (Match call in Call.Matches(WithoutComments(lines[i])))
                 {
-                    foreach (Match call in Call.Matches(lines[i]))
-                    {
-                        if (call.Groups["args"].Value.Contains("ImmortalityCost", StringComparison.Ordinal))
-                            continue;
+                    if (call.Groups["args"].Value.Contains("ImmortalityCost", StringComparison.Ordinal))
+                        continue;
 
-                        yield return (
-                            Path.GetRelativePath(RulesFixture.RepoRoot, file).Replace('\\', '/'),
-                            lines[i].Trim(),
-                            i + 1);
-                    }
+                    yield return (path, lines[i].Trim(), i + 1);
                 }
             }
         }
@@ -93,23 +130,59 @@ public sealed class HousePriceReadTests
 
     /// <summary>
     /// No host prices a Power at the book's rate for a character whose table charges its own,
-    /// unless the file is named above with the reason.
+    /// unless the file is named above with the reason and the count that was sanctioned.
     /// </summary>
     [Fact]
     public void NoSurfacePricesAPowerWithoutTheTablesOwnPrice()
     {
         var found = UnqualifiedCalls().ToList();
 
-        var offences = found
-            .Where(c => !Sanctioned.TryGetValue(c.Path, out var entry) || entry.Calls == 0)
-            .Select(c => $"{c.Path}:{c.Number}: {c.Line}")
-            .ToList();
+        var byFile = found
+            .GroupBy(c => c.Path, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+
+        var offences = new List<string>();
+
+        foreach (var (file, calls) in byFile.OrderBy(e => e.Key, StringComparer.Ordinal))
+        {
+            var where = string.Join("; ", calls.Select(c => $"line {c.Number}: {c.Line}"));
+
+            if (!Sanctioned.TryGetValue(file, out var allowed))
+            {
+                offences.Add(
+                    $"{file} prices a Power at the rulebook's rate {calls.Count} time(s) for a "
+                    + "character that may be at a table charging its own — pass the sheet's "
+                    + $"ImmortalityCost, or name the file in {nameof(Sanctioned)} with the count "
+                    + $"and the reason it is about the book. {where}");
+
+                continue;
+            }
+
+            if (calls.Count != allowed.Calls)
+            {
+                offences.Add(
+                    $"{file} has {calls.Count} unqualified call(s); {allowed.Calls} are "
+                    + $"sanctioned, for: {allowed.Why}. {where}");
+            }
+        }
+
+        // An entry whose calls have gone permits its file for nothing and reports nothing — the
+        // failure this repository already records for an exemption whose subject was renamed away.
+        foreach (var (file, allowed) in Sanctioned.OrderBy(e => e.Key, StringComparer.Ordinal))
+        {
+            if (byFile.ContainsKey(file)) continue;
+
+            offences.Add(
+                $"{file} is sanctioned for {allowed.Calls} unqualified call(s) and has none. "
+                + $"Delete the entry — it is now permitting anything written there. It was for: "
+                + allowed.Why);
+        }
 
         Assert.True(offences.Count == 0,
-            "These price a Power at the rulebook's rate for a character that may be at a table "
-            + "charging its own — pass the sheet's ImmortalityCost, or name the file in "
-            + $"{nameof(Sanctioned)} with the reason it is about the book:\n  "
-            + string.Join("\n  ", offences));
+            "A Power's book price is what the rulebook charges; a character's is what its table "
+            + "charges, and a house price makes them different numbers:"
+            + Environment.NewLine + "  "
+            + string.Join(Environment.NewLine + "  ", offences));
     }
 
     /// <summary>
@@ -127,17 +200,12 @@ public sealed class HousePriceReadTests
 
         foreach (var project in Scanned)
         {
-            var root = Path.Combine(RulesFixture.RepoRoot, project);
+            var prefix = $"{project}/";
 
-            var hits = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories)
-                .Where(f => (f.EndsWith(".cs", StringComparison.Ordinal)
-                             || f.EndsWith(".razor", StringComparison.Ordinal))
-                            && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
-                                           StringComparison.Ordinal)
-                            && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
-                                           StringComparison.Ordinal))
-                .SelectMany(File.ReadAllLines)
-                .Count(line => Call.Matches(line)
+            var hits = ScannedSources()
+                .Where(e => e.Path.StartsWith(prefix, StringComparison.Ordinal))
+                .SelectMany(e => e.Source.ReplaceLineEndings("\n").Split('\n'))
+                .Count(line => Call.Matches(WithoutComments(line))
                     .Any(m => m.Groups["args"].Value.Contains("ImmortalityCost", StringComparison.Ordinal)));
 
             if (hits > 0) qualified.Add($"{project}={hits}");

@@ -191,6 +191,18 @@ house price, or the file is named with the reason it prices the book. Its own po
 requires the scan to find the qualified calls in every one of the five projects, because a pattern
 that has stopped matching reports no offences.
 
+**It shipped with the half of `TraitCapReadTests` that makes an exemption an exemption missing**,
+and the failure is worth keeping because it is the shape an allowlist fails in. The entries carried
+a count and a doc comment saying the count was there so that "an exemption that permitted a file
+outright would let a second, wrong read in beside a right one" — and the code tested `Calls == 0`
+and otherwise permitted the file. Breaking *both* of `CharacterSheetRenderer`'s calls under an entry
+declaring one left it green. A stale entry was invisible for the same reason, so a file whose
+sanctioned calls had gone kept permitting whatever was written there next. Both are compared now,
+`Sanctioned` is empty — nothing in the five projects prices the book for a character — and comments
+are stripped per line before the scan, because a paragraph explaining why `costs.PowerCost(sp)` is
+wrong was otherwise reported as an offence. Each of the four was watched going red: the count, the
+stale entry, the dead pattern, and the comment.
+
 
 ## Two guards read `PROGRESS.md` itself
 
