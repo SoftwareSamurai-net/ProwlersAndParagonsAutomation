@@ -4087,6 +4087,138 @@ public sealed class PlayEngineStepTests
         Assert.Contains(entry.Size!.Affects, line.Text, StringComparison.Ordinal);
     }
 
+
+    /// <summary>
+    /// <b>Every one of p.75's four size thresholds is driven from both sides of itself.</b>
+    ///
+    /// <para><b>This fixture exists because the four above were not a test of the thresholds at
+    /// all.</b> They drive factors of exactly 2, 5, ½ and ⅕ — every one of them sitting on a
+    /// boundary, none of them anywhere near the inside of a band — so the numbers in
+    /// <c>SizeBandApplies</c> were free. Substituting <c>factor &gt;= 3</c> for <c>factor &gt;= 5</c>
+    /// left all 88 of this class's tests green while handing an attacker four times the defender's
+    /// size the +2d the page gives one five times it. A threshold nothing drives on both sides is a
+    /// number nobody has checked.</para>
+    ///
+    /// <para>So each case pairs a factor just inside a band with one just outside it: 1.9 against 2,
+    /// 4.9 against 5, 0.51 against ½, 0.21 against ⅕. The expected dice are read out of
+    /// <c>modifier_size</c> by the printed phrase the page's own words pick, and a factor in no band
+    /// is expected to move nothing <em>and</em> to write no line — the two halves of a modifier that
+    /// did not apply.</para>
+    ///
+    /// <para><b>The last two cases are the ratio itself.</b> 9.8 against 2 and 2 against 4 are the
+    /// same two bands reached without either combatant being the unit, so an engine that subtracted
+    /// sizes, or that read the attacker's alone, cannot satisfy them.</para>
+    /// </summary>
+    [Theory]
+    // Just below "at least twice", and on it.
+    [InlineData(1.9, 1.0, null)]
+    [InlineData(2.0, 1.0, "at least twice your size")]
+    // Between the two upward bands: the page gives +1d here and not +2d.
+    [InlineData(3.0, 1.0, "at least twice your size")]
+    [InlineData(4.9, 1.0, "at least twice your size")]
+    [InlineData(5.0, 1.0, "at least 5 times your size")]
+    // Just above "no more than half", and on it.
+    [InlineData(0.51, 1.0, null)]
+    [InlineData(0.5, 1.0, "no more than half your size")]
+    // Between the two downward bands: −1d here and not −2d.
+    [InlineData(0.25, 1.0, "no more than half your size")]
+    [InlineData(0.21, 1.0, "no more than half your size")]
+    [InlineData(0.2, 1.0, "no more than one-fifth your size")]
+    // The same two bands with neither size being 1, so the comparison has to be a ratio.
+    [InlineData(9.8, 2.0, "at least twice your size")]
+    [InlineData(2.0, 4.0, "no more than half your size")]
+    public void EverySizeThresholdIsDrivenFromBothSidesOfItself(
+        double attackerSize, double targetSize, string? printed)
+    {
+        var entry = _play.GetCombat("modifier_size");
+
+        var (evenAttacker, evenTarget) = Pair("agility", 6);
+        var even = Exchange(evenAttacker, evenTarget, new Attack("hero", "villain", "might"));
+
+        // The control: the same size throws the two full pools and cites nothing.
+        Assert.Equal(8 + 6, even.Thrown);
+        Assert.DoesNotContain(even.Lines, l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        var (attacker, target) = Pair("agility", 6, attackerSize: attackerSize, targetSize: targetSize);
+        var sized = Exchange(attacker, target, new Attack("hero", "villain", "might"));
+
+        var lines = sized.Lines
+            .Where(l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal))
+            .ToList();
+
+        if (printed is null)
+        {
+            // No band applies, so nothing moved and nothing was written. Both halves, because an
+            // engine that moved the pool and wrote no line is as wrong as one that did neither.
+            Assert.Equal(even.Thrown, sized.Thrown);
+            Assert.Empty(lines);
+            return;
+        }
+
+        var dice = BandDice("modifier_size", b => b.AttackerRelativeSize, printed);
+
+        Assert.Equal(even.Thrown + dice, sized.Thrown);
+
+        var line = Assert.Single(lines);
+
+        // The band that applied is named, so a pool that happened to land on the right figure by
+        // applying the wrong band cannot pass: +1d is +1d whichever phrase produced it.
+        Assert.Contains(printed, line.Text, StringComparison.Ordinal);
+        Assert.Equal("villain", line.Actor);
+        Assert.Equal(entry.SourceRef, line.SourceRef);
+    }
+
+    /// <summary>
+    /// <b>Where two size bands both apply, the one with the greater magnitude wins — and that this
+    /// engine picks is a reading, not a printed rule.</b>
+    ///
+    /// <para>p.75 prints four bands and says nothing about what happens when a factor satisfies two
+    /// of them, which every factor at or past 5 (and at or under ⅕) does. The guide records the
+    /// reading; this drives it, and it drives the half that makes it a choice at all: <b>both</b>
+    /// bands are shown to apply at the same factor, by asking the engine for a factor that sits
+    /// inside the narrower one and for one that sits inside the wider one alone.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(5.0, "at least 5 times your size", "at least twice your size")]
+    [InlineData(0.2, "no more than one-fifth your size", "no more than half your size")]
+    public void WhereTwoSizeBandsApplyTheNarrowerOneWins(double factor, string narrower, string wider)
+    {
+        var narrow = BandDice("modifier_size", b => b.AttackerRelativeSize, narrower);
+        var wide = BandDice("modifier_size", b => b.AttackerRelativeSize, wider);
+
+        // The control on the claim itself: the two bands really are different figures, so "the
+        // narrower wins" is an observable statement about this fight rather than a tie.
+        Assert.True(Math.Abs(narrow) > Math.Abs(wide),
+            $"'{narrower}' is {narrow}d and '{wider}' is {wide}d, so this fixture cannot tell them apart");
+
+        var (evenAttacker, evenTarget) = Pair("agility", 6);
+        var even = Exchange(evenAttacker, evenTarget, new Attack("hero", "villain", "might"));
+
+        // At the factor where both apply, it is the narrower band's dice and the narrower band's
+        // phrase — an engine taking the first match, or the wider one, gives the other figure.
+        var (attacker, target) = Pair("agility", 6, attackerSize: factor, targetSize: 1);
+        var both = Exchange(attacker, target, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(even.Thrown + narrow, both.Thrown);
+
+        var line = Assert.Single(
+            both.Lines, l => string.Equals(l.Rule, "modifier_size", StringComparison.Ordinal));
+
+        Assert.Contains(narrower, line.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain(wider, line.Text, StringComparison.Ordinal);
+
+        // And the control that the wider band is a band this fight can reach at all: a factor
+        // inside it and outside the narrower one gives the wider band's own dice.
+        var inside = factor > 1 ? factor - 1 : factor + 0.05;
+
+        var (widerAttacker, widerTarget) = Pair("agility", 6, attackerSize: inside, targetSize: 1);
+        var only = Exchange(widerAttacker, widerTarget, new Attack("hero", "villain", "might"));
+
+        Assert.Equal(even.Thrown + wide, only.Thrown);
+        Assert.Contains(wider, Assert.Single(
+            only.Lines, l => string.Equals(l.Rule, "modifier_size", StringComparison.Ordinal)).Text,
+            StringComparison.Ordinal);
+    }
     /// <summary>
     /// <b>Size touches the dodging kind of defence and no other.</b>
     ///
