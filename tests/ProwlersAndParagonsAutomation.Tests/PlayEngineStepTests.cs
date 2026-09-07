@@ -5435,6 +5435,177 @@ public sealed class PlayEngineStepTests
         Assert.Contains(nameof(RangeBand.Close), thrown.Message, StringComparison.Ordinal);
     }
 
+
+    // ── p.79's Drop ──────────────────────────────────────────────────────────
+
+    /// <summary>The Drop table setting, and nothing else.</summary>
+    private static readonly TableRules TheDropOn = TableRules.Book with { TheDrop = true };
+
+    /// <summary>Two combatants, one of whom may have a weapon levelled.</summary>
+    private static List<Combatant> Standoff(bool heroReady, bool villainReady) =>
+    [
+        Combatant.Hero(
+            "hero", "the Hero", edge: 5, health: 10, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 },
+            ["toughness"], ready: heroReady),
+        Combatant.Villain(
+            "villain", "the Villain", edge: 8, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 },
+            ["toughness"], ready: villainReady)
+    ];
+
+    /// <summary>
+    /// <b>A readied weapon doubles its holder's effective Edge, and it puts them in front of
+    /// somebody who was ahead of them.</b>
+    ///
+    /// <para>Driven as an order rather than as a number, because the order is the only thing an
+    /// Edge decides — a doubling nothing sorted on would be a field this engine wrote and never
+    /// read. The Hero's 5 against the Villain's 8 is the pair that shows it: the doubling has to be
+    /// real to move them, and 5 is deliberately below 8 so that an engine which had merely recorded
+    /// the flag would leave the order alone.</para>
+    ///
+    /// <para><b>The switch off is the baseline and is measured first.</b> A setting that is off has
+    /// to change nothing: the same two combatants, the same Edges and the same order.</para>
+    /// </summary>
+    [Fact]
+    public void AReadiedWeaponDoublesItsHoldersEffectiveEdgeAndMovesTheOrder()
+    {
+        var off = new Encounter(_play, new SeededDice(79)).Begin(Standoff(heroReady: true, villainReady: false));
+
+        // The control, and the baseline: with the setting off the flag changes nothing at all.
+        Assert.Equal(["villain", "hero"], off.TurnOrder);
+        Assert.Equal(5, off.EffectiveEdge["hero"]);
+        Assert.DoesNotContain(off.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal));
+
+        var drawn = new Encounter(_play, new SeededDice(79), TheDropOn)
+            .Begin(Standoff(heroReady: true, villainReady: false));
+
+        Assert.Equal(["hero", "villain"], drawn.TurnOrder);
+        Assert.Equal(10, drawn.EffectiveEdge["hero"]);
+
+        // And the character who is not ready is untouched, which is the half that makes it a
+        // doubling of the holder rather than a penalty on everybody else.
+        Assert.Equal(off.EffectiveEdge["villain"], drawn.EffectiveEdge["villain"]);
+
+        var line = Assert.Single(drawn.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("the Hero", StringComparison.Ordinal));
+
+        var rule = _play.GetGritty("gritty_the_drop").TheDrop!;
+
+        Assert.Contains(rule.HeldBy, line.Text, StringComparison.Ordinal);
+        Assert.Contains(rule.HeldAgainst, line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Where everybody is ready, nobody has the drop on anybody — and the order says so.</b>
+    ///
+    /// <para>This is the case that makes one global doubling exact rather than approximate: an
+    /// order compares two characters at a time, and two ready ones double alike, so 2a against 2b
+    /// sorts exactly as a against b. The fixture drives both ends of that — everybody ready and
+    /// nobody ready — and requires the order to be the one the setting-off run produced.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void WhereEverybodyIsReadyOrNobodyIsTheOrderIsTheOneTheBookPrints(bool hero, bool villain)
+    {
+        var baseline = new Encounter(_play, new SeededDice(79)).Begin(Standoff(false, false));
+        var drawn = new Encounter(_play, new SeededDice(79), TheDropOn).Begin(Standoff(hero, villain));
+
+        Assert.Equal(baseline.TurnOrder, drawn.TurnOrder);
+        Assert.Equal(baseline.EffectiveEdge, drawn.EffectiveEdge);
+
+        // The control: the rule was reached and said so, rather than being skipped in silence.
+        Assert.Contains(drawn.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("nobody has the drop on anybody", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The half of p.79 a single order cannot carry is named, not applied.</b>
+    ///
+    /// <para><c>also_held_by</c> gives the drop to a shooter against anyone closing to engage them
+    /// — held against one opponent and not the rest, which one order of action cannot express,
+    /// because doubled against one and not another admits a cycle. The line quotes the clause and
+    /// the GM's final say over the whole rule, which is what stops a reader taking the setting for
+    /// the whole page.</para>
+    /// </summary>
+    [Fact]
+    public void TheClauseAboutClosingToEngageIsNamedRatherThanApplied()
+    {
+        var rule = _play.GetGritty("gritty_the_drop").TheDrop!;
+
+        var drawn = new Encounter(_play, new SeededDice(79), TheDropOn)
+            .Begin(Standoff(heroReady: true, villainReady: false));
+
+        var named = Assert.Single(drawn.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("is not applied", StringComparison.Ordinal));
+
+        Assert.Contains(rule.AlsoHeldBy, named.Text, StringComparison.Ordinal);
+        Assert.Contains(rule.FinalSay, named.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A ready group of Minions has no Edge to double, and the ledger says so rather than
+    /// doubling a zero.</b>
+    ///
+    /// <para>p.73 gives a Minion group no Edge at all and puts them after everyone else, and
+    /// <c>minions_have_an_edge</c> is read rather than assumed. A line announcing that their
+    /// effective Edge had been doubled from 0 to 0 would be a rule reported and not applied, which
+    /// is the one thing this engine's ledger exists to prevent.</para>
+    /// </summary>
+    [Fact]
+    public void AReadyGroupOfMinionsHasNoEdgeToDouble()
+    {
+        var fight = new List<Combatant>
+        {
+            Combatant.Hero("hero", "the Hero", edge: 5, health: 10, resolve: 0,
+                new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]),
+            Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 3, "threat", ready: true)
+        };
+
+        var drawn = new Encounter(_play, new SeededDice(79), TheDropOn).Begin(fight);
+
+        Assert.Equal(0, drawn.EffectiveEdge["minions"]);
+        Assert.Equal(["hero", "minions"], drawn.TurnOrder);
+
+        Assert.Contains(drawn.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal)
+            && l.Text.Contains("nothing here to double", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>An entry that has stopped saying "doubled" is a rule this engine refuses to apply.</b>
+    ///
+    /// <para><c>the_drop.effect</c> is a printed sentence rather than a multiplier, so the engine
+    /// reads the word and supplies the 2 — the third rule in this chapter to work that way, beside
+    /// <c>seize_initiative_gm_alternative</c> and <c>gritty_hard_targets</c>. A silent fallback
+    /// against an entry somebody had corrected would apply a rule the book no longer prints.</para>
+    /// </summary>
+    [Fact]
+    public void ADropEffectThisEngineNoLongerRecognisesIsAThrow()
+    {
+        const string Printed = "\"effect\": \"the holder's effective Edge is doubled against them\"";
+        const string Reworded = "\"effect\": \"the holder goes first, whatever their Edge\"";
+
+        // The control: against the shipped bytes the fight opens and the rule is cited.
+        var shipped = new Encounter(_play, new SeededDice(79), TheDropOn).Begin(Standoff(true, false));
+
+        Assert.Contains(shipped.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_the_drop", StringComparison.Ordinal));
+
+        var reworded = SubstitutedPlayRules.With(PlayRulesRepository.GrittyFile, Printed, Reworded);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() =>
+            new Encounter(reworded, new SeededDice(79), TheDropOn).Begin(Standoff(true, false)));
+
+        Assert.Contains("gritty_the_drop", thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("goes first, whatever their Edge", thrown.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
     private static string Line((int Thrown, IReadOnlyList<LedgerLine> Lines) exchange, string ruleId) =>
         Assert.Single(exchange.Lines, l => string.Equals(l.Rule, ruleId, StringComparison.Ordinal)).Text;

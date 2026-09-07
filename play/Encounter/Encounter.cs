@@ -72,7 +72,6 @@ public sealed partial class Encounter
     /// </summary>
     public static IReadOnlySet<string> SwitchesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        nameof(TableRules.TheDrop),
         nameof(TableRules.FriendlyFire),
         nameof(TableRules.SlowHealing),
         nameof(TableRules.RaisedGearLimit),
@@ -134,7 +133,7 @@ public sealed partial class Encounter
         var lines = new List<LedgerLine>();
         var heroes = everyone.Values.Count(c => c.Kind == CombatantKind.Hero);
 
-        var edges = Edges(everyone.Values, lines);
+        var edges = Edges([.. everyone.Values], lines);
         var adversity = OpeningAdversity(heroes, challengeLevel, lines);
 
         var ranges = new Dictionary<string, RangeBand>(StringComparer.Ordinal);
@@ -254,7 +253,7 @@ public sealed partial class Encounter
     /// Each combatant's effective Edge: the derived figure, or the successes of an opening Edge roll
     /// where the table has taken p.73's optional random initiative.
     /// </summary>
-    private Dictionary<string, int> Edges(IEnumerable<Combatant> everyone, List<LedgerLine> lines)
+    private Dictionary<string, int> Edges(IReadOnlyList<Combatant> everyone, List<LedgerLine> lines)
     {
         var entry = _play.GetCombat("edge_order");
         var edges = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -276,7 +275,109 @@ public sealed partial class Encounter
                 + $"{roll.Successes}, which stands in as their Edge for this battle"));
         }
 
+        // p.79's Drop, applied to whatever the figure above turned out to be — the derived Edge, or
+        // the successes of the optional opening roll.
+        if (Table.TheDrop) TheDrop([.. everyone], edges, lines);
+
         return edges;
+    }
+
+    /// <summary>
+    /// p.79's Drop: <c>the_drop.effect</c> — "the holder's effective Edge is doubled against them"
+    /// — applied to everyone the caller says has a weapon or Power aimed and ready.
+    ///
+    /// <para><b>A doubling that is pairwise in the book is exact as one global order, and that is
+    /// the finding that made this rule applicable at all.</b> An order depends only on how each
+    /// pair compares, and there are three kinds of pair. Two ready characters both double, and
+    /// <c>2a</c> against <c>2b</c> orders exactly as <c>a</c> against <c>b</c> — which is right,
+    /// because neither has the drop on the other. Two unready characters double neither, which is
+    /// right for the same reason. A ready character against an unready one doubles exactly one of
+    /// them, which is the rule as printed. So doubling every holder's <see cref="EncounterState.EffectiveEdge"/>
+    /// once produces the same order as comparing every pair under p.79's own sentence, and no case
+    /// is left over.</para>
+    ///
+    /// <para><b>The other half of the rule is pairwise and is <em>not</em> expressible, so it is
+    /// named rather than applied.</b> <c>also_held_by</c> gives the drop to a character with a
+    /// ranged weapon "against anyone moving up to them to engage them in close combat" — held
+    /// against one opponent and not against the rest, which a single order cannot carry: doubled
+    /// against one opponent and not another admits cycles, where A beats B, B beats C and C beats A.
+    /// The line says so, and <c>docs/guide/play-engine.md</c> records it beside the clauses
+    /// <c>team_attacks</c> and <c>minions_attacking</c> leave to a person.</para>
+    ///
+    /// <para><b>The factor is the printed word and is not in the data</b>, the same shape as
+    /// <c>seize_initiative_gm_alternative</c>'s "doubles" and <c>gritty_hard_targets</c>' "doubled":
+    /// an entry that has stopped saying it is a rule this engine throws on rather than one it goes
+    /// on applying.</para>
+    /// </summary>
+    private void TheDrop(
+        IReadOnlyList<Combatant> everyone, Dictionary<string, int> edges, List<LedgerLine> lines)
+    {
+        var entry = _play.GetGritty("gritty_the_drop");
+        var rule = entry.TheDrop!;
+
+        lines.Add(new LedgerLine(
+            1, "", entry.Id, entry.SourceRef,
+            $"the other half of p.79's Drop is not applied: it is also held by {rule.AlsoHeldBy}, "
+            + "which is a doubling held against one opponent and not against the rest — and one "
+            + "order of action cannot carry that, since doubled against one and not another admits "
+            + $"a cycle. {rule.FinalSay} has the final say over the whole rule in any case"));
+
+        var holders = everyone.Where(c => c.Ready).ToList();
+        var others = everyone.Where(c => !c.Ready).ToList();
+
+        if (holders.Count == 0 || others.Count == 0)
+        {
+            lines.Add(new LedgerLine(
+                1, "", entry.Id, entry.SourceRef,
+                $"nobody has the drop on anybody: it is held by {rule.HeldBy}, against "
+                + $"{rule.HeldAgainst}, and "
+                + (holders.Count == 0
+                    ? "nobody here has one aimed and ready"
+                    : "everybody here has")));
+
+            return;
+        }
+
+        var factor = DropFactor(rule.Effect);
+        var minionsHaveAnEdge = _play.GetCombat("edge_ties").TieBreak!.MinionsHaveAnEdge;
+
+        foreach (var holder in holders)
+        {
+            if (holder.Kind == CombatantKind.MinionGroup && !minionsHaveAnEdge)
+            {
+                lines.Add(new LedgerLine(
+                    1, holder.Id, entry.Id, entry.SourceRef,
+                    $"{holder.Name} is ready, and p.73 gives a group of Minions no Edge at all — so "
+                    + "there is nothing here to double"));
+
+                continue;
+            }
+
+            var was = edges[holder.Id];
+            edges[holder.Id] = was * factor;
+
+            lines.Add(new LedgerLine(
+                1, holder.Id, entry.Id, entry.SourceRef,
+                $"{holder.Name} is {rule.HeldBy}, so they have the drop on {rule.HeldAgainst}: "
+                + $"{rule.Effect}, {was} to {edges[holder.Id]}"));
+        }
+    }
+
+    /// <summary>
+    /// What p.79's Drop multiplies an Edge by, read out of <c>the_drop.effect</c>'s printed word.
+    /// </summary>
+    private static int DropFactor(string effect)
+    {
+        if (!effect.Contains("double", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"gritty_the_drop's effect now reads '{effect}'. This engine reads the printed word "
+                + "\"doubled\" and supplies the factor of 2 itself, because the entry states an "
+                + "effect in prose rather than a multiplier; a rule that no longer says it is a "
+                + "rule this engine cannot apply. See docs/guide/play-engine.md's readings table.");
+        }
+
+        return 2;
     }
 
     /// <summary>

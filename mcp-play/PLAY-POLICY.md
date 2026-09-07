@@ -191,14 +191,23 @@ page one of the run and do not move the numbers:
 
 | Setting | Entry |
 |---|---|
-| `TheDrop` | `gritty_the_drop` |
 | `FriendlyFire` | `gritty_friendly_fire` |
 | `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other seven — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`,
-`HardTargets`, `close_range_penalty` and the initiative variant beside them — are applied.
+The other eight — `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`,
+`HardTargets`, `close_range_penalty`, `the_drop` and the initiative variant beside them — are
+applied.
+
+**`the_drop` needs you to say who has a weapon or Power aimed and ready.** Send `"ready": true` on
+a combatant and their effective Edge is doubled for the order of action, against everyone who has
+not — which is exactly p.79's rule, because an order only ever compares two characters at a time
+and two ready ones double alike. Nothing derives it: carrying a gun is a capability and having it
+levelled is a state, and p.79 gives you the final say over the whole rule in as many words. **The
+other half of the page is not applied and the ledger says so**: a shooter also has the drop on
+anyone closing to engage them, which is held against one opponent and not the rest, and one order
+of action cannot carry that. Keep track of it yourself, the same as a team attack's coordination.
 
 **`close_range_penalty` costs a dodger two dice against a ranged attack made from inside Close
 Range, and it works out on its own which attacks those are.** A Ranged Weapon is one by p.75's own

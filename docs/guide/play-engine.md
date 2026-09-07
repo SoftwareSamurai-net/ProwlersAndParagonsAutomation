@@ -106,13 +106,16 @@ Three properties of it are load-bearing:
 
 | Setting | Entry |
 |---|---|
-| `TheDrop` | `gritty_the_drop` |
 | `FriendlyFire` | `gritty_friendly_fire` |
 | `SlowHealing` | `gritty_slow_healing` |
 | `RaisedGearLimit` | `gritty_raised_gear_limit` |
 | `GearLimitRank` | `gritty_raised_gear_limit` |
 
-The other seven gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, `CloseRangePenalty`, and the initiative variant beside them.
+The other eight gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, `HardTargets`, `CloseRangePenalty`, `TheDrop`, and the initiative variant beside them.
+
+**p.79's Drop is pairwise in the book and exact as one global order, and that is the finding that made it applicable at all.** An order depends only on how each *pair* compares, and there are three kinds of pair: two ready characters both double, and 2a against 2b orders exactly as a against b — which is right, because neither has the drop on the other; two unready characters double neither, right for the same reason; and a ready character against an unready one doubles exactly one of them, which is the rule as printed. So doubling every holder's `EncounterState.EffectiveEdge` once produces the same order as comparing every pair under p.79's own sentence, with no case left over. `Combatant.Ready` is the caller's word and it is the sharper version of `Invisible`'s argument: carrying a gun is a capability and having it levelled is a state, nothing in Chapters 3–5 levels one, and p.79 hands the question to the GM in as many words — `final_say` is on the entry and on the ledger.
+
+**The other half of the rule is pairwise and is named rather than applied**, beside the clauses `team_attacks` and `minions_attacking` leave to a person. `also_held_by` gives the drop to a character with a ranged weapon "against anyone moving up to them to engage them in close combat" — held against one opponent and not against the rest, which one order cannot carry, because doubled against one and not another admits a cycle: A beats B, B beats C, C beats A. A ready group of Minions is a second no-op the ledger names rather than performs: p.73 gives them no Edge, so there is nothing to double.
 
 **p.79's Close Range rule needs three facts and each is read where it lives.** That the pair is at Close Range is `EncounterState.Ranges`, which is pairwise because p.73's bands are. That the attack is *ranged* comes off p.75's table — a row whose printed type names *Ranged* is one, and the rows whose attacking Trait is the table's bare `Power` column are the ones the table declines to classify. For those the answer is on the sheet: `Combatant.RangedPowers` is every Power id whose **own Ch.2 Range** is `ranged`, filled by `CombatantFactory` the way `Powers` is, because a Blast reaches across the street and a Growth does not and neither `Powers` nor `TraitRanks` can tell them apart. That such an attack *can* be used at Distant or Extreme is `range_classes`' own `ranged_attacks_reach`, which is exactly the question the entry's `applies_only_to_attacks_usable_at` asks; both strings are read and a pair that stops naming a band past Close is a **throw**, not a penalty applied on nothing.
 

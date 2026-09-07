@@ -3025,6 +3025,65 @@ public sealed class McpPlayServerTests
             Assert.True(Cites(knife, "gritty_close_range"));
         });
 
+
+    // ── p.79's Drop, over the wire ────────────────────────────────────────
+
+    /// <summary>
+    /// <b>A combatant's <c>ready</c> flag crosses the wire and doubles their Edge for the order of
+    /// action.</b>
+    ///
+    /// <para>Read off the opening answer's turn order, which is the only thing an Edge decides — a
+    /// doubling nothing sorted on would be a field this server published and never used. The
+    /// control is the same fight with the setting off, whose order is the Edges on the sheets.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACombatantsReadyFlagCrossesTheWireAndDoublesTheirEdgeForTheOrder() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Open(bool setting)
+            {
+                var fight = TwoSides();
+
+                // The Hero's Edge is behind the Villain's until the drop doubles it.
+                fight[0]!["character"]!["AbilityRanks"] =
+                    new JsonObject { ["might"] = 8, ["perception"] = 2, ["agility"] = 2 };
+                fight[1]!["character"]!["AbilityRanks"] =
+                    new JsonObject { ["might"] = 8, ["perception"] = 4, ["agility"] = 3 };
+
+                fight[0]!["ready"] = true;
+
+                return await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = fight,
+                    ["table"] = new JsonObject { ["the_drop"] = setting },
+                    ["seed"] = 79
+                });
+            }
+
+            static string[] Order(JsonNode opened) =>
+                [.. opened["turn_order"]!.AsArray().Select(c => c!["id"]!.GetValue<string>())];
+
+            // The control: with the setting off the flag changes nothing, and the Villain is first.
+            var off = await Open(setting: false);
+
+            Assert.Equal(["villain", "hero"], Order(off));
+
+            var drawn = await Open(setting: true);
+
+            Assert.Equal(["hero", "villain"], Order(drawn));
+
+            // And the order echoes both the flag the caller sent and the doubled figure it bought,
+            // so a reader can see what was read rather than inferring it from who went first.
+            var hero = drawn["turn_order"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            var before = off["turn_order"]!.AsArray().Single(c =>
+                string.Equals(c!["id"]!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            Assert.True(hero!["ready"]!.GetValue<bool>());
+            Assert.Equal(before!["edge"]!.GetValue<int>() * 2, hero["edge"]!.GetValue<int>());
+        });
+
     /// <summary>
     /// A Hero and a Villain, built the shortest way that is still a legal shape for the strict
     /// reader — enough to open a fight for the tests that are about something else.
