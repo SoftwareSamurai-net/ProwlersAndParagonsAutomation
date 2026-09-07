@@ -342,6 +342,99 @@ public sealed class CampaignMemberViewTests
     }
 
     /// <summary>
+    /// <b>The live list says when it was read, and can be read again without a reload.</b>
+    ///
+    /// <para>The heading over it says <em>now</em>, and the page fetches it when the panel opens
+    /// and after anything that reloads the lists — never again. So a player sitting on the screen
+    /// while their GM changes a setting is reading a list that claims the present tense and means
+    /// "when you arrived", which is the same dishonesty the copy's own sentence was rewritten to
+    /// fix one heading further down.</para>
+    ///
+    /// <para><b>Driven against one open page rather than a re-render</b>, because a re-render is a
+    /// fresh <c>OnInitializedAsync</c> and would refresh everything for free — the state under test
+    /// is exactly the one a reader is in when they have not navigated.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheLiveTableSaysHowOldItIsAndARereadPicksUpAChangeWithoutAReload()
+    {
+        var (ctx, page) = await AMemberOf(new CampaignTable { FatalDamage = true }, immortality: 9);
+        await using var _ = ctx;
+
+        // The control: the list is there and it says how old it is.
+        Assert.Contains("House rules at the table now", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Read just now", page.Markup, StringComparison.Ordinal);
+
+        var asked = ctx.Api.Asked.Count(a => a.EndsWith("/table", StringComparison.Ordinal));
+
+        Assert.True(asked > 0, "the panel never read the live table, so nothing below is about it");
+
+        // The GM changes the game while this page is open. Nothing on it moves.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        ctx.Api.Campaign(CampaignId, "Pinnacle City",
+            StoredCampaign.Write(new Campaign(
+                CampaignId, "Pinnacle City", "standard", null, false,
+                new CampaignTable { FatalDamage = true }, 12)));
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        // Stale, and that is the state this control exists for — asserted rather than assumed.
+        Assert.Contains("Immortality costs 9 HP", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Immortality costs 12 HP", page.Markup, StringComparison.Ordinal);
+        Assert.Equal(asked,
+            ctx.Api.Asked.Count(a => a.EndsWith("/table", StringComparison.Ordinal)));
+
+        await page.FindAll("button")
+            .Single(b => b.TextContent.Trim() == "Check again").ClickAsync(new());
+
+        // One request, and the new figure is on screen with the difference beside it.
+        Assert.Equal(asked + 1,
+            ctx.Api.Asked.Count(a => a.EndsWith("/table", StringComparison.Ordinal)));
+        Assert.Contains("Immortality costs 12 HP", page.Markup, StringComparison.Ordinal);
+
+        var moved = page.FindAll("ul.diff-rows > li").Select(li => li.TextContent.Trim()).ToList();
+
+        Assert.Contains(moved, t => t.Contains("Immortality", StringComparison.Ordinal)
+                                    && t.Contains("9 HP → 12 HP", StringComparison.Ordinal));
+
+        // And the character's own copy is untouched by a read.
+        Assert.Equal(9, ctx.Session.Sheet.ImmortalityCost);
+    }
+
+    /// <summary>
+    /// <b>A recheck that answers nothing says so rather than taking the list away.</b>
+    ///
+    /// <para>The section vanishing is right on a first render — the panel then draws what it always
+    /// drew, which is the copy alone. It is not right under a button somebody pressed: a reader who
+    /// watched a list disappear has been told nothing about why, and the four things that produce
+    /// this null include a game that has been deleted.</para>
+    /// </summary>
+    [Fact]
+    public async Task ARecheckThatAnswersNothingSaysSoRatherThanRemovingTheListInSilence()
+    {
+        var (ctx, page) = await AMemberOf(new CampaignTable { FatalDamage = true }, immortality: 9);
+        await using var _ = ctx;
+
+        // The control: the list is on screen before the game goes away.
+        Assert.Contains("House rules at the table now", page.Markup, StringComparison.Ordinal);
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        await ctx.Services.GetRequiredService<AccountCampaignStore>().DeleteAsync(CampaignId);
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        await page.FindAll("button")
+            .Single(b => b.TextContent.Trim() == "Check again").ClickAsync(new());
+
+        Assert.DoesNotContain("House rules at the table now", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("The table could not be read just now", page.Markup,
+            StringComparison.Ordinal);
+
+        // And the copy is still drawn, which is the whole of what the panel falls back to.
+        Assert.Contains("House rules on this character", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Fatal Damage", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("when it joined", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>A live read that answered nothing leaves the panel exactly as it was.</b>
     ///
     /// <para>The other half of the pair, and what keeps the new list from being a thing the screen

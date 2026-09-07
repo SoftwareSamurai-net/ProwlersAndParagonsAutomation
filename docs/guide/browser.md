@@ -949,6 +949,17 @@ the storage half, which shipped a slice earlier.
     table now* is what the next character to join would take. They were the same list at the
     moment of the join and nothing keeps them in step, which is why both headings say whose they
     are. Nothing is repaired: joining again is still the only writer.
+  - **It is read when the panel opens, and the heading says "now", so the panel says how old it
+    is and offers one request to make it newer.** The read happens in `ResolveCampaign` — on
+    `OnInitializedAsync` and after anything that reloads the lists — and never again, so a player
+    sitting on the screen while their GM changes a setting is reading a list that claims the
+    present tense and means "when you arrived". `_liveReadAt` is stamped in the same statement the
+    answer is assigned in, printed through `Ages` so "3 minutes ago" means what it means in the
+    character manager, and **Check again** calls `RecheckTable`, which is the one request rather
+    than the whole `Refresh` — the reader asked whether the table has moved, not for their
+    standings and inbox to be re-read. **A recheck that answers nothing says so**: the section
+    disappearing is right on a first render and wrong under a button somebody just pressed, so
+    `_liveWentAway` puts a sentence where the list was and the copy above it is untouched.
   - **The differences are `CampaignDiff.BetweenTables`, not a second comparison.** Same thirteen
     names and the same `Fatal Damage off → on` idiom the GM's approval screen reads, computed in
     one place — a second one here would be a second chance to name a switch differently from the
