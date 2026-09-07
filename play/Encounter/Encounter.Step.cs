@@ -2477,7 +2477,7 @@ public sealed partial class Encounter
                 + "says is unclear for anybody carrying two — this engine refuses on the character");
         }
 
-        if (spend.Narration is not { Length: > 0 } flaw)
+        if (Said(spend) is not { } flaw)
         {
             return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
                 $"a point prevents {rule.Prevents}, and this spend does not say which Flaw — name "
@@ -2529,7 +2529,7 @@ public sealed partial class Encounter
 
         if (WrongPrice(state, entry, spend, cost, lines) is { } priced) return priced;
 
-        if (spend.Narration is not { Length: > 0 } what)
+        if (Said(spend) is not { } what)
         {
             return Refuse(state, "", entry.Id, entry.SourceRef, lines,
                 $"a point buys {rule.WhatItIs}, and this spend does not say what it is. p.85 gives "
@@ -2623,7 +2623,7 @@ public sealed partial class Encounter
                 + "count is per fight, and it does not follow the GM into the next scene");
         }
 
-        if (spend.Narration is not { Length: > 0 } act)
+        if (Said(spend) is not { } act)
         {
             return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
                 $"a point buys what p.85 calls it — {rule.Effect} — and this spend does not say "
@@ -2666,6 +2666,23 @@ public sealed partial class Encounter
             : Refuse(state, spend.Actor, entry.Id, entry.SourceRef, lines,
                 $"p.85 prices {entry.Name} at {cost} Adversity and this spend asks for "
                 + $"{spend.Points}. Nothing was spent");
+
+    /// <summary>
+    /// What the GM said the point bought, trimmed — or null, which every one of p.85's three own
+    /// purchases refuses with nothing spent.
+    ///
+    /// <para><b>It is a test of what the narration says and not of how long it is.</b> Each of the
+    /// three used to ask <c>Narration is not { Length: > 0 }</c>, and a string of spaces is longer
+    /// than nothing while saying less. A misfortune or an act of villainy bought with one took the
+    /// point and put an empty pair of quotes on the ledger — the pool that has moved with no words
+    /// behind it, which is the exact failure those refusals exist to prevent — and a suppression
+    /// bought with one reached <see cref="Combatant.Suppressing"/>, which guards on whitespace, and
+    /// threw out of <see cref="Step"/>. A purchase the rules refuse is a ledger line and not an
+    /// exception: a run that dies on one has no verdict at all, which is the same reason
+    /// <see cref="CannotAfford"/> exists.</para>
+    /// </summary>
+    private static string? Said(SpendAdversity spend) =>
+        string.IsNullOrWhiteSpace(spend.Narration) ? null : spend.Narration.Trim();
 
     /// <summary>
     /// The kinds on one of p.85's eligible or excluded lists, as a sentence names them.

@@ -1749,6 +1749,71 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A narration of nothing but spaces is a spend that does not say what it bought, and all
+    /// three of p.85's own purchases refuse it with nothing spent.</b>
+    ///
+    /// <para>Each of the three guards its narration with a length test, and a length test is not a
+    /// content test. A string of spaces is longer than nothing and says less: the misfortune and the
+    /// villainy both took the point and wrote a ledger line with an empty pair of quotes in it —
+    /// which is precisely the pool that has moved with no words behind it those refusals exist to
+    /// prevent — and the suppression threw <see cref="ArgumentException"/> out of
+    /// <see cref="Encounter.Step"/>, because <see cref="Combatant.Suppressing"/> guards on whitespace
+    /// where its caller guarded on length. That throw is the shape this engine has already been
+    /// through once: a purchase the rules refuse is a ledger line, not an exception, and a run that
+    /// dies on one has no verdict at all.</para>
+    ///
+    /// <para>The control is the other half: the same three spends, in the same fight, with words in
+    /// them, all bought. A guard that refused everything would satisfy the refusals alone.</para>
+    /// </summary>
+    [Fact]
+    public void ASpendWhoseNarrationIsOnlySpacesIsRefusedAndNotCharged()
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 5, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 9, health: 20, traits, ["toughness"]);
+
+        var dice = new ScriptedDice(6);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain], challengeLevel: 3);
+        var opening = state.Adversity;
+
+        // The control on the fixture: the pool covers all three, so a refusal below is the
+        // narration's and not "the GM has 0 Adversity".
+        Assert.True(opening >= 3, $"the GM opened on {opening} Adversity");
+
+        AdversitySpend[] narrated =
+            [AdversitySpend.SuppressFlaw, AdversitySpend.Misfortune, AdversitySpend.Villainy];
+
+        foreach (var kind in narrated)
+        {
+            var blank = encounter.Step(state, new SpendAdversity("villain", kind, Narration: "   "));
+
+            Assert.True(opening == blank.State.Adversity,
+                $"{kind} charged the pool for a narration of nothing but spaces.");
+
+            Assert.Null(blank.State["villain"].SuppressedFlaw);
+            Assert.Empty(blank.State.Villainy);
+
+            // And the refusal is on the ledger rather than in an exception, in the words the spend's
+            // own missing-narration refusal uses.
+            Assert.Contains(blank.Added, l => l.Text.Contains("does not say", StringComparison.Ordinal));
+        }
+
+        // The control: with words in them, every one of the three is bought.
+        foreach (var kind in narrated)
+        {
+            var said = encounter.Step(state, new SpendAdversity(
+                "villain", kind, Narration: "the floor gives way"));
+
+            Assert.True(opening - 1 == said.State.Adversity,
+                $"{kind} refused a narration that says something.");
+        }
+
+        Assert.Equal(1, dice.Remaining);
+    }
+
+    /// <summary>
     /// <b>An odd pool banking automatic successes keeps the even half and nothing for the leftover
     /// die.</b>
     ///
