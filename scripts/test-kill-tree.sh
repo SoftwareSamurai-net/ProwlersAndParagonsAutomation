@@ -4,12 +4,15 @@
 #   ./scripts/test-kill-tree.sh                  # every case, including a real wrangler
 #   ./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic ones only. NOT a full run
 #
-# It also covers the other two things `scripts/e2e/process.sh` owns, for the reason that file is
+# It also covers everything else `scripts/e2e/process.sh` owns, for the reason that file is
 # separate at all — it is the only part of this harness's shell that can be sourced and tested:
 # `redacted_tail`, which keeps a raw sign-in token out of the log tail a failing `start_server`
-# prints, and `capture_server_state`/`say_server_state`, which say whether the server outlived the
-# drive. The second pair exists because CI run 34040527190 reported eight refused connections and
-# not one word about the server that had died underneath them.
+# prints; `capture_server_state`/`say_server_state`, which say whether the server outlived the
+# drive; and the pair that reads what a dead wrangler actually said. The second exists because CI
+# run 34040527190 reported eight refused connections and not one word about the server that had
+# died underneath them, and the third because run 34120157313 then reported the death and buried
+# its cause in the middle of a request log, with the stack in a file under `$HOME` that nothing
+# collected.
 #
 # ------------------------------------------------------------------------------------------------
 # WHY THIS EXISTS, AND WHY AN OUTCOME CHECK WAS NOT ENOUGH.
@@ -85,7 +88,7 @@
 # `docs/guide/testing.md` states it for `./scripts/e2e.sh`: a script that reports *verdicts*
 # rather than a test count cannot be totalled with four suites' thousands without making the
 # total meaningless, and a missing count there has to be an error rather than a zero. This one
-# reports eight verdicts, so it is its own step in `build.yml` and prints its own summary line.
+# reports nine verdicts, so it is its own step in `build.yml` and prints its own summary line.
 
 set -euo pipefail
 
@@ -1148,6 +1151,264 @@ HELPER
 }
 
 # ------------------------------------------------------------------------------------------------
+# Case 9 — what a dead wrangler's report actually says, which is the half run 34120157313 needed.
+#
+# **The second server death, and the first one the harness had the instruments to describe.** Twin
+# `html-lang-dropped` on port 8793: ALREADY DEAD with exit status 1, and its whole account of itself
+# was `✘ [ERROR]` with an **empty message**, the generic issue-tracker line, and
+# `🪵 Logs were written to "/home/runner/.config/.wrangler/logs/wrangler-….log"` — sitting in the
+# middle of a request log with `GET /css/theme.css 304` on both sides of it. The message was empty
+# because wrangler's `handle-errors.ts` sends `exception.message` to `logger.error` and
+# `exception.stack` to `logger.debug`, which the default level never prints; the stack was in the
+# file that last line names, under `$HOME`, and nothing collected it.
+#
+# So `start_server` points `WRANGLER_LOG_PATH` at a directory of the harness's own and
+# `say_server_state` reads it back. This case is the check on the reading.
+#
+# ------------------------------------------------------------------------------------------------
+# WHY THE FIXTURE PUTS THE ERROR *OUTSIDE* THE FORTY-LINE TAIL, WHICH IS THE WHOLE CONTROL.
+#
+# The claim under test is that the error block is quoted **on its own**, before the request log. A
+# fixture whose `✘ [ERROR]` sits in the last forty lines cannot test that at all: the block would
+# appear in the output whether or not anything quoted it separately, and the assertion would pass
+# against a function that does nothing new. So the fixture's error is at line 5 of a 60-line log,
+# and the case asserts as a **control** that `tail -40` of the fixture does not contain it — which
+# is what makes its presence in the report evidence, and what would fail loudly if somebody
+# shortened the fixture and quietly turned this case back into a tautology.
+#
+# **The debug directory holds two files and only the newer one is the answer.** wrangler writes one
+# per invocation, so a server started twice leaves two, and the older describes a run nobody is
+# asking about. The older one carries a decoy marker: a reader of every file in the directory names
+# it, and is red rather than accidentally right.
+#
+# **And both planted logs carry a `?t=` token**, because `say_server_state` reaching `tail` instead
+# of `redacted_tail` on either path is a bearer secret in a public CI log — which is not
+# hypothetical here: run 34040527190 printed three of them.
+wrangler_death_case() {
+  local dir log debug empty out at_error at_tail newest i
+
+  dir="$(mktemp -d)"
+  # **The globals are put back as well as the directory removed.** `server_log` and
+  # `server_debug_dir` are how `say_server_state` is aimed, and a case that leaves them pointing at
+  # its own deleted fixture would aim the next one there too.
+  # shellcheck disable=SC2064
+  trap "rm -rf '$dir'; server_log=''; server_debug_dir=''" RETURN
+
+  log="$dir/server.log"
+  debug="$dir/debug"
+  empty="$dir/debug-empty"
+  mkdir -p "$debug" "$empty"
+
+  # The stdout log, shaped like run 34120157313's: the error five lines in, then request logging
+  # over the top of it until it is well past forty lines from the end.
+  {
+    echo "[wrangler:info] Ready on http://127.0.0.1:8793"
+    echo "[wrangler:info] GET / 200 OK (9ms)"
+    echo "[wrangler:info] GET /signin?t=wDeathTokenAlpha 302 Found (4ms)"
+    echo "[wrangler:info] GET /build 200 OK (11ms)"
+    echo ""
+    # The real bytes, written as octal escapes rather than pasted: what makes this line hard to
+    # match is that `✘` is three bytes, and a fixture that quietly lost them would let a pattern
+    # containing one pass here and fail on a runner. `[ERROR]` beside it is what the code matches.
+    printf '\342\234\230 [ERROR] \n'
+    echo ""
+    echo "If you think this is a bug then please create an issue at https://github.com/cloudflare/workers-sdk/issues/new/choose"
+    echo "Note that there is a newer version of Wrangler available (4.129.0). Consider checking whether upgrading resolves this error."
+    printf '\360\237\252\265  Logs were written to "%s/wrangler-2026-09-07_12-19-49_785.log"\n' \
+      "$debug"
+    for i in $(seq 1 50); do
+      echo "[wrangler:info] GET /css/theme.css 304 Not Modified (${i}ms)"
+    done
+    echo "[wrangler:info] GET /favicon.svg?v=1&t=wDeathTokenBeta 200 OK (1ms)"
+    echo "[wrangler:info] the last line of the fixture's own log"
+  } > "$log"
+
+  # The two debug logs. The older one is a decoy: only the newer is this server's.
+  printf 'an older invocation of wrangler, DECOYinAnOlderDebugLog\n' \
+    > "$debug/wrangler-2020-01-01_00-00-00_000.log"
+  touch -t 202001010000 "$debug/wrangler-2020-01-01_00-00-00_000.log"
+
+  {
+    echo "--- 2026-09-07T12:19:49.780Z debug"
+    echo "[wrangler] GET /signin?t=wDeathTokenGamma"
+    echo "---"
+    echo "--- 2026-09-07T12:19:49.785Z debug"
+    echo "kj::Exception: workerd/io/worker.c++:1899: failed: PLANTEDstackFrameHere"
+    echo "    at Runtime.updateConfig (/x/miniflare/dist/src/index.js:1:1)"
+    echo "---"
+  } > "$debug/wrangler-2026-09-07_12-19-49_785.log"
+
+  # ---- control: the fixture really does hide the error from the forty-line tail ----------------
+  if tail -40 "$log" | grep -q -F '[ERROR]'; then
+    fail WRANGLER_DEATH "[CONTROL] the fixture's error block is inside the last 40 lines, so it"\
+" would appear in the report whether or not anything quoted it separately and every assertion"\
+" below would hold against a say_server_state that does nothing new."
+    return
+  fi
+
+  # ---- control: the newest debug log is the planted one, and it says what it should -------------
+  newest="$(newest_debug_log "$debug")" || newest=''
+
+  case "$newest" in
+    *"wrangler-2026-09-07_12-19-49_785.log") ;;
+    *)
+      fail WRANGLER_DEATH "[CONTROL] newest_debug_log answered '${newest:-nothing}' and the newer"\
+" of the two fixture files is the 2026 one. The decoy assertion below would then be testing"\
+" nothing, because there would be no wrong file to prefer."
+      return
+      ;;
+  esac
+
+  if ! grep -q -F 'PLANTEDstackFrameHere' "$newest"; then
+    fail WRANGLER_DEATH "[CONTROL] the planted stack is not in $newest, so 'the report quotes the"\
+" stack' would be asserting the absence of something that was never there."
+    return
+  fi
+
+  # ---- a genuinely dead server, read by the real capture -----------------------------------------
+  # `sleep` rather than a listener: what this case is about is the *report*, and the port half is
+  # SERVER_STATE's subject. Killed, not merely finished, so the state reads ALREADY DEAD.
+  sleep 120 &
+  server_pid=$!
+  server_port="$(next_free_port 8928)"
+  server_log="$log"
+  server_debug_dir="$debug"
+
+  {
+    kill -9 "$server_pid" 2>/dev/null || true
+    local settle=$((SECONDS + 20))
+    while [ "$SECONDS" -lt "$settle" ]; do
+      live "$server_pid" || break
+      sleep 1
+    done
+  } 2>/dev/null
+
+  capture_server_state
+
+  case "$server_state" in
+    *"ALREADY DEAD"*) ;;
+    *)
+      server_pid=''
+      fail WRANGLER_DEATH "[CONTROL] the fixture server read as '$server_state', and everything"\
+" below is printed by the arm say_server_state takes when it is gone. Nothing was tested."
+      return
+      ;;
+  esac
+
+  out="$(say_server_state "the drive" 2>&1)"
+  server_pid=''
+
+  # ---- control: it printed the ordinary tail, so the absences below mean something --------------
+  case "$out" in
+    *"the last line of the fixture's own log"*) ;;
+    *)
+      fail WRANGLER_DEATH "[CONTROL] the report does not contain the fixture log's last line, so"\
+" it printed no tail at all — and every 'the token is absent' assertion below would hold against"\
+" a report that said nothing: $out"
+      return
+      ;;
+  esac
+
+  # ---- the cause, quoted before the request log ------------------------------------------------
+  case "$out" in
+    *"please create an issue"*) ;;
+    *)
+      fail WRANGLER_DEATH "[OUTCOME] the report does not carry wrangler's fatal error block. It is"\
+" outside the forty-line tail in this fixture, exactly as a busy server would push it, so the only"\
+" way it can appear is wrangler_error_block quoting it — and it did not: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *'Logs were written to'*) ;;
+    *)
+      fail WRANGLER_DEATH "[OUTCOME] the report does not carry the 'Logs were written to' path."\
+" That line is the only thing in run 34120157313's output that named where the stack had gone,"\
+" and a reader who cannot see it cannot ask for the file: $out"
+      return
+      ;;
+  esac
+
+  at_error="$(printf '%s\n' "$out" | grep -n -F 'please create an issue' | head -1 | cut -d: -f1)"
+  at_tail="$(printf '%s\n' "$out" | grep -n -F "the last 40 lines of $log" | head -1 | cut -d: -f1)"
+
+  if [ -z "$at_tail" ] || [ "${at_error:-0}" -ge "$at_tail" ]; then
+    fail WRANGLER_DEATH "[OUTCOME] the error block is at line ${at_error:-<absent>} of the report"\
+" and the request-log tail starts at ${at_tail:-<absent>}. The cause has to come first: burying it"\
+" in the middle of forty lines of '304 Not Modified' is precisely what run 34120157313 did."
+    return
+  fi
+
+  # ---- the stack, out of the debug log the stdout line withheld it from -------------------------
+  case "$out" in
+    *PLANTEDstackFrameHere*) ;;
+    *)
+      fail WRANGLER_DEATH "[OUTCOME] the report does not quote the planted stack out of $newest."\
+" That file is the whole point of WRANGLER_LOG_PATH: wrangler sends the exception's stack to"\
+" logger.debug, so stdout never has it and only this file does: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *DECOYinAnOlderDebugLog*)
+      fail WRANGLER_DEATH "[OUTCOME] the report quotes an older invocation's debug log as well as"\
+" this server's. A directory holds one file per wrangler run, and quoting all of them attributes"\
+" some other run's error to this death: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *wDeathTokenAlpha*|*wDeathTokenBeta*|*wDeathTokenGamma*)
+      fail WRANGLER_DEATH "[OUTCOME] a raw sign-in token survived into the report — one of the"\
+" three planted in the fixture's stdout log and its debug log. Every path out of say_server_state"\
+" has to go through redact; run 34040527190 printed three real ones into a public CI log: $out"
+      return
+      ;;
+  esac
+
+  # ---- and a dead server with no debug log has to say so ---------------------------------------
+  # **The absence is a finding, not a silence.** A death whose stack was never collected and a
+  # death whose stack was collected and quoted must not produce the same report, or the next
+  # reader cannot tell "wrangler said nothing" from "this harness asked nothing".
+  server_debug_dir="$empty"
+  out="$(say_server_state "the drive" 2>&1)"
+
+  case "$out" in
+    *PLANTEDstackFrameHere*)
+      fail WRANGLER_DEATH "[OUTCOME] with the debug directory empty the report still quoted the"\
+" planted stack, so it is not reading the directory it was given: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *"no wrangler debug log"*"$empty"*) ;;
+    *)
+      fail WRANGLER_DEATH "[OUTCOME] with no debug log to quote the report neither said so nor"\
+" named where it looked. An uncollected stack read as an all-clear is this repository's oldest"\
+" failure shape: $out"
+      return
+      ;;
+  esac
+
+  case "$out" in
+    *"the last line of the fixture's own log"*)
+      pass WRANGLER_DEATH "a dead server's report leads with wrangler's fatal error block and the"\
+" 'Logs were written to' path, then the stack out of the newest debug log and not the older one,"\
+" then the request tail; all three planted tokens are redacted, and an empty debug directory is"\
+" reported as one rather than passed over"
+      ;;
+    *)
+      fail WRANGLER_DEATH "[OUTCOME] with no debug log the report stopped printing the server's"\
+" own tail as well, so a missing debug log now costs the evidence that was already there: $out"
+      ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------------------------
 
 echo "=== kill_tree, proved by reading the pids ========================================"
 echo ""
@@ -1159,6 +1420,7 @@ respawning_case
 orphan_case
 redaction_case
 server_state_case
+wrangler_death_case
 
 if [ "$skip_wrangler" -eq 1 ]; then
   echo ""
