@@ -3587,6 +3587,89 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>An attack that is refused does not spend p.76's page: the item is not marked used.</b>
+    ///
+    /// <para><c>HeldItem.Used</c> is what discharges "use it or toss it aside on that same page", so
+    /// an attack that never happened marking it would keep a weapon past a page turn that should
+    /// have taken it — a state change bought by a refusal. The order in <c>ResolveAttack</c> is the
+    /// whole of the guarantee, and an order is exactly the kind of thing a later edit moves without
+    /// noticing, so it is pinned here across three different refusals rather than reasoned about.
+    /// </para>
+    ///
+    /// <para>Each carries the control that it really was the refusal it says: the ledger line naming
+    /// it, no exchange resolved, and <c>Used</c> still false. And the fixture ends on the positive
+    /// control that the same attack, unrefused, does mark it — otherwise every case here would pass
+    /// against an engine that had stopped marking anything at all.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("defeated target")]
+    [InlineData("no rank in the Trait")]
+    [InlineData("complete cover")]
+    public void ARefusedAttackDoesNotSpendThePageTheItemWasWonOn(string refusal)
+    {
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var state = WithTheSwordGrabbed();
+
+        // The control on the setup: p.76's clause is still live, so "not marked used" below is a
+        // claim about something that could have changed.
+        Assert.False(state["holder"].Holding!.Used);
+
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        var (attack, expected) = refusal switch
+        {
+            "defeated target" => (
+                new Attack("holder", "held", "might", Item: "the sword"),
+                "knocked out for the rest of the scene"),
+            "no rank in the Trait" => (
+                new Attack("holder", "held", "nothing_they_have", Item: "the sword"),
+                "has no rank in nothing_they_have"),
+            _ => (
+                new Attack("holder", "held", "might", Cover: Cover.Complete, Item: "the sword"),
+                "completely hidden behind cover")
+        };
+
+        if (string.Equals(refusal, "defeated target", StringComparison.Ordinal))
+        {
+            state = state.With(state["held"].WithHealth(floor));
+            Assert.True(state["held"].Defeated(floor));
+        }
+
+        var dice = new ScriptedDice([.. FacesFor(10, 4), .. FacesFor(8, 1)]);
+        var scripted = new Encounter(_play, dice);
+
+        var refused = scripted.Step(state, attack);
+
+        Assert.Contains(refused.Added, l => l.Text.Contains(expected, StringComparison.Ordinal));
+
+        // Nothing rolled, nothing resolved, and above all p.76's page not spent.
+        Assert.Equal(18, dice.Remaining);
+        Assert.DoesNotContain(refused.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal));
+        Assert.DoesNotContain(refused.Added, l =>
+            l.Text.Contains("attacks with the sword", StringComparison.Ordinal));
+
+        Assert.False(refused.State["holder"].Holding!.Used);
+
+        // And the item is still there to be taken away by the page turn, which is the consequence
+        // the field exists for.
+        while (refused.State.Current is { } acting)
+            refused = refused with { State = encounter.Step(refused.State, new EndTurn(acting.Id)).State };
+
+        var turned = encounter.Step(refused.State, new EndPage(""));
+
+        Assert.Null(turned.State["holder"].Holding);
+
+        // The positive control: unrefused, the same attack marks it — so none of the above is
+        // passing against an engine that stopped marking anything.
+        var allowed = new Encounter(_play, new SeededDice(21))
+            .Step(WithTheSwordGrabbed(), new Attack("holder", "held", "might", Item: "the sword"));
+
+        Assert.True(allowed.State["holder"].Holding!.Used);
+    }
+
+    /// <summary>
     /// <b>A character who is out of the fight lets go of what they were holding, and the ledger says
     /// where the object went.</b>
     ///

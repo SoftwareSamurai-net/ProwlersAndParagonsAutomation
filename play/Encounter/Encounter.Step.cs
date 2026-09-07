@@ -103,6 +103,12 @@ public sealed partial class Encounter
 
         // p.76's "use it ... on that same page", and its refusal. Before the dice for the reason
         // cover's is: an attack that cannot be made is one nothing should happen about.
+        //
+        // <b>And after every refusal above, which is load-bearing rather than tidy.</b>
+        // `HeldItem.Used` is what discharges "use it or toss it aside on that same page", so an
+        // attack that was refused marking it would keep a weapon past a page turn that should have
+        // taken it — a state change bought by a refusal. Moving this block up is the mutation
+        // ARefusedAttackDoesNotSpendThePageTheItemWasWonOn exists to catch.
         if (attack.Item is { Length: > 0 })
         {
             // p.76's deadlock, and it is checked before the hand is, so both parties are refused
