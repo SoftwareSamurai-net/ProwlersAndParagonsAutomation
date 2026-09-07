@@ -2864,6 +2864,72 @@ public sealed class McpPlayServerTests
         return fight;
     }
 
+    /// <summary>A second Hero-side character, so a fight can have three sheets in it.</summary>
+    private static JsonObject Ally(JsonNode? table = null)
+    {
+        var ally = new JsonObject
+        {
+            ["kind"] = "hero",
+            ["id"] = "ally",
+            ["side"] = "heroes",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Ally",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 7, ["toughness"] = 5, ["willpower"] = 4 }
+            }
+        };
+
+        if (table is not null) ally["character"]!["CampaignTable"] = table;
+
+        return ally;
+    }
+
+    /// <summary>
+    /// Three sheets disagreeing three ways, so that "the first difference from the first sheet"
+    /// has more than one answer and arrival order could pick between them.
+    ///
+    /// <para>'ally' and 'hero' differ about <c>fatal_damage</c>, which comes fourth in
+    /// <c>TableRules.Switches</c>; 'hero' and 'villain' differ about <c>wound_penalties</c>, which
+    /// comes tenth. Compare from 'hero' and the refusal names the tenth; compare from 'ally' and it
+    /// names the fourth. Both are true, which is exactly why the answer must not depend on which
+    /// order somebody typed the array in.</para>
+    /// </summary>
+    private static JsonArray ThreeWaysApart(bool reversed)
+    {
+        var fight = TwoSides();
+        fight[0]!["character"]!["CampaignTable"] = HouseRules();
+        fight[1]!["character"]!["CampaignTable"] = HouseRules(woundPenalties: false);
+        fight.Add(Ally(new JsonObject { ["FatalDamage"] = false, ["WoundPenalties"] = true }));
+
+        return reversed ? new JsonArray([.. fight.Reverse().Select(c => c!.DeepClone())]) : fight;
+    }
+
+    /// <summary>
+    /// One table on two of the four sheets and none on the other two, so the clause page one adds
+    /// for the sheets that carried nothing has two names in it to put in an order.
+    /// </summary>
+    private static JsonArray TwoCarriersAndTwoWithout(bool reversed)
+    {
+        var fight = TwoSides();
+        fight[0]!["character"]!["CampaignTable"] = HouseRules();
+        fight.Add(Ally(HouseRules()));
+        fight.Add(new JsonObject
+        {
+            ["kind"] = "extra",
+            ["id"] = "bystander",
+            ["side"] = "villains",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Bystander",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 3, ["toughness"] = 3, ["willpower"] = 3 }
+            }
+        });
+
+        return reversed ? new JsonArray([.. fight.Reverse().Select(c => c!.DeepClone())]) : fight;
+    }
+
     private static JsonArray BothCalled(string id)
     {
         var fight = TwoSides();
@@ -3570,6 +3636,79 @@ public sealed class McpPlayServerTests
             // This Villain names no campaign, so page one may say so — and the fixture below is the
             // one where it may not.
             Assert.Contains("no campaign", PageOneOnTheTable(answer), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>The same fight refuses the same way whichever order its sheets arrive in — the same pair
+    /// and the same switch.</b>
+    ///
+    /// <para><b>With two sheets this is free and with three it is not</b>, which is why the fixture
+    /// has three. <c>FirstDifference</c> is symmetric, so a pair always names the same setting; but
+    /// every carrier is compared against <em>the first</em>, and "the first difference from the
+    /// first sheet" has a different answer depending on which sheet that is. Here 'ally' and 'hero'
+    /// differ about <c>fatal_damage</c> and 'hero' and 'villain' differ about
+    /// <c>wound_penalties</c>: start from 'hero' and the refusal names the second, start from
+    /// 'ally' and it names the first. Both are true findings, and a caller who reversed their
+    /// combatant array would be handed a different one for the same bad export.</para>
+    ///
+    /// <para><b>That matters because a refusal is a thing two people compare.</b> A GM and a player
+    /// reading the same fight typed two ways would see two settings named and reasonably conclude
+    /// there are two problems. Taking carriers by id makes the answer a fact about the set of
+    /// sheets; ids are unique here, so the order is total.</para>
+    ///
+    /// <para>The control is the last assertion: the answer is not merely <em>stable</em>, it is the
+    /// one the id order picks — a build that had frozen on the arrival order would give two equal
+    /// answers only if the reversal had stopped reversing.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheSameSheetsRefuseTheSameWayWhicheverOrderTheyArriveIn() =>
+        await WithClient(async client =>
+        {
+            var asTyped = await Open(client, ThreeWaysApart(reversed: false));
+            var reversed = await Open(client, ThreeWaysApart(reversed: true));
+
+            Assert.False(asTyped["ok"]!.GetValue<bool>(), asTyped.ToJsonString());
+            Assert.Equal("TABLE_DISAGREES", asTyped["problem"]!["code"]!.GetValue<string>());
+            Assert.Equal("TABLE_DISAGREES", reversed["problem"]!["code"]!.GetValue<string>());
+
+            var one = asTyped["problem"]!["message"]!.GetValue<string>();
+            var two = reversed["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Equal(one, two);
+
+            // And it is the id order's answer: 'ally' sorts first, so the pair is 'ally' and 'hero'
+            // and the switch is the one they differ about.
+            Assert.Contains("'ally' and 'hero'", one, StringComparison.Ordinal);
+            Assert.Contains("fatal_damage", one, StringComparison.Ordinal);
+            Assert.DoesNotContain("wound_penalties", one, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>And the accepted case's page-one sentence is the same sentence whichever order the sheets
+    /// arrive in.</b>
+    ///
+    /// <para>Page one is a description of a fight, not of the JSON array somebody typed. Two
+    /// carriers and two sheets carrying nothing is the smallest fight in which both halves of the
+    /// sentence — which sheet the table was read from, and the names of the sheets that brought
+    /// none — have an order to get wrong.</para>
+    /// </summary>
+    [Fact]
+    public async Task PageOnesTableSentenceIsTheSameWhicheverOrderTheSheetsArriveIn() =>
+        await WithClient(async client =>
+        {
+            var asTyped = await Open(client, TwoCarriersAndTwoWithout(reversed: false));
+            var reversed = await Open(client, TwoCarriersAndTwoWithout(reversed: true));
+
+            Assert.True(asTyped["ok"]!.GetValue<bool>(), asTyped.ToJsonString());
+            Assert.True(reversed["ok"]!.GetValue<bool>(), reversed.ToJsonString());
+
+            Assert.Equal(PageOneOnTheTable(asTyped), PageOneOnTheTable(reversed));
+
+            // The control: the sentence really does have all four sheets' worth of work in it, so
+            // an equality that passed on two empty strings would be caught.
+            Assert.Contains("'ally'", PageOneOnTheTable(asTyped), StringComparison.Ordinal);
+            Assert.Contains("'bystander' and 'villain'",
+                PageOneOnTheTable(asTyped), StringComparison.Ordinal);
         });
 
     /// <summary>

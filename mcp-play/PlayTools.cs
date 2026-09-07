@@ -802,8 +802,10 @@ public sealed class PlayTools
     /// ignored" every other reader in this file refuses.</para>
     /// </summary>
     /// <param name="fromCall">The table argument, or null where the caller passed none.</param>
-    /// <param name="everyone">The fight, in the order it was handed in — which is the order the
-    /// refusals below name sheets in, so the same fight always names the same pair.</param>
+    /// <param name="everyone">The fight, in the order it was handed in. <b>That order is not used
+    /// below</b>: carriers are taken by id, so which pair a refusal names — and which switch,
+    /// where three sheets disagree three ways — is a fact about the set of sheets rather than
+    /// about how somebody typed the array.</param>
     /// <param name="carried">The block each sheet carried, by combatant id, for those that did.</param>
     /// <param name="barefaced">The character combatants whose sheet carried none, each with the
     /// campaign its sheet names if it names one. A group of Minions has no sheet at all and is on
@@ -820,7 +822,19 @@ public sealed class PlayTools
     {
         problem = new JsonObject();
 
-        var carriers = everyone.Select(c => c.Id).Where(carried.ContainsKey).ToList();
+        // <b>By id, and not in the order the sheets were handed in.</b> Everything below is a
+        // function of which carrier is "the first": which pair a refusal names, and — where three
+        // or more sheets disagree with each other — which switch, because the first difference is
+        // the first difference *from that sheet*. Arrival order would make the same fight refuse
+        // two different ways depending on how the array was typed, so two GMs comparing notes
+        // about one bad export would be reading two different findings. Ids are unique here
+        // (DUPLICATE_COMBATANT is refused above), so ordinal order is total and the answer is a
+        // fact about the set of sheets.
+        var carriers = everyone
+            .Select(c => c.Id)
+            .Where(carried.ContainsKey)
+            .Order(StringComparer.Ordinal)
+            .ToList();
 
         if (carriers.Count == 0)
         {
@@ -911,7 +925,12 @@ public sealed class PlayTools
     {
         if (sheets.Count == 0) return "";
 
-        var sandbox = sheets.Where(s => s.CampaignId is null).Select(s => s.Id).ToList();
+        // By id, for the reason the carriers are: page one is a description of a fight and not of
+        // the array somebody typed, and two calls listing the same combatants in two orders have
+        // to produce the same sentence or nobody can compare two runs by reading them.
+        var byId = sheets.OrderBy(s => s.Id, StringComparer.Ordinal).ToList();
+
+        var sandbox = byId.Where(s => s.CampaignId is null).Select(s => s.Id).ToList();
         var clauses = new List<string>();
 
         if (sandbox.Count > 0)
@@ -921,7 +940,7 @@ public sealed class PlayTools
                         + $"{(sandbox.Count == 1 ? "it is" : "they are")} fought under this one");
         }
 
-        foreach (var sheet in sheets.Where(s => s.CampaignId is not null))
+        foreach (var sheet in byId.Where(s => s.CampaignId is not null))
         {
             clauses.Add($"'{sheet.Id}' carries no table but names campaign "
                         + $"'{sheet.CampaignId}' — either that game adopted nothing or this copy "
