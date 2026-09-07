@@ -3244,6 +3244,336 @@ public sealed class PlayEngineStepTests
             string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
     }
 
+    // ── p.76's grab, and the item it wins ────────────────────────────────────
+
+    /// <summary>
+    /// <b>A grab that names no item is refused before a die is thrown, because p.76 tells the three
+    /// moves apart by what they are aimed at.</b>
+    ///
+    /// <para>A grab is "an attempt to take a weapon or other handheld item away from your opponent"
+    /// and a hold is "an attempt to control or restrain your opponent" — so a grab with no object is
+    /// a hold by another name, and resolving one would put a contest over nothing in particular on
+    /// the ledger and, at three net successes, hand somebody control of it. It is the same refusal
+    /// p.79's lure that names nobody makes.</para>
+    ///
+    /// <para>The control is the other half: the same grab naming an object rolls, so the refusal is
+    /// about the missing word rather than about grabs being switched off. Both are driven with a
+    /// scripted source and the faces left over are counted, because "nothing was rolled" is exactly
+    /// the claim a fixture reading successes alone could not make.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AGrabThatNamesNoItemIsRefusedBeforeAnythingIsRolled(string? item)
+    {
+        var dice = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
+        var encounter = new Encounter(_play, dice);
+
+        var refused = encounter.Step(
+            encounter.Begin(Wrestlers()), new GrappleIntent("holder", "held", GrappleMove.Grab, item));
+
+        Assert.Contains(refused.Added, l =>
+            string.Equals(l.Rule, "grappling", StringComparison.Ordinal)
+            && l.Text.Contains("has not said what of the held Hero's they are grabbing",
+                StringComparison.Ordinal));
+
+        // Nothing rolled, nothing announced, nothing recorded.
+        Assert.Equal(20, dice.Remaining);
+        Assert.DoesNotContain(refused.Added, l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
+        Assert.Empty(refused.State.Grapples);
+        Assert.Null(refused.State["holder"].Holding);
+
+        // The control: the same move with an object named is resolved, and takes the same faces the
+        // refusal left on the table.
+        var named = encounter.Step(
+            encounter.Begin(Wrestlers()),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword"));
+
+        Assert.Equal(0, dice.Remaining);
+        Assert.Contains(named.Added, l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A full grab moves the object: the winner holds it and the loser does not.</b>
+    ///
+    /// <para>p.76: "a full grab means you gain control of the object". This engine has no inventory,
+    /// so what is claimed is exactly that — <see cref="Combatant.Holding"/> carries the caller's word
+    /// for the thing and the page it was won on, and the loser stops holding it where a previous grab
+    /// had put it there. The fixture drives the round trip: the item is taken off a character who was
+    /// holding it, so "the loser no longer holds it" is a state change rather than a sentence about a
+    /// field that was already null.</para>
+    ///
+    /// <para><b>What the loss does <em>not</em> do is on the ledger and is asserted here</b>, because
+    /// it is the reading this slice makes: an attack names a Trait and nothing in this repository's
+    /// rules data says which Trait a weapon backs, so the loser's own rolls are untouched and the
+    /// line hands the question to the GM rather than leaving a reader to assume it was handled.</para>
+    /// </summary>
+    [Fact]
+    public void AFullGrabTakesTheItemOffTheLoserAndGivesItToTheWinner()
+    {
+        var dice = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
+        var encounter = new Encounter(_play, dice);
+
+        var opened = encounter.Begin(Wrestlers());
+        var state = opened.With(opened["held"].Holds("the sword", opened.Page));
+
+        // The control: the loser really is holding it before the grab, so the assertion afterwards
+        // is about something that moved.
+        Assert.Equal("the sword", state["held"].Holding!.Name);
+
+        var step = encounter.Step(
+            state, new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword"));
+
+        Assert.Equal(0, dice.Remaining);
+
+        // The second control: the band this fixture is about really is the one the table gave.
+        Assert.Contains(step.Added, l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal)
+            && l.Text.Contains("full grab", StringComparison.Ordinal));
+
+        Assert.Null(step.State["held"].Holding);
+        Assert.Equal("the sword", step.State["holder"].Holding!.Name);
+        Assert.Equal(step.State.Page, step.State["holder"].Holding!.WonOnPage);
+        Assert.False(step.State["holder"].Holding!.Used);
+
+        // And the half that is the GM's, said out loud rather than silently not done.
+        Assert.Contains(step.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("what losing the sword means for the held Hero's own attacks is the GM's",
+                StringComparison.Ordinal));
+
+        // Nothing of the loser's moved: same ranks, same defences, same Health.
+        Assert.Equal(state["held"].TraitRanks, step.State["held"].TraitRanks);
+        Assert.Equal(state["held"].Defences, step.State["held"].Defences);
+        Assert.Equal(state["held"].CurrentHealth, step.State["held"].CurrentHealth);
+    }
+
+    /// <summary>
+    /// <b>A partial grab records the object both characters have hold of, and it is one record
+    /// because the page's clause is about the pair.</b>
+    ///
+    /// <para>p.76: "you and your opponent are fighting over an item ... They can't use it, but
+    /// neither can you." <see cref="Grapple"/> names both characters, so one field answers for both
+    /// of them and there is no second place for the same fact to rot in.</para>
+    ///
+    /// <para><b>And neither of them is holding it</b>, which is the difference between the two bands:
+    /// the half-measure is a deadlock and only the full one hands the object over.</para>
+    /// </summary>
+    [Fact]
+    public void APartialGrabRecordsTheContestedItemForBothCharacters()
+    {
+        var dice = new ScriptedDice([.. FacesFor(10, 2), .. FacesFor(10, 0)]);
+        var encounter = new Encounter(_play, dice);
+
+        var step = encounter.Step(
+            encounter.Begin(Wrestlers()),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword"));
+
+        Assert.Equal(0, dice.Remaining);
+
+        var grapple = Assert.Single(step.State.Grapples);
+
+        Assert.Equal(GrappleKind.Partial, grapple.Kind);
+        Assert.Equal("the sword", grapple.Item);
+
+        // One record, and it names both of them — so a reader looking either character up finds the
+        // same item.
+        Assert.Equal(["held", "holder"], new[] { grapple.Held, grapple.Holder }.Order(StringComparer.Ordinal));
+
+        // Nobody has it: the deadlock is the whole of the half-measure.
+        Assert.Null(step.State["holder"].Holding);
+        Assert.Null(step.State["held"].Holding);
+
+        // And the object is on the ledger line, so a reader of the run knows what they are fighting
+        // over rather than that they are fighting.
+        Assert.Contains(step.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("partial grab over the sword", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>An item won and neither used nor tossed is tossed aside as the page turns.</b>
+    ///
+    /// <para>p.76 gives the winner one page: "you gain control of the object and can use it or toss
+    /// it aside on that same page". That is the only duration the page attaches to an item, so an
+    /// engine that let a winner carry it silently into page four would be keeping a state the book
+    /// has stopped describing.</para>
+    ///
+    /// <para><b>The control is the other branch of the same clause</b>: an item the winner actually
+    /// attacked with survives the page turn, because the page it was given has been spent. Without
+    /// that half this fixture would pass against an engine that simply cleared everybody's hands
+    /// whenever a page ended.</para>
+    /// </summary>
+    [Fact]
+    public void AnItemWonAndNeverUsedIsTossedWhenThePageTurns()
+    {
+        var dropped = AfterAPageTurn(useIt: false);
+
+        Assert.Null(dropped.State["holder"].Holding);
+        Assert.Contains(dropped.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("neither used nor tossed it", StringComparison.Ordinal)
+            && l.Text.Contains("tossed aside as the page turns", StringComparison.Ordinal));
+
+        var kept = AfterAPageTurn(useIt: true);
+
+        Assert.Equal("the sword", kept.State["holder"].Holding!.Name);
+        Assert.True(kept.State["holder"].Holding!.Used);
+        Assert.DoesNotContain(kept.Added, l =>
+            l.Text.Contains("tossed aside as the page turns", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A full grab, optionally an attack made with what it won, and then the page turn — with the
+    /// lines the page turn itself added.
+    /// </summary>
+    private StepResult AfterAPageTurn(bool useIt)
+    {
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var state = WithTheSwordGrabbed();
+
+        if (useIt)
+        {
+            state = encounter.Step(state, new Attack("holder", "held", "might", Item: "the sword")).State;
+        }
+
+        // The control: the grab really landed, so the page turn below is acting on an item somebody
+        // has rather than on an empty hand.
+        Assert.Equal("the sword", state["holder"].Holding!.Name);
+
+        while (state.Current is { } acting)
+            state = encounter.Step(state, new EndTurn(acting.Id)).State;
+
+        return encounter.Step(state, new EndPage(""));
+    }
+
+    /// <summary>
+    /// A fight in which "holder" has just won the sword off "held" by a full grab.
+    ///
+    /// <para><b>The grab is scripted rather than seeded, and stepped by an encounter of its own.</b>
+    /// A full grab needs three net successes and no seed can promise them, so a helper built on one
+    /// would sometimes hand back a fight with nobody holding anything — and every fixture below it
+    /// would then pass by testing nothing. <c>Step</c> is a pure function of its arguments, so the
+    /// state a scripted encounter produces is a state any other encounter may go on from.</para>
+    /// </summary>
+    private EncounterState WithTheSwordGrabbed()
+    {
+        var dice = new ScriptedDice([.. FacesFor(10, 5), .. FacesFor(10, 0)]);
+        var grabbing = new Encounter(_play, dice);
+
+        var state = grabbing.Step(
+            grabbing.Begin(Wrestlers()),
+            new GrappleIntent("holder", "held", GrappleMove.Grab, "the sword")).State;
+
+        // The control: the faces this fixture scripted are the faces the engine took, and the grab
+        // really landed full.
+        Assert.Equal(0, dice.Remaining);
+        Assert.Equal("the sword", state["holder"].Holding!.Name);
+
+        return state;
+    }
+
+    /// <summary>
+    /// <b>Tossing the item drops it, and does not spend the holder's turn.</b>
+    ///
+    /// <para>p.76: "you can use it or toss it aside on that same page without suffering a multiple
+    /// action penalty. In effect, a full grab is a free action." Nothing in this engine counts
+    /// actions per page — that mechanic is on the guide's list of ones with no intent yet — so what
+    /// the clause buys here is that the actor may still take their ordinary action, and this drives
+    /// exactly that rather than asserting a penalty this engine does not have.</para>
+    ///
+    /// <para>The same holds for using it: an attack made with the item is the actor's attack, and the
+    /// toss beside it is free.</para>
+    /// </summary>
+    [Fact]
+    public void TossingWhatAGrabWonIsFreeAndTheHolderStillActs()
+    {
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var state = WithTheSwordGrabbed();
+
+        var tossed = encounter.Step(state, new Toss("holder", "the sword"));
+
+        Assert.Null(tossed.State["holder"].Holding);
+        Assert.Contains(tossed.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("tosses the sword aside", StringComparison.Ordinal)
+            && l.Text.Contains("does not spend their turn", StringComparison.Ordinal));
+
+        // The free action, driven: it is still the holder's turn, and their ordinary attack is
+        // resolved rather than refused.
+        Assert.Equal("holder", tossed.State.Current!.Id);
+
+        var swung = encounter.Step(tossed.State, new Attack("holder", "held", "might"));
+
+        Assert.Contains(swung.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>An intent naming an item its actor is not holding is refused by name, with nothing
+    /// rolled.</b>
+    ///
+    /// <para>The only way anything reaches <see cref="Combatant.Holding"/> is a full grab taking it
+    /// off somebody, so an attack or a toss naming something else is a claim about equipment this
+    /// engine cannot answer for — and an engine that accepted it would let a caller conjure a weapon
+    /// into a fight by mentioning one. The refusal says what the actor <em>is</em> holding, because
+    /// "you do not have that" sends a model guessing again.</para>
+    ///
+    /// <para>The control is on both sides: naming the item they do hold is resolved.</para>
+    /// </summary>
+    [Fact]
+    public void NamingAnItemTheActorDoesNotHoldIsRefused()
+    {
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var state = WithTheSwordGrabbed();
+
+        var dice = new ScriptedDice([.. FacesFor(10, 4), .. FacesFor(8, 1)]);
+        var scripted = new Encounter(_play, dice);
+
+        var attack = scripted.Step(state, new Attack("holder", "held", "might", Item: "a rocket launcher"));
+
+        Assert.Contains(attack.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("is not holding a rocket launcher", StringComparison.Ordinal)
+            && l.Text.Contains("what a grab won them is the sword", StringComparison.Ordinal));
+
+        Assert.Equal(18, dice.Remaining);
+        Assert.DoesNotContain(attack.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        // The same refusal for a toss, and against a character holding nothing at all — where the
+        // line has to say so rather than name an item.
+        var tossed = encounter.Step(state, new Toss("holder", "a rocket launcher"));
+
+        Assert.Contains(tossed.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("is not holding a rocket launcher", StringComparison.Ordinal));
+
+        var empty = encounter.Step(
+            state with { TurnIndex = state.TurnOrder.ToList().IndexOf("held") },
+            new Toss("held", "the sword"));
+
+        Assert.Contains(empty.Added, l =>
+            string.Equals(l.Rule, "grab", StringComparison.Ordinal)
+            && l.Text.Contains("no grab of this fight has put anything in their hands",
+                StringComparison.Ordinal));
+
+        // The control: the item they really do hold is accepted, and the attack is resolved.
+        var allowed = scripted.Step(state, new Attack("holder", "held", "might", Item: "the sword"));
+
+        Assert.Equal(0, dice.Remaining);
+        Assert.Contains(allowed.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        Assert.True(allowed.State["holder"].Holding!.Used);
+    }
+
     // ── Defeat ───────────────────────────────────────────────────────────────
 
     /// <summary>
