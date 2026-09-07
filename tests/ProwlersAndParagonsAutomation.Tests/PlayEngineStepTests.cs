@@ -1612,14 +1612,77 @@ public sealed class PlayEngineStepTests
         Assert.Contains("the Heroes on " + Combatant.HeroSide, line.Text, StringComparison.Ordinal);
         Assert.Contains("the GM's to narrate", line.Text, StringComparison.Ordinal);
 
-        // <b>And nothing else moved.</b> Same objects, not merely equal ones: an engine that had
-        // invented a mechanic for a rule the page gives none to would have rebuilt one of these.
-        Assert.Same(state.Combatants, bought.State.Combatants);
-        Assert.Same(state.Effects, bought.State.Effects);
-        Assert.Same(state.TurnOrder, bought.State.TurnOrder);
-        Assert.Same(state.Ranges, bought.State.Ranges);
-        Assert.Equal(state.Page, bought.State.Page);
-        Assert.Equal(state.TurnIndex, bought.State.TurnIndex);
+        // <b>And nothing else moved — every property of the state, not the four somebody thought
+        // of.</b> Same objects, not merely equal ones: an engine that had invented a mechanic for a
+        // rule the page gives none to would have rebuilt one of them.
+        //
+        // Four `Assert.Same` calls and two `Assert.Equal`s used to stand here, and they left fifteen
+        // of the twenty-one properties unwatched. A misfortune that rebuilt nine of the untouched
+        // collections and cleared `LastAttack` — which is a Hero's reroll gone, a real consequence
+        // and not a copy — passed this fixture and the whole of the rest of the suite. The walk is
+        // reflective so that a property added later is watched the day it is added, which is the
+        // half a hand-written list can never have.
+        NothingButThePoolAndTheLedgerMoved(state, bought.State);
+
+        // <b>And again with a roll on the table.</b> The walk above cannot see `LastAttack` in a
+        // fight where nothing has been rolled yet, and that is the property whose loss is a
+        // consequence rather than a copy: cleared, a Hero's reroll and their bought dice go with it.
+        var rollingTraits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 6, ["toughness"] = 4
+        };
+
+        var puncher = Combatant.Villain("villain", "the Villain", edge: 9, health: 20, rollingTraits, ["toughness"]);
+        var punched = Combatant.Hero("hero", "the Hero", edge: 5, health: 20, resolve: 3, rollingTraits, ["toughness"]);
+
+        var rolling = new Encounter(_play, new SeededDice(31));
+        var mid = rolling.Begin([punched, puncher], challengeLevel: 2);
+
+        mid = rolling.Step(mid, new Attack("villain", "hero", "might")).State;
+
+        // The control: there is an attack to lose.
+        Assert.NotNull(mid.LastAttack);
+
+        var afterwards = rolling.Step(mid, new SpendAdversity(
+            "villain", AdversitySpend.Misfortune, Narration: What));
+
+        Assert.Equal(mid.Adversity - rule.CostAdversity, afterwards.State.Adversity);
+        NothingButThePoolAndTheLedgerMoved(mid, afterwards.State);
+
+        static void NothingButThePoolAndTheLedgerMoved(EncounterState before, EncounterState after)
+        {
+            var properties = typeof(EncounterState).GetProperties()
+                .Where(p => p.GetIndexParameters().Length == 0)
+                .ToList();
+
+            // The control on the walk: it really did look at the parts a mechanic would have moved.
+            var names = properties.Select(p => p.Name).ToList();
+
+            Assert.Contains(nameof(EncounterState.Combatants), names, StringComparer.Ordinal);
+            Assert.Contains(nameof(EncounterState.LastAttack), names, StringComparer.Ordinal);
+            Assert.Contains(nameof(EncounterState.Holds), names, StringComparer.Ordinal);
+            Assert.True(names.Count >= 20, $"only {names.Count} properties were walked.");
+
+            var moved = properties
+                .Where(p => !string.Equals(p.Name, nameof(EncounterState.Adversity), StringComparison.Ordinal))
+                .Where(p => !string.Equals(p.Name, nameof(EncounterState.Ledger), StringComparison.Ordinal))
+                .Where(p => !Unmoved(p.GetValue(before), p.GetValue(after)))
+                .Select(p => p.Name)
+                .ToList();
+
+            Assert.True(moved.Count == 0,
+                "p.85 gives a misfortune no roll, no threshold and no duration, so the pool and the "
+                + "ledger are the whole of what it may move — and this one moved "
+                + string.Join(", ", moved.Order(StringComparer.Ordinal)) + ".");
+        }
+
+        // A value is unmoved when it is the same object, or — for the figures — the same figure.
+        static bool Unmoved(object? before, object? after) =>
+            before is null || after is null
+                ? ReferenceEquals(before, after)
+                : before.GetType().IsValueType
+                    ? before.Equals(after)
+                    : ReferenceEquals(before, after);
 
         // <b>And a fight with nobody to throw one at cannot buy one, without a guard for it.</b>
         // The opening pool is a point per Hero plus the Challenge Level times the same number, so a
