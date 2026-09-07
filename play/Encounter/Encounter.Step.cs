@@ -1097,7 +1097,8 @@ public sealed partial class Encounter
     ///
     /// <para><b>What the stray shot carries is the weapon, and what it drops is everything that was
     /// a fact about the first shot.</b> The Trait, the row of p.75's table, the damage kind, the
-    /// special effect and the thrown-weapon declaration are properties of what is being fired;
+    /// special effect, the thrown-weapon declaration and p.76's grabbed <see cref="Attack.Item"/>
+    /// are properties of what is being fired;
     /// cover and its Structure are a line of sight to somebody else, and going all-out, charging,
     /// an area attack, a team attack and aiming at a weak point are all things the attacker
     /// declared about the target they meant to hit. The line says so.</para>
