@@ -777,17 +777,20 @@ test('only the member reads it: a stranger, the GM of that very row, and nobody 
         // read that works rather than against a route that answers nobody.
         assert.equal((await liveTable(app, player.cookie, membership)).status, 200);
 
-        assert.equal((await liveTable(app, stranger.cookie, membership)).status, 404);
+        assert.equal((await liveTable(app, stranger.cookie, membership)).status, 404,
+            'the `m.player_user_id = ?` half of `campaignForMember` let a stranger in');
 
         // **The GM is refused their own campaign here**, which is deliberate: they read it at
         // `/api/campaigns/{id}`, and a second address answering the owner is a second place that
         // could disagree about what a campaign is. The 404 is the same one the stranger gets, so
         // the answer says nothing about which of the two the caller is.
-        assert.equal((await liveTable(app, gm.cookie, membership)).status, 404);
+        assert.equal((await liveTable(app, gm.cookie, membership)).status, 404,
+            'the `m.player_user_id = ?` half of `campaignForMember` answered the GM of that row');
 
         assert.equal((await app.call(`/api/memberships/${membership}/table`)).status, 401);
         assert.equal((await liveTable(app, player.cookie, 'm_short')).status, 400);
-        assert.equal((await liveTable(app, player.cookie, mid(9))).status, 404);
+        assert.equal((await liveTable(app, player.cookie, mid(9))).status, 404,
+            'the `m.id = ?` half of `campaignForMember` answered a membership id nobody holds');
     });
 
 test('a campaign the GM deleted answers the same refusal as one that was never the caller’s',
@@ -805,40 +808,77 @@ test('a campaign the GM deleted answers the same refusal as one that was never t
             'deleting the campaign took the player’s own membership with it');
     });
 
-test('a campaign id shared by two GMs answers the one whose code was redeemed', async () => {
+test('a campaign id shared by two GMs answers each member the one they joined', async () => {
     // **The clause under test is `c.user_id = m.gm_user_id` in the join.** A `g_…` is unique per
     // account and not globally — the schema says so, and a campaign's id reaches every member of
     // it — so matching on the id alone would hand a player the table of a campaign belonging to
     // an account they never joined, live, on every render of their own campaigns page.
+    //
+    // **Both directions are asserted, and that is what makes this fixture a check rather than a
+    // coin flip.** Drop the clause and the join matches *two* `campaigns` rows for either
+    // membership, because the only surviving predicate is on `c.id`; `.first()` then hands back
+    // whichever row the planner reaches first — the same one for both memberships, since nothing
+    // left in the statement distinguishes them. So one of the two players below is answered the
+    // other GM's table whichever way that falls, and the mutation cannot survive by being lucky
+    // about insertion order. The single-player version of this test passed the mutation.
+    //
+    // Mallory's campaign is written *first* on top of that, so the wrong row also leads under
+    // every plausible ordering — rowid, and `updated_at`.
     const app = server();
 
-    const alice = await signIn(app, 'alice@example.test');
-    assert.equal((await putCampaign(app, alice.cookie, { label: 'Alice’s game' })).status, 204);
-    const aliceCode = await joinCodeFor(app, alice.cookie);
+    const theTables = async (cookie, name) => {
+        assert.equal((await app.call(`/api/campaigns/${gid()}`, {
+            method: 'PUT',
+            body: {
+                label: `${name}’s game`,
+                payload: JSON.stringify({
+                    Version: 1,
+                    Campaign: { ...campaignPayload.Campaign, Name: `${name}’s game` },
+                }),
+            },
+            cookie,
+        })).status, 204);
+
+        return await joinCodeFor(app, cookie);
+    };
 
     const mallory = await signIn(app, 'mallory@example.test');
-    assert.equal((await app.call(`/api/campaigns/${gid()}`, {
-        method: 'PUT',
-        body: {
-            label: 'Mallory’s game',
-            payload: JSON.stringify({
-                Version: 1,
-                Campaign: { ...campaignPayload.Campaign, Name: 'Mallory’s game', ImmortalityCost: 12 },
-            }),
-        },
-        cookie: mallory.cookie,
-    })).status, 204);
+    const malloryCode = await theTables(mallory.cookie, 'Mallory');
 
-    const player = await signIn(app, 'player@example.test');
-    const joined = await join(app, player.cookie, { code: aliceCode });
+    const alice = await signIn(app, 'alice@example.test');
+    const aliceCode = await theTables(alice.cookie, 'Alice');
 
-    assert.equal(joined.status, 200);
+    /** One player, joined to one of the two campaigns sharing an id, reading their own table. */
+    const memberOf = async (address, code) => {
+        const player = await signIn(app, address);
+        const joined = await join(app, player.cookie, { code });
 
-    const seen = await (await liveTable(app, player.cookie, (await joined.json()).id)).json();
+        assert.equal(joined.status, 200);
 
-    assert.equal(seen.payload, JSON.stringify(campaignPayload),
-        'the live table answered a campaign belonging to a GM this player never joined');
-    assert.ok(!seen.payload.includes('Mallory'), seen.payload);
+        const response = await liveTable(app, player.cookie, (await joined.json()).id);
+
+        assert.equal(response.status, 200);
+
+        return await response.json();
+    };
+
+    const hers = await memberOf('alices-player@example.test', aliceCode);
+    const his = await memberOf('mallorys-player@example.test', malloryCode);
+
+    // The distinguishing byte is the campaign's own name, which is the one field of these two
+    // payloads that differs — the ids are equal on purpose, which is the whole fixture.
+    assert.equal(hers.campaignId, gid());
+    assert.equal(his.campaignId, gid());
+
+    assert.ok(hers.payload.includes('Alice\u2019s game'),
+        `a member of Alice’s game was answered: ${hers.payload}`);
+    assert.ok(!hers.payload.includes('Mallory'),
+        `the live table answered a campaign belonging to a GM this player never joined: ${hers.payload}`);
+
+    assert.ok(his.payload.includes('Mallory\u2019s game'),
+        `a member of Mallory’s game was answered: ${his.payload}`);
+    assert.ok(!his.payload.includes('Alice'),
+        `the live table answered a campaign belonging to a GM this player never joined: ${his.payload}`);
 });
 
 // ── Addresses ───────────────────────────────────────────────────────────────────────────
