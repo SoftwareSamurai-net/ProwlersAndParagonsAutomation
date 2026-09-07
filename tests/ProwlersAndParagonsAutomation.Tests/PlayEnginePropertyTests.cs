@@ -117,6 +117,12 @@ public sealed class PlayEnginePropertyTests
     ///
     /// <para>Both table settings that change what <c>Step</c> reaches for are on, so the Fatal
     /// Damage clock and the wound penalties are inside the property rather than beside it.</para>
+    ///
+    /// <para><b>And so is p.75's whole MODIFIERS block</b>, which is three more things
+    /// <c>Step</c> reaches for and which would otherwise be outside every property here: the fight
+    /// is fought in the dark, the party carries three sizes and one invisible combatant, and the
+    /// generator cycles all five bands of cover with and without a Structure to attack through. The
+    /// refusals those produce are branches of <c>Step</c> like any other.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(Seeds))]
@@ -125,7 +131,7 @@ public sealed class PlayEnginePropertyTests
         var table = TableRules.Book with { FatalDamage = true, WoundPenalties = true };
         var encounter = new Encounter(_play, new SeededDice(seed), table);
 
-        var state = encounter.Begin(Party()) with { Table = table };
+        var state = encounter.Begin(Party(), visibility: Visibility.Poor) with { Table = table };
 
         var policy = new RandomPolicy(new SeededDice(seed * 7919));
         var moved = false;
@@ -161,6 +167,17 @@ public sealed class PlayEnginePropertyTests
             policy.Emitted.Order(StringComparer.Ordinal));
 
         Assert.Equal(Enum.GetValues<ResolveSpend>().Order(), policy.Purchases.Order());
+
+        // And every band of p.75's cover, including the one that refuses before anything is rolled.
+        Assert.Equal(Enum.GetValues<Cover>().Order(), policy.Covers.Order());
+
+        // The light really was bad and somebody really was invisible, or the paragraph above
+        // describes a fight this property did not run.
+        Assert.Equal(Visibility.Poor, state.Visibility);
+        Assert.Contains(state.Combatants.Values, c => c.Invisible);
+        Assert.True(
+            state.Combatants.Values.Select(c => c.Size).Distinct().Count() > 1,
+            "every combatant in the property's party is the same size, so no size band was reached");
 
         // And every Adversity purchase, which is what makes this a statement about p.85's three own
         // spends as well as its first: each is emitted with the GM's words and without them, so the
@@ -332,20 +349,26 @@ public sealed class PlayEnginePropertyTests
         return
         [
             .. heroes,
+            // <b>Five times the Heroes' size, which is p.75's widest size band</b>, so every
+            // fixture and every property below is fought against somebody the bands actually reach.
             Combatant.Villain(
                 "villain", "the Villain", edge: 10, health: 14,
                 new Dictionary<string, int>(StringComparer.Ordinal)
                 {
                     ["might"] = 10, ["toughness"] = 8, ["agility"] = 6
                 },
-                ["toughness", "agility"]),
+                ["toughness", "agility"], size: 5),
+
+            // A fifth of their size, which is the band at the other end — and invisible, which p.75
+            // makes equivalent to no visibility for whoever is facing them.
             Combatant.Foe(
                 "foe", "the Foe", edge: 7, health: 6,
                 new Dictionary<string, int>(StringComparer.Ordinal)
                 {
                     ["might"] = 7, ["toughness"] = 5, ["agility"] = 4
                 },
-                ["toughness", "agility"]),
+                ["toughness", "agility"], size: 0.2, invisible: true),
+
             Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 6, "threat")
         ];
     }
