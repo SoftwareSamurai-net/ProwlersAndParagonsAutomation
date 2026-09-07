@@ -948,6 +948,101 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>What the wire does with a <c>narration</c> that says nothing, one that says a great deal,
+    /// and one sent where the page has nothing for it to buy.</b>
+    ///
+    /// <para>The three answers are different and none of them was pinned. An <b>empty</b> one is a
+    /// spend that does not say what it bought and is refused on the ledger with nothing spent — the
+    /// same answer a missing field gets, which is the honest one, because a caller who sent
+    /// <c>""</c> has said exactly as much as a caller who sent nothing. A <b>long</b> one is carried
+    /// whole: the GM's sentence is the record and truncating it would leave a line that reads as
+    /// though they had stopped mid-thought, so there is no cap and this says so rather than leaving
+    /// the first person to send a paragraph to find out. And one on a <b>Resolve</b> spend is
+    /// <em>ignored</em>, which is what every other unknown field on every other intent gets — but a
+    /// field that is silently dropped is the failure the team flag was, so it is pinned here and
+    /// said in <c>PLAY-POLICY.md</c> rather than left for a model to assume its words were
+    /// recorded.</para>
+    /// </summary>
+    [Fact]
+    public async Task ANarrationIsRefusedWhenEmptyCarriedWholeWhenLongAndIgnoredOnAResolveSpend() =>
+        await WithClient(async client =>
+        {
+            var opened = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["challengeLevel"] = 3,
+                ["seed"] = 81
+            });
+
+            var encounter = opened["encounter_id"]!.GetValue<string>();
+            var before = opened["adversity"]!.GetValue<int>();
+
+            // The control: there is a pool, so a refusal below is the narration's.
+            Assert.True(before >= 2, $"the fight opened on {before} Adversity");
+
+            var empty = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["spend"] = "misfortune",
+                    ["narration"] = ""
+                }
+            });
+
+            // A refusal is an answer and not a transport error, and it spends nothing.
+            Assert.True(empty["ok"]!.GetValue<bool>());
+            Assert.Equal(before, empty["state"]!["adversity"]!.GetValue<int>());
+            Assert.Contains(empty["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains("does not say what it is", StringComparison.Ordinal));
+
+            // A long one is carried whole, not capped and not truncated.
+            var long_ = string.Join(" ", Enumerable.Repeat("the scaffolding shifts under them", 200));
+
+            var wordy = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_adversity",
+                    ["spend"] = "misfortune",
+                    ["narration"] = long_
+                }
+            });
+
+            Assert.True(wordy["ok"]!.GetValue<bool>());
+            Assert.Equal(before - 1, wordy["state"]!["adversity"]!.GetValue<int>());
+            Assert.Contains(wordy["added"]!.AsArray(), l =>
+                l!["text"]!.GetValue<string>().Contains(long_, StringComparison.Ordinal));
+
+            // And one sent on a Resolve purchase is ignored: the purchase happens, and the words
+            // appear nowhere in the answer — not on a line, and not on the state.
+            const string Unheard = "he grits his teeth and goes first";
+
+            var seized = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "spend_resolve",
+                    ["actor"] = "hero",
+                    ["spend"] = "seize_initiative",
+                    ["narration"] = Unheard
+                }
+            });
+
+            Assert.True(seized["ok"]!.GetValue<bool>());
+
+            // The control: the purchase itself went through, so "the words are absent" is not
+            // "nothing happened".
+            Assert.Contains(seized["state"]!["seized"]!.AsArray(), s =>
+                string.Equals(s!.GetValue<string>(), "hero", StringComparison.Ordinal));
+
+            Assert.DoesNotContain(Unheard, seized.ToJsonString(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
     /// <b>A range class is named, never numbered.</b>
     ///
     /// <para><c>Enum.TryParse</c> accepts the numeral of a member — and for a plain enum it accepts

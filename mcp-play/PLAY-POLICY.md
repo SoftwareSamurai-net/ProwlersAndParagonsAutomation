@@ -212,6 +212,13 @@ succeeds without a roll and there is no ledger line for one, because the page at
 the page's warning is worth passing on: used often, it tells the players their choices did not
 matter.
 
+**`narration` belongs to those three and nowhere else.** An empty one says exactly as much as no
+one and is refused the same way, with nothing spent. A long one is carried whole onto the ledger
+line — there is no cap, because the sentence is the record. And one sent on a `spend_resolve`, or on
+`anything_resolve_can`, is **ignored**: those purchases are decided by the rules and the dice, the
+engine has nothing to do with your words, and nothing you write there reaches the ledger or the
+state. Narrate them in your own message instead.
+
 **`luring` is the one spend that takes a `target`**, because p.79 lets a dodged attack be sent into
 a person rather than into the scenery — and a person is the only thing this engine has to send it
 into. A lure naming nobody is refused, with nothing spent: there is no scenery here to strike.
