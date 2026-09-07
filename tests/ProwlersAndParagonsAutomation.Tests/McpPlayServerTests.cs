@@ -2608,6 +2608,18 @@ public sealed class McpPlayServerTests
                 ["challengeLevel"] = -3
             })),
 
+            // Two sheets, two campaigns, two different sets of house rules — and no honest way to
+            // pick one, so neither is picked.
+            ["TABLE_DISAGREES"] = new(client => Open(client, UnderTwoTables())),
+
+            // The sheets carry a table and the call passes a different one. Neither wins quietly.
+            ["CALL_TABLE_DISAGREES"] = new(client => Call(client, "start_encounter",
+                new Dictionary<string, object?>
+                {
+                    ["combatants"] = UnderOneTable(HouseRules()),
+                    ["table"] = new JsonObject { ["fatal_damage"] = true }
+                })),
+
             ["RUN_REFUSED"] = new(
                 client => Call(client, "run_encounters", new Dictionary<string, object?>
                 {
@@ -2682,6 +2694,14 @@ public sealed class McpPlayServerTests
                     }
                 }))
         };
+
+    /// <summary>
+    /// Every code this server can refuse with, as a set — the same keys the theory below drives,
+    /// so <see cref="McpPlayPolicyTests"/> can hold the play policy's named refusals to them
+    /// without keeping a second list of its own.
+    /// </summary>
+    public static IReadOnlySet<string> ProblemCodes { get; } =
+        Refusals.Keys.ToHashSet(StringComparer.Ordinal);
 
     public static TheoryData<string> EveryProblemCode => [.. Refusals.Keys.Order(StringComparer.Ordinal)];
 
@@ -2800,6 +2820,114 @@ public sealed class McpPlayServerTests
         var fight = TwoSides();
         fight[0]!["size"] = size;
         return fight;
+    }
+
+    /// <summary>
+    /// A campaign's house rules, in the shape a stored character carries them: the property names
+    /// of <c>CampaignTable</c>, because the sheet is read by the strict reader whose naming policy
+    /// is the property name. The <c>.json</c> export's <c>campaign_table</c> is a different
+    /// document with a different convention — see
+    /// <see cref="ASheetSpellingItsTableTheExportsWayIsRefusedByName"/>.
+    /// </summary>
+    private static JsonObject HouseRules(bool woundPenalties = true) => new()
+    {
+        ["FatalDamage"] = true,
+        ["WoundPenalties"] = woundPenalties
+    };
+
+    /// <summary>The fight with the same house rules on both characters.</summary>
+    private static JsonArray UnderOneTable(JsonNode table)
+    {
+        var fight = TwoSides();
+        fight[0]!["character"]!["CampaignTable"] = table.DeepClone();
+        fight[1]!["character"]!["CampaignTable"] = table.DeepClone();
+        return fight;
+    }
+
+    /// <summary>
+    /// The fight with a different table on each character, differing in exactly one setting so
+    /// that the refusal has a predictable switch to name.
+    /// </summary>
+    private static JsonArray UnderTwoTables()
+    {
+        var fight = TwoSides();
+        fight[0]!["character"]!["CampaignTable"] = HouseRules();
+        fight[1]!["character"]!["CampaignTable"] = HouseRules(woundPenalties: false);
+        return fight;
+    }
+
+    /// <summary>The fight with house rules on the Hero's sheet and none on the Villain's.</summary>
+    private static JsonArray OneOfThemInACampaign()
+    {
+        var fight = TwoSides();
+        fight[0]!["character"]!["CampaignTable"] = HouseRules();
+        return fight;
+    }
+
+    /// <summary>A second Hero-side character, so a fight can have three sheets in it.</summary>
+    private static JsonObject Ally(JsonNode? table = null)
+    {
+        var ally = new JsonObject
+        {
+            ["kind"] = "hero",
+            ["id"] = "ally",
+            ["side"] = "heroes",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Ally",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 7, ["toughness"] = 5, ["willpower"] = 4 }
+            }
+        };
+
+        if (table is not null) ally["character"]!["CampaignTable"] = table;
+
+        return ally;
+    }
+
+    /// <summary>
+    /// Three sheets disagreeing three ways, so that "the first difference from the first sheet"
+    /// has more than one answer and arrival order could pick between them.
+    ///
+    /// <para>'ally' and 'hero' differ about <c>fatal_damage</c>, which comes fourth in
+    /// <c>TableRules.Switches</c>; 'hero' and 'villain' differ about <c>wound_penalties</c>, which
+    /// comes tenth. Compare from 'hero' and the refusal names the tenth; compare from 'ally' and it
+    /// names the fourth. Both are true, which is exactly why the answer must not depend on which
+    /// order somebody typed the array in.</para>
+    /// </summary>
+    private static JsonArray ThreeWaysApart(bool reversed)
+    {
+        var fight = TwoSides();
+        fight[0]!["character"]!["CampaignTable"] = HouseRules();
+        fight[1]!["character"]!["CampaignTable"] = HouseRules(woundPenalties: false);
+        fight.Add(Ally(new JsonObject { ["FatalDamage"] = false, ["WoundPenalties"] = true }));
+
+        return reversed ? new JsonArray([.. fight.Reverse().Select(c => c!.DeepClone())]) : fight;
+    }
+
+    /// <summary>
+    /// One table on two of the four sheets and none on the other two, so the clause page one adds
+    /// for the sheets that carried nothing has two names in it to put in an order.
+    /// </summary>
+    private static JsonArray TwoCarriersAndTwoWithout(bool reversed)
+    {
+        var fight = TwoSides();
+        fight[0]!["character"]!["CampaignTable"] = HouseRules();
+        fight.Add(Ally(HouseRules()));
+        fight.Add(new JsonObject
+        {
+            ["kind"] = "extra",
+            ["id"] = "bystander",
+            ["side"] = "villains",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Bystander",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 3, ["toughness"] = 3, ["willpower"] = 3 }
+            }
+        });
+
+        return reversed ? new JsonArray([.. fight.Reverse().Select(c => c!.DeepClone())]) : fight;
     }
 
     private static JsonArray BothCalled(string id)
@@ -3368,6 +3496,959 @@ public sealed class McpPlayServerTests
 
             Assert.True(slowly["health"]!.GetValue<int>() <= 0);
             Assert.True(slowly["conscious_at_zero_or_less"]!.GetValue<bool>());
+        });
+
+    // ── The table comes off the sheets (the campaign's house rules) ───────
+
+    private static JsonObject TableOf(JsonNode answer) => answer["table"]!.AsObject();
+
+    private static IEnumerable<string> RulesOnTheLedger(JsonNode answer) =>
+        answer["ledger"]!.AsArray().Select(l => l!["rule"]!.GetValue<string>());
+
+    private static string PageOneOnTheTable(JsonNode answer) =>
+        answer["ledger"]!.AsArray()
+            .Single(l => string.Equals(l!["rule"]!.GetValue<string>(), "gritty_overview", StringComparison.Ordinal))!
+            ["text"]!.GetValue<string>();
+
+    /// <summary>
+    /// <b>Two sheets exported from the same campaign bring their table with them, and the fight is
+    /// resolved under it without anybody passing an argument.</b>
+    ///
+    /// <para>This is the whole slice in one call: the encounter server holds no account and cannot
+    /// resolve a campaign id, so the only route a house rule has into a fight is the characters in
+    /// it. <c>CampaignTable</c> is on the sheet for exactly that reader.</para>
+    ///
+    /// <para><b>The positive control is on the ledger rather than on the echo.</b> An echo is this
+    /// server repeating what it read, and a build that read the sheets and then opened the fight on
+    /// <c>TableRules.Book</c> would echo the sheets' settings perfectly while measuring the book —
+    /// which is the "accepted and quietly ignored" every reader in <c>PlayTools</c> refuses. The
+    /// <c>gritty_raised_gear_limit</c> line is written by <c>Encounter.Begin</c> out of the table
+    /// the <em>engine</em> was built with, so its presence is proof the switches crossed. The
+    /// control on the control is the same fight without the block, where the line is absent.</para>
+    /// </summary>
+    [Fact]
+    public async Task ATableOnTheSheetsIsTheTableTheFightIsResolvedUnder() =>
+        await WithClient(async client =>
+        {
+            var housed = await Open(client, UnderOneTable(new JsonObject
+            {
+                ["WoundPenalties"] = true,
+                ["RaisedGearLimit"] = true,
+                ["GearLimitRank"] = 12
+            }));
+
+            Assert.True(housed["ok"]!.GetValue<bool>(), housed.ToJsonString());
+
+            // The engine really was built with these: Begin writes a line per switch that is on,
+            // and one saying the raised Gear Limit is not carried.
+            Assert.Contains("gritty_wound_penalties", RulesOnTheLedger(housed), StringComparer.Ordinal);
+            Assert.Contains("gritty_raised_gear_limit", RulesOnTheLedger(housed), StringComparer.Ordinal);
+
+            var table = TableOf(housed);
+
+            Assert.True(table["wound_penalties"]!.GetValue<bool>());
+            Assert.Equal(12, table["gear_limit_rank"]!.GetValue<int>());
+            Assert.Equal("sheets", table["source"]!.GetValue<string>());
+
+            // Page one says so, and it says which sheet it started from.
+            Assert.Contains("'hero'", PageOneOnTheTable(housed), StringComparison.Ordinal);
+
+            // The control: the same fight with no block on either sheet carries neither line and
+            // is the book.
+            var plain = await Open(client, TwoSides());
+
+            Assert.DoesNotContain("gritty_wound_penalties", RulesOnTheLedger(plain), StringComparer.Ordinal);
+            Assert.DoesNotContain("gritty_raised_gear_limit", RulesOnTheLedger(plain), StringComparer.Ordinal);
+            Assert.Equal("book", TableOf(plain)["source"]!.GetValue<string>());
+            Assert.Empty(TableOf(plain)["on"]!.AsArray());
+        });
+
+    /// <summary>
+    /// <b>Rule (a): sheets that disagree about the table are refused by name, with the switch they
+    /// disagree about.</b>
+    ///
+    /// <para>Two blocks that differ are two contrary claims about which game is being played.
+    /// Taking either measures a fight under rules half its combatants were not built for, and the
+    /// echo would say the table came from "the sheets" while naming only one of them.</para>
+    ///
+    /// <para><b>Both characters and the setting are in the message</b>, because a refusal a person
+    /// cannot act on is a dead end: knowing that two sheets disagree is not knowing which of the
+    /// two to go and re-export.</para>
+    /// </summary>
+    [Fact]
+    public async Task SheetsThatDisagreeAboutTheTableAreRefusedNamingBothAndTheSwitch() =>
+        await WithClient(async client =>
+        {
+            var answer = await Open(client, UnderTwoTables());
+
+            Assert.False(answer["ok"]!.GetValue<bool>());
+            Assert.Equal("TABLE_DISAGREES", answer["problem"]!["code"]!.GetValue<string>());
+
+            var message = answer["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Contains("'hero'", message, StringComparison.Ordinal);
+            Assert.Contains("'villain'", message, StringComparison.Ordinal);
+            Assert.Contains("wound_penalties", message, StringComparison.Ordinal);
+
+            // The one they agree about is not named — which is what makes "the first setting they
+            // differ on" a finding rather than a list of every switch there is.
+            Assert.DoesNotContain("fatal_damage", message, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>Rule (b): a sheet carrying no table fights under the one the others carry, and page one
+    /// names it.</b>
+    ///
+    /// <para><b>Accepted rather than refused, and the argument is that an absent block is silence
+    /// and not a contrary claim.</b> A sheet without one has not opted out of anything. Refusing
+    /// would make the commonest fight there is unfightable without hand-editing JSON: a campaign's
+    /// Hero against a Villain somebody built in the sandbox, which is what the GM running that
+    /// campaign does every week. Two sheets that disagree have no honest answer; this has one.
+    /// <see cref="ASheetThatNamesACampaignAndCarriesNoTableIsNotAnnouncedAsBeingAtNone"/> is the
+    /// other half: silence is not the same silence in every case, and page one says which.</para>
+    ///
+    /// <para><b>What the refusal would have protected against is answered by saying so.</b> The
+    /// sheet that carried none is named on page one and in the echo, which is the discipline this
+    /// server applies to every table setting it accepts: the worst of the three behaviours is
+    /// accepted, ignored and unannounced, and this is accepted, applied and announced.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASheetWithNoTableFightsUnderTheOthersAndPageOneSaysWhichSheetCarriedNone() =>
+        await WithClient(async client =>
+        {
+            var answer = await Open(client, OneOfThemInACampaign());
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var table = TableOf(answer);
+
+            Assert.Equal("sheets", table["source"]!.GetValue<string>());
+            Assert.True(table["wound_penalties"]!.GetValue<bool>());
+
+            // The engine was built with it, not merely told about it.
+            Assert.Contains("gritty_wound_penalties", RulesOnTheLedger(answer), StringComparer.Ordinal);
+
+            // And the sheet that brought nothing is named, in the echo and on page one.
+            Assert.Contains("'villain'", table["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
+            Assert.Contains("'villain'", PageOneOnTheTable(answer), StringComparison.Ordinal);
+            Assert.Contains("no table", PageOneOnTheTable(answer), StringComparison.Ordinal);
+
+            // This Villain names no campaign, so page one may say so — and the fixture below is the
+            // one where it may not.
+            Assert.Contains("no campaign", PageOneOnTheTable(answer), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>The page-one lines this server writes itself cite an entry that exists and that entry's
+    /// own page — and nothing checked that before.</b>
+    ///
+    /// <para><c>PlayEngineStepTests.EveryLedgerLineCitesAnEntryThatExistsAndThatEntrysPage</c>
+    /// walks a ledger the <em>engine</em> produced. Page one carries lines the engine never sees:
+    /// the tier line and the table-source line are built here, out of entries looked up here, and
+    /// they reach a reader in the same array wearing the same two fields. A citation is a promise
+    /// that a printed page says this, so the class of line the engine's guard cannot see is exactly
+    /// the class that needs one of its own.</para>
+    ///
+    /// <para><b>And the table-source line is the one where the promise is easiest to overstate.</b>
+    /// <c>gritty_overview</c> is p.79's paragraph about a table reviewing the optional rules and
+    /// adopting what it wants; it says nothing about where an MCP server got its switches from, and
+    /// it speaks for ten of the thirteen — Checking Your Swing is p.69's, the two initiative
+    /// settings are p.73's. So the sentence has to separate the page's claim from this server's
+    /// bookkeeping, and the assertions below require both halves to be present rather than only
+    /// checking the id.</para>
+    ///
+    /// <para>Driven over the wire because that is where a reader meets these lines, and with the
+    /// count as its control: page one really did carry lines from both builders.</para>
+    /// </summary>
+    [Fact]
+    public async Task ThePageOneLinesThisServerWritesCiteRealEntriesAndTheirOwnPages() =>
+        await WithClient(async client =>
+        {
+            var answer = await Open(client, UnderOneTable(HouseRules()));
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var pageOne = answer["ledger"]!.AsArray()
+                .Where(l => l!["page"]!.GetValue<int>() == 1)
+                .ToList();
+
+            // The control: both builders wrote. The table-source line is one, the tier lines are
+            // one per character with a tier, and the switch lines come from the engine.
+            Assert.Contains(pageOne, l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "gritty_overview", StringComparison.Ordinal));
+            Assert.Contains(pageOne, l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "starting_resolve", StringComparison.Ordinal));
+
+            foreach (var line in pageOne)
+            {
+                var rule = line!["rule"]!.GetValue<string>();
+
+                Assert.True(_play.EntryIds().Any(e =>
+                        string.Equals(e.Id, rule, StringComparison.Ordinal)),
+                    $"page one names a rule '{rule}' that is in none of the five play files: "
+                    + line["text"]!.GetValue<string>());
+
+                Assert.Equal(SourceRefOf(rule), line["source_ref"]!.GetValue<string>());
+            }
+
+            // The table-source line quotes p.79 for what p.79 says and says the rest is this
+            // server's: the switches came from somewhere, and no page has an opinion about where.
+            var provenance = PageOneOnTheTable(answer);
+
+            Assert.Contains("p.79 leaves the optional combat rules to the table",
+                provenance, StringComparison.Ordinal);
+            Assert.Contains("the three beside them", provenance, StringComparison.Ordinal);
+            Assert.Contains("came from the sheets handed in", provenance, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>The sheet that carried no table is named whether or not the caller also passed one.</b>
+    ///
+    /// <para><b>The clause is spelled twice and only one of the two was covered.</b>
+    /// <c>TryAgreeTable</c> ends in two branches — sheets alone, and sheets plus an agreeing
+    /// <c>table</c> argument — and each appends the "carries no table" clause to its own sentence.
+    /// Every fixture over the second branch handed in sheets that all carried one, so deleting the
+    /// clause from it passed the entire suite: a fight opened with `table` set and a sandbox
+    /// Villain in it would say nothing about the Villain, and the policy's instruction not to
+    /// narrate that character as having agreed to the house rules would have nothing behind
+    /// it.</para>
+    ///
+    /// <para>Driven as a theory over both branches, because the point is that the two sentences
+    /// make the same promise — and the source is asserted alongside so the case really is the
+    /// branch it claims to be.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(false, "sheets")]
+    [InlineData(true, "sheets_and_call")]
+    public async Task ASheetCarryingNoTableIsNamedWithOrWithoutATableOnTheCall(
+        bool alsoOnTheCall, string source) =>
+        await WithClient(async client =>
+        {
+            var arguments = new Dictionary<string, object?>
+            {
+                ["combatants"] = OneOfThemInACampaign()
+            };
+
+            if (alsoOnTheCall)
+            {
+                arguments["table"] = new JsonObject
+                {
+                    ["fatal_damage"] = true,
+                    ["wound_penalties"] = true
+                };
+            }
+
+            var answer = await Call(client, "start_encounter", arguments);
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            // The control: this really is the branch the case is about.
+            Assert.Equal(source, TableOf(answer)["source"]!.GetValue<string>());
+
+            Assert.Contains("'villain'", PageOneOnTheTable(answer), StringComparison.Ordinal);
+            Assert.Contains("carries no table", PageOneOnTheTable(answer), StringComparison.Ordinal);
+
+            Assert.Contains("'villain'",
+                TableOf(answer)["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>A measurement is <em>run</em> under the sheets' table, and not merely echoed with it.</b>
+    ///
+    /// <para><b>This is the one place the positive control the rest of the slice leans on does not
+    /// reach.</b> Every other fixture proves the switches crossed by finding
+    /// <c>Encounter.Begin</c>'s ledger line for them — but <c>run_encounters</c> answers with no
+    /// ledger at all, so the only fixture over it could assert nothing but the echo. An echo is
+    /// this server repeating what it read: a build that read the sheets, echoed them faithfully and
+    /// then constructed each of its thirty encounters with <c>TableRules.Book</c> would satisfy
+    /// every assertion there was, and the rate somebody quoted off it would be a rate about the
+    /// wrong game. That is exactly the "accepted, applied to nothing, and unannounced" this server
+    /// refuses everywhere else.</para>
+    ///
+    /// <para><b>The observable is structural rather than a die roll</b>, which this file may not
+    /// assert. Without Fatal Damage a combatant's Health floors at the <c>damage</c> entry's
+    /// <c>defeated_at_health</c>, so no mean can be below it; with it on, the floor is the negative
+    /// of full Health and a fight only <em>ends</em> when the losing side is at or past that — so
+    /// any run ending in a defeat rather than at the page limit drives a mean below zero. Both
+    /// halves run in the same call, so the negative is proof the switch reached the engine rather
+    /// than proof of a lucky seed.</para>
+    /// </summary>
+    [Fact]
+    public async Task AMeasurementIsRunUnderTheSheetsTableAndNotOnlyEchoedWithIt() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Measure(JsonNode combatants) =>
+                await Call(client, "run_encounters", new Dictionary<string, object?>
+                {
+                    ["combatants"] = combatants,
+                    ["runs"] = PlayTools.FewestRuns,
+                    ["seed"] = 41
+                });
+
+            static IEnumerable<double> MeanHealth(JsonNode report) =>
+                report["by_combatant"]!.AsArray()
+                    .Select(c => c!["mean_health_remaining"])
+                    .Where(h => h is not null)
+                    .Select(h => h!.GetValue<double>());
+
+            var fatal = await Measure(UnderOneTable(new JsonObject { ["FatalDamage"] = true }));
+
+            Assert.True(fatal["ok"]!.GetValue<bool>(), fatal.ToJsonString());
+            Assert.True(TableOf(fatal)["fatal_damage"]!.GetValue<bool>());
+            Assert.Equal("sheets", TableOf(fatal)["source"]!.GetValue<string>());
+
+            // The control: the runs ended in defeats rather than all at the page limit, so a fight
+            // really was pushed past the floor.
+            Assert.True(fatal["draw_rate"]!.GetValue<double>() < 1.0,
+                "every run drew at the page limit, so nothing was driven past the defeat floor.");
+
+            // The engine really was constructed with it: no mean below zero is reachable under the
+            // book's floor, and Fatal Damage moves that floor to the negative of full Health.
+            Assert.Contains(MeanHealth(fatal), h => h < 0);
+
+            // And the mirror, which is what makes the line above a measurement rather than a
+            // quirk: the same fight with no block on the sheets cannot produce one.
+            var book = await Measure(TwoSides());
+
+            Assert.Equal("book", TableOf(book)["source"]!.GetValue<string>());
+            Assert.All(MeanHealth(book), h => Assert.True(h >= 0,
+                $"a run under the book left a mean Health of {h}, which its floor forbids."));
+        });
+
+    /// <summary>
+    /// The keys the play policy tells a conversation to read off an echoed table, which are the
+    /// keys the echo has to have. The four <c>source</c> values are not listed here — they are
+    /// driven out of the server and compared with the document both ways.
+    /// </summary>
+    private static readonly string[] EchoKeysThePolicyUndertakesToName = ["source", "source_note"];
+
+    /// <summary>
+    /// The backticked spans in the play policy's paragraph about the echoed table's provenance —
+    /// the keys it tells a conversation to read and the values it says they take.
+    /// </summary>
+    private static List<string> ProvenanceSpansThePolicyNames()
+    {
+        var text = PlayPolicy.Text;
+        var at = text.IndexOf("Where the table came from comes back inside", StringComparison.Ordinal);
+
+        Assert.True(at >= 0,
+            "mcp-play/PLAY-POLICY.md no longer has the paragraph about where the echoed table came "
+            + "from. Either it has stopped telling conversations to read `source`, or this parse "
+            + "has stopped finding it — and in both cases nothing holds the spellings together.");
+
+        var end = text.IndexOf("\n\n", at, StringComparison.Ordinal);
+
+        Assert.True(end > at, "the provenance paragraph runs to the end of the play policy.");
+
+        return new Regex(@"`([a-z][a-z_]*)`", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(text[at..end])
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// <b>Every name the play policy prints for the echoed table's provenance is one this server
+    /// really answers with — the two keys and all four values.</b>
+    ///
+    /// <para><b>These fall outside the guard that already exists, and that is the finding.</b>
+    /// <see cref="EveryArgumentNameThePolicyPrintsIsSpelledTheWayTheSchemaSpellsIt"/> reads the
+    /// <c>## The calls</c> section and checks spans against the tools' <em>input schemas</em>.
+    /// <c>source</c> and <c>source_note</c> are answer keys in a different section, so nothing
+    /// touched them; and the four values a conversation is told to expect — <c>book</c>,
+    /// <c>call</c>, <c>sheets</c>, <c>sheets_and_call</c> — come from <c>Wire</c> over a private
+    /// enum's member names, so renaming a member silently changes what arrives on the wire while
+    /// the document goes on naming the old one. That is the same fault the <c>max_pages</c> guard
+    /// was written for, one section further down: the document is right-looking and wrong, and
+    /// nothing anywhere says so.</para>
+    ///
+    /// <para><b>Held in both directions.</b> Every value the server can produce is driven here and
+    /// has to be named in the document, and every span in the document's own paragraph has to be
+    /// something the server produces — an echo key, one of those values, or a tool name. A key the
+    /// document invented sends a reader looking for a field that never arrives.</para>
+    /// </summary>
+    [Fact]
+    public async Task EveryProvenanceNameThePolicyPrintsIsOneThisServerEchoes() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonObject> Echo(JsonNode combatants, JsonNode? table)
+            {
+                var arguments = new Dictionary<string, object?> { ["combatants"] = combatants };
+
+                if (table is not null) arguments["table"] = table;
+
+                var answer = await Call(client, "start_encounter", arguments);
+
+                Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+                return TableOf(answer);
+            }
+
+            var agreeing = new JsonObject { ["fatal_damage"] = true, ["wound_penalties"] = true };
+
+            var echoes = new[]
+            {
+                await Echo(TwoSides(), null),
+                await Echo(TwoSides(), new JsonObject { ["wound_penalties"] = true }),
+                await Echo(UnderOneTable(HouseRules()), null),
+                await Echo(UnderOneTable(HouseRules()), agreeing)
+            };
+
+            var produced = echoes.Select(e => e["source"]!.GetValue<string>())
+                .ToHashSet(StringComparer.Ordinal);
+
+            // The control: four calls, four different answers — so a server that had collapsed to
+            // one source could not pass the containment below by naming a smaller set.
+            Assert.Equal(4, produced.Count);
+
+            var spans = ProvenanceSpansThePolicyNames();
+
+            // The control on the parse: it found the paragraph's own names.
+            Assert.Contains("source", spans, StringComparer.Ordinal);
+            Assert.Contains("source_note", spans, StringComparer.Ordinal);
+
+            foreach (var source in produced)
+            {
+                Assert.True(spans.Contains(source, StringComparer.Ordinal),
+                    $"this server answers with a table source of '{source}' and the play policy "
+                    + "does not name it, so a conversation is not told the value it will get.");
+            }
+
+            // Every key the document names is a key the echo has.
+            foreach (var key in EchoKeysThePolicyUndertakesToName)
+            {
+                Assert.All(echoes, echo => Assert.True(echo.ContainsKey(key),
+                    $"the play policy tells every conversation to read `{key}` off the echoed "
+                    + $"table. The echo has no such key: {echo.ToJsonString()}"));
+            }
+
+            // And nothing in the paragraph is a name this server does not answer with — an echo
+            // key, a field of the answer the echo sits in (`table` itself), one of the four
+            // values, or a tool.
+            var tools = (await client.ListToolsAsync()).Select(t => t.Name);
+            var whole = await Open(client, TwoSides());
+
+            var allowed = echoes[0].Select(p => p.Key)
+                .Concat(whole.AsObject().Select(p => p.Key))
+                .Concat(produced)
+                .Concat(tools)
+                .ToHashSet(StringComparer.Ordinal);
+
+            var invented = spans.Where(s => !allowed.Contains(s)).ToList();
+
+            Assert.True(invented.Count == 0,
+                "mcp-play/PLAY-POLICY.md's paragraph about where a table came from prints these "
+                + "names and this server answers with none of them, so a reader is sent looking "
+                + "for a field or a value that never arrives: " + string.Join(", ", invented) + ".");
+        });
+
+    /// <summary>One entry's <c>source_ref</c>, whichever of the five play files it is in.</summary>
+    private string SourceRefOf(string id)
+    {
+        foreach (var (file, entryId) in _play.EntryIds())
+        {
+            if (!string.Equals(entryId, id, StringComparison.Ordinal)) continue;
+
+            return file switch
+            {
+                PlayRulesRepository.PlayMetaFile => _play.GetMeta(id).SourceRef,
+                PlayRulesRepository.ChallengeFile => _play.GetChallenge(id).SourceRef,
+                PlayRulesRepository.CombatFile => _play.GetCombat(id).SourceRef,
+                PlayRulesRepository.GrittyFile => _play.GetGritty(id).SourceRef,
+                PlayRulesRepository.ResolveFile => _play.GetResolve(id).SourceRef,
+                var other => throw new InvalidOperationException($"Unknown play rules file {other}.")
+            };
+        }
+
+        throw new KeyNotFoundException($"No entry '{id}' in the play rules.");
+    }
+
+    /// <summary>
+    /// <b>Two sheets whose only difference is a Gear Limit rank behind a switch neither turned on
+    /// fight, and the fight they fight is the same fight either way.</b>
+    ///
+    /// <para>The rank is read only where <c>RaisedGearLimit</c> is on — see
+    /// <c>PlayTableRulesTests.ARankBehindAnUnadoptedGearLimitSwitchIsNotADisagreement</c> for the
+    /// argument. Driven here because the refusal it would have produced is the visible half: a GM
+    /// handed <c>TABLE_DISAGREES</c> naming `gear_limit_rank` cannot repair it in the browser,
+    /// which clears the rank when the switch goes off and hides the input while it is off. The only
+    /// repair would be hand-editing JSON, which is the thing the decision beside this one is built
+    /// to spare them.</para>
+    ///
+    /// <para><b>The control is the adopted case</b>, in the same call: turn the switch on for one
+    /// of them and the fight is refused, so this is not a server that has stopped comparing the
+    /// Gear Limit at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task TwoSheetsDifferingOnlyInARankNobodyAdoptedAreNotRefused() =>
+        await WithClient(async client =>
+        {
+            var inert = TwoSides();
+            inert[0]!["character"]!["CampaignTable"] =
+                new JsonObject { ["WoundPenalties"] = true, ["GearLimitRank"] = 6 };
+            inert[1]!["character"]!["CampaignTable"] =
+                new JsonObject { ["WoundPenalties"] = true, ["GearLimitRank"] = 12 };
+
+            var answer = await Open(client, inert);
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+            Assert.Equal("sheets", TableOf(answer)["source"]!.GetValue<string>());
+
+            // The switch is off, so nothing in the fight reads either figure.
+            Assert.False(TableOf(answer)["raised_gear_limit"]!.GetValue<bool>());
+            Assert.Contains("gritty_wound_penalties", RulesOnTheLedger(answer), StringComparer.Ordinal);
+
+            // The control: adopt it on one side and the same pair is refused — by the switch, which
+            // is the name a GM can act on.
+            var adopted = TwoSides();
+            adopted[0]!["character"]!["CampaignTable"] = new JsonObject
+            {
+                ["WoundPenalties"] = true, ["RaisedGearLimit"] = true, ["GearLimitRank"] = 6
+            };
+            adopted[1]!["character"]!["CampaignTable"] =
+                new JsonObject { ["WoundPenalties"] = true, ["GearLimitRank"] = 12 };
+
+            var refused = await Open(client, adopted);
+
+            Assert.False(refused["ok"]!.GetValue<bool>(), refused.ToJsonString());
+            Assert.Equal("TABLE_DISAGREES", refused["problem"]!["code"]!.GetValue<string>());
+            Assert.Contains("raised_gear_limit",
+                refused["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>A group of Minions is on neither side of the table question: it carries none, and page
+    /// one does not say so.</b>
+    ///
+    /// <para><b>Both halves are decisions and both could have gone the other way.</b> A Minion
+    /// group is not a sheet — it is a threat rank and a count — so there is no field on it a
+    /// campaign's house rules could arrive in, and nothing to compare against the sheets that do
+    /// carry one. Excluding it from the agreement check is therefore not a hole: silence here is
+    /// complete rather than partial, unlike a character sheet, where an absent block is one of
+    /// three states (see
+    /// <see cref="ASheetThatNamesACampaignAndCarriesNoTableIsNotAnnouncedAsBeingAtNone"/>).</para>
+    ///
+    /// <para><b>And it is left off page one's list of who brought nothing, deliberately.</b> That
+    /// clause exists so a reader learns that a <em>character</em> is being fought under rules its
+    /// own game may not play; "the robots carry no table" is true of every group of Minions there
+    /// has ever been, and a line that always says the same thing is a line readers learn to skip —
+    /// which costs the clause the one job it has. The GM's four robots have no game of their own to
+    /// be taken out of.</para>
+    ///
+    /// <para>The control is that the group really is in the fight: it is in the turn order, so this
+    /// is not a check that passed because the Minions were dropped on the way in.</para>
+    /// </summary>
+    [Fact]
+    public async Task AGroupOfMinionsIsNotNamedAsCarryingNoTable() =>
+        await WithClient(async client =>
+        {
+            var fight = OneOfThemInACampaign();
+            fight.Add(new JsonObject
+            {
+                ["kind"] = "minions", ["id"] = "robots", ["name"] = "the robots",
+                ["threat_rank"] = 5, ["count"] = 4, ["side"] = "villains"
+            });
+
+            var answer = await Open(client, fight);
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+            Assert.Equal("sheets", TableOf(answer)["source"]!.GetValue<string>());
+
+            // The control: the robots are in the fight, so their absence from the sentence below is
+            // about the sentence and not about the fight.
+            Assert.Contains("robots",
+                answer["turn_order"]!.AsArray().Select(t => t!["id"]!.GetValue<string>()),
+                StringComparer.Ordinal);
+
+            var page = PageOneOnTheTable(answer);
+
+            // The Villain's sheet carried nothing and is named. The robots have no sheet and are
+            // not — naming them would be a line true of every Minion group there is.
+            Assert.Contains("'villain'", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("robots", page, StringComparison.Ordinal);
+            Assert.DoesNotContain("robots",
+                TableOf(answer)["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// A <see cref="TableRules"/> built back out of an echo, switch by switch, <b>driven by
+    /// <c>TableRules.Switches</c> rather than by the keys the echo happens to have</b>.
+    ///
+    /// <para>That direction is the whole of it. Reading the echo's own keys would prove the echo
+    /// self-consistent and nothing else: a build that had dropped a switch from the echo would
+    /// hand back an object this method reconstructed perfectly, agreeing with itself about a game
+    /// it had not described. Asking for every switch the engine has means a missing key is a
+    /// failure here, which is the defect this file has already shipped once in a different
+    /// place — a setting accepted, applied and not reported.</para>
+    /// </summary>
+    private static TableRules RebuiltFrom(JsonObject echo)
+    {
+        var rebuilt = new TableRules();
+        var names = TableRules.Switches.Select(s => s.Name).Distinct(StringComparer.Ordinal).ToList();
+
+        // The control: the engine has switches to ask about at all.
+        Assert.True(names.Count >= 13, $"only {names.Count} table settings were found to rebuild.");
+
+        foreach (var name in names)
+        {
+            var key = PlayTools.Wire(name);
+
+            Assert.True(echo.ContainsKey(key),
+                $"the echoed table carries no '{key}'. A report is quoted with its table, and a "
+                + "switch missing from the echo is a game the reader cannot identify — the run "
+                + "carried it and the answer did not say so.");
+
+            var property = typeof(TableRules).GetProperty(name)
+                           ?? throw new InvalidOperationException($"TableRules has no {name}.");
+
+            property.SetValue(rebuilt, string.Equals(name, nameof(TableRules.GearLimitRank), StringComparison.Ordinal)
+                ? echo[key]?.GetValue<int>()
+                : echo[key]!.GetValue<bool>());
+        }
+
+        return rebuilt;
+    }
+
+    /// <summary>
+    /// <b>The table a run was resolved under can be rebuilt from the answer alone, and what comes
+    /// back is the table the fight really ran under.</b>
+    ///
+    /// <para><c>run_encounters</c> answers with no ledger, so its echo is the only record a
+    /// measurement leaves. "Quoted with its table" is worth nothing if the echo is a summary: a
+    /// reader has to be able to reconstruct the thing and fight the same fight again.</para>
+    ///
+    /// <para><b>The round trip is closed against the engine and not against the fixture.</b>
+    /// Rebuilding the echo and comparing it to the block the fixture put on the sheets would check
+    /// that this server can copy a JSON object. What is checked instead is that the rebuilt table's
+    /// <c>On()</c> is exactly the set of switches <c>Encounter.Begin</c> wrote a ledger line for —
+    /// those lines come off the <c>TableRules</c> the encounter was constructed with, so agreement
+    /// means the echo describes the game that was played. The fixture's own block is checked too,
+    /// last, so that a run under the book could not satisfy the first part trivially.</para>
+    /// </summary>
+    [Fact]
+    public async Task ATableRebuiltFromTheEchoIsTheTableTheFightRanUnder() =>
+        await WithClient(async client =>
+        {
+            var block = new JsonObject
+            {
+                ["WoundPenalties"] = true,
+                ["TheDrop"] = true,
+                ["CheckingYourSwing"] = true,
+                ["RaisedGearLimit"] = true,
+                ["GearLimitRank"] = 9
+            };
+
+            var answer = await Open(client, UnderOneTable(block));
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var rebuilt = RebuiltFrom(TableOf(answer));
+
+            // What the engine itself was built with: Begin writes one line per switch that is on,
+            // naming the setting in the sentence.
+            var applied = answer["ledger"]!.AsArray()
+                .Select(l => l!["text"]!.GetValue<string>())
+                .Where(t => t.StartsWith("table setting ", StringComparison.Ordinal))
+                .Select(t => t.Split(' ')[2])
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            // The control: the run really did carry switches, so the equality below is not two
+            // empty lists agreeing. Five, because `On()` counts a Gear Limit rank that was set as
+            // one — the four flags plus the rank's own presence.
+            Assert.Equal(5, applied.Count);
+
+            Assert.Equal(applied, rebuilt.On().Order(StringComparer.Ordinal));
+
+            // `On()` says a rank was set; only the echo says which one it was, so the figure needs
+            // its own assertion.
+            Assert.Equal(9, rebuilt.GearLimitRank);
+
+            // Last, the whole record against the sheets' own block — a run under the book would
+            // have satisfied nothing above and cannot satisfy this.
+            Assert.Equal(TableRules.From(new CampaignTable
+            {
+                WoundPenalties = true,
+                TheDrop = true,
+                CheckingYourSwing = true,
+                RaisedGearLimit = true,
+                GearLimitRank = 9
+            }), rebuilt);
+        });
+
+    /// <summary>
+    /// <b>The same fight refuses the same way whichever order its sheets arrive in — the same pair
+    /// and the same switch.</b>
+    ///
+    /// <para><b>With two sheets this is free and with three it is not</b>, which is why the fixture
+    /// has three. <c>FirstDifference</c> is symmetric, so a pair always names the same setting; but
+    /// every carrier is compared against <em>the first</em>, and "the first difference from the
+    /// first sheet" has a different answer depending on which sheet that is. Here 'ally' and 'hero'
+    /// differ about <c>fatal_damage</c> and 'hero' and 'villain' differ about
+    /// <c>wound_penalties</c>: start from 'hero' and the refusal names the second, start from
+    /// 'ally' and it names the first. Both are true findings, and a caller who reversed their
+    /// combatant array would be handed a different one for the same bad export.</para>
+    ///
+    /// <para><b>That matters because a refusal is a thing two people compare.</b> A GM and a player
+    /// reading the same fight typed two ways would see two settings named and reasonably conclude
+    /// there are two problems. Taking carriers by id makes the answer a fact about the set of
+    /// sheets; ids are unique here, so the order is total.</para>
+    ///
+    /// <para>The control is the last assertion: the answer is not merely <em>stable</em>, it is the
+    /// one the id order picks — a build that had frozen on the arrival order would give two equal
+    /// answers only if the reversal had stopped reversing.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheSameSheetsRefuseTheSameWayWhicheverOrderTheyArriveIn() =>
+        await WithClient(async client =>
+        {
+            var asTyped = await Open(client, ThreeWaysApart(reversed: false));
+            var reversed = await Open(client, ThreeWaysApart(reversed: true));
+
+            Assert.False(asTyped["ok"]!.GetValue<bool>(), asTyped.ToJsonString());
+            Assert.Equal("TABLE_DISAGREES", asTyped["problem"]!["code"]!.GetValue<string>());
+            Assert.Equal("TABLE_DISAGREES", reversed["problem"]!["code"]!.GetValue<string>());
+
+            var one = asTyped["problem"]!["message"]!.GetValue<string>();
+            var two = reversed["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Equal(one, two);
+
+            // And it is the id order's answer: 'ally' sorts first, so the pair is 'ally' and 'hero'
+            // and the switch is the one they differ about.
+            Assert.Contains("'ally' and 'hero'", one, StringComparison.Ordinal);
+            Assert.Contains("fatal_damage", one, StringComparison.Ordinal);
+            Assert.DoesNotContain("wound_penalties", one, StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>And the accepted case's page-one sentence is the same sentence whichever order the sheets
+    /// arrive in.</b>
+    ///
+    /// <para>Page one is a description of a fight, not of the JSON array somebody typed. Two
+    /// carriers and two sheets carrying nothing is the smallest fight in which both halves of the
+    /// sentence — which sheet the table was read from, and the names of the sheets that brought
+    /// none — have an order to get wrong.</para>
+    /// </summary>
+    [Fact]
+    public async Task PageOnesTableSentenceIsTheSameWhicheverOrderTheSheetsArriveIn() =>
+        await WithClient(async client =>
+        {
+            var asTyped = await Open(client, TwoCarriersAndTwoWithout(reversed: false));
+            var reversed = await Open(client, TwoCarriersAndTwoWithout(reversed: true));
+
+            Assert.True(asTyped["ok"]!.GetValue<bool>(), asTyped.ToJsonString());
+            Assert.True(reversed["ok"]!.GetValue<bool>(), reversed.ToJsonString());
+
+            Assert.Equal(PageOneOnTheTable(asTyped), PageOneOnTheTable(reversed));
+
+            // The control: the sentence really does have all four sheets' worth of work in it, so
+            // an equality that passed on two empty strings would be caught.
+            Assert.Contains("'ally'", PageOneOnTheTable(asTyped), StringComparison.Ordinal);
+            Assert.Contains("'bystander' and 'villain'",
+                PageOneOnTheTable(asTyped), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>An absent table is not one state, and page one must not print the flattering reading of
+    /// it.</b>
+    ///
+    /// <para><b>The claim this fixture exists to falsify</b> is the one the accept-and-announce
+    /// decision was argued from: that a sheet carrying no block "has never been in a game that
+    /// adopted anything". It is not true. <c>CampaignJoin.CopyHouseRules</c> writes the campaign's
+    /// table into an empty field with <c>??=</c> and nothing writes at all afterwards, so a
+    /// character who joined <em>before</em> the GM adopted anything keeps a null block for ever —
+    /// and <c>Inspect</c>'s table check requires both sides to have set something, so no finding is
+    /// produced and no panel exists to print one under. <c>docs/guide/browser.md</c> records that
+    /// direction as known and unreported.</para>
+    ///
+    /// <para>So the same absent block means one of three things, and this server can separate the
+    /// first from the other two because <c>CampaignId</c> sits on the sheet beside it. Announcing a
+    /// character with a campaign as though it had none is exactly the reassurance a refusal was
+    /// declined in favour of: the GM reads "carries no table", takes it for the sandbox Villain
+    /// they built, and never learns that a player's Hero from another game has just been fought
+    /// under rules that game may not play.</para>
+    ///
+    /// <para><b>Both directions are driven</b>, because a sentence that said the careful thing
+    /// about every sheet would be as useless as one that said the flattering thing: the sandbox
+    /// Villain above really does name no campaign, and page one really does say so.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASheetThatNamesACampaignAndCarriesNoTableIsNotAnnouncedAsBeingAtNone() =>
+        await WithClient(async client =>
+        {
+            var fight = OneOfThemInACampaign();
+            fight[1]!["character"]!["CampaignId"] = "the-other-game";
+
+            var answer = await Open(client, fight);
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var page = PageOneOnTheTable(answer);
+
+            // Named, and named with the game it is in.
+            Assert.Contains("'villain'", page, StringComparison.Ordinal);
+            Assert.Contains("carries no table", page, StringComparison.Ordinal);
+            Assert.Contains("'the-other-game'", page, StringComparison.Ordinal);
+
+            // And not announced as being outside any game, which is the false half.
+            Assert.DoesNotContain("names no campaign", page, StringComparison.Ordinal);
+
+            // The echo carries the same sentence, because run_encounters has no ledger at all.
+            Assert.Contains("'the-other-game'",
+                TableOf(answer)["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>Rule (c): a caller who passes a table beside sheets that carry one has to agree with
+    /// them, switch by switch.</b>
+    ///
+    /// <para>Agreement is fine and is echoed as both. A disagreement is refused rather than settled
+    /// by a precedence rule, because whichever won, the other is a setting somebody chose and this
+    /// server threw away — and the answer would echo a table half the fight was not built for.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACallersTableMustAgreeWithTheSheetsSwitchBySwitch() =>
+        await WithClient(async client =>
+        {
+            // Agreeing: the same two switches, spelled the way the argument is spelled.
+            var agreed = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = UnderOneTable(HouseRules()),
+                ["table"] = new JsonObject
+                {
+                    ["fatal_damage"] = true,
+                    ["wound_penalties"] = true
+                }
+            });
+
+            Assert.True(agreed["ok"]!.GetValue<bool>(), agreed.ToJsonString());
+            Assert.Equal("sheets_and_call", TableOf(agreed)["source"]!.GetValue<string>());
+            Assert.Contains("gritty_wound_penalties", RulesOnTheLedger(agreed), StringComparer.Ordinal);
+
+            // Disagreeing: the call turns one off that the sheets have on. A subset is a
+            // disagreement, not a partial agreement.
+            var clash = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = UnderOneTable(HouseRules()),
+                ["table"] = new JsonObject { ["fatal_damage"] = true }
+            });
+
+            Assert.False(clash["ok"]!.GetValue<bool>());
+            Assert.Equal("CALL_TABLE_DISAGREES", clash["problem"]!["code"]!.GetValue<string>());
+            Assert.Contains("wound_penalties", clash["problem"]!["message"]!.GetValue<string>(),
+                StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>Rule (d): no sheet carries a table and none was passed, so the fight is the book — and
+    /// the argument still works on its own where the sheets are silent.</b>
+    ///
+    /// <para>The second half is the regression this pair exists for: teaching the reader to tell an
+    /// omitted <c>table</c> argument from one that means the book is what makes the disagreement
+    /// refusals possible, and getting it wrong the other way would have refused every fight under a
+    /// campaign's rules — or, worse, made the argument stop working.</para>
+    /// </summary>
+    [Fact]
+    public async Task WithNothingOnTheSheetsTheCallStillSetsTheTableAndNothingAtAllIsTheBook() =>
+        await WithClient(async client =>
+        {
+            var book = await Open(client, TwoSides());
+
+            Assert.Equal("book", TableOf(book)["source"]!.GetValue<string>());
+            Assert.Contains("the book as printed", PageOneOnTheTable(book), StringComparison.Ordinal);
+
+            var typed = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject { ["wound_penalties"] = true }
+            });
+
+            Assert.Equal("call", TableOf(typed)["source"]!.GetValue<string>());
+            Assert.True(TableOf(typed)["wound_penalties"]!.GetValue<bool>());
+            Assert.Contains("gritty_wound_penalties", RulesOnTheLedger(typed), StringComparer.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>A measurement is reproducible from its own echo, including where its table came from.</b>
+    ///
+    /// <para><c>run_encounters</c> answers with no ledger, so the echo is the only place a report
+    /// can say this. A rate is quoted with four things and one of them is <c>table</c>: two runs
+    /// whose echoed switches read alike may have got them off the characters or off an argument
+    /// somebody typed, and a reader deciding whether the figure is about <em>their</em> game needs
+    /// to know which.</para>
+    /// </summary>
+    [Fact]
+    public async Task AMeasurementEchoesWhereItsTableCameFrom() =>
+        await WithClient(async client =>
+        {
+            var report = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = UnderOneTable(HouseRules()),
+                ["runs"] = PlayTools.FewestRuns
+            });
+
+            Assert.True(report["ok"]!.GetValue<bool>(), report.ToJsonString());
+
+            var table = TableOf(report);
+
+            Assert.Equal("sheets", table["source"]!.GetValue<string>());
+            Assert.Contains("'hero'", table["source_note"]!.GetValue<string>(), StringComparison.Ordinal);
+
+            // The four a rate may never be quoted without are still all there, in the same object.
+            Assert.NotNull(report["runs"]);
+            Assert.NotNull(report["seeds"]);
+            Assert.NotNull(report["policy"]);
+
+            // And the switches themselves crossed: fatal_damage and wound_penalties are on.
+            Assert.True(table["fatal_damage"]!.GetValue<bool>());
+            Assert.True(table["wound_penalties"]!.GetValue<bool>());
+
+            // The control: the same call with no block on the sheets measures the book.
+            var baseline = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns
+            });
+
+            Assert.Equal("book", TableOf(baseline)["source"]!.GetValue<string>());
+            Assert.Empty(TableOf(baseline)["on"]!.AsArray());
+        });
+
+    /// <summary>
+    /// <b>The sheets arrive as the stored payload, not as the <c>.json</c> export — and a caller
+    /// who reaches for the export's spelling is told so rather than fought under the book.</b>
+    ///
+    /// <para>Two documents, two conventions. <c>CharacterSheetJson</c> is PascalCase because its
+    /// naming policy is the property name; the <c>.json</c> export is snake_case throughout and
+    /// spells the same block <c>campaign_table</c>. This server reads the first, strictly — and
+    /// the whole value of reading it strictly is here: <c>campaign_table</c> ignored would be a
+    /// campaign's house rules silently dropped, a fight measured under the book, and an echo saying
+    /// the table came from nowhere in particular. There is nothing in that answer a reader could
+    /// tell apart from a character that really is at no table.</para>
+    ///
+    /// <para>The control beneath it is the same sheet spelled the reader's way, which is accepted —
+    /// otherwise this would pass on a server that refused every sheet it was handed.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASheetSpellingItsTableTheExportsWayIsRefusedByName() =>
+        await WithClient(async client =>
+        {
+            var exported = TwoSides();
+            exported[0]!["character"]!["campaign_table"] =
+                new JsonObject { ["wound_penalties"] = true };
+
+            var answer = await Open(client, exported);
+
+            Assert.False(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+            Assert.Equal("CHARACTER_UNREADABLE", answer["problem"]!["code"]!.GetValue<string>());
+
+            // The control: the reader's own spelling of the same block opens the fight, so the
+            // refusal above is about the spelling and not about the block.
+            var accepted = await Open(client, OneOfThemInACampaign());
+
+            Assert.True(accepted["ok"]!.GetValue<bool>(), accepted.ToJsonString());
+            Assert.Equal("sheets", TableOf(accepted)["source"]!.GetValue<string>());
         });
 
     /// <summary>

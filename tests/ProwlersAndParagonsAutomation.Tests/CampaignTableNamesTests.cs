@@ -120,6 +120,82 @@ public sealed class CampaignTableNamesTests
     }
 
     /// <summary>
+    /// A setting assigned from the same-named setting on the campaign's block, inside
+    /// <c>TableRules.From</c> — the seam that turns what a campaign stored into what a fight is
+    /// resolved under.
+    /// </summary>
+    private static readonly Regex CopiedFromCampaign = new(
+        @"^\s*(?<to>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*campaign\.(?<from>[A-Za-z_][A-Za-z0-9_]*)\s*,?\s*$",
+        RegexOptions.Multiline, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// <b>Every switch a campaign stores is carried across the seam, and none is silently
+    /// dropped.</b>
+    ///
+    /// <para>The test above holds the two <em>lists</em> together. This holds the
+    /// <em>conversion</em> to them, which is a separate failure and a quieter one: a switch that
+    /// exists on both sides and is left out of <c>TableRules.From</c> compiles, passes the test
+    /// above, and is a house rule a GM turned on that every fight is resolved without. Nothing
+    /// else would say so — the campaign page shows it on, the sheet carries it, and the run's own
+    /// echo reports the switch the encounter was actually built with, which is off.</para>
+    ///
+    /// <para><b>Each pair has to be same-named on both sides</b>, so a copy that reached the wrong
+    /// field — <c>ToughMinions = campaign.WoundPenalties</c> — is caught as well as a missing one.
+    /// The <see cref="GearLimitRank"/> crosses under the same rule, because a raised limit that
+    /// stayed behind is a table playing a game nobody chose.</para>
+    ///
+    /// <para><b>The positive control is the one this file already relies on twice</b>: the scan
+    /// has to find a non-empty set. A regular expression that has stopped matching — the method
+    /// renamed, the parameter renamed, the object initialiser rewritten as assignments — produces
+    /// an empty set, and an empty set is missing nothing.</para>
+    /// </summary>
+    [Fact]
+    public void EverySwitchACampaignStoresIsCarriedIntoTheOneAnEncounterIsBuiltWith()
+    {
+        var source = File.ReadAllText(TableRulesSource);
+
+        var copied = CopiedFromCampaign.Matches(source).ToList();
+
+        Assert.True(copied.Count >= 11,
+            $"Only {copied.Count} settings are copied from a campaign's block in {TableRulesSource}. "
+            + "The ten Gritty Combat Rules and the Gear Limit rank alone are eleven, so the scan has "
+            + "stopped seeing them — check that TableRules.From is still an object initialiser "
+            + "assigning from a parameter called 'campaign' before believing the comparison below.");
+
+        var crossed = new SortedSet<string>(StringComparer.Ordinal);
+
+        foreach (var pair in copied)
+        {
+            var to = pair.Groups["to"].Value;
+            var from = pair.Groups["from"].Value;
+
+            Assert.True(string.Equals(to, from, StringComparison.Ordinal),
+                $"TableRules.From assigns {to} from the campaign's {from}. A setting copied out of "
+                + "its neighbour is a fight resolved under a rule the table never turned on, and it "
+                + "compiles: both are booleans. Copy each from the setting of the same name.");
+
+            crossed.Add(to);
+        }
+
+        var expected = CampaignSideSwitches();
+        expected.Add(nameof(CampaignTable.GearLimitRank));
+
+        var dropped = expected.Except(crossed).ToList();
+
+        Assert.True(dropped.Count == 0,
+            "A campaign can store these and TableRules.From leaves them behind, so a table that "
+            + "turned them on has every fight resolved without them and nothing anywhere says so: "
+            + string.Join(", ", dropped)
+            + ". Copy each in play/Encounter/TableRules.cs, from the setting of the same name.");
+
+        var invented = crossed.Except(expected).ToList();
+
+        Assert.True(invented.Count == 0,
+            "TableRules.From copies these and no campaign has them: "
+            + string.Join(", ", invented) + ".");
+    }
+
+    /// <summary>
     /// <b>The engine still cannot see the second engine, which is what makes the source-reading
     /// above necessary rather than merely convenient.</b>
     ///

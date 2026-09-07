@@ -241,6 +241,34 @@ And one the engine **consumes** rather than makes, with a doc comment naming the
 
 **A Foe's Health is halved upward.** p.75 says a Foe halves the result and never says which way an odd total goes; the Glossary's book-wide rule (p.7) pushes a half up, so a Health of 3 halves to 2 and not to 1. Both directions are computed in the test and the wrong one is required to be wrong.
 
+## A campaign's table, and where it crosses
+
+`TableRules.From(CampaignTable)` is the one seam between the two lists that name the same thirteen
+switches. `engine/CampaignTable` is what a campaign stores and a character carries — the browser
+writes it, an account's server relays it without parsing a word, the `.json` export copies it onto
+the sheet — and no rules code over there reads a switch, because none of them is about what a
+character costs. This is where they become something a fight can be resolved under.
+
+**Switch by switch, and `GearLimitRank` crosses as a figure.** `CampaignTableNamesTests` already
+held the two *lists* together by reading `TableRules.cs` as source; it now reads `From` the same way
+and requires every setting to be assigned from the one with the same name. That catches the quieter
+failure: a switch present on both sides and left out of the conversion compiles, passes the list
+check, and is a house rule a GM turned on that every fight is resolved without — with the campaign
+page saying it is on and the run's echo honestly reporting the table the encounter was built with,
+which is off. A copy that reached the wrong field is caught too, because both sides are booleans.
+
+**`TableRules.FirstDifference` names the setting two tables disagree about**, in `Switches` order.
+The record's own equality would answer the question and would answer it with a bare `false`; a
+fight refused because its sheets disagree has to be refused with the switch in the message, or
+nobody can go and fix the sheet that is wrong. The rank is compared as a *figure* — `IsOn` answers
+only whether one was set at all, so a table on 9 and a table on 12 would agree under it.
+
+**Nothing in `play/` reads a `CharacterSheet.CampaignTable` itself.** `CombatantFactory` is still
+the only code here that touches a sheet, and it does not look at the block: which table a fight is
+under is a fact about the *scene*, decided once by the host out of every sheet it was handed, and an
+`Encounter` is built with the answer. See [`mcp-and-headless.md`](mcp-and-headless.md) for how the
+encounter server decides it and what it refuses.
+
 ## Policies are not rules
 
 `IPolicy` says which intent a character would have chosen. That is a person's decision at a table and a guess anywhere else, which is why `IPolicy.Name` exists and why **every report built on a run has to print it beside the seed, the N and the table settings.** A balance figure is a figure about a particular way of playing; one quoted without its policy is a figure about nothing.
