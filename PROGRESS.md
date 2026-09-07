@@ -103,6 +103,9 @@ as in scope. **Nothing here is a defect.**
 
 - [x] **[28](#28-two-flakes-on-a-docs-only-pull-request-and-what-the-harness-said-about-them)** — three flakes seen in one day on trees that had passed: the e2e server dying mid-drive with nothing said about why, the in-process MCP teardown race, and a secret-scan regex timed out by a loaded runner. Each is swept class-wide. Verified by the orchestrator 2026-09-07: a lying aliveness test fails the kill-tree suite in thirteen seconds rather than hanging it, the MCP helper goes red with no EOF and with a faulted teardown step, a planted key in `web/` and in a Razor file turns the scan red, and both e2e drivers pass with every twin red on the merged tree
 
+- [x] **[29](#29-a-campaigns-table-rules-and-its-immortality-price)** — the owner's toggles: a campaign carries the table's optional rules and its Immortality price, shown to every member, copied onto the sheet on join, priced from the sheet, and carried by the export. Verified by the orchestrator 2026-09-07: the price bound, and the suppression of a false "campaign gone" for members, each went red under mutation
+- [ ] **[30](#30-a-member-sees-the-copy-their-character-carries-not-the-campaigns-live-table)** — the half of item 29 the server's scoping leaves open: a member's list is the character's copy, a change the GM makes arrives only on re-join, and a character that joined before the GM decided anything is silent about it
+
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
 **Several of these touch the same files, so they are not independent slices.** 12 and 16 both
@@ -1939,6 +1942,51 @@ run whose server died after the last check said nothing; it warns. The new verdi
 token through the half of the URL that was not wrapped; redaction moved to one choke point per
 driver, proved with a planted token. `test-kill-tree.sh` started a hundred marker processes with no
 trap and left them all on SIGTERM. Everything above was watched red before it was believed.
+
+### 29. A campaign's table rules, and its Immortality price
+
+**Asked for by the owner on 2026-09-07**: the table's optional rules are per campaign, set as toggles
+when a campaign is made, visible to players and GM alike — and a number where the book prints a
+range. `powers.json`'s Immortality is the one such Power: 3 HP flat, "in a game where Heroes can
+die, GMs should charge more — somewhere between 6 and 12", now carried as `campaign_cost_min` and
+`campaign_cost_max` on the entry with a test holding the prose to the figures.
+
+**Built the way the house Trait Cap is (item 15) — see the pull request that carried it.**
+`engine/CampaignTable` is one boolean per play table setting, named exactly as `play/`'s
+`TableRules` names its switches, plus the Gear Limit rank; a source-reading guard holds the two
+name sets together in both directions, since `engine/` may not reference `play/`.
+`Campaign.ImmortalityCost` and the table are copied onto the sheet on join and never refreshed
+behind anybody's back; `CostCalculator` prices Immortality from the sheet, a price outside the
+book's range or on a sheet in no campaign is reported and never repaired, and every screen prices
+through the same read, held by `HousePriceReadTests`. Both exports carry the rules — the `.json`
+one as `campaign_table` and `immortality_cost`, always written and `null` at no table — and the
+stored payload spells them `CampaignTable` and `ImmortalityCost`, which is what the strict reader
+and so the encounter server take. The twenty published Heroes moved by exactly the Immortality
+figure for the one who carries it (Nano) and by nothing otherwise; all twenty-eight Pinnacle City
+sheets re-priced identically.
+
+**The review found** a player shown `UNKNOWN_CAMPAIGN` above their own live game (the server scopes
+a campaign's payload to its owner, so a member resolves no campaign), a house-price exemption list
+whose count was never checked, a join that took a changed price without saying so, and the Con on
+Immortality untested; each is fixed with a fixture. What it left open is item 30.
+
+### 30. A member sees the copy their character carries, not the campaign's live table
+
+**Because the server scopes a campaign's payload to the GM's account, a player's browser cannot read
+the campaign at all.** So the read-only list under a member's game is drawn from the character's
+own copy, labelled as such, and a setting the GM changes later arrives only when the character
+joins again. In the one direction nothing reports: a character that joined before the GM decided
+anything carries nothing, and `CampaignJoin.Inspect` — item 15's condition, unchanged — compares
+only where both sides have set something, so that character is priced at the book's 3 while the
+table charges 12 and no panel says so. Recorded in `docs/guide/browser.md`.
+
+**What a slice would do.** A player-scoped, table-only projection — a route answering the
+campaign's `Table` and `ImmortalityCost` and nothing else, authorised by the member's own
+`campaign_members` row rather than by ownership; the member's list then shows the live table
+beside the copy, and `Inspect` can report the empty-copy direction too. It costs a route, a read
+in `worker/db.js` carrying the same player predicate `getMembership` uses, a `KNOWN_ROUTES` entry
+and a contract test. Nothing about the character's copy changes: the copy is what is in force for
+the character until they join again, and that stays the rule.
 
 ## Completed work
 

@@ -1,5 +1,6 @@
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Engine.Models;
+using ProwlersAndParagonsAutomation.Sheets;
 
 namespace ProwlersAndParagonsAutomation.Web.Services;
 
@@ -179,6 +180,31 @@ public static class CampaignDiff
         // rather than a duplicate: the two rows say different things — which table this is, and
         // what the ranks are now bounded by.
         compared += Compare(rows, "Trait Cap", CapOf(rules, was), CapOf(rules, after));
+
+        // ── The table's house rules ──────────────────────────────────────────────────
+        //
+        // **The price is here for the same reason the cap is, and one reason more.** A table's
+        // price for Immortality is Hero Points: a campaign that raised it moved the spend on every
+        // character in it that has the Power, so the total *does* move and the GM is owed the
+        // reason beside the figure. It reads `Immortality 3 HP → 9 HP`, naming the Power the way
+        // the book names it, and the book's own price stands in for a character that carries none
+        // — `null → 9` is this application's bookkeeping and not what changed for the character.
+        //
+        // **Drawn only under a character that has the Power.** A price nobody is charged is a row
+        // a GM cannot act on, and the approval screen's whole job is to say what is different
+        // about *this* character. That is the same rule the 0d rank follows.
+        if (was.HasPower(ImmortalityId) || after.HasPower(ImmortalityId))
+        {
+            compared += Compare(rows, PowerName(rules, ImmortalityId),
+                PriceOf(rules, was), PriceOf(rules, after));
+        }
+
+        // The optional rules, one row per switch that moved, named the way the book names it —
+        // `Fatal Damage off → on`. One row per switch rather than one row for the block, because
+        // "House rules changed" is exactly the sentence this screen exists not to print: a GM
+        // deciding about a submission needs to know *which* rule, and thirteen switches in one row
+        // is a diff the reader has to do themselves.
+        compared += CompareHouseRules(rows, was.CampaignTable, after.CampaignTable);
 
         // ── Ranks ────────────────────────────────────────────────────────────────────
         //
@@ -548,6 +574,61 @@ public static class CampaignDiff
 
     /// <summary>A rank, written the way the sheet and every editor write one.</summary>
     private static string Rank(int rank) => $"{rank}d";
+
+    /// <summary>
+    /// The one Power whose printed entry hands its price to the table. Named once here for the
+    /// reason the validator names it once: two spellings is how two surfaces come to disagree
+    /// about which Power they are talking about.
+    /// </summary>
+    private const string ImmortalityId = "immortality";
+
+    /// <summary>
+    /// What this character is charged for Immortality, in Hero Points — the table's price where
+    /// there is one and the book's otherwise.
+    ///
+    /// <para><b>The book's price stands in rather than null</b>, so the row reads
+    /// <c>3 HP → 9 HP</c>. `null → 9` would be this application's bookkeeping, which is the same
+    /// objection the Trait Cap row's own note records: what changed for the character is the
+    /// figure it is charged, and it was always charged something.</para>
+    /// </summary>
+    private static string? PriceOf(RulesRepository rules, CharacterSheet sheet) =>
+        (sheet.ImmortalityCost ?? rules.GetPower(ImmortalityId)?.CostFlat) is { } price
+            ? $"{price} HP"
+            : null;
+
+    /// <summary>
+    /// One row per optional rule that moved, in the book's order, named the way the book names it.
+    ///
+    /// <para><b>A block that arrived or went away is still compared switch by switch.</b> A
+    /// character joining a table that has adopted nothing gains a block whose every switch is off,
+    /// which is the same game it was already playing — so <c>null</c> and "all off" compare equal
+    /// and produce no rows at all. That is what <c>CampaignTable.IsTheBook</c> means, and a row
+    /// saying "House rules added" over a table that adopted nothing would be the application
+    /// reporting its own storage.</para>
+    ///
+    /// <para><b>The Gear Limit rank moves a row of its own</b>, because it is a figure rather than
+    /// a switch and `Raised Gear Limit off → on` does not say to what.</para>
+    /// </summary>
+    private static int CompareHouseRules(
+        List<DiffRow> rows, CampaignTable? before, CampaignTable? after)
+    {
+        var was = before ?? CampaignTable.Book;
+        var now = after ?? CampaignTable.Book;
+        var compared = 0;
+
+        foreach (var (key, name, _) in HouseRuleFormatter.All)
+        {
+            compared += Compare(rows, name,
+                HouseRuleFormatter.IsOn(was, key) ? "on" : "off",
+                HouseRuleFormatter.IsOn(now, key) ? "on" : "off");
+        }
+
+        compared += Compare(rows, "Gear Limit",
+            was.GearLimitRank is { } b ? Rank(b) : null,
+            now.GearLimitRank is { } a ? Rank(a) : null);
+
+        return compared;
+    }
 
     /// <summary>Null for a name nobody has typed, so an empty field reads as absent.</summary>
     private static string? Blank(string? value) =>

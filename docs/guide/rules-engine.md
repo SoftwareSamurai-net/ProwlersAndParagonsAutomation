@@ -247,7 +247,48 @@ Ch.2 states it twice — once for Abilities (p.17), once for Talents (p.18): **n
 - **`powers.json` tracks verification per field, not with a boolean.** Every entry has `verified_fields` (any of `range`, `rank_type`, `cost`, `prerequisite`, `description`, `pros_cons`) and a `source_ref` page reference. `PowerModel.MechanicsVerified` requires the first four; `NeedsReview` is its inverse. The old single flag drifted badly — 27 entries were unflagged while their costs were wrong — so when you change a mechanical field, update `verified_fields` to match what you actually checked.
 - **Power `description` values in `data/rules/` stay original text written from the rulebook entry, never rulebook prose.** The rulebook text now lives in `data/rulebook/` instead — see [`rulebook-corpus.md`](rulebook-corpus.md) — and the two must not be merged: `data/rules/` is what the deployed site serves, and the descriptions there are what a player reads while choosing. Descriptions exist so a player can tell what they are choosing and what resists it, and they must agree with the mechanics beside them — `PowerDescriptionTests` fails a rankless power whose description claims per-rank scaling, which is how the original set went wrong on 44 of the 46 rankless powers.
 - `powers.json` has **141** entries. Form, Transformation and Super Senses are single Powers in the rulebook but each of their options is bought separately at its own cost, so each option is its own entry. Super Senses is nonetheless *costed* as one Power — see "Super Senses is one Power" above; splitting it is a storage decision, not a rules one.
+- **`campaign_cost_min` / `campaign_cost_max` are on the one entry whose printed text hands its price to the table, and they are a transcription of that text.** Ch.2 p.31 prices Immortality at 3 HP flat and then says "In a game where Heroes can die, GMs should charge more for this — somewhere between 6 and 12 Hero Points" — a range where every other entry prints a number. The structured pair exists so `CharacterValidator` can bound a campaign's house price without a figure being written into C#, which would be a price this project had invented and the rules audit could never hold to a page. **The prose stays the source**: `PowerDataTests.ImmortalitysCampaignCostRangeIsWhatItsOwnDescriptionSays` reads the sentence back out of the shipped data and takes the two numbers *it* names, because asserting literals beside it would pass over prose rewritten to say 8. `OnlyImmortalityHandsItsPriceToTheTable` keeps the set at one, with the non-empty control — a second entry gaining the pair would be a house-rule surface the book does not print for it, which is what `available_pros` was one field over.
 - `gear_features.json` holds the twelve Ch.6 custom features. `cost_type` is `flat` (with `cost`) or `flat_variable` (with `cost_range`, for the two the rulebook prices at 1 to 2 HP).
+
+
+## A table's house rules: priced from the sheet, bounded by the data, never read from a campaign
+
+**The house Trait Cap's precedent, exactly, for two more settings** — and PROGRESS item 15 is where
+that argument is made. The setting lives on the campaign, is copied onto the character when it
+joins, and the engine reads the character. Nothing here resolves a campaign id; nothing here may.
+
+- **`CharacterSheet.ImmortalityCost` is a price, so this engine reads it.** `CostCalculator.PowerCost`
+  takes it as a second argument and charges it **only** for an entry that carries a
+  `campaign_cost_min`/`max` pair — the Power is asked before the table is — so a campaign that
+  re-priced Immortality has not thereby re-priced Armor. `TotalPowersCost` forwards the sheet's,
+  which is how the figure reaches a budget: the running total on a screen and the verdict under it
+  have to be one number.
+- **Every surface that prices a Power for a character passes it, and `HousePriceReadTests` is the
+  guard.** `PowerCost(sp)` is the right answer to "what does the rulebook charge" and the wrong
+  answer to "what does this character pay", and the two are one optional argument apart, so the
+  wrong one compiles silently. That is `TraitCapReadTests`' shape one field over, and for the same
+  reason: counting the readers in a doc comment was tried for the cap and the count was wrong.
+- **A price outside the range is charged as written and reported** —
+  `IMMORTALITY_COST_OUTSIDE_RANGE`, against the bounds in the data. Clamping would be worse than
+  usual here: the cost would look right on every screen while the campaign's setting said something
+  else. **The rulebook's own 1 HP floor for an unranked Power still applies underneath**, so a table
+  setting 0 does not produce a free Power — that is a rule about the Power, not about the table, and
+  it is the one place a price is not charged as the number written.
+- **`CharacterSheet.CampaignTable` is carried and read by nothing here.** None of its thirteen
+  switches is about what a character costs or whether it is legal, which is the whole of what this
+  engine decides — they resolve fights, and that is `play/`'s business. It is on the sheet because
+  the encounter server is handed characters and never a campaign, so a fight fought with somebody's
+  Hero is fought under the book unless the Hero brought its table's rules along. `CampaignTableNamesTests`
+  holds its switch list to `play/Encounter/TableRules.cs` by reading that file as source — reflecting
+  over it would mean the test project referencing `play/` to enforce that `engine/` does not.
+- **A house price on a character in no campaign is reported in `web/`, not here.** Saying it means
+  reading `CharacterSheet.CampaignId`, which `PresentationFlagsTests` bars from all rules code — so
+  it is `CampaignJoin.Inspect`'s `IMMORTALITY_COST_WITHOUT_CAMPAIGN`, beside the tier and cap
+  mismatches. That is not a workaround: this engine judges a price, and a host judges a membership.
+  The guard caught the first version of the check, which had it in the validator.
+- **Null and "every switch off" are the same game**, which is what lets a campaign or a character
+  stored before any of this existed read back unchanged rather than as a table that has opted out of
+  something. `CampaignTable.IsTheBook` is that question, and the browser stores the book as null.
 
 
 ## The engine never touches the filesystem

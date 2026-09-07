@@ -59,8 +59,20 @@ public enum CampaignJoinOutcome
 /// the flag that changes a figure</b>: Resolve is measured from the cap, so a join that took one
 /// moved it.
 /// </param>
+/// <param name="TookHouseRules">
+/// Whether the campaign's optional rules or its price for Immortality were written onto the
+/// character. False where the character already carried either, and false where the campaign has
+/// set neither.
+///
+/// <para><b>One flag for two fields, unlike the two above, and the reason is what a sentence can
+/// carry.</b> The tier and the cap each move a figure a player can point at — a budget, a Resolve
+/// — so each gets named. The table's rules are a list a reader goes and looks at on the campaign
+/// page, and a join sentence enumerating thirteen switches is not a sentence anybody reads. What
+/// the message says is that the game's rules came with it; the page says which.</para>
+/// </param>
 public readonly record struct CampaignJoinResult(
-    CampaignJoinOutcome Outcome, bool TookTier = false, bool TookTraitCap = false);
+    CampaignJoinOutcome Outcome, bool TookTier = false, bool TookTraitCap = false,
+    bool TookHouseRules = false);
 
 /// <summary>One thing a host can say about a character's campaign. A report, never a repair.</summary>
 /// <param name="Code">
@@ -84,9 +96,18 @@ public readonly record struct CampaignJoinResult(
 /// a Trait the way the book does rather than by its key. A screen that renders this looks both up
 /// and says them; the message stays true without them.
 /// </remarks>
+/// <param name="CharacterImmortalityCost">
+/// The price this character is charged for Immortality, where the finding is about that price.
+/// Carried rather than written into the sentence for the reason the ranks and the ids are: a
+/// screen renders the pair, and the message stays true without them.
+/// </param>
+/// <param name="CampaignImmortalityCost">
+/// The price the campaign charges, where the finding is about the price.
+/// </param>
 public sealed record CampaignFinding(
     string Code, string Message, string? CharacterTierId = null, string? CampaignTierId = null,
-    int? CharacterTraitCapRank = null, int? CampaignTraitCapRank = null);
+    int? CharacterTraitCapRank = null, int? CampaignTraitCapRank = null,
+    int? CharacterImmortalityCost = null, int? CampaignImmortalityCost = null);
 
 /// <summary>
 /// Putting a character into a campaign: <b>inherit into an empty field, offer into a full
@@ -127,6 +148,19 @@ public sealed record CampaignFinding(
 public static class CampaignJoin
 {
     /// <summary>
+    /// The one finding code a caller has to be able to name, because it is the one finding whose
+    /// truth depends on who is reading it.
+    ///
+    /// <para>Every other finding here is computed from a campaign that resolved, so producing one
+    /// at all means the reader's account owns the game. This one is produced from a campaign that
+    /// did <em>not</em> resolve — which for a GM means it is gone, and for a player means only that
+    /// a campaign's payload is scoped to the account that owns it, which is true of every live
+    /// game they are in. <c>Campaigns.razor</c> holds the membership list that tells those two
+    /// apart; see its <c>WorthSaying</c>.</para>
+    /// </summary>
+    public const string UnknownCampaign = "UNKNOWN_CAMPAIGN";
+
+    /// <summary>
     /// Put a character into a campaign, or report why it is not being put into one.
     ///
     /// <para>The only case that writes anything is the one where the character has no tier yet
@@ -161,13 +195,15 @@ public static class CampaignJoin
             // already have, and after the assignment there is no way to tell.
             var takesTier = campaign.TierId is not null;
             var takesCap = sheet.TraitCapRank is null && campaign.TraitCapRank is not null;
+            var takesHouseRules = TakesHouseRules(sheet, campaign);
 
             sheet.CampaignId = campaign.Id;
             sheet.SelectedTierId = campaign.TierId;
             sheet.UnlimitedBudget = campaign.UnlimitedBudget;
             sheet.TraitCapRank ??= campaign.TraitCapRank;
+            CopyHouseRules(sheet, campaign);
 
-            return new(CampaignJoinOutcome.Inherited, takesTier, takesCap);
+            return new(CampaignJoinOutcome.Inherited, takesTier, takesCap, takesHouseRules);
         }
 
         // A campaign that names no tier has nothing to disagree with — a GM who has not set a
@@ -189,10 +225,43 @@ public static class CampaignJoin
         // construction, and a screen that assumed it had fired told somebody their Resolve had
         // moved when it had not.
         var tookCap = sheet.TraitCapRank is null && campaign.TraitCapRank is not null;
+        var tookHouseRules = TakesHouseRules(sheet, campaign);
 
         sheet.TraitCapRank ??= campaign.TraitCapRank;
+        CopyHouseRules(sheet, campaign);
 
-        return new(CampaignJoinOutcome.Joined, TookTraitCap: tookCap);
+        return new(CampaignJoinOutcome.Joined, TookTraitCap: tookCap,
+                   TookHouseRules: tookHouseRules);
+    }
+
+    /// <summary>
+    /// Whether this join is about to write the campaign's table rules or its Immortality price
+    /// onto a character that has neither.
+    ///
+    /// <para><b>Asked before the write, because <c>??=</c> is silent by construction</b> — the
+    /// same reason the cap's flag is read first, and the same fault: a screen that assumed the
+    /// assignment had fired told somebody their game's rules were now theirs when they had kept
+    /// their own.</para>
+    /// </summary>
+    private static bool TakesHouseRules(CharacterSheet sheet, Campaign campaign) =>
+        (sheet.CampaignTable is null && campaign.Table is not null)
+        || (sheet.ImmortalityCost is null && campaign.ImmortalityCost is not null);
+
+    /// <summary>
+    /// The campaign's optional rules and its price for Immortality, into empty fields only.
+    ///
+    /// <para><b>The same rule as the cap, one field at a time.</b> A character that already
+    /// carries a table's rules keeps them and the disagreement is <see cref="Inspect"/>'s to
+    /// report. Writing over them would be worse here than for the cap in one respect and better in
+    /// another: the price moves a spend the player may have budgeted around, and the switches move
+    /// nothing at all until somebody fights with the sheet — but both are somebody's answer to
+    /// "which game is this character from", and overwriting an answer in the course of typing a
+    /// join code is the thing this whole class exists not to do.</para>
+    /// </summary>
+    private static void CopyHouseRules(CharacterSheet sheet, Campaign campaign)
+    {
+        sheet.CampaignTable ??= campaign.Table;
+        sheet.ImmortalityCost ??= campaign.ImmortalityCost;
     }
 
     /// <summary>
@@ -222,6 +291,18 @@ public static class CampaignJoin
     ///     character being judged and paid against a ceiling its table did not set. Reported
     ///     after the tier, because a character at the wrong power level has a bigger problem than
     ///     a cap and only one finding comes back.</item>
+    ///   <item><c>IMMORTALITY_COST_WITHOUT_CAMPAIGN</c> — the character carries a table's price
+    ///     for Immortality and belongs to no game at all. <b>It is the one finding asked before
+    ///     the "in no campaign" exit</b>, because it is about exactly that state; every other one
+    ///     here is about a character and its game disagreeing. It lives here rather than in
+    ///     <c>CharacterValidator</c> because saying it means reading the campaign id, which no
+    ///     rules code may do.</item>
+    ///   <item><c>CAMPAIGN_IMMORTALITY_COST_MISMATCH</c> — both have set a price and they differ.
+    ///     A price is Hero Points, so this is a character whose spend was counted against a figure
+    ///     its table did not set.</item>
+    ///   <item><c>CAMPAIGN_TABLE_MISMATCH</c> — both carry optional rules and they are not the
+    ///     same ones. <b>Last, because it is the one finding that moves no figure</b>: the
+    ///     switches decide what happens in a fight and nothing about cost or legality.</item>
     /// </list>
     /// </summary>
     /// <param name="sheet">The character.</param>
@@ -233,11 +314,26 @@ public static class CampaignJoin
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
-        if (sheet.CampaignId is null) return null;
+        // **Asked before the "no campaign" exit, and it is the only finding that can be.** A house
+        // price on a character that belongs to no game is exactly the state that exit describes,
+        // so a check after it could never fire. It is here rather than in `CharacterValidator`
+        // because saying it means reading the campaign id, which no rules code may do — see that
+        // class's `CheckHouseImmortalityCost` for the line.
+        if (sheet.CampaignId is null)
+        {
+            return sheet.ImmortalityCost is { } orphaned
+                ? new CampaignFinding("IMMORTALITY_COST_WITHOUT_CAMPAIGN",
+                    "This character is charged a house price for Immortality and belongs to no "
+                    + "game. A house price is a table's, so there is nobody whose rule this is — "
+                    + "join the game it came from, or set the price back to the rulebook's. "
+                    + "Nothing has been changed either way.",
+                    CharacterImmortalityCost: orphaned)
+                : null;
+        }
 
         if (campaign is null)
         {
-            return new CampaignFinding("UNKNOWN_CAMPAIGN",
+            return new CampaignFinding(UnknownCampaign,
                 "This character names a campaign that is not here. Nothing about the character "
                 + "has changed — the campaign may be on another browser, or may have been "
                 + "deleted.");
@@ -262,6 +358,33 @@ public static class CampaignJoin
                 + "to. The character's own is what its ranks are checked against and what its "
                 + "Resolve is worked out from. Nothing has been changed either way.",
                 CharacterTraitCapRank: ours, CampaignTraitCapRank: theirs);
+        }
+
+        // Both set and different, exactly as the cap above. The character's is the one that is
+        // charged — a price is Hero Points, so this is a character whose spend was worked out
+        // against a figure its table did not set.
+        if (campaign.ImmortalityCost is { } theirPrice && sheet.ImmortalityCost is { } ourPrice
+            && ourPrice != theirPrice)
+        {
+            return new CampaignFinding("CAMPAIGN_IMMORTALITY_COST_MISMATCH",
+                "This character is charged a different price for Immortality from the game it "
+                + "belongs to. The character's own is what its Hero Points were counted against. "
+                + "Nothing has been changed either way.",
+                CharacterImmortalityCost: ourPrice, CampaignImmortalityCost: theirPrice);
+        }
+
+        // Last, because it is the finding that changes no figure: the optional rules decide what
+        // happens in a fight and nothing about what the character costs or whether it is legal. A
+        // character at the wrong power level, or paying the wrong price, has a bigger problem, and
+        // only one finding comes back.
+        if (campaign.Table is not null && sheet.CampaignTable is not null
+            && sheet.CampaignTable != campaign.Table)
+        {
+            return new CampaignFinding("CAMPAIGN_TABLE_MISMATCH",
+                "This character carries a different set of optional rules from the game it "
+                + "belongs to. They decide what happens when the sheet is used in a fight, and "
+                + "the character's own are what travel with it. Nothing has been changed either "
+                + "way.");
         }
 
         return null;

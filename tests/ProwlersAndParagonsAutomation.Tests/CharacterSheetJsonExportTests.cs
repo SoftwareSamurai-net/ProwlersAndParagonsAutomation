@@ -87,7 +87,12 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
     {
         string[] expected =
         [
-            "meta", "name", "tier", "package", "hp_budget", "trait_cap", "abilities", "talents",
+            "meta", "name", "tier", "package", "hp_budget", "trait_cap",
+            // The table's own rules, present and null for a character at no table — a reader
+            // has to be able to tell "this table decided nothing" from "this build had not
+            // heard of the field", so the keys are written either way.
+            "campaign_table", "immortality_cost",
+            "abilities", "talents",
             "source_groups", "powers", "perks", "flaws", "gear", "derived", "narrative",
             "validation"
         ];
@@ -152,6 +157,86 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
         Assert.Equal(6, back!.TraitCapRank);
 
         Assert.Null(CharacterSheetJson.Read(plain, strict: true)!.TraitCapRank);
+    }
+
+    /// <summary>
+    /// <b>A table's optional rules and its price for Immortality survive a round trip, and a
+    /// character at no table still writes what it wrote before either field existed.</b>
+    ///
+    /// <para>Same guarantee as the cap above and for the same reason: portability is the whole
+    /// point of the fields being on the character, and byte-for-byte identity for a character
+    /// carrying neither is what let <c>StoredCharacter.CurrentVersion</c> stay where it is. A
+    /// bump would have discarded every stored character in silence.</para>
+    ///
+    /// <para><b>The switches are spelled the way the rest of a character is.</b> This reader's
+    /// naming policy is the property name and it does not forgive an underscore. The
+    /// <em>export</em> spells the same block <c>campaign_table</c>, because that document is
+    /// snake_case throughout — two files with two conventions, which is how they have always
+    /// been.</para>
+    /// </summary>
+    [Fact]
+    public void ATablesRulesSurviveARoundTripAndACharacterAtNoTableAddsNoBytes()
+    {
+        var plain = CharacterSheetJson.Write(SampleCharacters.Hero());
+
+        Assert.DoesNotContain("CampaignTable", plain, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImmortalityCost", plain, StringComparison.Ordinal);
+
+        var housed = SampleCharacters.Hero();
+        housed.CampaignId = "g_0000000000000000000000";
+        housed.ImmortalityCost = 9;
+        housed.CampaignTable = new CampaignTable
+        {
+            FatalDamage     = true,
+            WoundPenalties  = true,
+            RaisedGearLimit = true,
+            GearLimitRank   = 12
+        };
+
+        var written = CharacterSheetJson.Write(housed);
+        var back = CharacterSheetJson.Read(written, strict: true);
+
+        Assert.NotNull(back);
+        Assert.Equal(9, back!.ImmortalityCost);
+        Assert.NotNull(back.CampaignTable);
+        Assert.True(back.CampaignTable!.FatalDamage);
+        Assert.True(back.CampaignTable.WoundPenalties);
+        Assert.True(back.CampaignTable.RaisedGearLimit);
+        Assert.Equal(12, back.CampaignTable.GearLimitRank);
+
+        // The switches nobody turned on come back off rather than missing, which is what makes a
+        // block written by an older build and one written today the same game.
+        Assert.False(back.CampaignTable.TheDrop);
+        Assert.False(back.CampaignTable.IsTheBook);
+
+        // A payload from before either field existed reads back as the book, not as a refusal.
+        var older = CharacterSheetJson.Read(plain, strict: true)!;
+        Assert.Null(older.CampaignTable);
+        Assert.Null(older.ImmortalityCost);
+    }
+
+    /// <summary>
+    /// <b>The strict reader still refuses a field that is not part of a character, and the two new
+    /// ones open no door.</b>
+    ///
+    /// <para>Its whole job on a submitted file is to say when a caller has misspelled something,
+    /// because a dropped field is a cheaper, legal character nobody notices is wrong. The
+    /// snake_case spellings the <em>export</em> uses are exactly what a caller who had read the
+    /// wrong document would reach for, so those are the ones asserted.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("campaign_table")]
+    [InlineData("immortality_cost")]
+    [InlineData("CampaignTabel")]
+    public void TheStrictReaderRefusesASpellingThatIsNotACharactersField(string key)
+    {
+        var json = $$"""{"Name":"Nobody","{{key}}":9}""";
+
+        Assert.Throws<JsonException>(() => CharacterSheetJson.Read(json, strict: true));
+
+        // The lenient reader — a browser restoring its own storage — keeps the character and
+        // drops the field, which is the opposite answer and the right one there.
+        Assert.Equal("Nobody", CharacterSheetJson.Read(json, strict: false)!.Name);
     }
 
     /// <summary>

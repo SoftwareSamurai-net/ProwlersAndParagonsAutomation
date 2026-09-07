@@ -1288,6 +1288,42 @@ label {
     border-radius: var(--radius-small);
 }
 
+/* The table's optional rules: thirteen boxes a GM picks from, and the read-only list a player sees.
+
+   A fieldset rather than a div, because it is one question with thirteen answers and a legend is
+   what says so to a screen reader — the same reason every rank field is wrapped in a `Field`. The
+   legend reuses `.others-head` rather than adding an uppercase class: `UppercasedTextTests` reads
+   every `text-transform: uppercase` rule out of this file and requires its selector to be found on
+   a page in its own hand-maintained list, so a new one would cost either an entry there or an
+   exemption, and reusing a selector already found there costs neither.
+
+   No component names a colour, so the box and its label take the same tokens the rest of the
+   editor does. */
+.house-rules {
+    margin-top: var(--space-3);
+    padding: 0;
+    border: 0;
+}
+
+.house-rule {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding: var(--space-0) 0;
+    cursor: pointer;
+}
+
+/* The page reference sits at the end of the line rather than beside the name, because a table
+   reading its own list of adopted rules scans the names and reaches for the page only once. */
+.house-rule > .small {
+    margin-left: auto;
+}
+
+.house-rules-read {
+    margin: var(--space-2) 0 0;
+    padding-left: var(--space-4);
+}
+
 /* The join code, which is read aloud. Wide tracking and tabular figures because that is what makes
    ten characters dictatable — the failure this treats is a reader saying "B" for "8".
 

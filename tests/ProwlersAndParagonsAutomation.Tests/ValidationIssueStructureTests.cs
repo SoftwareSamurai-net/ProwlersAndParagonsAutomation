@@ -1012,6 +1012,11 @@ public sealed class ValidationIssueStructureTests
         // measured against it are TRAIT_ABOVE_CAP, further down, and carry the Trait's kind.
         ["TRAIT_CAP_ABOVE_TIER"]            = [ValidationSubject.Character],
         ["TRAIT_CAP_BELOW_MINIMUM"]         = [ValidationSubject.Character],
+
+        // A table's price for Immortality is about the Power whose own entry hands the price to
+        // the table, and not about the sheet — unlike the cap above it, which is a ceiling over
+        // every Trait. A caller repairing it has one entry to look at, so it names it.
+        ["IMMORTALITY_COST_OUTSIDE_RANGE"]  = [ValidationSubject.Power],
         ["CHARACTER_NOT_PRICEABLE"]         = [ValidationSubject.Character],
         ["FLAW_MIN_NOT_MET"]                = [ValidationSubject.Character],
         ["FLAW_MAX_EXCEEDED"]               = [ValidationSubject.Character],
@@ -1292,7 +1297,8 @@ public sealed class ValidationIssueStructureTests
         "no traits at all", "below its package", "gear without a name", "gear at its floor", "power at its floor",
         "unpriceable", "duplicates", "per-unit with no units",
         "power-specific ungraded", "sample villain",
-        "house cap above the tier", "house cap below one"
+        "house cap above the tier", "house cap below one",
+        "a table's price for immortality"
     ];
 
     /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
@@ -1334,6 +1340,16 @@ public sealed class ValidationIssueStructureTests
             {
                 var sheet = Legal();
                 sheet.TraitCapRank = 0;
+                return sheet;
+            }
+
+            // Ch.2 p.31 puts a table's price between 6 and 12; 20 is outside it and is charged
+            // as written, the way every other bad figure here is.
+            case "a table's price for immortality":
+            {
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("immortality", 0));
+                sheet.ImmortalityCost = 20;
                 return sheet;
             }
 

@@ -183,7 +183,7 @@ public sealed class PowerBrowser
             SourceId        = sourceId
         };
 
-        var cost          = _costs.PowerCost(selection);
+        var cost          = _costs.PowerCost(selection, sheet.ImmortalityCost);
         var effectiveRank = _derived.GetEffectiveRank(selection, sheet);
 
         // Replace any existing entry for this power
@@ -342,7 +342,7 @@ public sealed class PowerBrowser
             .Select(sp =>
             {
                 var power = _rules.GetPower(sp.PowerId);
-                return power is null ? sp.PowerId : $"{power.Name} (cost: {_costs.PowerCost(sp)} HP)";
+                return power is null ? sp.PowerId : $"{power.Name} (cost: {_costs.PowerCost(sp, sheet.ImmortalityCost)} HP)";
             })
             .Prepend("-- Cancel --")
             .ToList();
@@ -390,7 +390,7 @@ public sealed class PowerBrowser
             var name     = power is null ? sp.PowerId : power.Name;
             var baseline = power is null ? 0 : _derived.GetBaselineRank(power, sheet, sp);
             var effective = power is null ? 0 : _derived.GetEffectiveRank(sp, sheet);
-            var cost     = _costs.PowerCost(sp);
+            var cost     = _costs.PowerCost(sp, sheet.ImmortalityCost);
             var review   = power?.NeedsReview == true ? " [yellow]*[/]" : "";
 
             table.AddRow(

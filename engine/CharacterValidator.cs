@@ -136,6 +136,11 @@ public sealed class CharacterValidator
         // character has found a tier yet, and half of what this reports needs no tier to say.
         CheckHouseTraitCap(sheet, tier, issues);
 
+        // Also outside it, and for the same reason: a table's price for Immortality is bounded by
+        // the Power's own entry rather than by any tier, so there is nothing here a missing tier
+        // would make unanswerable.
+        CheckHouseImmortalityCost(sheet, issues);
+
         if (tier is not null)
         {
             if (selectionsResolvable && modifiersResolvable && perksResolvable && gearResolvable)
@@ -311,6 +316,72 @@ public sealed class CharacterValidator
                 Limit       = tier.TraitCapRank
             });
     }
+
+    /// <summary>
+    /// <b>The price a table charges for Immortality, against the range Immortality's own entry
+    /// prints.</b>
+    ///
+    /// <para>Ch.2 p.31 prices the Power at 3 Hero Points and then hands the price to the GM: "In a
+    /// game where Heroes can die, GMs should charge more for this — somewhere between 6 and 12
+    /// Hero Points." That range is <c>campaign_cost_min</c> and <c>campaign_cost_max</c> on the
+    /// entry, and it is read from there rather than written here — a bound spelled in C# would be
+    /// a rule this project had invented, unreachable by the audit that holds every other price to
+    /// a page.</para>
+    ///
+    /// <para><b>The other half of this — a house price on a character that belongs to no game — is
+    /// deliberately not here.</b> A house price is a fact about a <em>table</em>, so a sheet
+    /// carrying one and naming no game has been hand-edited, or has left a campaign without the
+    /// price going with it. Saying so means reading the field that names the game, and no rules
+    /// code may read that field at all: <c>PresentationFlagsTests</c> bars it outright — it is an
+    /// indirection, and the only thing rules code could do with one is resolve it, which means
+    /// storage. So <c>CampaignJoin.Inspect</c> in <c>web/</c> reports
+    /// <c>IMMORTALITY_COST_WITHOUT_CAMPAIGN</c> instead, beside the tier and cap mismatches, where
+    /// every other finding about a character's relationship to its game already lives. <b>That is
+    /// not a workaround.</b> This method judges a price, which is the engine's business; that one
+    /// judges a membership, which is a host's — the same line that already runs between
+    /// <c>TRAIT_CAP_ABOVE_TIER</c> here and <c>CAMPAIGN_TRAIT_CAP_MISMATCH</c> there.</para>
+    ///
+    /// <para><b>Charged as written either way.</b> The engine reports and does not repair, and
+    /// clamping would be worse here than usual: the cost would then look right on every screen
+    /// while the campaign's actual setting said something else.</para>
+    ///
+    /// <para><b>Silent on a character that carries no house price</b>, which is every character
+    /// stored before this existed, and silent on one that does not have the Power — the price is
+    /// still wrong, and saying so under a character it costs nothing is a finding a reader cannot
+    /// act on. It is the campaign's screen that reports a bad price to the GM who set it.</para>
+    /// </summary>
+    private void CheckHouseImmortalityCost(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        if (sheet.ImmortalityCost is not { } house) return;
+
+        var power = _rules.GetPower(ImmortalityId);
+
+        // A rules file that has lost the entry is not this check's business to report — the
+        // Power's own id is checked where every other unknown id is — and inventing a range to
+        // judge against would be exactly the figure-in-C# this reads the data to avoid.
+        if (power is not { CampaignCostMin: { } min, CampaignCostMax: { } max }) return;
+
+        if (house < min || house > max)
+        {
+            issues.Add(new(ValidationSeverity.Error, "IMMORTALITY_COST_OUTSIDE_RANGE",
+                $"This character's table charges {house} Hero Points for {power.Name}, and the "
+                + $"rulebook puts a table's price between {min} and {max}. The figures here still "
+                + $"use {house}, as written — change the campaign's setting.")
+            {
+                SubjectKind = ValidationSubject.Power,
+                SubjectId   = power.Id,
+                Value       = house,
+                Limit       = max
+            });
+        }
+    }
+
+    /// <summary>
+    /// The one Power whose printed entry hands its price to the table. Named once, because a
+    /// second spelling of it is how the check above and the cost calculation come to disagree
+    /// about which Power they are talking about.
+    /// </summary>
+    private const string ImmortalityId = "immortality";
 
     /// <summary>
     /// Every Trait against the ceiling this character is built to — <b>the house cap where it
@@ -1261,7 +1332,7 @@ public sealed class CharacterValidator
 
             // Report when Cons have driven the cost down to the rulebook floor, since
             // any further Cons on this Power buy the character nothing.
-            var cost    = _costs.PowerCost(sp);
+            var cost    = _costs.PowerCost(sp, sheet.ImmortalityCost);
             var atFloor = power.CostType is "flat" or "flat_variable" or "per_unit"
                 ? cost == 1
                 : cost <= Math.Max(1, (int)Math.Ceiling(sp.PurchasedRanks / 2.0));

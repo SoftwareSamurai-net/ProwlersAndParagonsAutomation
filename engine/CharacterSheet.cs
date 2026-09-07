@@ -238,6 +238,71 @@ public class CharacterSheet
     public int? TraitCapRank { get; set; }
 
     /// <summary>
+    /// The optional rules the table this character plays at has turned on, or null for the book
+    /// as printed — the ten Gritty Combat Rules and the three switches beside them.
+    ///
+    /// <para><b>Carried, and read by nothing in this engine.</b> Not one of these settings is
+    /// about what a character costs or whether it is legal, which is the whole of what
+    /// <see cref="CostCalculator"/> and <see cref="CharacterValidator"/> decide. They are about
+    /// resolving a fight, and the fight belongs to the second engine — see
+    /// <see cref="CampaignTable"/>, whose switches are named after the ones <c>play/</c> reads and
+    /// held to that list by a test.</para>
+    ///
+    /// <para><b>So why is it on the sheet at all?</b> For the reason
+    /// <see cref="TraitCapRank"/> is: a character is portable and a campaign is not. The encounter
+    /// server is handed characters, never a campaign — it cannot resolve a
+    /// <see cref="CampaignId"/> any more than this engine can — so a fight fought with somebody's
+    /// Hero is fought under the book unless the Hero brought its table's rules along. The
+    /// <c>.json</c> export carries the block for exactly that reader.</para>
+    ///
+    /// <para><b>Copied on joining, and never written over one that is already here</b> — the same
+    /// rule the cap follows, in <c>web/Services/CampaignJoin.cs</c>.</para>
+    ///
+    /// <para><b>Leaving a game does not take it off, and that is the precedent rather than an
+    /// oversight.</b> Leaving is a fact about a campaign's roster and touches nobody's own work —
+    /// the tier, the sandbox flag and the house cap all stay, and a deleted campaign leaves every
+    /// member still naming it on purpose, so that restoring it puts everything back. What a sheet
+    /// out of its game gets instead is a <em>finding</em>: <c>CampaignJoin.Inspect</c> says so on
+    /// the campaigns page. Reported, never repaired, like everything else here.</para>
+    ///
+    /// <para><b>Absent on an older saved character, and null is the book</b>, which is what every
+    /// character stored before this existed was already playing — so nothing here bumped
+    /// <c>StoredCharacter</c>'s version.</para>
+    /// </summary>
+    public CampaignTable? CampaignTable { get; set; }
+
+    /// <summary>
+    /// What this character's table charges for Immortality, or null for the 3 Hero Points the
+    /// book prices it at.
+    ///
+    /// <para><b>The one house rule here that is a price, and so the one this engine reads.</b>
+    /// Ch.2 p.31 prices Immortality at 3 HP and then says "In a game where Heroes can die, GMs
+    /// should charge more for this — somewhere between 6 and 12 Hero Points" — a range where
+    /// every other entry in <c>data/rules/</c> prints a number.
+    /// <see cref="CostCalculator.PowerCost"/> charges this when it is set, so a table that
+    /// charges 9 changes what the Power costs and therefore whether the character fits its
+    /// budget.</para>
+    ///
+    /// <para><b>The bound is in the data, not in the code.</b>
+    /// <c>PowerModel.CampaignCostMin</c> and <c>CampaignCostMax</c> are a transcription of that
+    /// sentence, and <see cref="CharacterValidator"/> reports a price outside them as
+    /// <c>IMMORTALITY_COST_OUTSIDE_RANGE</c>. A figure spelled in C# would be a price this
+    /// project had invented, which is the one thing <c>data/rules/</c> exists to prevent.</para>
+    ///
+    /// <para><b>Reported, never repaired</b>, like everything else: a price outside the range, or
+    /// one on a character in no campaign at all, is an error and the arithmetic still charges the
+    /// number as written. The second of those is a finding rather than a shrug because a house
+    /// price is a fact about a table — a character carrying one and naming no game is a sheet
+    /// that has been hand-edited or has left a campaign without the price going with it.</para>
+    ///
+    /// <para><b>It costs Hero Points and the Trait Cap does not</b>, which is the one way this
+    /// differs from its neighbour above: a campaign that re-prices Immortality moves the spend on
+    /// every character in it that has the Power, so a diff has to show it under such a
+    /// character.</para>
+    /// </summary>
+    public int? ImmortalityCost { get; set; }
+
+    /// <summary>
     /// Id of the optional package applied (Civilian/Hero/Superhero), or null.
     /// The package sets a floor on ability and talent ranks — it does not
     /// prevent buying higher ranks on top.

@@ -85,7 +85,12 @@ public sealed class CampaignStandingTests
 
         var markup = GamesPanel(ctx);
 
-        Assert.DoesNotContain("Trait Cap", markup, StringComparison.Ordinal);
+        // **The finding's own words, not the bare phrase.** The panel also draws a read-only list
+        // of the house rules in force for the character, which legitimately says "Trait Cap 6d"
+        // for anybody in a game that has set one — that is information and not a finding. Matching
+        // the substring alone would make this control fail over a page doing exactly what it
+        // should, which is the false alarm every message in this app is written to avoid.
+        Assert.DoesNotContain("different Trait Cap", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("different tier", markup, StringComparison.Ordinal);
     }
 

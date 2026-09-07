@@ -145,6 +145,47 @@ public record PowerModel
     public IReadOnlyList<string> AffectsResolveWhenNominated { get; init; } = [];
 
     /// <summary>
+    /// The cheapest a table may re-price this Power at, when its own printed entry hands the
+    /// price to the GM. Null on every entry whose price the book states flatly, which is all of
+    /// them but one.
+    ///
+    /// <para><b>Immortality is the one, and this is the range its own <see cref="Description"/>
+    /// prints</b> — "In a game where Heroes can die, GMs should charge more for this — somewhere
+    /// between 6 and 12 Hero Points" (Ch.2 p.31). <b>The prose is the source and these two
+    /// numbers are a transcription of it</b>, which is why <c>ImmortalityCampaignCostTests</c>
+    /// reads that sentence back out of the shipped data and requires it to still say 6 and 12. A
+    /// range restated in a second place is a range that can drift from the one the book printed,
+    /// and the point of the structured pair is that something mechanical can read it — not that
+    /// there are now two answers.</para>
+    ///
+    /// <para><b>Why the numbers are here rather than as literals in the engine.</b>
+    /// <c>CharacterValidator</c> bounds a campaign's house price by these and
+    /// <c>CostCalculator</c> charges it, so a figure spelled in C# would be a price this
+    /// repository had invented — unreachable by the rules audit that holds every other price to a
+    /// page, and exactly the thing <c>data/rules/</c> exists to prevent.</para>
+    ///
+    /// <para><b>It is not a price and nothing is charged from it.</b> <see cref="CostFlat"/> is
+    /// still what this Power costs. This is the interval a <em>table</em> may move that price
+    /// into, and only a campaign can do the moving: a character with no campaign carries no house
+    /// price at all, and prices from <see cref="CostFlat"/> exactly as it always has.</para>
+    /// </summary>
+    public int? CampaignCostMin { get; init; }
+
+    /// <summary>
+    /// The dearest a table may re-price this Power at — the other end of
+    /// <see cref="CampaignCostMin"/>, and null wherever that is.
+    /// </summary>
+    public int? CampaignCostMax { get; init; }
+
+    /// <summary>
+    /// Whether this Power's own entry hands its price to the table, which is what carrying both
+    /// ends of the range means. False everywhere else, so a caller asking "may a campaign
+    /// re-price this?" has one answer to read rather than two nullables to combine.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasCampaignCostRange => CampaignCostMin is not null && CampaignCostMax is not null;
+
+    /// <summary>
     /// Which fields have been checked against the rulebook: any of
     /// range, rank_type, cost, prerequisite, description, pros_cons.
     /// Replaces the old single needs_review boolean, which could not distinguish

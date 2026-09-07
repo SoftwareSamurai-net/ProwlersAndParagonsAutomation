@@ -223,6 +223,52 @@ public sealed class HeadlessBuildTests : IDisposable
     /// limit of 6, and Resolve moves with the cap because the cap is what Resolve is measured
     /// from — the two halves the owner settled together, asserted together.
     ///
+    /// <summary>
+    /// <b><c>build</c> reads a table's house rules off the character file, and there is no flag
+    /// for them.</b>
+    ///
+    /// <para>The price for Immortality is Hero Points, so the spend in the report is the table's
+    /// and the report says which price made it so. <b>A <c>--trait-cap</c>-style override was
+    /// deliberately not added</b>: a cap is a ceiling and a caller asking "what do these sheets
+    /// look like at 6d" wants exactly that, but a price re-costs every character in the run
+    /// against a game none of them is in. The sheet is the source.</para>
+    ///
+    /// <para>The run at the book's price is the positive control — without it, "the spend is 9
+    /// higher" is satisfied by a command that had stopped reading the file's price and started
+    /// charging everybody.</para>
+    /// </summary>
+    [Fact]
+    public void TheReportPricesImmortalityAtTheTablesRateFromTheFile()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.SelectedPowers.Add(new SelectedPower("immortality", 0));
+
+        var free = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, free.ExitCode);
+        Assert.Null(free.Report["immortality_cost"]);
+
+        sheet.CampaignId = "g_0000000000000000000000";
+        sheet.ImmortalityCost = 12;
+        sheet.CampaignTable = new CampaignTable { FatalDamage = true };
+
+        var housed = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
+
+        Assert.Equal(12, (int)housed.Report["immortality_cost"]!);
+        Assert.Equal((int)free.Report["hero_points"]!["spent"]! + 9,
+                     (int)housed.Report["hero_points"]!["spent"]!);
+
+        // A price outside the range the entry prints is reported and still charged, which is the
+        // same answer the field gets one level down and the flag gets for a bad cap.
+        sheet.ImmortalityCost = 40;
+
+        var loose = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
+
+        Assert.Equal(BuildCommand.CharacterIllegal, loose.ExitCode);
+        Assert.NotNull(loose.Issue("IMMORTALITY_COST_OUTSIDE_RANGE"));
+        Assert.Equal(40, (int)loose.Report["immortality_cost"]!);
+    }
+
     /// <para>The run without the flag is the positive control: 7d really is legal at this tier,
     /// so nothing below can be satisfied by a character that was already illegal.</para>
     /// </summary>

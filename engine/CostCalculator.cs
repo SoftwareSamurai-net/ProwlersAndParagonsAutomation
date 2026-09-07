@@ -105,7 +105,49 @@ public sealed class CostCalculator
     /// Unranked Powers (flat, flat_variable, per_unit) ignore purchased ranks and are
     /// floored at 1 HP, except Specialty, which the rulebook makes free.
     /// </summary>
-    public int PowerCost(SelectedPower selection) => CostParts.For(this, selection).Total();
+    /// <param name="selection">The Power as bought.</param>
+    /// <param name="houseImmortalityCost">
+    /// <see cref="CharacterSheet.ImmortalityCost"/> — what this character's table charges for a
+    /// Power whose own entry hands its price to the GM, or null for the book's.
+    ///
+    /// <para><b>Immortality is the only such entry today</b>, and the only reason this parameter
+    /// is a bare number rather than the sheet: a cost calculation that took a whole character
+    /// would invite the next rule to be written against some other field on it, and the point of
+    /// <see cref="PowerCost"/> is that a Power's price is a function of the Power. What the table
+    /// may charge is bounded by <c>campaign_cost_min</c> / <c>campaign_cost_max</c> in
+    /// <c>data/rules/powers.json</c>, and a price outside that is <b>charged as written</b> and
+    /// reported by <see cref="CharacterValidator"/> — reported, never repaired.</para>
+    ///
+    /// <para><b>Null on a Power that has no such range is not a bug and is not ignored quietly
+    /// either</b>: a house price with nowhere to apply simply never reaches the entry, because
+    /// the branch below asks the Power whether it has a range before it asks the table for a
+    /// figure. So a campaign cannot re-price Blast by setting this.</para>
+    ///
+    /// <para><b>Every caller that has a character in front of it passes it</b>, and
+    /// <c>HousePriceReadTests</c> is the guard — an unqualified <c>PowerCost(sp)</c> in a host
+    /// prices the book's 3 HP beside a budget strip that charged 9, which is the two-figures
+    /// disagreement <c>TraitCapReadTests</c> was written for one field over.</para>
+    /// </param>
+    public int PowerCost(SelectedPower selection, int? houseImmortalityCost = null) =>
+        CostParts.For(this, selection, houseImmortalityCost).Total();
+
+    /// <summary>
+    /// The price in force for a Power whose printed entry hands its cost to the table: the
+    /// table's where there is one, and the book's otherwise.
+    ///
+    /// <para><b>The Power is asked first.</b> A campaign's figure applies only to an entry that
+    /// carries a <c>campaign_cost_min</c>/<c>max</c> pair, so a table that has re-priced
+    /// Immortality has not thereby re-priced every flat-cost Power on the sheet.</para>
+    ///
+    /// <para><b>A figure outside the range is charged as written</b>, and reported by
+    /// <see cref="CharacterValidator.CheckHouseImmortalityCost"/>. Clamping here would be the
+    /// engine making a design decision about somebody's game, and it would hide the finding
+    /// behind arithmetic that already looked right.</para>
+    /// </summary>
+    private static int FlatCost(PowerModel power, int? houseCost) =>
+        power.HasCampaignCostRange && houseCost is { } house
+            ? house
+            : power.CostFlat ?? throw MissingCost(power, "cost_flat");
 
     /// <summary>
     /// A Power's cost taken apart: the price its ranks or flat rate come to, the flat
@@ -119,7 +161,8 @@ public sealed class CostCalculator
     {
         public int Total() => Math.Max(Minimum, Base + Flat);
 
-        public static CostParts For(CostCalculator calc, SelectedPower selection)
+        public static CostParts For(
+            CostCalculator calc, SelectedPower selection, int? houseImmortalityCost = null)
         {
             var power = calc._rules.GetPower(selection.PowerId)
                         ?? throw new InvalidOperationException($"Unknown power id '{selection.PowerId}'.");
@@ -134,8 +177,10 @@ public sealed class CostCalculator
                 "per_rank" or "per_rank_variable" or "special" =>
                     calc.RankedParts(power, selection, flat, rate),
 
+                // The table's price where the entry hands its cost to the table and the table has
+                // named one. Immortality is the only such entry — see `FlatCost`.
                 "flat" =>
-                    Fixed(power.CostFlat ?? throw MissingCost(power, "cost_flat")),
+                    Fixed(FlatCost(power, houseImmortalityCost)),
 
                 "flat_variable" =>
                     Fixed((int)calc.ResolveVariant(power, selection)),
@@ -358,10 +403,23 @@ public sealed class CostCalculator
     private static bool IsSuperSense(SelectedPower selection) =>
         selection.PowerId.StartsWith(SuperSensesPrefix, StringComparison.Ordinal);
 
-    /// <summary>Total HP spent on all selected powers.</summary>
-    public int TotalPowersCost(CharacterSheet sheet) =>
-        sheet.SelectedPowers.Where(p => !IsSuperSense(p)).Sum(PowerCost)
-        + SuperSensesCost(sheet.SelectedPowers.Where(IsSuperSense));
+    /// <summary>
+    /// Total HP spent on all selected powers, at this character's table's prices.
+    ///
+    /// <para><b>The house price reaches the budget through here.</b> A table charging 9 for
+    /// Immortality moves what every character in it that has the Power costs, so the figure the
+    /// tier's budget is checked against has to be the one the table charges — otherwise the
+    /// running total on a screen and the verdict underneath it are about two different
+    /// games.</para>
+    /// </summary>
+    public int TotalPowersCost(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        return sheet.SelectedPowers.Where(p => !IsSuperSense(p))
+                    .Sum(p => PowerCost(p, sheet.ImmortalityCost))
+             + SuperSensesCost(sheet.SelectedPowers.Where(IsSuperSense));
+    }
 
     /// <summary>
     /// Super Senses costs as one Power, not as one per option.

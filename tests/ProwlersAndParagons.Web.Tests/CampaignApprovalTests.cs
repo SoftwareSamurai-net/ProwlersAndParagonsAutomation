@@ -333,6 +333,94 @@ public sealed class CampaignApprovalTests
             r => r.What == "Trait Cap");
     }
 
+    /// <summary>
+    /// <b>The Immortality row is shown under a character that has the Power, and under no other.</b>
+    ///
+    /// <para>A table's price for Immortality is Hero Points: a campaign that raised it moved the
+    /// spend on every character in it that has the Power, so the GM is owed the reason beside the
+    /// figure. It reads <c>Immortality 3 HP → 9 HP</c> — the book's own price standing in for a
+    /// character that carries none, because <c>null → 9</c> is this application's bookkeeping and
+    /// not what changed for the character. That is the Trait Cap row's rule, one field over.</para>
+    ///
+    /// <para><b>And it is drawn only where somebody is charged it.</b> A price nobody pays is a
+    /// row a GM cannot act on, and this screen's whole job is to say what is different about
+    /// <em>this</em> character.</para>
+    /// </summary>
+    [Fact]
+    public void TheImmortalityRowIsDrawnOnlyUnderACharacterThatHasThePower()
+    {
+        var before = ASheet();
+        before.SelectedPowers.Add(new SelectedPower("immortality", 0));
+
+        var after = ASheet();
+        after.SelectedPowers.Add(new SelectedPower("immortality", 0));
+        after.ImmortalityCost = 9;
+
+        var row = CampaignDiff.Between(before, after, Rules, Costs).Rows
+            .Single(r => r.What == "Immortality");
+
+        Assert.Equal("3 HP", row.Before);
+        Assert.Equal("9 HP", row.After);
+        Assert.Equal(DiffKind.Changed, row.Kind);
+
+        // The same price change under a character without the Power says nothing, because nobody
+        // is charged it. The spend row is silent for the same reason, which is the control that
+        // this is about the Power and not about the diff having stopped running.
+        var noPower = ASheet();
+        noPower.ImmortalityCost = 9;
+
+        var quiet = CampaignDiff.Between(ASheet(), noPower, Rules, Costs);
+
+        Assert.True(quiet.Ran);
+        Assert.DoesNotContain(quiet.Rows, r => r.What == "Immortality");
+    }
+
+    /// <summary>
+    /// <b>An optional rule the table adopted is one row per switch, named the way the book names
+    /// it.</b>
+    ///
+    /// <para>One row per switch rather than one row for the block, because "House rules changed"
+    /// is exactly the sentence this screen exists not to print: a GM deciding about a submission
+    /// needs to know <em>which</em> rule, and thirteen switches in one row is a diff the reader
+    /// has to do themselves.</para>
+    ///
+    /// <para><b>The control is the other direction</b>: a character joining a table that has
+    /// adopted nothing gains a block whose every switch is off, which is the same game it was
+    /// already playing — so <c>null</c> and "all off" produce no rows at all, and a row saying
+    /// "House rules added" would be the application reporting its own storage.</para>
+    /// </summary>
+    [Fact]
+    public void EachOptionalRuleThatMovedIsItsOwnRow()
+    {
+        var after = ASheet();
+        after.CampaignTable = new CampaignTable
+        {
+            FatalDamage = true, RaisedGearLimit = true, GearLimitRank = 12
+        };
+
+        var rows = CampaignDiff.Between(ASheet(), after, Rules, Costs).Rows;
+
+        var fatal = Assert.Single(rows, r => r.What == "Fatal Damage");
+        Assert.Equal("off", fatal.Before);
+        Assert.Equal("on", fatal.After);
+
+        Assert.Single(rows, r => r.What == "Raised Gear Limit");
+        Assert.Single(rows, r => r.What == "Gear Limit");
+
+        // Nothing about the twelve nobody touched.
+        Assert.DoesNotContain(rows, r => r.What == "The Drop");
+
+        // A block that arrived carrying nothing is the same game, so no row at all.
+        var adoptedNothing = ASheet();
+        adoptedNothing.CampaignTable = CampaignTable.Book;
+
+        var quiet = CampaignDiff.Between(ASheet(), adoptedNothing, Rules, Costs);
+
+        Assert.True(quiet.Ran);
+        Assert.DoesNotContain(quiet.Rows,
+            r => HouseRuleFormatter.All.Any(e => e.Name == r.What) || r.What == "Gear Limit");
+    }
+
     public static TheoryData<string, Action<CharacterSheet>> FreeButReportableChanges() => new()
     {
         { "the tier", s => s.SelectedTierId = "high_level" },
@@ -344,6 +432,11 @@ public sealed class CampaignApprovalTests
         // fixture is at the Standard tier, whose cap is 12d, so this really is 12d → 6d and not a
         // row about a field going from absent to present.
         { "a house Trait Cap", s => s.TraitCapRank = 6 },
+
+        // The table's optional rules cost nothing either, and they change what happens when this
+        // sheet is used in a fight — which is the whole of what a GM is deciding about.
+        { "an optional rule the table adopted",
+            s => s.CampaignTable = new CampaignTable { FatalDamage = true } },
 
         { "building without a points limit", s => s.UnlimitedBudget = true },
         { "Hero or Villain", s => s.IsVillain = true },

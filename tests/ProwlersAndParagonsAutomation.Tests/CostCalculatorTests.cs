@@ -230,7 +230,7 @@ public sealed class CostCalculatorTests
         sheet.SelectedPowers.Add(new SelectedPower("transformation_animal_forms", 4));
         sheet.SelectedPowers.Add(new SelectedPower("transformation_shapeshifting", 4));
 
-        Assert.Equal(sheet.SelectedPowers.Sum(_f.Costs.PowerCost), _f.Costs.TotalPowersCost(sheet));
+        Assert.Equal(sheet.SelectedPowers.Sum(sp => _f.Costs.PowerCost(sp)), _f.Costs.TotalPowersCost(sheet));
     }
 
     // ── Abilities, talents, totals ───────────────────────────────────────────
