@@ -80,7 +80,7 @@ internal sealed class RandomPolicy : IPolicy
                 actor.Id, target, rolled, Damage(), Row(), Team: true, CloseRangeOnly: Thrown()),
             4 => new Move(actor.Id, target, Closer: Coin()),
             5 => new Hold(actor.Id),
-            6 => new GrappleIntent(actor.Id, target, (GrappleMove)Pick(3), Grabbed()),
+            6 => new GrappleIntent(actor.Id, target, (GrappleMove)Pick(3), Grabbed(state, target)),
             7 => new BreakFree(actor.Id, rolled, Threshold: Pick(4)),
             8 => new Stabilise(actor.Id, target),
             _ => Adversity(actor, target)
@@ -115,12 +115,35 @@ internal sealed class RandomPolicy : IPolicy
     private int _nextGrabbed;
     private int _nextSwung;
 
-    private string? Grabbed()
+    /// <summary>
+    /// What this grab is aimed at: alternately nothing — refused, because p.76 tells a grab from a
+    /// hold by its object — and whatever the target has in their hands.
+    ///
+    /// <para><b>It reads the target's hand rather than naming a constant</b>, because since a grab
+    /// is refused for an item its target is not holding, a constant would put every grab in the
+    /// property on the same refusal and no full grab would ever land. Where the target is holding
+    /// nothing the constant is still what it names, so that refusal is inside the property too.
+    /// </para>
+    /// </summary>
+    private string? Grabbed(EncounterState state, string target)
     {
         var named = _nextGrabbed++ % 2 == 0;
         GrabbedItems.Add(named);
-        return named ? TheItem : null;
+
+        if (!named) return null;
+
+        var theirs = state[target].Holding?.Name;
+        GrabbedWhatTheyHeld.Add(theirs is not null);
+
+        return theirs ?? TheItem;
     }
+
+    /// <summary>
+    /// Whether a grab named what its target was holding, or something they were not — the two sides
+    /// of p.76's "away from your opponent", and the second is a refusal.
+    /// </summary>
+    public HashSet<bool> GrabbedWhatTheyHeld { get; } = [];
+
 
     private string? Swung()
     {
@@ -146,13 +169,21 @@ internal sealed class RandomPolicy : IPolicy
     {
         ArgumentNullException.ThrowIfNull(actor);
 
-        var holding = actor.Holding is not null;
+        // <b>Cycled, because a toss on every turn empties the fight of objects by the end of the
+        // first page.</b> The hook used to name whatever the actor was holding every time, so the
+        // Hero who opens the fight with the sword threw it away on their first turn and no grab
+        // afterwards had anything to be aimed at — which, now that a grab is refused for an item
+        // its target is not holding, meant the full grab, the item it moves and the page turn that
+        // takes it away were all outside a property whose subject is every branch of Step.
+        var holding = actor.Holding is not null && _nextTossed++ % 3 == 0;
 
         TossedWhatTheyHeld.Add(holding);
         Emitted.Add(nameof(Toss));
 
         return new Toss(actor.Id, holding ? actor.Holding!.Name : TheItem);
     }
+
+    private int _nextTossed;
 
     /// <summary>Both answers p.80's <c>vulnerable_part</c> declaration takes, for the same control.</summary>
     public HashSet<bool> WeakPoints { get; } = [];
