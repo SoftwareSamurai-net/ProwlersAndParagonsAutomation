@@ -2341,6 +2341,56 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A knockback moves the pair and no other pair.</b>
+    ///
+    /// <para>This is a reading, and <c>docs/guide/play-engine.md</c> says so: p.73's ranges are
+    /// pairwise — "the GM always determines the initial range class between combatants" — because
+    /// there is no board and no distance from a fixed point, so "flies backwards" can only be said
+    /// of the two characters involved. A third character standing by is neither nearer nor farther
+    /// for it, and an engine that had moved every pair the target is in would have thrown the whole
+    /// room apart on one point of Resolve.</para>
+    ///
+    /// <para>The control is the pair that <em>does</em> move: a fixture in which nothing moved at
+    /// all would satisfy every assertion below.</para>
+    /// </summary>
+    [Fact]
+    public void AKnockbackMovesThePairAndLeavesEveryOtherPairWhereItWas()
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        var bystander = Combatant.Villain("bystander", "the bystander", edge: 5, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"]);
+
+        // 8d of Might for 6 successes against 2d of Toughness for none, which is the entry's
+        // minimum_damage exactly.
+        var dice = new ScriptedDice([.. FacesFor(8, 6), .. FacesFor(2, 0)]);
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain, bystander], opening: RangeBand.Close);
+
+        state = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed)).State;
+
+        state = encounter.Step(state, new SpendResolve("hero", ResolveSpend.Knockback)).State;
+
+        // The control: the pair the blow was between did move.
+        Assert.NotEqual(RangeBand.Close, state.RangeBetween("hero", "villain"));
+
+        // And nobody else did. The target is no farther from the bystander for having been thrown,
+        // because there is nothing in p.73 that a pairwise band could be measured against.
+        Assert.Equal(RangeBand.Close, state.RangeBetween("villain", "bystander"));
+        Assert.Equal(RangeBand.Close, state.RangeBetween("hero", "bystander"));
+
+        Assert.Equal(0, dice.Remaining);
+    }
+
+    /// <summary>
     /// <b>Knockback is bought off the damage type the entry names and nothing else.</b> p.78 opens
     /// on "an attack that inflicts subdual damage"; a killing blow of the same size buys nothing,
     /// and the refusal says which kind it was.
