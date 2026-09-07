@@ -59,9 +59,42 @@ namespace ProwlersAndParagonsAutomation.Engine;
 /// Whether this table builds without a Hero Point limit — the sandbox, one level up from
 /// <see cref="CharacterSheet.UnlimitedBudget"/>, which is where it has been living.
 /// </param>
+/// <param name="Table">
+/// The optional rules this table has turned on, or null for the book as printed.
+///
+/// <para><b>It reaches a character the way the Trait Cap does, and for the same reason.</b>
+/// Joining copies it onto <see cref="CharacterSheet.CampaignTable"/>; nothing here resolves a
+/// campaign to read it. What is different is that <em>this</em> engine never reads it at all —
+/// see <see cref="CampaignTable"/>: these are rules for resolving a fight, and a fight is the
+/// second engine's business. The block rides on the sheet so that the encounter server, handed a
+/// character and no campaign, can still be told which game the character came from.</para>
+///
+/// <para><b>Null and "every switch off" are the same game</b>, which is what lets a campaign
+/// stored before this existed read back unchanged rather than as a table that has opted out of
+/// something.</para>
+/// </param>
+/// <param name="ImmortalityCost">
+/// What this table charges for Immortality, or null for the 3 Hero Points the book prices it at.
+///
+/// <para><b>The one number in the data where the book prints a range instead of a price.</b> Ch.2
+/// p.31: "In a game where Heroes can die, GMs should charge more for this — somewhere between 6
+/// and 12 Hero Points." Both ends are <c>campaign_cost_min</c> and <c>campaign_cost_max</c> on the
+/// Power's own entry, so the bound is a fact in <c>data/rules/</c> rather than a figure written
+/// into a calculator.</para>
+///
+/// <para><b>Unlike the table block, this one <em>is</em> read by this engine</b> — through the
+/// character, never from here. It is a price, and pricing is the whole of what
+/// <see cref="CostCalculator"/> is for: a table charging 9 changes what every character in it
+/// costs and so whether each fits its budget. It is copied onto
+/// <see cref="CharacterSheet.ImmortalityCost"/> on joining and read from there, which is the same
+/// route the cap takes and for the same reason — a character is portable and has to price itself
+/// with no campaign in front of it.</para>
+/// </param>
 public sealed record Campaign(
     string Id,
     string Name,
     string? TierId,
     int? TraitCapRank,
-    bool UnlimitedBudget);
+    bool UnlimitedBudget,
+    CampaignTable? Table = null,
+    int? ImmortalityCost = null);
