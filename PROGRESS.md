@@ -1917,10 +1917,28 @@ the mechanism of each beside the bUnit dispatch trap.
   than a catch: one shared `InProcessMcpServer` completes the client's writer, waits a bounded time
   for the run to end on its own, and only then disposes; every teardown step is folded into one
   verdict so a harness fault can neither mask a body's failure nor be swallowed by a passing one.
-- **A secret scan's five-second regex timeout fired under load.**
-  `AccountsContractTests.NoKeyOrTokenIsInTheRepository` takes half a second idle and threw
-  `RegexMatchTimeoutException` at a load average of 176; a timeout that fires turns a security scan
-  into a flake, and a flake gets retried past.
+- **A secret scan's five-second regex timeout fired under load — and the load was not the cause.**
+  `AccountsContractTests.NoKeyOrTokenIsInTheRepository` threw `RegexMatchTimeoutException` at a load
+  average of 176, but the pattern was quadratic in any unbroken run of token characters: a 128 KB
+  blob times it out on an idle laptop, and `worker/corpus.js` is 722 KB. Every source-scanning regex
+  in both test projects now goes through one `ScanRegex.Build`, which asks for the linear engine and
+  refuses to fall back silently; the scan itself covers the whole account server, the Razor tree,
+  `scripts/` and `tests/` rather than two directories partially, with planted fixtures per
+  alternative so a pattern that matches nothing cannot pass, and the one place the two engines
+  disagree (`Group.Captures` on a quantified group, read by nobody) is pinned. The review replaced a
+  wall-clock tripwire that was itself a flake at 6.6× margin with a control whose only clock is on
+  the side that must fail.
+
+**What the reviews added, because the first fixes were themselves checks nobody had broken.** The
+orchestrator's inverted-aliveness mutation *hung* the kill-tree suite for eleven minutes instead of
+turning it red — `wait` on a live child blocks — so `capture_server_state` is bounded and the suite
+proves a lying aliveness test fails within seconds. A server that answers by hanging (dead `workerd`
+under live wrangler, the documented death mode) was being classified as the check's own failure, and
+crashed the Node driver outright; both drivers now bound the probe and call it stopped. A passing
+run whose server died after the last check said nothing; it warns. The new verdict lines leaked a
+token through the half of the URL that was not wrapped; redaction moved to one choke point per
+driver, proved with a planted token. `test-kill-tree.sh` started a hundred marker processes with no
+trap and left them all on SIGTERM. Everything above was watched red before it was believed.
 
 ## Completed work
 
