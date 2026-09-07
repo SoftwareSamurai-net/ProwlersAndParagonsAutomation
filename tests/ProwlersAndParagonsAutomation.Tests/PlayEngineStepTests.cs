@@ -5578,6 +5578,105 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// Two Heroes on opposite sides, so both can hold Resolve and either can buy p.73's seize —
+    /// the Drop's Edges are the caller's, so the order below is arithmetic rather than luck.
+    /// </summary>
+    private static List<Combatant> Standing(int north, int south, bool northReady)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 6, ["toughness"] = 4
+        };
+
+        return
+        [
+            Combatant.Hero(
+                "north", "the Hero of the North", edge: north, health: 10, resolve: 2, traits,
+                ["toughness"], side: "north", ready: northReady),
+            Combatant.Hero(
+                "south", "the Hero of the South", edge: south, health: 10, resolve: 2, traits,
+                ["toughness"], side: "south")
+        ];
+    }
+
+    /// <summary>The order of action on the page after <paramref name="seizer"/> buys p.73's seize.</summary>
+    private IReadOnlyList<string> AfterTheSeize(
+        TableRules table, IReadOnlyList<Combatant> fight, string? seizer)
+    {
+        var encounter = new Encounter(_play, new SeededDice(73), table);
+        var state = encounter.Begin(fight);
+
+        if (seizer is not null)
+            state = encounter.Step(state, new SpendResolve(seizer, ResolveSpend.SeizeInitiative)).State;
+
+        return encounter.Step(state, new EndPage("")).State.TurnOrder;
+    }
+
+    /// <summary>
+    /// <b>p.79's Drop does not overtake p.73's seize, and the page never says whether it should.</b>
+    ///
+    /// <para>Seizing the initiative puts a character "first on every page of the action" — it is not
+    /// an Edge effect at all, and the Drop only doubles an Edge — so composing them the way this
+    /// engine composes everything leaves a seizer in front of a doubled figure however large it
+    /// gets. That is a reading rather than a transcription, because neither page mentions the other,
+    /// and it is in <c>docs/guide/play-engine.md</c>'s table with this fixture beside it.</para>
+    ///
+    /// <para><b>The control is the same fight without the purchase</b>, where the doubled Edge does
+    /// win — otherwise this would pass against an engine in which the Drop did nothing at all.</para>
+    /// </summary>
+    [Fact]
+    public void TheDropDoesNotOvertakeASeizedInitiative()
+    {
+        // The North's 5 doubles to 10 and beats the South's 4, which is the control: the Drop is
+        // deciding this order until the purchase is made.
+        Assert.Equal(
+            ["north", "south"],
+            AfterTheSeize(TheDropOn, Standing(north: 5, south: 4, northReady: true), seizer: null));
+
+        // And the purchase takes the front regardless of it.
+        Assert.Equal(
+            ["south", "north"],
+            AfterTheSeize(TheDropOn, Standing(north: 5, south: 4, northReady: true), seizer: "south"));
+    }
+
+    /// <summary>
+    /// <b>Where the GM takes p.73's alternative, a ready buyer's Edge is multiplied by four, and
+    /// that is a reading this fixture is here to make arguable.</b>
+    ///
+    /// <para>Two printed sentences each double an effective Edge — <c>the_drop.effect</c> and
+    /// <c>seize_initiative_gm_alternative</c>'s — and no page in Chapters 3 to 5 contemplates both
+    /// at once. This engine applies each where it is triggered, so a ready character who buys the
+    /// seize under the GM's alternative acts on four times their figure. <b>Nothing settles that
+    /// against the alternative of capping it at twice</b>, and a composition this large arriving
+    /// silently out of two unrelated branches is exactly the shape of reading the guide's table
+    /// exists for.</para>
+    ///
+    /// <para>The figures are chosen so that only the fourfold answer wins: the North's 5 is 10
+    /// under either doubling alone and 20 under both, against a South of 18. So the first assertion
+    /// is a control on the second — one doubling is not enough — and an engine that applied the
+    /// Drop and then ignored the alternative, or the other way round, fails the second.</para>
+    /// </summary>
+    [Fact]
+    public void BothDoublingsCompoundOnAReadyCharacterWhoSeizesTheInitiative()
+    {
+        var table = TheDropOn with { GmAlternativeToSeizingInitiative = true };
+
+        // One doubling is not enough: 5 doubled is 10, and the South is on 18.
+        Assert.Equal(
+            ["south", "north"],
+            AfterTheSeize(table, Standing(north: 5, south: 18, northReady: true), seizer: null));
+
+        Assert.Equal(
+            ["south", "north"],
+            AfterTheSeize(table, Standing(north: 5, south: 18, northReady: false), seizer: "north"));
+
+        // Both together are: 5 doubled by the Drop and doubled again by the GM's alternative.
+        Assert.Equal(
+            ["north", "south"],
+            AfterTheSeize(table, Standing(north: 5, south: 18, northReady: true), seizer: "north"));
+    }
+
+    /// <summary>
     /// <b>An entry that has stopped saying "doubled" is a rule this engine refuses to apply.</b>
     ///
     /// <para><c>the_drop.effect</c> is a printed sentence rather than a multiplier, so the engine
