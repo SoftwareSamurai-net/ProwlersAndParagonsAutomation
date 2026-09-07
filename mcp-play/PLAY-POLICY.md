@@ -75,6 +75,12 @@ purchases the last table of this document marks bought**; every other purchase i
 recognised and answered with a `not yet implemented` line. The table at the end of this document says which is
 which, and it is the only place to read that from.
 
+**For an NPC, and never for a Hero.** p.85 spends the GM's pool "on behalf of any NPC whether
+they're Villains, Foes, Minions, or Extras", and a Hero named as the `actor` of an
+`anything_resolve_can` is refused with nothing spent. The two pools are the whole of that side of
+the economy: a Hero buys their own dice with their own Resolve, and a point of Adversity that
+bought one for them would be the GM paying to help the party.
+
 ## Quoting a measurement
 
 `run_encounters` answers with a rate. **A rate is only ever quoted with the four things printed

@@ -1367,6 +1367,85 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>p.85 spends Adversity "on behalf of any NPC", and a Hero is not one.</b>
+    ///
+    /// <para>The sentence that makes the first purchase a purchase at all names who it may be spent
+    /// for, and the entry transcribes the list: <c>npc_kinds</c> is Villains, Foes, Minions and
+    /// Extras. A Hero is on no list on that page, and the pool is the GM's precisely because the
+    /// players have one of their own — a point of Adversity buying a Hero the die their own Resolve
+    /// would have bought is the one thing the two-pool economy exists to make impossible.</para>
+    ///
+    /// <para><b>The refusal is read off the entry rather than typed here</b>, the way the other two
+    /// eligibility refusals on this page are: a change to <c>npc_kinds</c> moves the engine with
+    /// it.</para>
+    ///
+    /// <para>The control is that the same purchase, in the same fight, against a character who
+    /// <em>is</em> an NPC goes through — a run in which nothing at all could be bought would satisfy
+    /// the refusal while measuring nothing.</para>
+    /// </summary>
+    [Fact]
+    public void TheGmsPoolIsSpentOnAnNpcAndNeverOnAHero()
+    {
+        var entry = _play.GetResolve("adversity_spend_anything_resolve_can");
+        var rule = entry.Spend!;
+
+        // The control on the data: the page names the four kinds, and a Hero is not among them.
+        Assert.True(rule.MayBeSpentOnAnyNpc);
+        Assert.Equal(["Villains", "Foes", "Minions", "Extras"], rule.NpcKinds);
+
+        // <b>And the control on the refusal: the four the page names are the four this engine has
+        // besides a Hero.</b> The guard admits a combatant by the plural of the kind p.85 spells,
+        // so a mapping that had drifted would refuse every NPC as well as every Hero — which the
+        // Villain at the end of this fixture would catch, but only after the fact. This says which
+        // half is wrong.
+        Assert.Equal(
+            rule.NpcKinds!.Order(StringComparer.Ordinal),
+            Enum.GetValues<CombatantKind>()
+                .Where(k => k != CombatantKind.Hero)
+                .Select(k => (k == CombatantKind.MinionGroup ? "Minion" : k.ToString()) + "s")
+                .Order(StringComparer.Ordinal));
+
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 20, resolve: 3, traits, ["toughness"]);
+        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 20, traits, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(21));
+        var state = encounter.Begin([hero, villain], challengeLevel: 2);
+        var opening = state.Adversity;
+
+        Assert.True(opening >= 1, $"the GM opened on {opening} Adversity");
+
+        // The Hero attacks, so the purchase decided after the roll has a roll of theirs to buy on.
+        state = encounter.Step(state, new Attack("hero", "villain", "might")).State;
+
+        Assert.Equal("hero", state.LastAttack!.Actor);
+
+        var onAHero = encounter.Step(state, new SpendAdversity(
+            "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.ExtraDice));
+
+        // Nothing was spent, nothing was bought, and the fight is the same objects it was.
+        Assert.Equal(opening, onAHero.State.Adversity);
+        Assert.Equal(3, onAHero.State["hero"].Resolve);
+        Assert.Same(state.Combatants, onAHero.State.Combatants);
+        Assert.Equal(state.LastAttack.AttackSuccesses, onAHero.State.LastAttack!.AttackSuccesses);
+
+        Assert.Contains(onAHero.Added, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.Text.Contains("on behalf of any NPC", StringComparison.Ordinal)
+            && l.Text.Contains("is a Hero", StringComparison.Ordinal));
+
+        // And it is not that nothing can be bought here: the Villain's own attack buys a die.
+        state = encounter.Step(state, new EndTurn("hero")).State;
+        state = encounter.Step(state, new Attack("villain", "hero", "might")).State;
+
+        var onAnNpc = encounter.Step(state, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.ExtraDice));
+
+        Assert.Equal(opening - 1, onAnNpc.State.Adversity);
+    }
+
+    /// <summary>
     /// <b>p.85's suppress-a-Flaw spend: the pool pays, the character carries it, and the ledger says
     /// the rest is the GM's.</b>
     ///
@@ -3231,12 +3310,16 @@ public sealed class PlayEngineStepTests
             Assert.DoesNotContain(step.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
         }
 
-        // The positive control: with a roll on the table the announcement is made and the pool falls.
-        var rolled = encounter.Step(opened, new Attack(
-            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed)).State;
+        // The positive control: with a roll on the table the announcement is made and the pool
+        // falls. The roll is the Villain's, because p.85 spends the GM's pool "on behalf of any
+        // NPC" — this control used to buy the dice for the Hero, which the engine now refuses.
+        var passed = encounter.Step(opened, new EndTurn("hero")).State;
+
+        var rolled = encounter.Step(passed, new Attack(
+            "villain", "hero", "might", DamageKind.Subdual, AttackType.Unarmed)).State;
 
         var bought = encounter.Step(rolled, new SpendAdversity(
-            "hero", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.ExtraDice));
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.ExtraDice));
 
         Assert.Contains(bought.Added, l => l.Text.Contains(Claim, StringComparison.Ordinal));
         Assert.True(bought.State.Adversity < rolled.Adversity);

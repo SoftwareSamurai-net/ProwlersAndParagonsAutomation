@@ -2323,6 +2323,30 @@ public sealed partial class Encounter
 
         var npc = state[spend.Actor];
 
+        // <b>p.85 says who the point may be spent for, and a Hero is not on the list.</b> The
+        // sentence that makes this a purchase at all is "you can spend Adversity on behalf of any
+        // NPC whether they're Villains, Foes, Minions, or Extras", transcribed as `npc_kinds` — and
+        // the pool is the GM's precisely because the players have one of their own. Without this
+        // the GM's pool bought a Hero the die their own Resolve would have bought: `BuyDice` and its
+        // five neighbours are handed a combatant and charge whichever pool the flag names, so every
+        // one of the six was reachable for a character on the other side of the screen. That is the
+        // one thing a two-pool economy exists to make impossible, and nothing anywhere refused it.
+        //
+        // The list is the entry's; the singular is `PrintedKind`'s, as p.85's other two eligibility
+        // refusals read theirs. A fixture requires the four the page names to be the four kinds this
+        // engine has besides a Hero, so a pluralisation that stopped matching would refuse everybody
+        // rather than pass quietly.
+        var buyableFor = entry.Spend!.NpcKinds!;
+        var kind = PrintedKind(npc.Kind);
+
+        if (!buyableFor.Contains(kind + "s", StringComparer.Ordinal))
+        {
+            return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
+                $"p.85 spends a point of Adversity on behalf of any NPC — {string.Join(", ", buyableFor)} "
+                + $"— and {npc.Name} is a {kind}. Only Heroes hold Resolve and the GM's pool is not "
+                + "theirs to spend");
+        }
+
         if (spend.AsResolve is not { } as_)
         {
             return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
