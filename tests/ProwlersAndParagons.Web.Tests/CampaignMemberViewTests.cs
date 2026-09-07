@@ -435,6 +435,69 @@ public sealed class CampaignMemberViewTests
     }
 
     /// <summary>
+    /// <b>A player in two games is shown the table of the one the character on screen is in.</b>
+    ///
+    /// <para><c>LiveTableAsync</c> has to pick a membership id to ask under, and <c>_playing</c>
+    /// holds every membership of every character this account owns — so the row it picks has to be
+    /// matched on the campaign the character on screen names. <b>Nothing checked that</b>:
+    /// replacing the match with <c>FirstOrDefault()</c> left all 967 browser tests green, and a
+    /// player in two games would have read the other game's table under a heading saying it was
+    /// theirs, with a difference list computed against a campaign the character has never been
+    /// in.</para>
+    ///
+    /// <para>The wrong game is joined first, so the row that must not be picked is the one an
+    /// unmatched read reaches first.</para>
+    /// </summary>
+    [Fact]
+    public async Task APlayerInTwoGamesReadsTheTableOfTheGameTheCharacterOnScreenIsIn()
+    {
+        const string OtherCampaignId = "g_2222222222222222222222";
+        const string OtherCharacterId = "c_3333333333333333333333";
+
+        await using var ctx = new RenderContext(storesForReal: true);
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        // The one the character on screen is *not* in, written first.
+        var otherCode = ctx.Api.Campaign(OtherCampaignId, "Harbour Nights",
+            StoredCampaign.Write(new Campaign(
+                OtherCampaignId, "Harbour Nights", "standard", null, false,
+                new CampaignTable { SlowHealing = true }, 5)));
+
+        var code = ctx.Api.Campaign(CampaignId, "Pinnacle City",
+            StoredCampaign.Write(new Campaign(
+                CampaignId, "Pinnacle City", "standard", null, false,
+                new CampaignTable { FatalDamage = true }, 12)));
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        // The other character's membership, put in first and never on screen.
+        Assert.NotNull(await memberships.JoinAsync(otherCode, OtherCharacterId, "Someone Else"));
+
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(CharacterId);
+
+        var page = ctx.Render<Campaigns>();
+
+        await page.Find("#join-code").InputAsync(new() { Value = code });
+        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Join").ClickAsync(new());
+
+        // The control: two memberships, and the character on screen is in the second one.
+        var mine = await memberships.MineAsync();
+
+        Assert.NotNull(mine);
+        Assert.Equal(2, mine.Count);
+        Assert.Equal(CampaignId, ctx.Session.Sheet.CampaignId);
+
+        // The live list is Pinnacle City's, not Harbour Nights'.
+        Assert.Contains("House rules at the table now", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Immortality costs 12 HP", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Immortality costs 5 HP", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Slow Healing", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>A live read that answered nothing leaves the panel exactly as it was.</b>
     ///
     /// <para>The other half of the pair, and what keeps the new list from being a thing the screen
