@@ -96,6 +96,18 @@ public sealed partial class Encounter
     /// </summary>
     public static IReadOnlySet<string> EntriesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal);
 
+    /// <summary>
+    /// The clause of <c>edge_ties.minions_act</c> two rules here turn on: p.73 puts a group of
+    /// Minions after everybody.
+    ///
+    /// <para><b>One spelling because two things read it and they have to read the same thing.</b>
+    /// The order of action puts a Minion group last on the strength of this phrase, and p.85's first
+    /// purchase refuses to sell a group a seized initiative on the strength of the same one — an
+    /// order that had stopped putting them last while a refusal went on saying it did would be two
+    /// halves of one reading disagreeing in silence.</para>
+    /// </summary>
+    internal const string MinionsActLast = "after everyone else";
+
     // ── Beginning ────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -413,7 +425,7 @@ public sealed partial class Encounter
         // p.73: Minions have no Edge and act after everyone else. Both halves are read rather than
         // assumed, so a corrected entry moves the order with it.
         var minionsLast = !tieBreak.MinionsHaveAnEdge
-            && tieBreak.MinionsAct.Contains("after everyone else", StringComparison.Ordinal);
+            && tieBreak.MinionsAct.Contains(MinionsActLast, StringComparison.Ordinal);
 
         int Rung(Combatant c)
         {

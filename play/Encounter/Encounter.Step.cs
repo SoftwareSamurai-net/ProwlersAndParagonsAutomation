@@ -2399,6 +2399,35 @@ public sealed partial class Encounter
             : $"{actor.Name} spends {cost} Resolve";
 
     /// <summary>
+    /// The field a Minion refusal quotes, required to still say what the refusal says it says.
+    ///
+    /// <para><b>Each of the four refusals below is a claim about a printed page, and it makes the
+    /// claim by quoting the field it was derived from</b> — "p.77 gives them no Health at all
+    /// (minions_have_health is False)". The quote is interpolated, so an entry corrected the other
+    /// way would go on refusing and print <em>its own contradiction</em>: a ledger line saying a
+    /// group has no Health because the field says they have. A refusal is a rule applied, and a rule
+    /// applied against an entry that no longer supports it is the failure this store exists to
+    /// prevent — so it throws, the way <c>gritty_the_drop</c>'s and
+    /// <c>seize_initiative_gm_alternative</c>'s printed words already do when they go away.</para>
+    ///
+    /// <para>The four fields are <c>edge_ties.minions_have_an_edge</c> and <c>minions_act</c>, which
+    /// p.73's refusal reads, and <c>attacking_minions.minions_have_health</c>, which p.77's two
+    /// read. Turning any of them round makes the purchase applicable rather than refusable, which is
+    /// a rule this engine would have to be taught rather than one it may keep declining.</para>
+    /// </summary>
+    private static void TheEntryMustStillSay(bool holds, string entryId, string field, object reads)
+    {
+        if (holds) return;
+
+        throw new InvalidOperationException(
+            $"{entryId}'s {field} now reads '{reads}'. This engine refuses p.85's first purchase for "
+            + "a group of Minions on the strength of that field, and the ledger line quotes it — so "
+            + "an entry that no longer says it is a rule this engine cannot go on applying, and the "
+            + "refusal would print its own contradiction. See docs/guide/play-engine.md's readings "
+            + "table.");
+    }
+
+    /// <summary>
     /// p.85's first purchase against a group of Minions, refused by name where the page gives the
     /// group nothing to buy.
     ///
@@ -2995,6 +3024,13 @@ public sealed partial class Encounter
             var ties = _play.GetCombat("edge_ties");
             var tie = ties.TieBreak!;
 
+            TheEntryMustStillSay(
+                !tie.MinionsHaveAnEdge, ties.Id, "minions_have_an_edge", tie.MinionsHaveAnEdge);
+
+            TheEntryMustStillSay(
+                tie.MinionsAct.Contains(MinionsActLast, StringComparison.Ordinal),
+                ties.Id, "minions_act", tie.MinionsAct);
+
             return RefuseTheMinions(state, actor, ties.Id, ties.SourceRef, lines,
                 $"p.73 gives them no Edge at all (minions_have_an_edge is {tie.MinionsHaveAnEdge}) "
                 + $"and has them act {tie.MinionsAct}: there is nothing for the GM's alternative to "
@@ -3196,10 +3232,14 @@ public sealed partial class Encounter
         EncounterState state, Combatant actor, List<LedgerLine> lines)
     {
         var minions = _play.GetCombat("attacking_minions");
+        var mob = minions.AttackingMinions!;
+
+        TheEntryMustStillSay(
+            !mob.MinionsHaveHealth, minions.Id, "minions_have_health", mob.MinionsHaveHealth);
 
         return RefuseTheMinions(state, actor, minions.Id, minions.SourceRef, lines,
             "p.77 gives them no Health at all (minions_have_health is "
-            + $"{minions.AttackingMinions!.MinionsHaveHealth}): a group is defeated by the bodies "
+            + $"{mob.MinionsHaveHealth}): a group is defeated by the bodies "
             + "taken out of it, so there is no threshold to be past and no dying clock to stop");
     }
 
@@ -3242,6 +3282,9 @@ public sealed partial class Encounter
         {
             var minions = _play.GetCombat("attacking_minions");
             var mob = minions.AttackingMinions!;
+
+            TheEntryMustStillSay(
+                !mob.MinionsHaveHealth, minions.Id, "minions_have_health", mob.MinionsHaveHealth);
 
             return RefuseTheMinions(state, actor, minions.Id, minions.SourceRef, lines,
                 $"p.77 gives them no Health to bring back (minions_have_health is "

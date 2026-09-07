@@ -1923,6 +1923,69 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A Minion refusal quotes the field it was derived from, so an entry that stops saying it is
+    /// a throw and not a ledger line that lies.</b>
+    ///
+    /// <para>Each of the four refusals p.85's first purchase makes of a group of Minions is a claim
+    /// about a printed page, and each makes the claim by interpolating the field it read — "p.77
+    /// gives them no Health at all (minions_have_health is False)". <b>Nothing read the field back
+    /// out.</b> An entry corrected the other way would have gone on refusing and printed its own
+    /// contradiction: a line saying a group has no Health <em>because</em> the field says they have
+    /// one. And <c>minions_act</c> is worse than a wrong sentence, because the order of action reads
+    /// the same phrase — a group that had stopped acting last would have been refused a seized
+    /// initiative on the grounds that the order would not move, while it would.</para>
+    ///
+    /// <para>Each half is driven against the shipped bytes first, or a throw would prove only that
+    /// the substitution machinery works.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("\"minions_have_health\": false", "\"minions_have_health\": true",
+        "minions_have_health", ResolveSpend.InstantRecovery)]
+    [InlineData("\"minions_have_health\": false", "\"minions_have_health\": true",
+        "minions_have_health", ResolveSpend.AvoidFatalDamage)]
+    [InlineData("\"minions_have_health\": false", "\"minions_have_health\": true",
+        "minions_have_health", ResolveSpend.Stabilise)]
+    [InlineData("\"minions_have_an_edge\": false", "\"minions_have_an_edge\": true",
+        "minions_have_an_edge", ResolveSpend.SeizeInitiative)]
+    [InlineData("\"minions_act\": \"after everyone else\"", "\"minions_act\": \"first\"",
+        "minions_act", ResolveSpend.SeizeInitiative)]
+    public void AMinionRefusalWhoseEntryStoppedSayingItIsAThrow(
+        string printed, string reworded, string field, ResolveSpend purchase)
+    {
+        var table = TableRules.Book with { FatalDamage = true };
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+
+        List<Combatant> Fight() =>
+        [
+            Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3, traits, ["toughness"]),
+            Combatant.Minions("mob", "the Minions", threat: 4, groupSize: 4, "threat")
+        ];
+
+        SpendAdversity Buying() => new(
+            "mob", AdversitySpend.AnythingResolveCan, AsResolve: purchase);
+
+        // The control: against the shipped bytes the purchase is refused, on the ledger, quoting the
+        // field this case is about.
+        var shipped = new Encounter(_play, new SeededDice(23), table);
+        var opened = shipped.Begin(Fight(), challengeLevel: 2);
+        var refused = shipped.Step(opened, Buying());
+
+        Assert.Equal(opened.Adversity, refused.State.Adversity);
+        Assert.Contains(refused.Added, l =>
+            l.Text.Contains("is a group of Minions", StringComparison.Ordinal));
+
+        // And against an entry that has been turned round, the refusal is not made at all.
+        var corrected = SubstitutedPlayRules.With(PlayRulesRepository.CombatFile, printed, reworded);
+        var other = new Encounter(corrected, new SeededDice(23), table);
+        var began = other.Begin(Fight(), challengeLevel: 2);
+
+        var thrown = Assert.Throws<InvalidOperationException>(() => other.Step(began, Buying()));
+
+        Assert.Contains(field, thrown.Message, StringComparison.Ordinal);
+        Assert.Contains("no longer says it", thrown.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>p.85's suppress-a-Flaw spend: the pool pays, the character carries it, and the ledger says
     /// the rest is the GM's.</b>
     ///
