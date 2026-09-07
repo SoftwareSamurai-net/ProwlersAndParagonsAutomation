@@ -187,7 +187,10 @@ halves and the ledger line says so**: an NPC's Flaws bite when the opportunity p
 the NPC cannot choose when, which is your judgement and no roll of this engine's, so what the
 character is saved from is yours to tell. What the engine has recorded is the point leaving the
 pool and the suppression itself, which comes back on the public state as `flaw_suppressed` and
-refuses a second purchase against the same character — p.85 allows one per character per issue.
+refuses a second purchase against the same character — p.85 allows one per character per issue,
+**counted over this fight**: an issue is several scenes and a fight is the largest thing this server
+can see, so a second scene starts the count again and keeping track across an issue is yours, the
+same as `villainy`. The lines say so, so you never have to work it out from a refusal.
 A Hero or a group of Minions is refused: the page names three kinds and those are not among them.
 
 **`misfortune` throws a piece of bad luck at the Heroes, and takes a `narration` too.** Say what the

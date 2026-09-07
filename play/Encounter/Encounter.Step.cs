@@ -2471,10 +2471,11 @@ public sealed partial class Encounter
         if (npc.SuppressedFlaw is { } already)
         {
             return Refuse(state, npc.Id, entry.Id, entry.SourceRef, lines,
-                $"{npc.Name} has already been bought out of {already} this issue, and the page "
-                + $"allows {rule.LimitPerCharacterPerIssue} per character per issue. The limit is "
-                + "printed per character rather than per Flaw, which the entry's own ambiguity "
-                + "says is unclear for anybody carrying two — this engine refuses on the character");
+                $"{npc.Name} has already been bought out of {already} in this fight, and p.85 "
+                + $"allows {rule.LimitPerCharacterPerIssue} per character per issue. {CountedHere} "
+                + "The limit is printed per character rather than per Flaw, which the entry's own "
+                + "ambiguity says is unclear for anybody carrying two — this engine refuses on the "
+                + "character, which is the reading that never allows more than the page does");
         }
 
         if (Said(spend) is not { } flaw)
@@ -2495,7 +2496,8 @@ public sealed partial class Encounter
             $"the GM spends {cost} Adversity on {npc.Name}: {flaw} is prevented from "
             + $"{rule.Prevents} for {rule.Duration}, which is the whole of this encounter. "
             + $"{bite}what that saves {npc.Name} from is the GM's to narrate — this engine has "
-            + "recorded the point and the suppression and nothing else"));
+            + "recorded the point and the suppression and nothing else. p.85 allows "
+            + $"{rule.LimitPerCharacterPerIssue} per character per issue. {CountedHere}"));
 
         return ChargeAdversity(state, cost).With(npc.Suppressing(flaw));
     }
@@ -2666,6 +2668,23 @@ public sealed partial class Encounter
             : Refuse(state, spend.Actor, entry.Id, entry.SourceRef, lines,
                 $"p.85 prices {entry.Name} at {cost} Adversity and this spend asks for "
                 + $"{spend.Points}. Nothing was spent");
+
+    /// <summary>
+    /// Which unit p.85's suppress-a-Flaw limit was actually counted in, on both of the lines that
+    /// mention it.
+    ///
+    /// <para><b>The page counts it per issue and this engine counts it per encounter, and a line
+    /// that did not say so was a line that lied.</b> The refusal used to read "has already been
+    /// bought out of X <em>this issue</em>", which is a claim about a unit an <c>Encounter</c>
+    /// cannot see: <see cref="Step"/> turns pages, nothing in it ends a scene, and an issue is
+    /// several scenes. A GM reading that would take the count to have travelled, and it does not —
+    /// so a second scene of the same issue would silently allow a second suppression the page does
+    /// not. That is the permissive direction, which is the one worth saying out loud; the same
+    /// reading and the same sentence are on p.85's act of villainy, whose unit is a story.</para>
+    /// </summary>
+    private const string CountedHere =
+        "An issue is larger than anything this engine can see, so the count is per fight: a second "
+        + "scene of the same issue starts it again, and keeping track across scenes is the GM's.";
 
     /// <summary>
     /// What the GM said the point bought, trimmed — or null, which every one of p.85's three own

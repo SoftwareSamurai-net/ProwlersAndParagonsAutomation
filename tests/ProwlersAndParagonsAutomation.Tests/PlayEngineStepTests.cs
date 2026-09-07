@@ -1542,8 +1542,33 @@ public sealed class PlayEngineStepTests
 
         Assert.Equal(bought.State.Adversity, again.State.Adversity);
         Assert.Equal("a hot temper", again.State["villain"].SuppressedFlaw);
-        Assert.Contains(again.Added, l =>
-            l.Text.Contains("already been bought out of a hot temper", StringComparison.Ordinal));
+
+        var refusal = again.Added.Single(l => string.Equals(l.Rule, entry.Id, StringComparison.Ordinal));
+
+        Assert.Contains("already been bought out of a hot temper", refusal.Text, StringComparison.Ordinal);
+
+        // <b>And both lines say which unit the limit was counted in, because the page's unit is not
+        // the engine's.</b> p.85 allows one per character per *issue* and an issue is several
+        // scenes; this engine counts over one fight, which is the permissive direction. The refusal
+        // used to say "already been bought out of a hot temper *this issue*", which a GM would read
+        // as a count that travels — and it does not.
+        foreach (var said in new[] { line.Text, refusal.Text })
+        {
+            Assert.Contains("per character per issue", said, StringComparison.Ordinal);
+            Assert.Contains("the count is per fight", said, StringComparison.Ordinal);
+            Assert.Contains("keeping track across scenes is the GM's", said, StringComparison.Ordinal);
+        }
+
+        // And it is true rather than said: the next scene of the same issue starts the count again.
+        var nextScene = encounter.Begin([hero, villain, robots], challengeLevel: 2);
+
+        Assert.Null(nextScene["villain"].SuppressedFlaw);
+
+        var second = encounter.Step(nextScene, new SpendAdversity(
+            "villain", AdversitySpend.SuppressFlaw, Narration: "a glass jaw"));
+
+        Assert.Equal(nextScene.Adversity - rule.CostAdversity, second.State.Adversity);
+        Assert.Equal("a glass jaw", second.State["villain"].SuppressedFlaw);
 
         // The whole of that, and not one die was thrown.
         Assert.Equal(1, dice.Remaining);
