@@ -104,7 +104,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[28](#28-two-flakes-on-a-docs-only-pull-request-and-what-the-harness-said-about-them)** — three flakes seen in one day on trees that had passed: the e2e server dying mid-drive with nothing said about why, the in-process MCP teardown race, and a secret-scan regex timed out by a loaded runner. Each is swept class-wide. Verified by the orchestrator 2026-09-07: a lying aliveness test fails the kill-tree suite in thirteen seconds rather than hanging it, the MCP helper goes red with no EOF and with a faulted teardown step, a planted key in `web/` and in a Razor file turns the scan red, and both e2e drivers pass with every twin red on the merged tree
 
 - [x] **[29](#29-a-campaigns-table-rules-and-its-immortality-price)** — the owner's toggles: a campaign carries the table's optional rules and its Immortality price, shown to every member, copied onto the sheet on join, priced from the sheet, and carried by the export. Verified by the orchestrator 2026-09-07: the price bound, and the suppression of a false "campaign gone" for members, each went red under mutation
-- [ ] **[30](#30-a-member-sees-the-copy-their-character-carries-not-the-campaigns-live-table)** — the half of item 29 the server's scoping leaves open: a member's list is the character's copy, a change the GM makes arrives only on re-join, and a character that joined before the GM decided anything is silent about it
+- [x] **[30](#30-a-member-sees-the-copy-their-character-carries-not-the-campaigns-live-table)** — a member reads their game's live table through a route scoped to their own membership row, sees it beside the copy their character carries with a row per difference and a read-at age, and a character that joined before the GM decided anything is told so under its own finding. Verified by the orchestrator 2026-09-07: the campaign-owner join clause, and the finding's switches arm, each went red under mutation — the second only after a fixture the orchestrator's mutation showed was missing
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -1987,6 +1987,21 @@ beside the copy, and `Inspect` can report the empty-copy direction too. It costs
 in `worker/db.js` carrying the same player predicate `getMembership` uses, a `KNOWN_ROUTES` entry
 and a contract test. Nothing about the character's copy changes: the copy is what is in force for
 the character until they join again, and that stays the rule.
+
+**Built 2026-09-07 — see the pull request that carried it.** `GET /api/memberships/{id}/table`
+answers `{campaignId, payload}` — the campaign's payload verbatim, the same bytes a join already
+hands that player and a strict subset of the join's answer, held so by a test — authorised by the
+caller's own `campaign_members` row joined to the campaign under its GM, and `404` in one sentence
+for a stranger, the GM of that very row, an id that never existed and a deleted campaign, with the
+bodies and the statement count proved indistinguishable. The server parses nothing: lifting the
+four fields would have taught it a campaign's shape and failed silently the first time the shape
+moved. The member's panel shows the live table beside the copy, says which is which and when the
+live one was read, offers a recheck, and draws a row per difference in both directions;
+`CampaignJoin.Inspect` reports a character that joined before the game set a cap, a price or a
+switch under `CAMPAIGN_HOUSE_RULES_NOT_COPIED`, carrying each figure only where it is the one
+missing. The review found the two-GMs-one-code fixture reading an insertion order rather than the
+join clause, the live read picking any membership the account holds rather than the character's,
+the cap left out of the finding, and no contract guard for a routed address.
 
 ## Completed work
 

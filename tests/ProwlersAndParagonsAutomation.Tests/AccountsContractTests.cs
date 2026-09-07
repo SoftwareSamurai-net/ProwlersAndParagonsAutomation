@@ -341,10 +341,17 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
-    /// The membership addresses are routed, all seven of them, and all inside the signed-in gate.
+    /// The membership addresses are routed, all eight of them, and all inside the signed-in gate.
     ///
-    /// <para><b>One of the seven answers two verbs</b>, and that is checked separately below: the
+    /// <para><b>One of the eight answers two verbs</b>, and that is checked separately below: the
     /// bare membership address is a <c>GET</c> to read it and a <c>DELETE</c> to end it.</para>
+    ///
+    /// <para><b>The eighth is <c>table</c>, and it is the one a player reaches and the GM of the
+    /// same row does not.</b> A campaign is scoped to the account that owns it, so a member cannot
+    /// read the game they are in at all — that address is what lets their screen put the table's
+    /// live rules beside the copy their character carries. Losing it is silent: the panel falls
+    /// back to the copy, which is exactly what it drew before, so nothing on screen looks
+    /// broken.</para>
     ///
     /// <para><b>Read structurally out of <c>worker/index.js</c> alone, never with
     /// <c>Contains</c></b> — the reason this file records three times over. Every one of these
@@ -355,8 +362,8 @@ public sealed class AccountsContractTests
     ///
     /// <para><b>The prefix half is not optional and the sub-paths are the reason.</b> Every address
     /// past <c>/api/memberships/</c> is reached by one <c>startsWith</c> and a split — the inbox,
-    /// the join, one membership, its submission, and the two decisions — so an exact-only model
-    /// would call five of the seven unrouted on every real request.</para>
+    /// the join, one membership, its submission, the two decisions and its campaign's table — so
+    /// an exact-only model would call six of the eight unrouted on every real request.</para>
     ///
     /// <para><b>And they are inside the block that asks who is calling</b>, not beside it. A
     /// membership routed outside that gate would be one account's clone of a character readable by
@@ -380,7 +387,7 @@ public sealed class AccountsContractTests
             + "every read and both decisions are unrouted — none of them is ever an exact match.");
 
         // The sub-paths, read out of the routing block's own comparisons rather than out of the
-        // file. The positive control is that all five are found — an extraction that has stopped
+        // file. The positive control is that all six are found — an extraction that has stopped
         // matching yields nothing and would satisfy an "all of these are routed" assertion for
         // free, which is how this repository has shipped a guard measuring nothing four times.
         var tails = Regex.Matches(indexJs,
@@ -390,7 +397,7 @@ public sealed class AccountsContractTests
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        foreach (var tail in new[] { "inbox", "join", "submission", "approve", "reject" })
+        foreach (var tail in new[] { "inbox", "join", "submission", "approve", "reject", "table" })
         {
             Assert.Contains(tail, tails, StringComparer.Ordinal);
         }
@@ -434,7 +441,80 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
-    /// The membership wire keys are spelled the same at both ends, on all five shapes.
+    /// Every membership address <c>worker/index.js</c> routes is named in the contract.
+    ///
+    /// <para><b>The contract is <c>docs/CHARACTERS-API.md</c> and this is what makes that
+    /// sentence true of the code rather than of the day it was written.</b> Three files here say
+    /// so — <c>memberships.js</c>'s header, the guide, and the document's own opening, which calls
+    /// itself the thing three pieces of work are built against in parallel. Nothing held it. The
+    /// address table and the routing block were kept in step by whoever remembered, and an address
+    /// added to one and not the other is invisible: the server answers it, the browser can reach
+    /// it, and the only record of what this API is says it does not exist.</para>
+    ///
+    /// <para><b>Read off the routing block's own comparisons</b>, the same extraction
+    /// <see cref="TheMembershipAddressesAreRoutedInsideTheGate"/> uses and for the same reason —
+    /// a list of addresses typed into this test is a third copy to keep in step, and it would
+    /// have nothing to say about the address somebody adds next. <b>The positive control is the
+    /// count</b>: an extraction that has stopped matching yields an empty set, which satisfies
+    /// "every one of these is documented" for free. That is the shape of guard this repository has
+    /// shipped measuring nothing four times.</para>
+    ///
+    /// <para><b>It runs one way only.</b> An address in the document that nothing routes is a
+    /// different fault with a different fix — the document leads the code here, deliberately, and
+    /// is allowed to describe an address before one exists.</para>
+    /// </summary>
+    [Fact]
+    public void EveryRoutedMembershipAddressIsInTheContract()
+    {
+        var indexJs = File.ReadAllText(WorkerFile("index.js"));
+        var contract = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "docs", "CHARACTERS-API.md"));
+
+        // **Scoped to the membership block, not to the file**, and that is not tidiness: `tail` is
+        // the local name the admin-accounts block uses too, so a whole-file sweep finds
+        // `tail === 'characters'` and demands an address under `/api/memberships/{id}` that has
+        // never existed. It found exactly that the first time this test was run.
+        var block = Regex.Match(indexJs,
+            @"if \(path\.startsWith\('/api/memberships/'\)\) \{(?<body>.*?)return fail\(404",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(block.Success,
+            "worker/index.js no longer routes the /api/memberships/ prefix as one block, so this "
+            + "test cannot see which sub-paths are routed and would pass whatever they were.");
+
+        var tails = Regex.Matches(block.Groups["body"].Value,
+                @"(?:membershipId|tail)\s*===\s*'([a-z]+)'",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // The control, first. Six sub-paths are routed under this prefix today; a number under
+        // five means the extraction has stopped seeing the routing block, and every assertion
+        // below would then be true of nothing.
+        Assert.True(tails.Count >= 5,
+            "this test found " + tails.Count + " membership sub-paths routed in worker/index.js "
+            + "and there are at least five, so the extraction has stopped matching and every "
+            + "assertion below would pass against an empty set: "
+            + string.Join(", ", tails));
+
+        // `inbox` and `join` sit directly under the prefix; everything else is under an id. The
+        // document writes an id as `{id}`, which is what a table row can be matched on.
+        var undocumented = tails
+            .Select(tail => tail is "inbox" or "join"
+                ? $"/api/memberships/{tail}"
+                : $"/api/memberships/{{id}}/{tail}")
+            .Where(address => !contract.Contains(address, StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(undocumented.Count == 0,
+            "worker/index.js routes these and docs/CHARACTERS-API.md — which this repository "
+            + "calls the contract in three places — names none of them: "
+            + string.Join(", ", undocumented));
+    }
+
+    /// <summary>
+    /// The membership wire keys are spelled the same at both ends, on all six shapes.
     ///
     /// <para><b>Structural at both ends, for the reason this file records for the character
     /// keys.</b> The client's are read off the records it binds and sends; the server's off the
@@ -493,6 +573,31 @@ public sealed class AccountsContractTests
         Assert.True(detailReads.SequenceEqual(detailSends, StringComparer.Ordinal),
             "the server sends [" + string.Join(", ", detailSends) + "] on one membership and the "
             + "client binds [" + string.Join(", ", detailReads) + "]");
+
+        // ── The live table: `table`'s own literal against `WiredTable` ───────────────────
+        //
+        // **Two keys, and the smallness is what has to be held.** This is the one campaign read a
+        // player can make, and what bounds it is that the server sends the campaign's id and its
+        // opaque payload and nothing else — no account id, no label, no join code. A field added
+        // here for convenience is a field a member is told about somebody else's account, and the
+        // browser would bind it silently the moment the record grew a property to match.
+        var table = Regex.Match(membershipsJs,
+            @"return json\(\{\s*campaignId: row\.campaign_id,(?<body>(?:(?!\}\);).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(table.Success,
+            "worker/memberships.js no longer answers a membership's live table as an object "
+            + "literal, so this test cannot see what that read sends and would pass whatever it "
+            + "sent.");
+
+        var tableSends = LiteralKeys("campaignId: row.campaign_id," + table.Groups["body"].Value);
+
+        Assert.True(tableSends.Length == 2,
+            "the server sends " + tableSends.Length + " fields on a membership's live table and "
+            + "should send two — the campaign's id and its payload: "
+            + string.Join(", ", tableSends));
+
+        Assert.Equal(BoundKeys(store, "WiredTable"), tableSends);
 
         // ── The three the client sends, each read by the server ──────────────────────────
         //

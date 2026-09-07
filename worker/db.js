@@ -463,6 +463,40 @@ export async function getMembership(db, userId, id) {
 }
 
 /**
+ * The campaign one of this player's memberships names, as the campaign's own opaque payload.
+ *
+ * <p><b>The player's predicate alone, deliberately.</b> `getMembership`'s `OR` is there because a
+ * membership has two owners and each is entitled to the row; this read exists for the half of that
+ * pair who cannot reach the campaign any other way. A GM already reads their own campaign at
+ * `/api/campaigns/{id}` and is answered nothing here, so there is no second route to a campaign
+ * for the account that owns it and no second place that could disagree about what one is.</p>
+ *
+ * <p><b>The join carries `c.user_id = m.gm_user_id` and that is not decoration.</b> A `g_…` is
+ * unique per account rather than globally — see `0006` — so joining on `c.id = m.campaign_id`
+ * alone would answer some other account's campaign that happens to share the id, to a player who
+ * never joined it. It is the same clause the `EXISTS` in `getMembership` carries, for the same
+ * reason.</p>
+ *
+ * <p><b>The payload comes back verbatim and nothing here looks inside it</b>, exactly as
+ * `campaignByJoinCode` hands the same bytes to a join. Two columns and no more: the campaign's id,
+ * because the caller has to know which game answered, and the payload. No account id, no label, no
+ * join code, no character, no clone, and nothing about another member — the bound
+ * `campaignByJoinCode` already states, applied to the one read that is scoped to the player.</p>
+ *
+ * <p>A campaign the GM has deleted matches nothing, and the caller turns that into the same
+ * refusal an id belonging to somebody else gets. The membership row is untouched either way, so
+ * restoring the campaign restores this too.</p>
+ */
+export async function campaignForMember(db, { id, playerUserId }) {
+    return await db.prepare(
+        'SELECT c.id AS campaign_id, c.payload AS payload '
+        + 'FROM campaign_members m '
+        + 'JOIN campaigns c ON c.id = m.campaign_id AND c.user_id = m.gm_user_id '
+        + 'WHERE m.id = ? AND m.player_user_id = ?')
+        .bind(id, playerUserId).first();
+}
+
+/**
  * Every membership of a character this account owns — the player's half.
  *
  * <p>No payload: this is what a standing beside a character's name is drawn from ("approved",

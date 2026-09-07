@@ -58,7 +58,7 @@ that a half-built character costs nothing.
 | `DELETE` | `/api/campaigns/{id}` | remove one |
 | `POST` | `/api/campaigns/{id}/code` | replace the join code |
 
-**And seven more under `/api/memberships`, plus the join-code rotation above** — a campaign's clone of a character and the snapshot
+**And eight more under `/api/memberships`, plus the join-code rotation above** — a campaign's clone of a character and the snapshot
 waiting for a decision. See the section further down; every rule on this page applies to them, with
 one stated exception.
 
@@ -185,6 +185,7 @@ the **whole snapshot**. Accepting replaces the campaign's clone. Both sides keep
 | `PUT` | `/api/memberships/{id}/submission` | send a snapshot for approval |
 | `POST` | `/api/memberships/{id}/approve` | accept the snapshot at a named version |
 | `POST` | `/api/memberships/{id}/reject` | turn it down, at a named version |
+| `GET` | `/api/memberships/{id}/table` | the campaign this membership names, for the **player** |
 | `POST` | `/api/campaigns/{id}/code` | replace a campaign's join code |
 
 Every one requires a session; without one, 401. `id` is `m_` plus 22 URL-safe characters — the
@@ -300,6 +301,33 @@ valid.
 
 Every other statement in `worker/db.js` is scoped to the caller. This one is called out in that
 file's own comments, in `worker/memberships.js`'s header, and here.
+
+### The live table a member may read
+
+**`GET /api/memberships/{id}/table` is the only campaign read scoped to somebody who does not own
+the campaign**, and it exists because everything else about a campaign is the GM's. A player's
+browser resolves no campaign at all for a game that is perfectly alive, so what their screen draws
+is the copy of the table's rules that was written onto their character when it joined — and a GM
+who raises the price of Immortality afterwards moves nothing on it. That copy stays in force; this
+is what lets the screen say the two have come apart.
+
+**Authorised by the caller's own `campaign_members` row and by nothing else.** The predicate is
+`player_user_id = ?`, the same one `getMembership`'s player half carries, and there is deliberately
+**no GM arm**: the account that owns a campaign reads it at `/api/campaigns/{id}`, and a second
+address answering the owner is a second place that could disagree about what a campaign is. So a
+stranger, the GM of that very row, an id that never existed and a campaign the GM has deleted all
+answer the same 404 in the same words — a split would say whether an id exists.
+
+**Two keys, and the bound is the read rather than a projection.** `{ "campaignId": "g_…",
+"payload": "…" }`: the campaign's id and its own opaque payload, verbatim, exactly what `join`
+already hands the same player. No account id, no label, no join code, no character, no clone and
+nothing about another member. **Nothing is parsed** — a route that lifted `Table` and
+`ImmortalityCost` out of the payload would be this server knowing the shape of a campaign, which is
+a second place to keep in step with the engine and one that would fail silently, answering nulls,
+the first time the shape moved.
+
+**Nothing about the character's copy changes.** The copy is what the engine costs from and what
+travels to a fight, and joining again is the only thing that ever writes a new one.
 
 ### The join code
 

@@ -307,6 +307,66 @@ public static class CampaignDiff
     }
 
     /// <summary>
+    /// What the table has decided that this character's copy does not say — the campaign's live
+    /// settings against the ones written onto the sheet when it joined.
+    ///
+    /// <para><b>A second comparison in this class rather than a second class, on purpose.</b> The
+    /// rows a member reads have to be the rows the GM reads on the approval screen: one place that
+    /// knows a switch is called "Fatal Damage" and that a moved one reads
+    /// <c>Fatal Damage off → on</c>. Two comparisons naming the same thirteen switches is two
+    /// chances for one of them to name a switch differently from the book.</para>
+    ///
+    /// <para><b>Four kinds of setting and no more</b> — the house Trait Cap, the price for
+    /// Immortality, the thirteen switches and the Gear Limit rank. They are exactly what
+    /// <see cref="CampaignJoin.Apply"/> copies onto a character, which is the list this can go
+    /// stale about; anything else on a campaign either travels as the tier or is not the
+    /// character's business.</para>
+    ///
+    /// <para><b>It is still a report and never a merge</b>, the rule the rest of this class
+    /// follows twice over: the character's copy is what the engine prices from and what travels to
+    /// a fight, and nothing here writes. What takes a new copy is joining again.</para>
+    ///
+    /// <para><b>The Trait Cap is compared as the house cap and not as the cap in force</b>, unlike
+    /// <see cref="CapOf"/> one screen over, and the difference is what each reader is looking at.
+    /// A GM decides about a submission and needs the ceiling the sheet was judged by; a member is
+    /// reading a list of what their table has house-ruled, where "the tier's" is the honest answer
+    /// for a game that has set none, and folding the tier's ceiling in would report a difference
+    /// nobody at the table decided.</para>
+    /// </summary>
+    /// <param name="rules">Where the Power's printed name and the book's own price come from.</param>
+    /// <param name="sheet">The character, carrying the copy it took when it joined.</param>
+    /// <param name="campaign">The game, as the table has it now.</param>
+    public static IReadOnlyList<DiffRow> BetweenTables(
+        RulesRepository rules, CharacterSheet sheet, Campaign campaign)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(campaign);
+
+        var rows = new List<DiffRow>();
+
+        Compare(rows, "Trait Cap",
+            sheet.TraitCapRank is { } ours ? Rank(ours) : null,
+            campaign.TraitCapRank is { } theirs ? Rank(theirs) : null);
+
+        // The book's price stands in on both sides, for the reason `PriceOf` records: what changed
+        // is the figure a character is charged, and it was always charged something. Unlike the
+        // approval screen this is drawn whether or not the character has the Power — a member
+        // reading what their table charges has not necessarily bought it yet, and a price that
+        // appeared only after they did would be a rule they could not find out about in advance.
+        Compare(rows, PowerName(rules, ImmortalityId),
+            PriceOf(rules, sheet), Price(rules, campaign.ImmortalityCost));
+
+        CompareHouseRules(rows, sheet.CampaignTable, campaign.Table);
+
+        return rows;
+    }
+
+    /// <summary>A table's price for Immortality, or the book's where it has set none.</summary>
+    private static string? Price(RulesRepository rules, int? cost) =>
+        (cost ?? rules.GetPower(ImmortalityId)?.CostFlat) is { } price ? $"{price} HP" : null;
+
+    /// <summary>
     /// One field, compared. Returns 1 always — <b>the count is of fields examined, not of fields
     /// that moved</b>, which is the whole point of it: see <see cref="CharacterDiff.Compared"/>.
     /// </summary>
