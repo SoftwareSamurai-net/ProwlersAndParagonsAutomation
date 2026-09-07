@@ -185,6 +185,11 @@ export function routePattern(request) {
     // `POST …/approve` are different code paths. `route` is half of a primary key and a pattern per
     // verb triples the rows this prefix can occupy for no gain: `kind` and `detail` already say
     // which statement threw.
+    //
+    // **And neither is the sub-path**, which is why `GET …/table` needed nothing added here or to
+    // `KNOWN_ROUTES` when it was built. That list is compared against the path that arrived, so an
+    // entry naming a caller-chosen id could never match one; the sub-paths under a membership are
+    // filed under this one pattern for exactly the reason the verbs are.
     if (path.startsWith('/api/memberships/')) return '/api/memberships/{id}';
 
     // **The key under this prefix is an email address, which is exactly why the arm is here.**

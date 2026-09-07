@@ -341,10 +341,17 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
-    /// The membership addresses are routed, all seven of them, and all inside the signed-in gate.
+    /// The membership addresses are routed, all eight of them, and all inside the signed-in gate.
     ///
-    /// <para><b>One of the seven answers two verbs</b>, and that is checked separately below: the
+    /// <para><b>One of the eight answers two verbs</b>, and that is checked separately below: the
     /// bare membership address is a <c>GET</c> to read it and a <c>DELETE</c> to end it.</para>
+    ///
+    /// <para><b>The eighth is <c>table</c>, and it is the one a player reaches and the GM of the
+    /// same row does not.</b> A campaign is scoped to the account that owns it, so a member cannot
+    /// read the game they are in at all — that address is what lets their screen put the table's
+    /// live rules beside the copy their character carries. Losing it is silent: the panel falls
+    /// back to the copy, which is exactly what it drew before, so nothing on screen looks
+    /// broken.</para>
     ///
     /// <para><b>Read structurally out of <c>worker/index.js</c> alone, never with
     /// <c>Contains</c></b> — the reason this file records three times over. Every one of these
@@ -355,8 +362,8 @@ public sealed class AccountsContractTests
     ///
     /// <para><b>The prefix half is not optional and the sub-paths are the reason.</b> Every address
     /// past <c>/api/memberships/</c> is reached by one <c>startsWith</c> and a split — the inbox,
-    /// the join, one membership, its submission, and the two decisions — so an exact-only model
-    /// would call five of the seven unrouted on every real request.</para>
+    /// the join, one membership, its submission, the two decisions and its campaign's table — so
+    /// an exact-only model would call six of the eight unrouted on every real request.</para>
     ///
     /// <para><b>And they are inside the block that asks who is calling</b>, not beside it. A
     /// membership routed outside that gate would be one account's clone of a character readable by
@@ -380,7 +387,7 @@ public sealed class AccountsContractTests
             + "every read and both decisions are unrouted — none of them is ever an exact match.");
 
         // The sub-paths, read out of the routing block's own comparisons rather than out of the
-        // file. The positive control is that all five are found — an extraction that has stopped
+        // file. The positive control is that all six are found — an extraction that has stopped
         // matching yields nothing and would satisfy an "all of these are routed" assertion for
         // free, which is how this repository has shipped a guard measuring nothing four times.
         var tails = Regex.Matches(indexJs,
@@ -390,7 +397,7 @@ public sealed class AccountsContractTests
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        foreach (var tail in new[] { "inbox", "join", "submission", "approve", "reject" })
+        foreach (var tail in new[] { "inbox", "join", "submission", "approve", "reject", "table" })
         {
             Assert.Contains(tail, tails, StringComparer.Ordinal);
         }

@@ -256,6 +256,7 @@ test('nobody signed in reaches a membership at all', async () => {
         ['PUT', `/api/memberships/${mid()}/submission`],
         ['POST', `/api/memberships/${mid()}/approve`],
         ['POST', `/api/memberships/${mid()}/reject`],
+        ['GET', `/api/memberships/${mid()}/table`],
         ['POST', `/api/campaigns/${gid()}/code`],
     ]) {
         const response = await app.call(path, { method, body: method === 'GET' ? undefined : {} });
@@ -680,6 +681,166 @@ test('no list or read carries a payload where it should not', async () => {
     }
 });
 
+// ── The live table a member may read ────────────────────────────────────────────────────
+//
+// **The one campaign read that is scoped to somebody who does not own the campaign**, and the
+// reason it exists: everything else about a campaign is the GM's, so a player's browser draws the
+// copy of the table's rules that was written onto their character when it joined. That copy stays
+// in force; what nothing could say until this route existed is that the game has moved on.
+//
+// What every test below is really about is the answer's *edges*. The payload is the same bytes
+// `join` already hands a player, so the disclosure is not new — the row that authorises the read
+// is, and a predicate that let a stranger, a GM, or a campaign belonging to a different account
+// through would be a campaign readable by somebody who never joined it.
+
+/** Read the live table for a membership, as the member's own browser reads it. */
+const liveTable = (app, cookie, id) => app.call(`/api/memberships/${id}/table`, { cookie });
+
+test('a member reads the game’s live table, including changes made after they joined', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    // The control: the route answers the campaign as it stood at the join, so the assertion
+    // below is about a *change* arriving rather than about a route that answers anything at all.
+    const atTheJoin = await liveTable(app, player.cookie, membership);
+
+    assert.equal(atTheJoin.status, 200);
+    assert.equal((await atTheJoin.json()).payload, JSON.stringify(campaignPayload));
+
+    // The GM raises the price of Immortality and turns a rule on, long after the character joined.
+    // Nothing writes that onto the character — that is the whole of item 30 — and this is the read
+    // that lets a screen say so.
+    const moved = JSON.stringify({
+        Version: 1,
+        Campaign: {
+            ...campaignPayload.Campaign,
+            ImmortalityCost: 12,
+            Table: { FatalDamage: true },
+        },
+    });
+
+    assert.equal((await app.call(`/api/campaigns/${gid()}`, {
+        method: 'PUT', body: { label: 'Nightfall', payload: moved }, cookie: gm.cookie,
+    })).status, 204);
+
+    const now = await liveTable(app, player.cookie, membership);
+    const seen = await now.json();
+
+    assert.equal(now.status, 200);
+    assert.equal(seen.campaignId, gid());
+
+    // Byte for byte, because the server does not parse it — the same claim the join answer makes.
+    assert.equal(seen.payload, moved);
+});
+
+test('the live table answers the campaign and nothing else, by key set', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    // A second player in the same campaign, with a submission waiting, so that "nothing about
+    // another member" is a claim about something that exists rather than about an empty table.
+    const other = await signIn(app, 'other@example.test');
+    const code = await joinCodeFor(app, gm.cookie);
+    const joined = await join(app, other.cookie,
+        { code, characterId: cid(7), label: 'Someone Else' });
+
+    assert.equal(joined.status, 200);
+    assert.equal((await submit(app, other.cookie, (await joined.json()).id,
+        { payload: characterPayload('Someone Else'), label: 'Someone Else' })).status, 200);
+
+    const response = await liveTable(app, player.cookie, membership);
+    const seen = await response.json();
+
+    // **The key set, exactly.** Asserted as a set rather than as a handful of absences, because an
+    // absence is satisfied by a field nobody thought to name — and the fields worth withholding
+    // here are the ones a later hand adds for convenience: an account id to save a lookup, the
+    // label to save a second read, the join code to save reading it out.
+    assert.deepEqual(Object.keys(seen).sort(), ['campaignId', 'payload']);
+
+    const body = await (await liveTable(app, player.cookie, membership)).text();
+
+    namesNoAccount(body);
+    assert.ok(!body.includes('gm@example.test'), body);
+    assert.ok(!body.includes('other@example.test'), body);
+    assert.ok(!body.includes('Someone Else'), `the live table names another member: ${body}`);
+    assert.ok(!body.includes('AbilityRanks'), `the live table carries a character: ${body}`);
+    assert.ok(!body.includes(cid(7)), body);
+
+    // And the join code, which is the campaign's one readable column and is nowhere in the payload.
+    assert.ok(!body.includes(code), `the live table leaks the join code: ${body}`);
+});
+
+test('only the member reads it: a stranger, the GM of that very row, and nobody at all are refused',
+    async () => {
+        const { app, gm, player, membership } = await aTable();
+        const stranger = await signIn(app, 'stranger@example.test');
+
+        // The positive control, first, so the three refusals below are being compared against a
+        // read that works rather than against a route that answers nobody.
+        assert.equal((await liveTable(app, player.cookie, membership)).status, 200);
+
+        assert.equal((await liveTable(app, stranger.cookie, membership)).status, 404);
+
+        // **The GM is refused their own campaign here**, which is deliberate: they read it at
+        // `/api/campaigns/{id}`, and a second address answering the owner is a second place that
+        // could disagree about what a campaign is. The 404 is the same one the stranger gets, so
+        // the answer says nothing about which of the two the caller is.
+        assert.equal((await liveTable(app, gm.cookie, membership)).status, 404);
+
+        assert.equal((await app.call(`/api/memberships/${membership}/table`)).status, 401);
+        assert.equal((await liveTable(app, player.cookie, 'm_short')).status, 400);
+        assert.equal((await liveTable(app, player.cookie, mid(9))).status, 404);
+    });
+
+test('a campaign the GM deleted answers the same refusal as one that was never the caller’s',
+    async () => {
+        const { app, gm, player, membership } = await aTable();
+
+        assert.equal((await liveTable(app, player.cookie, membership)).status, 200);
+        assert.equal((await app.call(`/api/campaigns/${gid()}`,
+            { method: 'DELETE', cookie: gm.cookie })).status, 204);
+
+        // The membership survives on purpose — the player's row is theirs and restoring the
+        // campaign is a complete undo — so the standing is still listed and only the table is gone.
+        assert.equal((await liveTable(app, player.cookie, membership)).status, 404);
+        assert.ok(await playerRow(app, player.cookie, membership),
+            'deleting the campaign took the player’s own membership with it');
+    });
+
+test('a campaign id shared by two GMs answers the one whose code was redeemed', async () => {
+    // **The clause under test is `c.user_id = m.gm_user_id` in the join.** A `g_…` is unique per
+    // account and not globally — the schema says so, and a campaign's id reaches every member of
+    // it — so matching on the id alone would hand a player the table of a campaign belonging to
+    // an account they never joined, live, on every render of their own campaigns page.
+    const app = server();
+
+    const alice = await signIn(app, 'alice@example.test');
+    assert.equal((await putCampaign(app, alice.cookie, { label: 'Alice’s game' })).status, 204);
+    const aliceCode = await joinCodeFor(app, alice.cookie);
+
+    const mallory = await signIn(app, 'mallory@example.test');
+    assert.equal((await app.call(`/api/campaigns/${gid()}`, {
+        method: 'PUT',
+        body: {
+            label: 'Mallory’s game',
+            payload: JSON.stringify({
+                Version: 1,
+                Campaign: { ...campaignPayload.Campaign, Name: 'Mallory’s game', ImmortalityCost: 12 },
+            }),
+        },
+        cookie: mallory.cookie,
+    })).status, 204);
+
+    const player = await signIn(app, 'player@example.test');
+    const joined = await join(app, player.cookie, { code: aliceCode });
+
+    assert.equal(joined.status, 200);
+
+    const seen = await (await liveTable(app, player.cookie, (await joined.json()).id)).json();
+
+    assert.equal(seen.payload, JSON.stringify(campaignPayload),
+        'the live table answered a campaign belonging to a GM this player never joined');
+    assert.ok(!seen.payload.includes('Mallory'), seen.payload);
+});
+
 // ── Addresses ───────────────────────────────────────────────────────────────────────────
 
 test('an id this server does not use is refused before any query', async () => {
@@ -710,6 +871,7 @@ test('the wrong method is refused on every membership address', async () => {
         ['PATCH', `/api/memberships/${membership}`],
         ['POST', `/api/memberships/${membership}/submission`],
         ['PUT', `/api/memberships/${membership}/approve`],
+        ['POST', `/api/memberships/${membership}/table`],
         ['GET', `/api/campaigns/${gid()}/code`],
     ]) {
         const response = await app.call(path, { method, body: method === 'GET' ? undefined : {} });
