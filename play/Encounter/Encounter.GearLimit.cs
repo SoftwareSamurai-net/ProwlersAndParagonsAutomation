@@ -85,7 +85,7 @@ public sealed partial class Encounter
 
         var ceiling = state.Table.GearLimit(_play);
         var capped = Math.Min(rank, ceiling);
-        var (weapon, table) = WeaponFor(item);
+        var (weapon, table, ambiguous) = WeaponFor(item);
         var bonus = weapon?.BonusDice ?? 0;
 
         var raised = state.Table.RaisedGearLimit && state.Table.GearLimitRank is not null
@@ -96,13 +96,17 @@ public sealed partial class Encounter
             ? $"{actor.Name}'s {attack.TraitId} of {rank}d is under it and comes to bear whole"
             : $"{actor.Name}'s {attack.TraitId} of {rank}d comes to bear as {capped}d";
 
-        var added = weapon is null
-            ? $"Chapter 6 prints no weapon called {item}, so it adds nothing here and what a Weapon "
-              + "Bonus for it would be is the GM's"
-            : weapon.BonusDice is null
-                ? $"{table} prints a dash rather than a figure for {weapon.Name}, so it adds nothing "
-                  + "of its own"
-                : $"{item} is {table}'s {weapon.Name} at +{weapon.BonusDice}d";
+        var added = ambiguous.Count > 0
+            ? $"{item} names {string.Join(" and ", ambiguous)}, and Chapter 6 prints a different "
+              + "figure for each — which of them is being swung is the GM's, so nothing is added "
+              + "here rather than one of the two being picked"
+            : weapon is null
+                ? $"Chapter 6 prints no weapon called {item}, so it adds nothing here and what a "
+                  + "Weapon Bonus for it would be is the GM's"
+                : weapon.BonusDice is null
+                    ? $"the {table} table prints a dash rather than a figure for {weapon.Name}, so "
+                      + "it adds nothing of its own"
+                    : $"{item} is the {table} table's {weapon.Name} at +{weapon.BonusDice}d";
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
@@ -114,39 +118,97 @@ public sealed partial class Encounter
 
     /// <summary>
     /// The row one of Chapter 6's three tables prints for the item a caller named, and the table it
-    /// is in — or null where none of them prints one.
+    /// is in — or null where none of them prints one, or where two of them do and the page gives no
+    /// way to tell which.
     ///
     /// <para><b>The item is the caller's own words and the row is a printed type</b>, so the two
-    /// are matched by the longest printed name that appears in the caller's phrase as a whole word:
-    /// "a basic sword" is the ancient table's <c>Sword</c>, and "a battle axe" is <c>Battle Axe</c>
-    /// rather than <c>Axe</c> because the longer name wins. It is deliberately a match and not a
-    /// lookup — there is no inventory here and the object a fight opens with is a phrase somebody
-    /// typed, which is the same reason <see cref="Combatant.Carrying"/> is the caller's word.</para>
+    /// are matched by the longest printed spelling that appears in the caller's phrase as a whole
+    /// word: "a basic sword" is the ancient table's <c>Sword</c>, and "a battle axe" is
+    /// <c>Battle Axe</c> rather than <c>Axe</c> because the longer name wins. It is deliberately a
+    /// match and not a lookup — there is no inventory here and the object a fight opens with is a
+    /// phrase somebody typed, which is the same reason <see cref="Combatant.Carrying"/> is the
+    /// caller's word.</para>
+    ///
+    /// <para><b>Eight of the sixty-three rows are printed inverted, and the printed order is a sort
+    /// key rather than a name.</b> The tables are alphabetical, so p.89 files the snub-nosed pistol
+    /// under <c>Pistol, Snub</c> and the sniper's rifle under <c>Rifle, Sniper</c> — spellings
+    /// nobody types. Matching the printed string alone therefore never reached any of the eight,
+    /// and five of them silently collected <em>another weapon's</em> figure instead: "a sniper
+    /// rifle" matched <c>Rifle</c> at +3d where the page prints +4d, "a snub pistol" matched
+    /// <c>Pistol</c> at +2d where the page prints +1d, and "a spiked shield" matched the subdual
+    /// <c>Shield</c> where <c>Shield, Spiked</c> is lethal. <b>A wrong match is worse than none</b>,
+    /// because the ledger then names a printed weapon that is not the one in the caller's hands. So
+    /// each row is matched by its printed name <em>and</em> by that name uninverted, and the
+    /// comparison is on the length of the spelling that matched — which is what lets
+    /// "Sniper Rifle" beat "Rifle".</para>
+    ///
+    /// <para><b>A hyphen is a space for this purpose</b>, so "a battle-axe" is <c>Battle Axe</c>
+    /// and not <c>Axe</c>; that was the same silent-wrong-figure shape in one character.</para>
+    ///
+    /// <para><b>Two rows tied at the longest spelling refuse rather than pick one.</b> "his shield
+    /// and dagger" names two printed weapons of the same length, and the first one the loop happened
+    /// to reach is not an answer to which of them is being swung — that is a question for the person
+    /// running the fight, and the ledger asks it. The rows are returned so the line can name both.
+    /// A plural or a spelling no table carries stays a plain no-match, which the line already
+    /// says.</para>
     ///
     /// <para><b>An item nothing matches gets no bonus and says so on the ledger</b>, rather than
     /// getting a plausible one. p.87 prices what the tables print; a rolled-up newspaper is the GM's
     /// to price, and inventing a figure for it is exactly what this store was verified to
     /// prevent.</para>
     /// </summary>
-    private (EquipmentWeaponModel? Weapon, string Table) WeaponFor(string item)
+    private (EquipmentWeaponModel? Weapon, string Table, IReadOnlyList<string> Ambiguous) WeaponFor(
+        string item)
     {
-        EquipmentWeaponModel? best = null;
-        var table = "";
+        var phrase = Unhyphenated(item);
+        var best = 0;
+        var found = new List<(EquipmentWeaponModel Row, string Table)>();
 
         foreach (var id in WeaponTables)
         {
             foreach (var row in _play.GetEquipment(id).Weapons!)
             {
-                if (!NamesTheWeapon(item, row.Name)) continue;
-                if (best is not null && row.Name.Length <= best.Name.Length) continue;
+                var matched = PrintedSpellings(row.Name)
+                    .Where(spelling => NamesTheWeapon(phrase, Unhyphenated(spelling)))
+                    .Select(spelling => spelling.Length)
+                    .DefaultIfEmpty(0)
+                    .Max();
 
-                best = row;
-                table = id;
+                if (matched == 0 || matched < best) continue;
+
+                if (matched > best)
+                {
+                    best = matched;
+                    found.Clear();
+                }
+
+                found.Add((row, _play.GetEquipment(id).Name));
             }
         }
 
-        return (best, table);
+        return found switch
+        {
+            [] => (null, "", []),
+            [var only] => (only.Row, only.Table, []),
+            _ => (null, "", [.. found.Select(f => f.Row.Name)])
+        };
     }
+
+    /// <summary>
+    /// The spellings of a printed weapon name a caller might type: the name as printed, and — where
+    /// the table's alphabetical order inverted it — the same words the way round somebody says them.
+    /// </summary>
+    private static IEnumerable<string> PrintedSpellings(string name)
+    {
+        yield return name;
+
+        var comma = name.IndexOf(", ", StringComparison.Ordinal);
+
+        if (comma >= 0) yield return $"{name[(comma + 2)..]} {name[..comma]}";
+    }
+
+    /// <summary>A hyphen read as the space it stands in for, so "battle-axe" is "battle axe".</summary>
+    private static string Unhyphenated(string text) => text.Replace('-', ' ');
 
     /// <summary>
     /// Whether <paramref name="item"/> names <paramref name="weapon"/> — a case-insensitive match

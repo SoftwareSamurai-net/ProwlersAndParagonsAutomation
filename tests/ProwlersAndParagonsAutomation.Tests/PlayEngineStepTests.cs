@@ -8765,11 +8765,98 @@ public sealed class PlayEngineStepTests
             limit + 2, PoolOf(might: 10, item: "a hand axe", AttackType.MeleeWeapon));
     }
 
-    /// <summary>Chapter 6's own figure for a basic sword, read out of the ancient weapons table.</summary>
-    private int SwordBonus() =>
-        _play.GetEquipment("ancient_weapons").Weapons!
-            .Single(w => string.Equals(w.Name, "Sword", StringComparison.Ordinal))
+    /// <summary>
+    /// <b>A printed name the table inverted is matched the way somebody says it, and two printed
+    /// weapons of equal standing are refused rather than one of them picked.</b>
+    ///
+    /// <para>The three tables are alphabetical, so eight of the sixty-three rows are filed under
+    /// their head noun — <c>Rifle, Sniper</c>, <c>Pistol, Snub</c>, <c>Shield, Spiked</c>. Nobody
+    /// types those, so matching the printed string alone reached none of the eight, and five of them
+    /// silently collected <em>another row's</em> figure: a sniper rifle was priced as a rifle. <b>A
+    /// wrong match is worse than no match</b>, because the ledger then names a printed weapon that
+    /// is not the one in the caller's hands — so both spellings are matched and the longer one
+    /// wins.</para>
+    ///
+    /// <para><b>Both directions are driven</b>, which is what makes this a fixture about the
+    /// spelling rather than about bigger numbers: the sniper's rifle is worth <em>more</em> than the
+    /// rifle it used to be priced as and the snub pistol is worth <em>less</em> than the pistol, so
+    /// a matcher that had simply started preferring the larger figure fails on the second.</para>
+    ///
+    /// <para>A hyphen is the same shape in one character, and a phrase naming two printed weapons of
+    /// the same length is a question for the GM rather than a race between two rows.</para>
+    /// </summary>
+    [Fact]
+    public void AnInvertedPrintedNameIsMatchedAsSpokenAndATieIsRefused()
+    {
+        var limit = TableRules.Book.GearLimit(_play);
+
+        // The controls: these are the book's figures, read out of the shipped tables, and each
+        // inverted row differs from the row it used to be mistaken for.
+        var rifle = Bonus("modern_weapons", "Rifle");
+        var sniper = Bonus("modern_weapons", "Rifle, Sniper");
+        var pistol = Bonus("modern_weapons", "Pistol");
+        var snub = Bonus("modern_weapons", "Pistol, Snub");
+
+        Assert.NotEqual(rifle, sniper);
+        Assert.NotEqual(pistol, snub);
+
+        // The inverted name is reached, in both directions: more dice than the head noun for the
+        // sniper's rifle, fewer for the snub-nosed pistol.
+        Assert.Equal(limit + sniper, PoolOf(might: 10, item: "a sniper rifle", AttackType.RangedWeapon));
+        Assert.Equal(limit + snub, PoolOf(might: 10, item: "a snub pistol", AttackType.RangedWeapon));
+
+        // And the head noun on its own still matches its own row, so the two above are a fact about
+        // the longer spelling rather than about a lookup that has started answering something else.
+        Assert.Equal(limit + rifle, PoolOf(might: 10, item: "a rifle", AttackType.RangedWeapon));
+        Assert.Equal(limit + pistol, PoolOf(might: 10, item: "a pistol", AttackType.RangedWeapon));
+
+        Assert.Contains(
+            "Rifle, Sniper",
+            Assert.Single(
+                LinesOf(might: 10, item: "a sniper rifle", type: AttackType.RangedWeapon),
+                l => string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal)).Text,
+            StringComparison.Ordinal);
+
+        // A hyphen is the space it stands in for: a battle-axe is the Battle Axe and not the Axe,
+        // which are different figures.
+        var axe = Bonus("ancient_weapons", "Axe");
+        var battle = Bonus("ancient_weapons", "Battle Axe");
+
+        Assert.NotEqual(axe, battle);
+        Assert.Equal(limit + battle, PoolOf(might: 10, item: "a battle-axe", AttackType.MeleeWeapon));
+        Assert.Equal(limit + axe, PoolOf(might: 10, item: "an axe", AttackType.MeleeWeapon));
+
+        // A phrase naming two printed weapons of equal length adds nothing at all, and the line
+        // names both rather than the engine picking whichever the loop reached first.
+        Assert.Equal(limit, PoolOf(might: 10, item: "his shield and dagger", AttackType.MeleeWeapon));
+
+        var tied = Assert.Single(
+            LinesOf(might: 10, item: "his shield and dagger", type: AttackType.MeleeWeapon),
+            l => string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal)).Text;
+
+        Assert.Contains("Shield", tied, StringComparison.Ordinal);
+        Assert.Contains("Dagger", tied, StringComparison.Ordinal);
+        Assert.Contains("is the GM's", tied, StringComparison.Ordinal);
+
+        // The control on the refusal: either name on its own is priced, so the tie is a fact about a
+        // phrase naming two weapons and not about the lookup having stopped finding them.
+        Assert.Equal(
+            limit + Bonus("ancient_weapons", "Dagger"),
+            PoolOf(might: 10, item: "a dagger", AttackType.MeleeWeapon));
+
+        Assert.Equal(
+            limit + Bonus("ancient_weapons", "Shield"),
+            PoolOf(might: 10, item: "a shield", AttackType.MeleeWeapon));
+    }
+
+    /// <summary>Chapter 6's printed Weapon Bonus for one row, read out of the shipped table.</summary>
+    private int Bonus(string table, string name) =>
+        _play.GetEquipment(table).Weapons!
+            .Single(w => string.Equals(w.Name, name, StringComparison.Ordinal))
             .BonusDice!.Value;
+
+    /// <summary>Chapter 6's own figure for a basic sword, read out of the ancient weapons table.</summary>
+    private int SwordBonus() => Bonus("ancient_weapons", "Sword");
 
     /// <summary>
     /// The dice an attack with <paramref name="item"/> actually threw, read off the exchange's own
