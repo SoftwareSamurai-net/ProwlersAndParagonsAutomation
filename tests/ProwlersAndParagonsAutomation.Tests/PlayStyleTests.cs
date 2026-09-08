@@ -369,6 +369,93 @@ public sealed class PlayStyleTests
         });
     }
 
+    /// <summary>
+    /// <b>Every exchange and every defence the observation reports is in the ledger of that same
+    /// fight, read out of the sentences by hand.</b>
+    ///
+    /// <para><b>The two derivations are genuinely independent, which is the only reason this is a
+    /// reconciliation and not a restatement.</b> The observation is built off
+    /// <c>ResolvedAttack</c> and off the difference between two states; the expectation below is
+    /// built by parsing the prose of every attack line — attacker, Trait, defending Trait, and the
+    /// two success counts — out of the ledger. An error in either shows up as a disagreement, and
+    /// the failure names the fight.</para>
+    ///
+    /// <para>The report the encounter server answers with is these figures grouped and divided by N,
+    /// so what is checked here is the thing every row of <c>attack_forms</c> and <c>defences</c> is
+    /// made of.</para>
+    /// </summary>
+    [Fact]
+    public void TheObservationReconcilesWithTheLedgerOfTheSameFight()
+    {
+        var run = Observe(new Standard(_play), OutEdged(), seed: 606);
+
+        // The ledger, by hand: "{who} attacks {whom} with {trait} {pool}d for {n} successes;
+        // {whom} defends with {trait} {pool}d for {m}".
+        var lines = run.State.Ledger.Lines.Where(LedgerReading.IsAnAttack).ToList();
+
+        Assert.True(lines.Count > 0, "the fight has no attack lines, so there is nothing to reconcile.");
+
+        // <b>Exchanges per attacker and Trait.</b> A purchase re-applies the attack already on the
+        // table and writes no second attack line, which is the same thing the observation does by
+        // recording one exchange a turn — so the two counts have to agree exactly.
+        var fromLedger = lines
+            .GroupBy(l => (l.Actor, Trait: Between(l.Text, " with ", " ")))
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var observed = run.Observed.Attacks
+            .GroupBy(a => (a.Attacker, Trait: a.TraitId))
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        Assert.Equal(fromLedger.OrderBy(p => p.Key), observed.OrderBy(p => p.Key));
+
+        // <b>And the defending half, Trait by Trait.</b>
+        var defencesFromLedger = lines
+            .GroupBy(l => LedgerReading.DefenceTraitIn(l), StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
+        var defencesObserved = run.Observed.Attacks
+            .GroupBy(a => a.DefenceTrait!, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
+        Assert.Equal(
+            defencesFromLedger.OrderBy(p => p.Key, StringComparer.Ordinal),
+            defencesObserved.OrderBy(p => p.Key, StringComparer.Ordinal));
+
+        // <b>And whether each one held.</b> A defence held where it scored at least what the attack
+        // did, which the sentence prints as its last two figures.
+        var heldInTheLedger = lines.Count(l =>
+            Number(l.Text, " successes; ", reverse: false) <= Number(l.Text, "d for ", reverse: true));
+
+        Assert.Equal(run.Observed.Attacks.Count(a => a.DefenceHeld), heldInTheLedger);
+    }
+
+    /// <summary>The text between two markers, for reading a ledger sentence by hand.</summary>
+    private static string Between(string text, string opens, string closes)
+    {
+        var from = text.IndexOf(opens, StringComparison.Ordinal) + opens.Length;
+        var to = text.IndexOf(closes, from, StringComparison.Ordinal);
+
+        return to < 0 ? text[from..] : text[from..to];
+    }
+
+    /// <summary>
+    /// One of the two success counts in an attack line: the attack's, which is the number before
+    /// " successes; ", or the defence's, which is the number after the last "d for ".
+    /// </summary>
+    private static int Number(string text, string marker, bool reverse)
+    {
+        if (reverse)
+        {
+            var at = text.LastIndexOf(marker, StringComparison.Ordinal) + marker.Length;
+            return int.Parse(text[at..].Trim(), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var end = text.IndexOf(marker, StringComparison.Ordinal);
+        var start = text.LastIndexOf(' ', end - 1) + 1;
+
+        return int.Parse(text[start..end], System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     // ── The fights ────────────────────────────────────────────────────────
 
     /// <summary>Two Heroes the Villain is quicker than: <c>standard</c>'s seize has its trigger.</summary>

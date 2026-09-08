@@ -1143,11 +1143,18 @@ public sealed class PlayTools
     /// <summary>
     /// Whether this side's rate is at or below the owner's line, or null where there are too few
     /// runs to say.
+    ///
+    /// <para><b>Public so the boundary can be driven at the boundary.</b> Half of a hundred is the
+    /// case the owner's sentence turns on — "half or less chance of victory" — and no fight can be
+    /// made to land there on demand, so the comparison is asked directly at 0.50, at 0.51 and one
+    /// run below the floor. The wire tests beside it drive the flag through a real lopsided
+    /// matchup, which is the control that this is the predicate the report actually calls.</para>
     /// </summary>
+    public static bool? IsUnfair(int wins, int runs) =>
+        runs < FewestRunsForAVerdict ? null : (double)wins / runs <= UnfairAtOrBelow;
+
     private static JsonValue? Unfair(int wins, int runs) =>
-        runs < FewestRunsForAVerdict
-            ? null
-            : JsonValue.Create((double)wins / runs <= UnfairAtOrBelow);
+        IsUnfair(wins, runs) is { } verdict ? JsonValue.Create(verdict) : null;
 
     /// <summary>One sentence about what a target selector assumes, for the echo.</summary>
     private static string TargetingNote(Targeting targeting) => targeting switch
