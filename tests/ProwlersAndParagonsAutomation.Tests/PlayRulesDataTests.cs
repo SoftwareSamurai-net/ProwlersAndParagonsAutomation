@@ -3703,7 +3703,15 @@ public sealed class PlayRulesDataTests
         var resolvedGenerically = 0;
 
         // The three deferring entries: each names the Power its option is priced on.
-        foreach (var entry in Environment().Entries.Where(e => e.ToxinOption is not null))
+        var deferring = Environment().Entries.Where(e => e.ToxinOption is not null).ToList();
+
+        // Positive control, and it counts the entries rather than the ones that resolved. Counting
+        // resolutions here would be a second way of saying what `faults` says, asserted first and
+        // in figures — a misspelled option id then fails as "expected 3, actual 2" and the message
+        // naming the reference that resolved to nothing is never reached. Measured: it did.
+        Assert.Equal(EnvRules.ToxinOptions.Length, deferring.Count);
+
+        foreach (var entry in deferring)
         {
             var option = entry.ToxinOption!;
 
@@ -3712,8 +3720,6 @@ public sealed class PlayRulesDataTests
             if (onPowers.Contains((option.PowerId, option.OptionId))) resolvedOnAPower++;
             else faults.Add($"{entry.Id}: powers.json has no '{option.OptionId}' on the Power '{option.PowerId}'");
         }
-
-        Assert.Equal(EnvRules.ToxinOptions.Length, resolvedOnAPower);
 
         // And every option either table's rows name, wherever it lives.
         var referenced = EnvironmentEntryById("diseases_table").DiseasesTable!.Rows
