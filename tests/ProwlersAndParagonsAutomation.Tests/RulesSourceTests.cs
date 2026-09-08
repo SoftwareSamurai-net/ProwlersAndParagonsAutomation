@@ -56,12 +56,38 @@ public sealed class RulesSourceTests
     /// added and not listed, a browser build silently fetches an incomplete rules set — so
     /// the list has to match what is actually shipped.
     /// </summary>
+    /// <remarks>
+    /// <para><b>Two kinds of file are off the list on purpose, and each one is named rather than
+    /// filtered by a pattern.</b> <c>meta.json</c> is provenance rather than rules. The three
+    /// Chapter 6 files are <em>extracted but not yet consumed</em>: putting one on the contract
+    /// makes the browser fetch it before its first render, which is a decision about the payload
+    /// and belongs to the slice that teaches <c>CostCalculator</c> what a vehicle or a
+    /// headquarters costs — not to the slice that read the pages. <see cref="Chapter6RulesDataTests"/>
+    /// holds them to the rulebook meanwhile, which is what stops them being unread data.</para>
+    ///
+    /// <para><b>Each exclusion has to still exist</b>, or an exemption for something that is no
+    /// longer there sits here permitting a name for nothing — the shape this repository has been
+    /// bitten by in <c>TraitCapReadTests</c>.</para>
+    /// </remarks>
     [Fact]
     public void DataFileNamesListsEveryShippedRulesFile()
     {
+        string[] notOnTheContract =
+        [
+            "meta.json",                                    // provenance, not rules the engine loads
+            "gadgets.json"                                  // extracted, no consumer yet
+        ];
+
+        foreach (var excluded in notOnTheContract)
+        {
+            Assert.True(File.Exists(Path.Combine(RulesFixture.DataPath, excluded)),
+                $"{excluded} is excused from the contract and is not on disk, so the excuse "
+                + "permits a name for nothing. Remove it from the list.");
+        }
+
         var onDisk = Directory.GetFiles(RulesFixture.DataPath, "*.json")
             .Select(Path.GetFileName)
-            .Where(n => n != "meta.json")      // provenance, not rules the engine loads
+            .Where(n => !notOnTheContract.Contains(n, StringComparer.Ordinal))
             .Order();
 
         Assert.Equal(onDisk, RulesRepository.DataFileNames.Order());
