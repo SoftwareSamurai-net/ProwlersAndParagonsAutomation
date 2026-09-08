@@ -5600,6 +5600,168 @@ public sealed class McpPlayServerTests
             Assert.Equal(["cho", "felix", "party"], await Rows(null));
         });
 
+    /// <summary>
+    /// <b>Any cell of the matrix reopens as a <c>run_encounters</c> call on its own seed block, and
+    /// the two answers are the same fight.</b>
+    ///
+    /// <para><b>That is the promise the echoed seeds make and it holds two claims at once.</b> The
+    /// first is the one PLAY-POLICY.md prints — a cell is one number in a table of twenty, and a
+    /// reader who wants the detail of one calls <c>run_encounters</c> on that block. The second is
+    /// the one nothing was checking: <b>a Hero-alone row is that Hero against the <em>same</em>
+    /// opposition the party row faced</b>, off the same combatants the call was built with. Ids in
+    /// the echo cannot show that — two rows can name the same Villain and fight two different
+    /// sheets — but a win rate to the last run can, because the two runs would diverge on the first
+    /// roll if any figure of the Villain's differed.</para>
+    ///
+    /// <para>The controls are that the two calls really are the same setup: the style, the target
+    /// selector, the page limit and the seed block are taken out of the matrix's own answer rather
+    /// than typed a second time, and the rate is asserted to be a real fight rather than 0 against
+    /// 0 — a matchup nobody ever won would reconcile trivially.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACellReopensAsRunEncountersOnItsOwnBlockAgainstTheSameOpposition() =>
+        await WithClient(async client =>
+        {
+            const int Base = 7_700;
+            const int Pages = 8;
+            var perCell = PlayTools.FewestRunsACell;
+
+            var matrix = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = perCell,
+                ["seed"] = Base,
+                ["maxPages"] = Pages
+            });
+
+            Assert.True(matrix["ok"]!.GetValue<bool>(), matrix.ToJsonString());
+
+            // <b>No two cells share a fight</b>, asked as the property rather than as the formula:
+            // every block is compared with every other for an overlap.
+            var blocks = matrix["matrix"]!.AsArray()
+                .SelectMany(r => r!["cells"]!.AsArray())
+                .Select(c => (First: c!["seeds"]!["first"]!.GetValue<int>(),
+                              Last: c["seeds"]!["last"]!.GetValue<int>()))
+                .ToList();
+
+            Assert.True(blocks.Count > 1, "one cell cannot overlap with anything.");
+
+            for (var a = 0; a < blocks.Count; a++)
+            {
+                for (var b = a + 1; b < blocks.Count; b++)
+                {
+                    Assert.False(blocks[a].First <= blocks[b].Last && blocks[b].First <= blocks[a].Last,
+                        $"cells {a} and {b} share seeds: {blocks[a]} and {blocks[b]}. Two cells on "
+                        + "one fight are two figures nobody can tell apart.");
+                }
+            }
+
+            // One Hero's own row, and its first column.
+            var row = matrix["matrix"]!.AsArray()
+                .Single(r => string.Equals(r!["matchup"]!.GetValue<string>(), "cho", StringComparison.Ordinal))!;
+
+            var cell = row["cells"]!.AsArray()[0]!;
+
+            var reopened = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = OneHeroOf(PartyOfTwo(), "cho"),
+                ["runs"] = matrix["runs_a_cell"]!.GetValue<int>(),
+                ["seed"] = cell["seeds"]!["first"]!.GetValue<int>(),
+                ["style"] = cell["style"]!.GetValue<string>(),
+                ["targeting"] = matrix["targeting"]!["id"]!.GetValue<string>(),
+                ["maxPages"] = matrix["max_pages"]!.GetValue<int>()
+            });
+
+            Assert.True(reopened["ok"]!.GetValue<bool>(), reopened.ToJsonString());
+
+            var side = matrix["side"]!.GetValue<string>();
+
+            var apart = reopened["by_side"]!.AsArray()
+                .Single(s => string.Equals(s!["side"]!.GetValue<string>(), side, StringComparison.Ordinal))!;
+
+            // The control: somebody won some of them, so this is a reconciliation and not two zeroes.
+            Assert.True(cell["win_rate"]!.GetValue<double>() > 0,
+                "the Hero never won a single one of this cell's fights, so two matching rates would "
+                + "say nothing about the two calls being the same fight.");
+
+            Assert.Equal(cell["win_rate"]!.GetValue<double>(), apart["win_rate"]!.GetValue<double>());
+            Assert.Equal(cell["draw_rate"]!.GetValue<double>(), reopened["draw_rate"]!.GetValue<double>());
+            Assert.Equal(cell["mean_pages"]!.GetValue<double>(), reopened["mean_pages"]!.GetValue<double>());
+        });
+
+    /// <summary>
+    /// <b>The cap is on the whole table and not on each cell, which is the thing a per-cell cap
+    /// would get wrong.</b>
+    ///
+    /// <para>Every cell here is the owner's own floor of a hundred — a perfectly ordinary figure —
+    /// and there are enough rows that the call would run more fights than this transport answers in
+    /// one go. There is no progress and no cancel over it, so what matters is the length of the one
+    /// call. The control is the same hundred a cell with a small party, which is answered.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheMatrixCapsTheWholeTableRatherThanEachCell() =>
+        await WithClient(async client =>
+        {
+            var perCell = PlayTools.FewestRunsACell;
+            var styles = StylePolicy.StyleIds.Count;
+
+            // Enough Heroes that the rows times the styles times the floor passes the cap.
+            var many = 1 + PlayTools.MostRuns / (perCell * styles);
+
+            var crowd = new JsonArray();
+
+            for (var i = 0; i < many; i++)
+                crowd.Add(Sheet("hero", $"hero{i:00}", $"Hero {i}", "heroes", might: 8, toughness: 5));
+
+            crowd.Add(Sheet("villain", "villain", "the Villain", "villains", might: 9, toughness: 6));
+
+            var refused = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = crowd,
+                ["runs"] = perCell,
+
+                // Only so the mutation that removes the cap fails quickly instead of running the
+                // five thousand fights this refusal exists to prevent.
+                ["maxPages"] = 1
+            });
+
+            Assert.False(refused["ok"]!.GetValue<bool>(), refused.ToJsonString());
+            Assert.Equal("MATRIX_TOO_LARGE", refused["problem"]!["code"]!.GetValue<string>());
+
+            // The refusal says what to do about it rather than only that it will not.
+            var message = refused["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Contains(PlayTools.MostRuns.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                message, StringComparison.Ordinal);
+            Assert.Contains("matchups", message, StringComparison.Ordinal);
+
+            // The control: the same runs a cell, with a party small enough to fit.
+            var answered = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = perCell,
+                ["maxPages"] = 6
+            });
+
+            Assert.True(answered["ok"]!.GetValue<bool>(), answered.ToJsonString());
+            Assert.True(answered["total_runs"]!.GetValue<long>() <= PlayTools.MostRuns);
+        });
+
+    /// <summary>One Hero of a fight and everybody not on their side — the matrix's own "alone".</summary>
+    private static JsonArray OneHeroOf(JsonArray fight, string hero)
+    {
+        var side = fight.Single(c => string.Equals(c!["id"]!.GetValue<string>(), hero, StringComparison.Ordinal))!
+            ["side"]!.GetValue<string>();
+
+        return
+        [
+            .. fight
+                .Where(c => string.Equals(c!["id"]!.GetValue<string>(), hero, StringComparison.Ordinal)
+                            || !string.Equals(c["side"]!.GetValue<string>(), side, StringComparison.Ordinal))
+                .Select(c => c!.DeepClone())
+        ];
+    }
+
     /// <summary>Two Heroes and a Villain, which gives a matrix three rows.</summary>
     private static JsonArray PartyOfTwo() =>
     [
