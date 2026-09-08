@@ -410,7 +410,10 @@ public sealed class PlayTools
         "unfair is a threshold the owner set and not a rule the book prints: a side that wins half "
         + "its fights or fewer over at least "
         + "100 runs. It is null below that many runs, because "
-        + "\"not unfair\" and \"not enough fights to say\" are different answers.";
+        + "\"not unfair\" and \"not enough fights to say\" are different answers. A draw is a win "
+        + "for neither side, so it counts against both — read the flag beside draw_rate, because a "
+        + "fight nobody ever wins is flagged against each side and that is not the other one "
+        + "beating them.";
 
     [Description(
         "Runs the same fight N times on consecutive seeds and reports the rates. Refuses fewer "
@@ -1148,6 +1151,14 @@ public sealed class PlayTools
     /// made to land there on demand, so the comparison is asked directly at 0.50, at 0.51 and one
     /// run below the floor. The wire tests beside it drive the flag through a real lopsided
     /// matchup, which is the control that this is the predicate the report actually calls.</para>
+    ///
+    /// <para><b>Both sides carry the flag, and a draw counts against both of them.</b> A run that
+    /// ended with neither side down is a win for nobody, so it lowers every side's rate at once —
+    /// which means two combatants who cannot get through each other come back flagged against each
+    /// other, and "unfair" there does not mean anybody is being beaten. It is the honest answer to
+    /// the question the owner asked (is the fight worth playing) and the wrong reading of the word,
+    /// so <c>unfair_threshold.note</c> says it in the same object as the flag and a fixture drives
+    /// the stalemate.</para>
     /// </summary>
     public static bool? IsUnfair(int wins, int runs) =>
         runs < FewestRunsForAVerdict ? null : (double)wins / runs <= UnfairAtOrBelow;

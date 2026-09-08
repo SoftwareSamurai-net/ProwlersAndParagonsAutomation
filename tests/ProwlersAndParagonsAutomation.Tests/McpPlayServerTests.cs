@@ -5168,6 +5168,34 @@ public sealed class McpPlayServerTests
         return fight;
     }
 
+    /// <summary>
+    /// A Hero and a Villain who cannot get through each other — 1d of Might against 20d of
+    /// Toughness, both ways — so every run of the fight is a draw.
+    /// </summary>
+    private static JsonArray Stalemate() =>
+    [
+        new JsonObject
+        {
+            ["kind"] = "hero", ["id"] = "hero", ["side"] = "heroes",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Hero",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 1, ["toughness"] = 20, ["willpower"] = 4 }
+            }
+        },
+        new JsonObject
+        {
+            ["kind"] = "villain", ["id"] = "villain", ["side"] = "villains",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Villain",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 1, ["toughness"] = 20, ["willpower"] = 4 }
+            }
+        }
+    ];
+
     // ── Styles, targeting, the unfair line and the matrix ─────────────────
 
     /// <summary>
@@ -5238,6 +5266,54 @@ public sealed class McpPlayServerTests
             Assert.Equal(PlayTools.FewestRunsForAVerdict, threshold["fewest_runs"]!.GetValue<int>());
 
             Assert.Contains("not a rule", threshold["note"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>A draw is a win for neither side, so a fight nobody ever wins flags both of them.</b>
+    ///
+    /// <para><b>This is the case the word "unfair" reads wrongly for, which is why the report says
+    /// so rather than leaving it to be worked out.</b> The flag is a win rate at or below a half, and
+    /// a draw counts against that rate on both sides at once — so two combatants who cannot get
+    /// through each other come back with <c>unfair: true</c> against each of them, which is not "the
+    /// other side is beating you" in either direction. The <c>draw_rate</c> beside it is what tells
+    /// the two apart, and <c>unfair_threshold.note</c> now says so in the same object.</para>
+    ///
+    /// <para>The control is the draw rate itself: a fight that resolved would make the two flags a
+    /// claim about somebody winning, and this one has nobody winning at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task AFightNobodyEverWinsIsFlaggedAgainstBothSides() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = Stalemate(),
+                ["runs"] = PlayTools.FewestRunsForAVerdict,
+                ["seed"] = 4_150,
+                ["style"] = "mano_a_mano",
+                ["maxPages"] = 3
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            // The control: nobody won any of them.
+            Assert.Equal(1.0, answer["draw_rate"]!.GetValue<double>());
+
+            var sides = answer["by_side"]!.AsArray();
+
+            Assert.Equal(2, sides.Count);
+
+            Assert.All(sides, side =>
+            {
+                Assert.Equal(0.0, side!["win_rate"]!.GetValue<double>());
+
+                Assert.True(side["unfair"]!.GetValue<bool>(),
+                    "a side that never wins is not flagged: " + side.ToJsonString());
+            });
+
+            // And the sentence that keeps the flag from being read as "they are beating you".
+            Assert.Contains("draw", answer["unfair_threshold"]!["note"]!.GetValue<string>(),
+                StringComparison.Ordinal);
         });
 
     /// <summary>

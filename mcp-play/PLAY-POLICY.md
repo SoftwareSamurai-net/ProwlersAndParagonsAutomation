@@ -242,6 +242,13 @@ not `false`, because "not unfair" and "not enough fights to say" are different a
 of them is reassuring. The figure and the sentence come back in `unfair_threshold`; quote them with
 the flag.
 
+**Every side carries it, and a draw counts against all of them.** A run neither side won is a win
+for nobody, so it lowers both rates — which means two combatants who cannot get through each other
+come back with `unfair: true` against *each* of them. That is the honest answer to the question the
+flag is for (is this fight worth playing) and the wrong reading of the word: nobody is being beaten
+there. **`draw_rate` is what tells the two apart, so read it beside the flag** and never narrate a
+flagged side as losing without looking at it.
+
 **What a party has no answer for is `by_combatant` and `by_side`**, and every figure in them is
 *observed* rather than declared:
 
