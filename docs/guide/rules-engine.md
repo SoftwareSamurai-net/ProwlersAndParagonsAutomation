@@ -187,10 +187,13 @@ them trustworthy — and the pair the extraction slice left behind (an entry on
 moved together, which is what that pair was for. `EquipmentDataTests` still holds the file to the
 page; the repository is lenient at runtime, as it is for every other file.
 
-**The payload cost, since item 5 records payload as a characteristic.** `gear.json` is 73.3 KiB
-uncompressed and 13.2 KiB gzipped, on a rules payload that was 232.1 KiB — so the rules the browser
-fetches at boot grew by 31.6%. Against the 27 MiB first load that is about a quarter of one percent.
-The `data/rules/play/` files stay off the list and `PlayPayloadTests` proves it.
+**The payload cost, since item 5 records payload as a characteristic.** `gear.json` is about 73 KiB
+uncompressed and 13 KiB gzipped, on a rules payload that was about 232 KiB — so the rules the browser
+fetches at boot grew by roughly a third. Against the 27 MiB first load that is about a quarter of one
+percent, and every framework asset is fingerprinted, so a returning visitor pays nothing. The figures
+are approximate deliberately: to the byte, they are a number in a sentence that nothing re-counts and
+that every data edit moves. The `data/rules/play/` files stay off the list and `PlayPayloadTests`
+proves it.
 
 **`GearCatalogue` is the one flattening**, because five surfaces need the same answer — the browser's
 Gear step, the terminal wizard's, the command palette, `GearFormatter` and `CharacterValidator` — and

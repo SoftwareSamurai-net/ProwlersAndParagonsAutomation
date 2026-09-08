@@ -68,10 +68,11 @@ public sealed class RulesSourceTests
     ///
     /// <para><b><c>gear.json</c> came off this list, and it is the worked example of that pairing.</b>
     /// The Gear step picks from its armour, weapon and equipment rows and the palette offers them,
-    /// so <see cref="RulesRepository.Equipment"/> exists and every browser fetches the file — 73.3
-    /// KiB uncompressed, 13.2 KiB gzipped, on a rules payload that was 232.1 KiB. Removing the
-    /// exemption without adding the collection, or the reverse, fails one of the two checks
-    /// below.</para>
+    /// so <see cref="RulesRepository.Equipment"/> exists and every browser fetches the file — about
+    /// 73 KiB uncompressed and 13 KiB gzipped, on a rules payload that was about 232 KiB, so
+    /// roughly a third more. <b>Approximate on purpose</b>: a figure to the byte in a comment is one
+    /// nothing re-counts, and every data edit moves it. Removing the exemption without adding the
+    /// collection, or the reverse, fails one of the two checks below.</para>
     /// </summary>
     private static readonly string[] NotLoadedByTheRepository =
         ["meta.json", "gadgets.json", "vehicles.json", "headquarters.json"];

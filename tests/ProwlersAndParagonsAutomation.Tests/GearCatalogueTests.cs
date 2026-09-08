@@ -205,4 +205,69 @@ public sealed class GearCatalogueTests
     [InlineData("Sword (Great)", "sword_great")]
     public void APrintedNameBecomesAnIdSegment(string name, string expected) =>
         Assert.Equal(expected, GearCatalogue.Slug(name));
+
+    // ── What a catalogue item costs, which is nothing ────────────────────────
+
+    /// <summary>
+    /// <b>Every kind of catalogue row is free.</b> p.91 is explicit that mundane gear is not bought
+    /// and not tracked, and a weapon is mundane gear as much as a torch is — the whole reason the
+    /// Gear step can offer a battle axe without a budget appearing.
+    ///
+    /// <para>Driven through <see cref="CostCalculator.GearCost"/> for one of each kind, because
+    /// "the picker adds it at 0" is a fact about a component and this is a fact about the engine.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(GearCatalogue.WeaponPrefix + "battle_axe")]
+    [InlineData(GearCatalogue.ArmorPrefix + "ancient_plate")]
+    [InlineData(GearCatalogue.WeaponPrefix + "shield")]
+    [InlineData(GearCatalogue.ItemPrefix + "crowbar")]
+    public void EveryKindOfCatalogueRowIsFree(string rowId)
+    {
+        var row = _catalogue.Find(rowId);
+        Assert.NotNull(row);
+
+        Assert.Equal(0, _f.Costs.GearCost(new SelectedGear(row.Name) { CatalogueId = rowId }));
+    }
+
+    /// <summary>
+    /// <b>A custom feature on a catalogue item costs what it costs, and naming the row changes
+    /// nothing.</b> p.92 is the one place gear spends Hero Points, and it spends the same on a
+    /// battle axe off the table as on something a player wrote down.
+    /// </summary>
+    [Fact]
+    public void ACustomFeatureCostsTheSameOnACatalogueRowAsOnAnythingElse()
+    {
+        var axe = new SelectedGear("Battle Axe")
+        {
+            CatalogueId = GearCatalogue.WeaponPrefix + "battle_axe",
+            Features = [new("upgraded")]
+        };
+
+        var written = new SelectedGear("Battle Axe") { Features = [new("upgraded")] };
+
+        Assert.Equal(_f.Costs.GearCost(written), _f.Costs.GearCost(axe));
+
+        // The control: the feature really does cost something, so the equality above is not two
+        // zeroes agreeing.
+        Assert.True(_f.Costs.GearCost(axe) > 0);
+    }
+
+    /// <summary>
+    /// <b>A whole sheet of catalogue gear costs nothing and moves no total.</b> The figure a
+    /// character is judged on is unchanged by what they carry, which is what "free and untracked"
+    /// has to mean at the level a budget is read.
+    /// </summary>
+    [Fact]
+    public void ASheetOfCatalogueGearMovesNoTotal()
+    {
+        var bare = _f.LegalSheet();
+        var laden = _f.LegalSheet();
+
+        foreach (var row in _catalogue.Rows)
+            laden.Gear.Add(new SelectedGear(row.Name) { CatalogueId = row.Id });
+
+        Assert.Equal(_catalogue.Rows.Count, laden.Gear.Count);
+        Assert.Equal(0, _f.Costs.TotalGearCost(laden));
+        Assert.Equal(_f.Costs.TotalCost(bare), _f.Costs.TotalCost(laden));
+    }
 }
