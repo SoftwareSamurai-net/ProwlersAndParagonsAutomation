@@ -1,0 +1,487 @@
+{
+  "header": {
+    "what_this_is": "Chapter 6's Headquarters rules, printed pp.100-103, as data: what the Headquarters Perk grants, the second currency it hands out, the one bonus a feature is worth on a roll, and all twenty-two base features with the price of each and what the price buys. Two features carry mechanics of their own and have entries beside the table - Mobile, which turns the base into a capital ship, and Training Facilities, which grants Teamwork.",
+    "not_logic": "Data only. Nothing here decides what a character costs today: RulesRepository.DataFileNames deliberately does not list this file, because the consumer slice - the one that teaches CostCalculator and the sheet about headquarters - is the slice that gets to decide how it is loaded. The csproj globs copy it to every host's output directory regardless, which is where the consumer will find it.",
+    "two_currencies": "A headquarters is bought in Base Points, which are not Hero Points. Hero Points buy the Headquarters Perk at three Base Points each, and every price in this file below that line is in Base Points. The one place the two meet again is the Mobile feature, which costs no Base Points and forces a purchase of the Unique Vehicle Perk in Hero Points.",
+    "deliberately_omitted": "Gadgets (p.94) are in gadgets.json and Vehicles (pp.94-100) in vehicles.json, so each file answers one question. The chapter's printed range is pp.87-104 and this file is pp.100-103; printed p.104 carries no chapter text at all. The chapter opening under HEADQUARTERS on p.100 is an essay listing the kinds of base a group might have and states no mechanic, so it is not an entry.",
+    "verified_fields_closed_list": [
+      "cost",
+      "rank",
+      "roll",
+      "threshold",
+      "effect",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, pp.100-103"
+  },
+  "entries": [
+    {
+      "id": "headquarters_perk",
+      "name": "The Headquarters Perk",
+      "kind": "formula",
+      "printed_under": "BASE FEATURES",
+      "headquarters_perk": {
+        "perk_id": "headquarters",
+        "base_points_per_hero_point": 3,
+        "grants_by_default": "a basic headquarters no larger than an average mansion or warehouse, with whatever ordinary rooms, equipment and facilities the owner wants",
+        "default_headquarters_costs_no_base_points": true,
+        "heroes_may_pool_points": true
+      },
+      "interpretation": null,
+      "description": "The Perk itself buys the building, unremarkable and already furnished. What every Hero Point after that buys is three points of a second currency, and those are what turn an ordinary property into a base worth having. A team can put their allowances together on one headquarters.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.100",
+      "ambiguity": null
+    },
+    {
+      "id": "advanced_feature_bonus",
+      "name": "What a feature is worth at the table",
+      "kind": "table_setting",
+      "printed_under": "BASE FEATURES",
+      "advanced_feature_bonus": {
+        "features_are_mostly_narrative": true,
+        "gm_may_grant_bonus_dice": 1,
+        "bonus_applies_to": "a challenge roll the feature can be brought to bear on",
+        "is_gm_discretion": true,
+        "worked_example_feature": "Advanced Science Labs",
+        "worked_example_roll": "Investigation"
+      },
+      "interpretation": null,
+      "description": "Most of what Base Points buy is fiction rather than arithmetic: a base with laboratories means the group has laboratories. The one mechanical handle the chapter offers is a single extra die, at the GM's discretion, on a roll the feature genuinely helps with.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.100",
+      "ambiguity": "The bonus is offered as something the GM may grant and no page says whether it stacks across two features that both bear on one roll, nor whether the standard grade of a feature earns it or only the advanced one - the worked example names an advanced feature."
+    },
+    {
+      "id": "base_features",
+      "name": "Base Features",
+      "kind": "table",
+      "printed_under": "BASE FEATURES",
+      "features": [
+        {
+          "id": "alternate_headquarters",
+          "name": "Alternate Headquarters",
+          "cost_type": "per_unit",
+          "cost": null,
+          "cost_range": null,
+          "cost_per_unit": 1,
+          "unit_label": "extra headquarters",
+          "grade_effects": null,
+          "mechanic": "Each point buys one more base to fall back on when the first one is lost, wrecked or otherwise no longer worth having. It may be a copy of the first or nothing like it.",
+          "constraint": "An alternate headquarters may not cost more Base Points than the primary one.",
+          "printed_page": 100
+        },
+        {
+          "id": "communications",
+          "name": "Communications",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "The best telecommunications a modern setting has, encrypted to military standard.",
+            "advanced": "Advanced or magical kit that is effectively unhackable and reaches global, interstellar and possibly interdimensional networks."
+          },
+          "mechanic": "Dedicated communications well past the phones and radios any base is assumed to have.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "data_store",
+          "name": "Data Store",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "A body of accurate, relevant material about this world.",
+            "advanced": "The same on a galactic or interdimensional scale."
+          },
+          "mechanic": "A store of information that is actually worth consulting, in whatever form suits the base - a database, a library, a scrying glass.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "defenses",
+          "name": "Defenses",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "Guards, human or animal, and passive systems that trigger on an intruder's actions.",
+            "advanced": "Elite troops, sentries, bound spirits or wards that actively hunt intruders down and take them."
+          },
+          "mechanic": "Staff, systems or both that fight back when somebody hostile gets in.",
+          "constraint": "Base defenses always use non-lethal force.",
+          "printed_page": 101
+        },
+        {
+          "id": "disguised",
+          "name": "Disguised",
+          "cost_type": "flat",
+          "cost": 1,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "The base looks from outside like something ordinary and uninteresting. This is not the same as being hard to find, which is the Hidden feature.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "emergency_systems",
+          "name": "Emergency Systems",
+          "cost_type": "flat",
+          "cost": 1,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "Backup power and communications, so a cut line or a blackout does not take the base off the air.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "hidden",
+          "name": "Hidden",
+          "cost_type": "flat",
+          "cost": 1,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "The base is hard to locate and reached only by a route few people know. This is not the same as being hard to travel to, which is the Remote feature.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "holding_cells",
+          "name": "Holding Cells",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "Cells strong enough for ordinary prisoners.",
+            "advanced": "Cells using advanced technology or magic, often power nullifiers, that will hold most superpowered prisoners."
+          },
+          "mechanic": "Purpose-built confinement, as opposed to tying somebody to a chair.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "living_areas",
+          "name": "Living Areas",
+          "cost_type": "flat",
+          "cost": 1,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "The base can be lived in, with everything a comfortable home has. How many people it houses follows from how big it is.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "maintenance_bays",
+          "name": "Maintenance Bays",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "Bays as good as any in the world, for repairing and modifying ordinary vehicles.",
+            "advanced": "Bays using advanced technology or magic, able to work on alien or enchanted machines."
+          },
+          "mechanic": "Somewhere to repair and alter vehicles, over and above the dock or hangar any base is assumed to have.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "medical_facilities",
+          "name": "Medical Facilities",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "The equal of a leading research hospital.",
+            "advanced": "Able to treat alien and supernatural patients as well."
+          },
+          "mechanic": "Real medicine rather than a first aid kit, able to take seriously injured patients and to produce drugs under the Gadget rules.",
+          "constraint": null,
+          "printed_page": 101
+        },
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "cost_type": "flat",
+          "cost": 0,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "The base can move. The feature itself is free, but a mobile base is also a unique vehicle, so its characteristics and vehicle features have to be bought with Hero Points through the Unique Vehicle Perk.",
+          "constraint": "A mobile headquarters is always a capital ship, and its Health follows its Size.",
+          "printed_page": 102
+        },
+        {
+          "id": "personnel",
+          "name": "Personnel",
+          "cost_type": "flat",
+          "cost": 1,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "Somebody keeps the place running while the owners are elsewhere - staff, volunteers, machines, spirits, or a resident intelligence.",
+          "constraint": null,
+          "printed_page": 102
+        },
+        {
+          "id": "reinforced",
+          "name": "Reinforced",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "As tough as a bomb shelter or a military bunker; heavy ordnance and powerful supers get through, little else does without time and effort.",
+            "advanced": "Advanced or magical reinforcement, proof against everything short of the strongest supers and cosmic-scale events."
+          },
+          "mechanic": "The structure itself is far harder to breach than a building.",
+          "constraint": null,
+          "printed_page": 102
+        },
+        {
+          "id": "remote",
+          "name": "Remote",
+          "cost_type": "flat",
+          "cost": 1,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "The base is somewhere awkward to reach - polar, undersea, orbital, lunar or in another dimension - and carries whatever life support that location needs. It does not include a way of getting there.",
+          "constraint": null,
+          "printed_page": 103
+        },
+        {
+          "id": "science_labs",
+          "name": "Science Labs",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "The equal of the best commercial or academic laboratories.",
+            "advanced": "Advanced or magical laboratories that can analyse high technology and magical energies."
+          },
+          "mechanic": "Laboratories for studying what gets brought home, and for producing substances under the Gadget rules.",
+          "constraint": null,
+          "printed_page": 103
+        },
+        {
+          "id": "security_systems",
+          "name": "Security Systems",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "As good as security gets, and effectively impassable to anybody without powers.",
+            "advanced": "Advanced or magical systems effective against almost any intrusion, supers included."
+          },
+          "mechanic": "Detection and access control beyond the locks, alarms and cameras any base is assumed to have.",
+          "constraint": null,
+          "printed_page": 103
+        },
+        {
+          "id": "size",
+          "name": "Size",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "large": 1,
+            "sprawling": 2,
+            "awe_inspiring": 3
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "large": "About an industrial complex, a castle or an office block.",
+            "sprawling": "About a city block, an island complex, a moon base, a satellite or a large estate.",
+            "awe_inspiring": "Effectively unbounded - a small country, or a station the size of a moon."
+          },
+          "mechanic": "The base is much larger than the space the Perk grants by default.",
+          "constraint": null,
+          "printed_page": 103
+        },
+        {
+          "id": "tesseract",
+          "name": "Tesseract",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "The inside is far bigger than the outside, by folded spacetime, altered reality or whatever else fits. A doorway the size of a phone box can open onto something enormous.",
+          "constraint": null,
+          "printed_page": 103
+        },
+        {
+          "id": "training_facilities",
+          "name": "Training Facilities",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "A simulator rather than a gym: drills, scenarios, and rehearsed fights against known enemies, usually built out of holography or something equally implausible.",
+          "constraint": "Everyone who shares a headquarters with this feature gains 1 point of Teamwork at the start of each issue.",
+          "printed_page": 103
+        },
+        {
+          "id": "transport",
+          "name": "Transport",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": null,
+          "mechanic": "A means of getting to and from the base that is not an ordinary journey - pads, a gateway, a portal. Chiefly of use to a base that is Remote.",
+          "constraint": null,
+          "printed_page": 103
+        },
+        {
+          "id": "workshops",
+          "name": "Workshops",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "standard": 1,
+            "advanced": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "grade_effects": {
+            "standard": "A top-line facility for building innovative devices and machines.",
+            "advanced": "Advanced or magical facilities that can produce high-technology, magical and otherwise impossible objects."
+          },
+          "mechanic": "Somewhere to design and build things, up to and including Gadgets.",
+          "constraint": null,
+          "printed_page": 103
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "How this file reads the printed price line on each feature, which the chapter states as prose rather than as a table.",
+        "grade_keys": "A feature whose heading prints a range - one to two Base Points, or one to three for Size - is recorded as graded, with a key per grade taken from what the entry says each price buys. The book names the grades of Size in its own text (large, sprawling) and leaves the third unnamed; awe_inspiring is this project's key for it.",
+        "every_feature_has_a_price": "Every one of the twenty-two carries a number, a set of graded numbers, or a rate per unit. Nothing here is left to the GM to price, which is what lets a later slice total a headquarters."
+      },
+      "description": "Twenty-two things a headquarters can have, each with its price in Base Points and what the price buys. Eleven of them come in a standard grade and an advanced one; Size has three grades; two are priced per unit or free rather than per grade.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.100",
+      "ambiguity": "The chapter invites players to add features it did not think of and prints no rule for pricing an invented one."
+    },
+    {
+      "id": "mobile_headquarters",
+      "name": "Mobile headquarters",
+      "kind": "formula",
+      "printed_under": "MOBILE",
+      "mobile_headquarters": {
+        "base_point_cost": 0,
+        "is_also_a_unique_vehicle": true,
+        "vehicle_characteristics_bought_with": "Hero Points spent on the Unique Vehicle Perk",
+        "always_a_capital_ship": true,
+        "health_default": 30,
+        "health_with_large_size": 60,
+        "health_with_sprawling_size": 120,
+        "largest_size_cannot_be_attacked_or_destroyed": true
+      },
+      "interpretation": null,
+      "description": "The one feature that is free in its own currency and expensive in the other: moving the base makes it a vehicle, and a vehicle has to be paid for out of Hero Points through the vehicle Perk. Whatever it turns out to be, it fights as a capital ship, and how much it can take follows from how big it is - until it is so big the question stops being asked.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.102",
+      "ambiguity": "The Health figures name the Size feature's grades as Large, Sprawling and Enormous, and the Size entry on p.103 names only large and sprawling, leaving its third grade unnamed. Reading Enormous as that third grade is the only reading that fits, and the page does not say it. The Health ladder also skips ninety, which every other statement about capital ships treats as an ordinary step."
+    },
+    {
+      "id": "teamwork",
+      "name": "Teamwork",
+      "kind": "formula",
+      "printed_under": "TRAINING FACILITIES",
+      "teamwork": {
+        "granted_by_feature": "training_facilities",
+        "points_per_issue": 1,
+        "granted_to": "every character who shares the headquarters",
+        "behaves_like": "resolve",
+        "spendable_only_on": "assisting an ally in combat or in an action scene"
+      },
+      "interpretation": null,
+      "description": "The one feature that hands out a currency of its own. Everyone who shares the base opens each issue with a point that works exactly like Resolve except that it can only be spent helping somebody else, which is a nudge towards playing as a team rather than as five soloists.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.103",
+      "ambiguity": "The point is granted at the start of every issue and no page says whether an unspent point carries over or lapses, nor whether the ordinary Resolve spends that assist an ally are the closed list of what it may buy."
+    }
+  ]
+}

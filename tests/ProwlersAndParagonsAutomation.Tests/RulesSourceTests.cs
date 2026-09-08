@@ -75,7 +75,7 @@ public sealed class RulesSourceTests
         string[] notOnTheContract =
         [
             "meta.json",                                    // provenance, not rules the engine loads
-            "gadgets.json", "vehicles.json"                 // extracted, no consumer yet
+            "gadgets.json", "vehicles.json", "headquarters.json"  // extracted, no consumer yet
         ];
 
         foreach (var excluded in notOnTheContract)
