@@ -5,6 +5,17 @@ using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Engine;
 
+// Chapter 7's canonical file is aliased, and the reason is a property of another guard rather than
+// a matter of taste. AccountsContractTests.NoKeyOrTokenIsInTheRepository scans tests/ for a JWT
+// shape — three token runs of 24, 16 and 16 characters joined by dots — and an ordinary C# member
+// path is exactly that shape once the type name reaches twenty-four characters.
+// `CanonicalEquipmentRules` is twenty-three and cleared it by one; `CanonicalEnvironmentRules` is
+// twenty-five and did not, so a hundred and fifty registrations below reported themselves as
+// committed credentials. Shortening the reference is the narrow fix: widening the scanner's
+// identifier-path exclusion is the one edit that could switch that scan off while leaving every
+// assertion in it green, which its own comment says in as many words.
+using EnvRules = ProwlersAndParagonsAutomation.Tests.CanonicalEnvironmentRules;
+
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
@@ -74,7 +85,13 @@ public sealed class PlayRulesDataTests
             "Ch.6 Equipment",
             CanonicalEquipmentRules.FirstPage,
             CanonicalEquipmentRules.LastPage,
-            ["ch06-equipment.json", "ch00-introduction.json"])
+            ["ch06-equipment.json", "ch00-introduction.json"]),
+        new(
+            "environment.json",
+            "Ch.7 Environment",
+            EnvRules.FirstPage,
+            EnvRules.LastPage,
+            ["ch07-environment.json", "ch00-introduction.json"])
     ];
 
     private static PlayFileFacts FactsFor(string fileName) =>
@@ -421,6 +438,273 @@ public sealed class PlayRulesDataTests
         WeaponBonusModel? WeaponBonus,
         IReadOnlyList<WeaponRowModel>? Weapons,
         EquipmentInterpretationModel? Interpretation);
+
+    // ── Chapter 7: environment.json ──────────────────────────────────────────
+
+    private sealed record EnvDisasterModel(
+        int MinorGoals,
+        int MajorGoals,
+        int GmSuppliesInAMinorDisaster,
+        int GmSuppliesInAMajorDisaster,
+        string RemainingGoalsComeFrom,
+        string AGoalIs,
+        string MostGoalsNeed,
+        bool AGoalMayBeWorthItsOwnScene,
+        string WhoDecidesAGoalNeedsItsOwnScene,
+        string ResolutionReadOff,
+        string ReadTheTableWhen);
+
+    private sealed record EnvDisasterResultModel(
+        int MinorGoalsAchievedMin,
+        int MinorGoalsAchievedMax,
+        int MajorGoalsAchievedMin,
+        int MajorGoalsAchievedMax,
+        string Narrator,
+        bool Embellishment);
+
+    private sealed record EnvEnergyModel(
+        string KindsAreLumpedInto,
+        string Why,
+        bool GravityAndMagnetismAreEnergy,
+        string GravityAndMagnetismAre,
+        IReadOnlyList<string> GravityAndMagnetismRepresentedWith,
+        string GravityAndMagnetismIfClassifiedAsEnergy);
+
+    private sealed record EnvEnergyTypesModel(
+        IReadOnlyList<string> Types,
+        string ForceKineticAttacksAre,
+        bool SonicFootnoteIsOfferedAsOptional,
+        string SonicInAVacuum,
+        int SonicUnderwaterBonusDice);
+
+    private sealed record EnvFallingModel(
+        bool IsAnAttack,
+        string ResistedOnlyWith,
+        bool GmMayAllowACreativeActiveDefense,
+        string AttackRankDependsOn,
+        string ReadOff,
+        IReadOnlyList<string> HardLandingExamples,
+        int HardLandingBonusDice,
+        IReadOnlyList<string> SoftLandingExamples,
+        int SoftLandingPenaltyDice,
+        string SoftLandingAllowsActiveDefense);
+
+    private sealed record EnvFallingRowModel(int? UpToFeet, int Rank);
+
+    private sealed record EnvHostileEnvironmentModel(
+        IReadOnlyList<string> HazardGrades,
+        IReadOnlyList<string> MinorExamples,
+        IReadOnlyList<string> MajorExamples,
+        string MinorWithstoodForMinutesEqualTo,
+        int MinorDamagePerMinuteAfterThat,
+        string MajorWithstoodForPagesEqualTo,
+        int MajorDamagePerPageAfterThat,
+        bool TrackTimeInPagesForAMajorHazardEvenOutOfCombat,
+        int MaximumHazardDamagePerPage,
+        bool MaximumAppliesAcrossSimultaneousHazards,
+        IReadOnlyList<string> PowersThatProtect);
+
+    private sealed record EnvSuffocationModel(
+        string HoldBreathMinutesEqualTo,
+        int DamagePerPageAfterThat,
+        string AllSuffocationDamageRemovedWhen,
+        bool RemovalIsImmediate,
+        string DefeatedRatherThanKilledUnless,
+        string SurvivingIsExplainedBy);
+
+    private sealed record EnvSwimmingModel(
+        string TravelSpeed,
+        string AgilityUsedForMovementChallengeRolls,
+        int PerceptionPenaltyDiceUnderwater,
+        int ScubaMaskReducesVisualPerceptionPenaltyTo,
+        string UnderwaterCombatEdge,
+        int UnderwaterPhysicalAttackPenaltyDice,
+        int UnderwaterActiveDefensePenaltyDice,
+        string IgnoredBy,
+        string DeepWaterComplexitiesLeftTo);
+
+    private sealed record EnvLeapingModel(
+        string EveryCharacterEffectivelyHas,
+        string AtRank,
+        string ForThePurposeOf,
+        string ThePowerMustBeBoughtToUseItFor,
+        bool DistancesAreDeliberatelyAbstract);
+
+    private sealed record EnvLiftingModel(
+        string MaximumWeightNormally,
+        string StaticValueAssumes,
+        string RollAskedForWhen,
+        string RollIsAskedForBy,
+        string RollTrait,
+        string RollAgainst,
+        string ThresholdDependsOn,
+        string ReadOff);
+
+    private sealed record EnvLiftingRowModel(
+        string Weight, IReadOnlyList<string> Examples, int Threshold);
+
+    private sealed record EnvScorchingModel(
+        IReadOnlyList<string> Sources,
+        bool IsAnAttack,
+        string ResistedOnlyWith,
+        bool GmMayAllowACreativeActiveDefense,
+        string WorksLike,
+        bool TableIsAGuide);
+
+    private sealed record EnvScorchingRowModel(string Heat, string Electricity, int Rank);
+
+    private sealed record EnvSmashingModel(
+        string VehiclesAndComplexMachinesHave,
+        string SimpleObjectsHave,
+        string StructureDetermines,
+        int GmMayAdjustStructureByMin,
+        int GmMayAdjustStructureByMax,
+        IReadOnlyList<string> AdjustmentFactors,
+        bool AdjustmentFactorsAreOpenEnded,
+        IReadOnlyList<string> RollTraits,
+        string RollAgainst,
+        int BendOrSmallHoleMinNetSuccesses,
+        int BendOrSmallHoleMaxNetSuccesses,
+        int BigHoleMinNetSuccesses,
+        bool NetSuccessesMayBeCombinedOverAttempts,
+        bool AnEspeciallyThickObjectMayNeedSeveralAttempts);
+
+    private sealed record EnvSmashingRowModel(IReadOnlyList<string> Materials, int Structure);
+
+    private sealed record EnvSmashingTableModel(
+        IReadOnlyList<EnvSmashingRowModel> Rows,
+        IReadOnlyList<string> FootnotedRowMaterials,
+        string OzymandiumNote);
+
+    private sealed record EnvDamagingCoverModel(
+        string AppliesWhen,
+        string AttackPenetratesWhen,
+        string TargetMayUseTheObjectsStructureAs,
+        IReadOnlyList<string> OptionsGiven);
+
+    private sealed record EnvSceneryAsWeaponsModel(
+        string AppliesTo,
+        int CloseCombatBonusDice,
+        string ThrownAttackTrait,
+        int ThrownAttackBonusDice,
+        string ThrownAttackIs,
+        string AttackRankCapsAt,
+        int CapBonusDice,
+        string WorkedExampleObject,
+        int WorkedExampleObjectBody,
+        int WorkedExampleMaximumAttackRank,
+        string SecondWorkedExampleObject,
+        int SecondWorkedExampleStructureFromTheTable,
+        int SecondWorkedExampleThicknessAdjustment,
+        int SecondWorkedExampleObjectStructure,
+        int SecondWorkedExampleMaximumAttackRank,
+        int DegradationDicePerPage,
+        string DegradationAppliesTo,
+        bool DegradationIsOnlyForThesePurposes,
+        bool OrdinaryHumanStrengthDegradesNothing,
+        string EdgeCasesLeftTo);
+
+    private sealed record EnvSceneryRowModel(
+        IReadOnlyList<string> Scenery, int Structure, int MaximumAttackRank);
+
+    private sealed record EnvMassiveObjectsModel(
+        string WorksLike,
+        string UsesInsteadOfBodyOrStructure,
+        string Requires,
+        string AlwaysBreaksApartAfter);
+
+    private sealed record EnvMassiveObjectRowModel(
+        IReadOnlyList<string> Objects, int WeightRank, int MaximumAttackRank);
+
+    private sealed record EnvToxinsModel(
+        IReadOnlyList<string> ToxinsAre,
+        string ToxinsAreDescribedAs,
+        string WorkLike,
+        string ResistedOnlyWith,
+        IReadOnlyList<string> PassiveDefensesNamed,
+        bool ResistanceIsAPower,
+        string TheProsAndConsApplyOnlyTo,
+        string Unless);
+
+    /// <summary>
+    /// One of the three Pros and Cons pp.108-109 print, recorded as a pointer and nothing else —
+    /// the same deferral shape <c>spend_combat</c> uses towards Chapter 4, checked by
+    /// <see cref="AnEnvironmentEntryThatDefersToTheCharacterRulesCarriesReferencesAndNothingElse"/>.
+    /// </summary>
+    private sealed record EnvToxinOptionModel(
+        bool TranscribedHere,
+        string PrintedName,
+        string OptionKind,
+        string DetailStore,
+        string PowerId,
+        string OptionId);
+
+    private sealed record EnvDiseaseRowModel(
+        string Name,
+        string Power,
+        int Rank,
+        IReadOnlyList<string> Options,
+        bool Footnoted);
+
+    private sealed record EnvDiseasesTableModel(
+        IReadOnlyList<EnvDiseaseRowModel> Rows,
+        IReadOnlyList<string> FootnotedRowNames,
+        bool OptionsAreReferencedNotTranscribed,
+        string StaphInfectionNote);
+
+    private sealed record EnvToxinEffectModel(
+        string Power, IReadOnlyList<string> Traits, int RankMin, int RankMax);
+
+    private sealed record EnvDrugRowModel(
+        string Name,
+        IReadOnlyList<EnvToxinEffectModel> Effects,
+        IReadOnlyList<string> Options,
+        bool Footnoted);
+
+    private sealed record EnvDrugsTableModel(
+        IReadOnlyList<EnvDrugRowModel> Rows,
+        IReadOnlyList<string> FootnotedRowNames,
+        bool OptionsAreReferencedNotTranscribed,
+        string AncientPoisonNote);
+
+    private sealed record EnvInterpretationModel(string WhatThisIs, string RowAlignment);
+
+    private sealed record EnvironmentEntry(
+        string Id,
+        string Name,
+        string Kind,
+        string PrintedUnder,
+        string Description,
+        IReadOnlyList<string> VerifiedFields,
+        string SourceRef,
+        IReadOnlyList<string>? CorroboratedBy,
+        string? Ambiguity,
+        EnvDisasterModel? Disaster,
+        IReadOnlyList<EnvDisasterResultModel>? DisasterResults,
+        EnvEnergyModel? Energy,
+        EnvEnergyTypesModel? EnergyTypes,
+        EnvFallingModel? Falling,
+        IReadOnlyList<EnvFallingRowModel>? FallingTable,
+        EnvHostileEnvironmentModel? HostileEnvironment,
+        EnvSuffocationModel? Suffocation,
+        EnvSwimmingModel? Swimming,
+        EnvLeapingModel? Leaping,
+        EnvLiftingModel? Lifting,
+        IReadOnlyList<EnvLiftingRowModel>? LiftingTable,
+        EnvScorchingModel? Scorching,
+        IReadOnlyList<EnvScorchingRowModel>? ScorchingTable,
+        EnvSmashingModel? Smashing,
+        EnvSmashingTableModel? SmashingTable,
+        EnvDamagingCoverModel? DamagingCover,
+        EnvSceneryAsWeaponsModel? SceneryAsWeapons,
+        IReadOnlyList<EnvSceneryRowModel>? SceneryTable,
+        EnvMassiveObjectsModel? MassiveObjects,
+        IReadOnlyList<EnvMassiveObjectRowModel>? MassiveObjectsTable,
+        EnvToxinsModel? Toxins,
+        EnvToxinOptionModel? ToxinOption,
+        EnvDiseasesTableModel? DiseasesTable,
+        EnvDrugsTableModel? DrugsAndPoisonsTable,
+        EnvInterpretationModel? Interpretation);
 
     private sealed record SpendingOverviewModel(
         bool GmMayExpandTheUses, bool ListedUsesAreTheBasicOnes);
@@ -1223,6 +1507,7 @@ public sealed class PlayRulesDataTests
     private static PlayFile<CombatEntry> Combat() => Load<CombatEntry>("combat.json");
     private static PlayFile<GrittyEntry> Gritty() => Load<GrittyEntry>("gritty.json");
     private static PlayFile<EquipmentEntry> Equipment() => Load<EquipmentEntry>("equipment.json");
+    private static PlayFile<EnvironmentEntry> Environment() => Load<EnvironmentEntry>("environment.json");
 
     private static MetaEntry MetaEntryById(string id) => Meta().Entries.Single(e => e.Id == id);
     private static CombatEntry CombatEntryById(string id) => Combat().Entries.Single(e => e.Id == id);
@@ -1230,6 +1515,7 @@ public sealed class PlayRulesDataTests
     private static ChallengeEntry ChallengeEntryById(string id) => Challenge().Entries.Single(e => e.Id == id);
     private static ResolveEntry ResolveEntryById(string id) => Resolve().Entries.Single(e => e.Id == id);
     private static EquipmentEntry EquipmentEntryById(string id) => Equipment().Entries.Single(e => e.Id == id);
+    private static EnvironmentEntry EnvironmentEntryById(string id) => Environment().Entries.Single(e => e.Id == id);
 
     // ── The dice model, play_meta.json ───────────────────────────────────────
 
@@ -2725,6 +3011,685 @@ public sealed class PlayRulesDataTests
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
 
+
+    // ── Chapter 7: the environment ───────────────────────────────────────────
+
+    /// <summary>
+    /// <b>Every Chapter 7 entry names a heading printed on the page it cites</b>, the same
+    /// narrowing <see cref="EveryChapterFourEntryNamesAHeadingPrintedOnThePageItCites"/> makes and
+    /// with the same known limit: it cannot tell two headings on one page apart.
+    /// </summary>
+    [Fact]
+    public void EveryChapterSevenEntryNamesAHeadingPrintedOnThePageItCites()
+    {
+        var headings = ChapterHeadings("ch07-environment.json");
+
+        // Positive control: the lookup found the chapter's headings at all.
+        Assert.True(headings.Count >= 30, $"Only {headings.Count} headings were read out of Chapter 7.");
+
+        // Negative control, on a heading that really exists on another page. FALLING is the prose
+        // section on p.105; the table under it is a different heading on p.106, which is exactly
+        // the confusion this pairing catches.
+        Assert.Contains((105, "FALLING"), headings);
+        Assert.DoesNotContain((106, "FALLING"), headings);
+        Assert.Contains((106, "FALLING — DISTANCE RANK"), headings);
+
+        var faults = new List<string>();
+
+        foreach (var entry in Environment().Entries)
+        {
+            var page = int.Parse(
+                Regex.Match(entry.SourceRef, @"\bp\.(\d+)\b").Groups[1].Value,
+                CultureInfo.InvariantCulture);
+
+            if (!headings.Contains((page, entry.PrintedUnder)))
+            {
+                faults.Add(
+                    $"environment.json/{entry.Id}: printed_under '{entry.PrintedUnder}' is not a "
+                    + $"heading on p.{page} of Chapter 7");
+            }
+        }
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>One Chapter 7 corpus section, looked up by its heading and printed page.</summary>
+    private static string ChapterSevenBlock(string heading, int page)
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RulebookPath, "ch07-environment.json")));
+
+        foreach (var section in document.RootElement.GetProperty("sections").EnumerateArray())
+        {
+            if (!string.Equals(section.GetProperty("heading").GetString(), heading, StringComparison.Ordinal))
+                continue;
+
+            if (section.TryGetProperty("printed_page", out var printed)
+                && printed.ValueKind == JsonValueKind.Number
+                && printed.GetInt32() == page)
+            {
+                return section.GetProperty("text").GetString() ?? "";
+            }
+        }
+
+        throw new InvalidOperationException($"Chapter 7 has no section '{heading}' on p.{page}.");
+    }
+
+    /// <summary>
+    /// Matches <paramref name="pattern"/> end to end from the first character of
+    /// <paramref name="text"/>, exactly <paramref name="expected"/> times, and returns what is left.
+    ///
+    /// <para><b>Two controls in one helper.</b> It throws when a row does not match, so a parser
+    /// cannot quietly return a short list and let a truncated block agree with a truncated
+    /// expectation; and the caller checks that the remainder does not begin another row, which is
+    /// how "the table was read to its end and no further" gets asserted.</para>
+    /// </summary>
+    private static (List<Match> Rows, string Remainder) Tile(string text, Regex pattern, int expected)
+    {
+        var rows = new List<Match>();
+        var at = 0;
+
+        for (var i = 0; i < expected; i++)
+        {
+            var match = pattern.Match(text, at);
+
+            if (!match.Success || match.Index != at)
+            {
+                throw new InvalidOperationException(
+                    $"Row {i} does not tile the corpus block at character {at}: "
+                    + $"'{text[at..Math.Min(text.Length, at + 60)]}'");
+            }
+
+            rows.Add(match);
+            at = match.Index + match.Length;
+            while (at < text.Length && (text[at] == ' ' || text[at] == '\n')) at++;
+        }
+
+        return (rows, text[at..]);
+    }
+
+    private static void AssertNothingElseTiles(string entryId, string rest, Regex pattern)
+    {
+        var next = pattern.Match(rest);
+
+        Assert.False(
+            next.Success && next.Index == 0,
+            $"{entryId}: the corpus block carries another row after the ones the table is supposed "
+            + $"to have — '{next.Value}'");
+    }
+
+    /// <summary>
+    /// <b>Chapter 7's ten tables are read out of the corpus, not typed into a canonical file.</b>
+    ///
+    /// <para>Six of them need a reading first, because the extractor reads a table of three or more
+    /// columns across rather than down, and splits three of these into two blocks each: the Disaster
+    /// Results table, the Lifting table, the Scorching table, the Smashing table, the Scenery table
+    /// and the Massive Objects table. <b>Pairing the blocks and cutting the runs into rows is this
+    /// project's reading</b>, which is why each of those six entries carries an
+    /// <c>interpretation</c> saying so and why the rows are on <see cref="DerivedPaths"/> — a
+    /// hundred and twenty rows transcribed a second time would be a second thing to disagree with
+    /// the first, where the corpus is the book. The other four the extractor prints straight and
+    /// they are derived for the same reason.</para>
+    ///
+    /// <para><b>What anchors each alignment is something printed a second time.</b> The disaster
+    /// counts (3 goals and 9) are in the prose above their table; the lifting bands interlock, each
+    /// floor being the band below's ceiling; the scorching examples alternate strictly between a
+    /// heat source and an electrical one; the smashing footnote is printed on the last material and
+    /// explained at the foot of the ranks, so the two blocks are known to end together; and both
+    /// rank tables print a ceiling that is their own row's rank plus the six dice p.108 allows.</para>
+    ///
+    /// <para><b>Two controls on every parse.</b> Each block has to <em>tile</em> — rows matched end
+    /// to end from the first character, with nothing left that begins another row — and
+    /// <see cref="Tile"/> throws rather than returning short, so a block that had lost a row could
+    /// not agree with an expectation that had lost the same one. The row counts come from
+    /// <see cref="EnvRules.TableSizes"/>, because a derivation cannot notice a
+    /// table that has lost half of itself when the expectation lost the same half.</para>
+    /// </summary>
+    [Fact]
+    public void TheChapterSevenTablesAreReadOutOfTheCorpusColumns()
+    {
+        // ── Disaster Results, p.105: two blocks, three columns ───────────────
+        var disasterBlock = ChapterSevenBlock("DISASTER — MINOR", 105)
+                            + " " + ChapterSevenBlock("RESULTS — MAJOR RESULTS", 105);
+
+        var disasterRow = new Regex(
+            @"(?<minor>\d+) Goals? Accomplished (?<majorMin>\d+)(?: (?:or|to) (?<majorMax>\d+))? "
+            + @"Goals? Accomplished (?<who>GM with Embellishment|Players with Embellishment|GM|Players)",
+            RegexOptions.CultureInvariant);
+
+        var (disasterRows, disasterRest) =
+            Tile(disasterBlock, disasterRow, EnvRules.TableSizes.DisasterResults);
+
+        AssertNothingElseTiles("disaster_results", disasterRest, disasterRow);
+
+        var disasters = EnvironmentEntryById("disaster_results").DisasterResults!;
+        Assert.Equal(disasterRows.Count, disasters.Count);
+
+        for (var i = 0; i < disasterRows.Count; i++)
+        {
+            var minor = int.Parse(disasterRows[i].Groups["minor"].Value, CultureInfo.InvariantCulture);
+            var majorMin = int.Parse(disasterRows[i].Groups["majorMin"].Value, CultureInfo.InvariantCulture);
+            var majorMax = disasterRows[i].Groups["majorMax"].Success
+                ? int.Parse(disasterRows[i].Groups["majorMax"].Value, CultureInfo.InvariantCulture)
+                : majorMin;
+            var who = disasterRows[i].Groups["who"].Value;
+
+            Assert.Equal(minor, disasters[i].MinorGoalsAchievedMin);
+            Assert.Equal(minor, disasters[i].MinorGoalsAchievedMax);
+            Assert.Equal(majorMin, disasters[i].MajorGoalsAchievedMin);
+            Assert.Equal(majorMax, disasters[i].MajorGoalsAchievedMax);
+            Assert.Equal(who.StartsWith("GM", StringComparison.Ordinal) ? "gm" : "players", disasters[i].Narrator);
+            Assert.Equal(who.Contains("Embellishment", StringComparison.Ordinal), disasters[i].Embellishment);
+        }
+
+        // The anchor: the prose above the table gives a minor disaster 3 goals and a major one 9,
+        // and only one alignment of the two blocks ends the two columns on those figures.
+        Assert.Equal(EnvRules.Disasters.MinorGoals, disasters[^1].MinorGoalsAchievedMax);
+        Assert.Equal(EnvRules.Disasters.MajorGoals, disasters[^1].MajorGoalsAchievedMax);
+
+        // ── Energy Types, p.105: the names, without the description column ───
+        var energyBlock = ChapterSevenBlock("TYPES — DESCRIPTION", 105);
+
+        var energyNames = Regex
+            .Matches(energyBlock, @"(?:^|\. )(?<name>[A-Z][A-Za-z]+(?:/[A-Za-z]+)+|Cosmic Energy/Radiation)")
+            .Select(m => m.Groups["name"].Value)
+            .ToList();
+
+        Assert.Equal(EnvRules.TableSizes.EnergyTypes, energyNames.Count);
+        Assert.Equal(energyNames, EnvironmentEntryById("energy_types").EnergyTypes!.Types);
+
+        // ── Falling, p.106 ──────────────────────────────────────────────────
+        var fallingRow = new Regex(
+            @"(?:Up to (?<feet>\d+) Feet|(?<any>Any Farther)) (?<rank>\d+)d",
+            RegexOptions.CultureInvariant);
+
+        var (fallingRows, fallingRest) = Tile(
+            ChapterSevenBlock("FALLING — DISTANCE RANK", 106),
+            fallingRow,
+            EnvRules.TableSizes.Falling);
+
+        AssertNothingElseTiles("falling_table", fallingRest, fallingRow);
+
+        var falling = EnvironmentEntryById("falling_table").FallingTable!;
+        Assert.Equal(fallingRows.Count, falling.Count);
+
+        for (var i = 0; i < fallingRows.Count; i++)
+        {
+            Assert.Equal(
+                fallingRows[i].Groups["any"].Success
+                    ? null
+                    : int.Parse(fallingRows[i].Groups["feet"].Value, CultureInfo.InvariantCulture),
+                falling[i].UpToFeet);
+
+            Assert.Equal(
+                int.Parse(fallingRows[i].Groups["rank"].Value, CultureInfo.InvariantCulture),
+                falling[i].Rank);
+        }
+
+        // ── Lifting, p.106: three columns, and a weight cell over two lines ──
+        var liftingLines = ChapterSevenBlock("LIFTING — WEIGHT EXAMPLES THRESHOLD", 106)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Equal(EnvRules.TableSizes.Lifting * 2, liftingLines.Length);
+
+        var lifting = EnvironmentEntryById("lifting_table").LiftingTable!;
+        Assert.Equal(EnvRules.TableSizes.Lifting, lifting.Count);
+
+        // The first row's cells sit on the first of its two lines, and every later row's on the
+        // second — which is the reading, and it is what the interlocking bands below anchor.
+        var first = Regex.Match(liftingLines[0], @"^(?<head>\S+) (?<examples>.+?) (?<threshold>\d+)$");
+        Assert.True(first.Success, $"The Lifting table's first line does not parse: '{liftingLines[0]}'");
+
+        Assert.Equal($"{first.Groups["head"].Value} {liftingLines[1]}", lifting[0].Weight);
+        Assert.Equal(first.Groups["examples"].Value.Split(", "), lifting[0].Examples);
+        Assert.Equal(int.Parse(first.Groups["threshold"].Value, CultureInfo.InvariantCulture), lifting[0].Threshold);
+
+        for (var row = 1; row < lifting.Count; row++)
+        {
+            var head = liftingLines[row * 2];
+            var rest = Regex.Match(liftingLines[(row * 2) + 1], @"^(?<examples>.+?) (?<threshold>\d+) (?<tail>.+)$");
+
+            Assert.True(rest.Success, $"The Lifting table's row {row} does not parse: '{liftingLines[(row * 2) + 1]}'");
+
+            Assert.Equal($"{head} {rest.Groups["tail"].Value}", lifting[row].Weight);
+            Assert.Equal(rest.Groups["examples"].Value.Split(", "), lifting[row].Examples);
+            Assert.Equal(int.Parse(rest.Groups["threshold"].Value, CultureInfo.InvariantCulture), lifting[row].Threshold);
+        }
+
+        // The anchor: the thresholds run 1 to 12 with no gap, and each band's floor is the band
+        // below it's ceiling — "500 Pounds to 1 Ton" under "100 Pounds to 500 Pounds". A row paired
+        // with the wrong line breaks both.
+        for (var row = 0; row < lifting.Count; row++)
+        {
+            Assert.Equal(row + 1, lifting[row].Threshold);
+
+            if (row == 0) continue;
+
+            var floor = lifting[row].Weight.Split(" to ")[0];
+            Assert.EndsWith(floor, lifting[row - 1].Weight, StringComparison.Ordinal);
+        }
+
+        // ── Scorching, p.107: two blocks, three columns ──────────────────────
+        var scorching = EnvironmentEntryById("scorching_table").ScorchingTable!;
+        Assert.Equal(EnvRules.TableSizes.Scorching, scorching.Count);
+
+        var scorchingExamples = ChapterSevenBlock("SCORCHING — HEAT ELECTRICITY", 107);
+        var scorchingRanks = ChapterSevenBlock("SCORCHING — RANK", 107)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Equal(EnvRules.TableSizes.Scorching, scorchingRanks.Length);
+
+        // The example block is tiled with the shipped names in the shipped order, which is what
+        // makes it a check: a row whose two cells had been swapped, or a pair out of order, would
+        // not reproduce the block. The anchor is the alternation itself — a heat source, then an
+        // electrical one — so an alignment one cell out puts two fires in a row.
+        var rebuilt = string.Join(' ', scorching.Select(r => $"{r.Heat} {r.Electricity}"));
+        Assert.Equal(scorchingExamples, rebuilt);
+
+        for (var i = 0; i < scorching.Count; i++)
+        {
+            Assert.Equal($"{scorching[i].Rank}d", scorchingRanks[i]);
+        }
+
+        // ── Smashing, p.107: the ranks are derived, the row grouping is not ──
+        var smashing = EnvironmentEntryById("smashing_table").SmashingTable!;
+        Assert.Equal(EnvRules.TableSizes.Smashing, smashing.Rows.Count);
+
+        var materialBlock = ChapterSevenBlock("SMASHING — MATERIAL", 107);
+        var structureBlock = ChapterSevenBlock("SMASHING — STRUCTURE", 107)
+            .Split('\n')[0]
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        Assert.Equal(EnvRules.TableSizes.Smashing, structureBlock.Length);
+
+        // The one grouping the corpus cannot yield: "…Ice, Rope Plastic, Rubber, Wood Brick…" has
+        // no recoverable row boundary, because the separator inside a row and the separator between
+        // two rows differ only by a comma. So the grouping is transcribed in the canonical file and
+        // proved to TILE the block — the asterisk on the last material is what says the two blocks
+        // end together, and it is added back here because the transcription drops it.
+        var tiled = string.Join(
+            ' ',
+            EnvRules.SmashingMaterials.Select(row => string.Join(", ", row)));
+
+        Assert.Equal(materialBlock, tiled + "*");
+
+        for (var i = 0; i < smashing.Rows.Count; i++)
+        {
+            Assert.Equal(EnvRules.SmashingMaterials[i], smashing.Rows[i].Materials);
+            Assert.Equal($"{smashing.Rows[i].Structure}d", structureBlock[i]);
+        }
+
+        // ── Scenery and Massive Objects, p.108: three columns read across ────
+        var rankRow = new Regex(@"(?<names>.+?) (?<a>\d+)d (?<b>\d+)d", RegexOptions.CultureInvariant);
+
+        var (sceneryRows, sceneryRest) = Tile(
+            ChapterSevenBlock("SCENERY — SCENERY STRUCTURE RANK", 108),
+            rankRow,
+            EnvRules.TableSizes.Scenery);
+
+        AssertNothingElseTiles("scenery_table", sceneryRest, rankRow);
+
+        var scenery = EnvironmentEntryById("scenery_table").SceneryTable!;
+        Assert.Equal(sceneryRows.Count, scenery.Count);
+
+        for (var i = 0; i < sceneryRows.Count; i++)
+        {
+            Assert.Equal(sceneryRows[i].Groups["names"].Value.Split(", "), scenery[i].Scenery);
+            Assert.Equal(int.Parse(sceneryRows[i].Groups["a"].Value, CultureInfo.InvariantCulture), scenery[i].Structure);
+            Assert.Equal(int.Parse(sceneryRows[i].Groups["b"].Value, CultureInfo.InvariantCulture), scenery[i].MaximumAttackRank);
+        }
+
+        var (massiveRows, massiveRest) = Tile(
+            ChapterSevenBlock("MASSIVE OBJECTS — OBJECT RANK RANK", 108),
+            rankRow,
+            EnvRules.TableSizes.MassiveObjects);
+
+        AssertNothingElseTiles("massive_objects_table", massiveRest, rankRow);
+
+        var massive = EnvironmentEntryById("massive_objects_table").MassiveObjectsTable!;
+        Assert.Equal(massiveRows.Count, massive.Count);
+
+        for (var i = 0; i < massiveRows.Count; i++)
+        {
+            Assert.Equal(massiveRows[i].Groups["names"].Value.Split(", "), massive[i].Objects);
+            Assert.Equal(int.Parse(massiveRows[i].Groups["a"].Value, CultureInfo.InvariantCulture), massive[i].WeightRank);
+            Assert.Equal(int.Parse(massiveRows[i].Groups["b"].Value, CultureInfo.InvariantCulture), massive[i].MaximumAttackRank);
+        }
+
+        // ── Diseases, p.109 ─────────────────────────────────────────────────
+        var diseaseLines = ChapterSevenBlock("DISEASES — TOXIN POWER", 109).Split('\n');
+        var diseases = EnvironmentEntryById("diseases_table").DiseasesTable!;
+
+        Assert.Equal(EnvRules.TableSizes.Diseases, diseases.Rows.Count);
+
+        for (var i = 0; i < diseases.Rows.Count; i++)
+        {
+            var match = Regex.Match(
+                diseaseLines[i],
+                @"^(?<name>.+?)(?<star>\*)? (?<power>Slay|Stun) (?<rank>\d+)d \((?<options>[^)]*)\)(?: \*)?$");
+
+            Assert.True(match.Success, $"The Diseases table's row {i} does not parse: '{diseaseLines[i]}'");
+
+            Assert.Equal(match.Groups["name"].Value, diseases.Rows[i].Name);
+            Assert.Equal(match.Groups["power"].Value, diseases.Rows[i].Power);
+            Assert.Equal(int.Parse(match.Groups["rank"].Value, CultureInfo.InvariantCulture), diseases.Rows[i].Rank);
+            Assert.Equal(match.Groups["star"].Success, diseases.Rows[i].Footnoted);
+            Assert.Equal(OptionIds(match.Groups["options"].Value), diseases.Rows[i].Options);
+        }
+
+        // The row after the last is the footnote, not another row — the tiling control, in the one
+        // shape this block takes.
+        Assert.StartsWith("*", diseaseLines[diseases.Rows.Count], StringComparison.Ordinal);
+
+        // ── Drugs and Poisons, p.109 ────────────────────────────────────────
+        var drugRow = new Regex(
+            @"(?<name>.+?)(?<star>\*)? (?<power1>Slay|Stun|Drain)(?: \((?<traits1>[^)]*)\))? "
+            + @"(?<rank1>\d+)d(?: to (?<rank1b>\d+)d)?"
+            + @"(?: & (?<power2>Slay|Stun|Drain)(?: \((?<traits2>[^)]*)\))? (?<rank2>\d+)d(?: to (?<rank2b>\d+)d)?)?"
+            + @" \((?<options>[^)]*)\)",
+            RegexOptions.CultureInvariant);
+
+        var (drugRows, drugRest) = Tile(
+            ChapterSevenBlock("DRUGS AND POISONS — TOXIN POWER", 109).Split('\n')[0],
+            drugRow,
+            EnvRules.TableSizes.DrugsAndPoisons);
+
+        AssertNothingElseTiles("drugs_and_poisons_table", drugRest, drugRow);
+
+        var drugs = EnvironmentEntryById("drugs_and_poisons_table").DrugsAndPoisonsTable!;
+        Assert.Equal(drugRows.Count, drugs.Rows.Count);
+
+        for (var i = 0; i < drugRows.Count; i++)
+        {
+            var row = drugRows[i];
+
+            Assert.Equal(row.Groups["name"].Value, drugs.Rows[i].Name);
+            Assert.Equal(row.Groups["star"].Success, drugs.Rows[i].Footnoted);
+            Assert.Equal(OptionIds(row.Groups["options"].Value), drugs.Rows[i].Options);
+
+            var expected = new List<EnvToxinEffectModel>();
+
+            for (var slot = 1; slot <= 2; slot++)
+            {
+                if (!row.Groups[$"power{slot}"].Success) continue;
+
+                var min = int.Parse(row.Groups[$"rank{slot}"].Value, CultureInfo.InvariantCulture);
+
+                expected.Add(new EnvToxinEffectModel(
+                    row.Groups[$"power{slot}"].Value,
+                    row.Groups[$"traits{slot}"].Success
+                        ? row.Groups[$"traits{slot}"].Value.Split(", ")
+                        : [],
+                    min,
+                    row.Groups[$"rank{slot}b"].Success
+                        ? int.Parse(row.Groups[$"rank{slot}b"].Value, CultureInfo.InvariantCulture)
+                        : min));
+            }
+
+            Assert.Equal(expected.Count, drugs.Rows[i].Effects.Count);
+
+            for (var e = 0; e < expected.Count; e++)
+            {
+                Assert.Equal(expected[e].Power, drugs.Rows[i].Effects[e].Power);
+                Assert.Equal(expected[e].Traits, drugs.Rows[i].Effects[e].Traits);
+                Assert.Equal(expected[e].RankMin, drugs.Rows[i].Effects[e].RankMin);
+                Assert.Equal(expected[e].RankMax, drugs.Rows[i].Effects[e].RankMax);
+            }
+        }
+
+        // The controls on the two toxin tables' shape, because a regex that had stopped seeing the
+        // exceptional rows would tile the block just as happily: one row inflicts two Powers, two
+        // print a span of ranks rather than a figure, and two name Traits in a parenthesis.
+        Assert.Single(drugs.Rows, r => r.Effects.Count == 2);
+        Assert.Equal(2, drugs.Rows.Count(r => r.Effects.Any(e => e.RankMax > e.RankMin)));
+        Assert.Equal(2, drugs.Rows.Count(r => r.Effects.Any(e => e.Traits.Count > 0)));
+    }
+
+    /// <summary>The printed parenthesis of a toxin row, as the ids the character rules carry.</summary>
+    private static List<string> OptionIds(string printed) =>
+        [.. printed.Split(", ").Select(name => name.ToLowerInvariant().Replace('-', '_').Replace(' ', '_'))];
+
+    /// <summary>
+    /// <b>The ceiling column of both rank tables is the row's own rank plus the six dice p.108
+    /// allows</b>, and the prose prints two of those rows a third time.
+    ///
+    /// <para>This is the strongest thing about the two three-column tables: the alignment of a run
+    /// of "name, rank, rank" into rows is a reading, and the reading is right only if every row's
+    /// second figure is its first plus the cap bonus the entry beside it transcribes. A run cut one
+    /// cell out fails on every row at once.</para>
+    ///
+    /// <para>The two prose anchors come from outside the table: "motorcycles have 5d Body, so you
+    /// can't roll more than 11d", and "most wooden telephone poles have 7d Structure (6d plus 1d for
+    /// thickness), so you can't roll more than 13d". The second is the better of the two, because
+    /// its printed figure is <em>not</em> the table's — the table gives the pole 6d and the prose
+    /// adds one for thickness, which is the GM adjustment p.107 allows.</para>
+    /// </summary>
+    [Fact]
+    public void TheImprovisedWeaponCeilingIsEveryRowsRankPlusTheCapBonus()
+    {
+        var rule = EnvironmentEntryById("scenery_as_weapons").SceneryAsWeapons!;
+        var scenery = EnvironmentEntryById("scenery_table").SceneryTable!;
+        var massive = EnvironmentEntryById("massive_objects_table").MassiveObjectsTable!;
+
+        // Positive control: the tables were found and are not empty, or "every row agrees" is
+        // satisfied by there being no rows.
+        Assert.Equal(EnvRules.TableSizes.Scenery, scenery.Count);
+        Assert.Equal(EnvRules.TableSizes.MassiveObjects, massive.Count);
+        Assert.True(rule.CapBonusDice > 0);
+
+        foreach (var row in scenery)
+            Assert.Equal(row.Structure + rule.CapBonusDice, row.MaximumAttackRank);
+
+        foreach (var row in massive)
+            Assert.Equal(row.WeightRank + rule.CapBonusDice, row.MaximumAttackRank);
+
+        // The first anchor: the motorcycle's Body and its ceiling, both printed in the prose, are
+        // the row the table gives it.
+        var motorcycle = scenery.Single(
+            r => r.Scenery.Contains(EnvRules.SceneryAsWeapons.AnchorRowMotorcycle));
+
+        Assert.Equal(rule.WorkedExampleObjectBody, motorcycle.Structure);
+        Assert.Equal(rule.WorkedExampleMaximumAttackRank, motorcycle.MaximumAttackRank);
+
+        // The second, and the one the table alone could not produce: the pole's printed 7d is the
+        // table's 6d plus one die of thickness, which is inside the range p.107 lets a GM move a
+        // Structure by, and its ceiling is that 7d plus the cap bonus.
+        var pole = scenery.Single(
+            r => r.Scenery.Contains(EnvRules.SceneryAsWeapons.AnchorRowTelephonePole));
+
+        Assert.Equal(rule.SecondWorkedExampleStructureFromTheTable, pole.Structure);
+
+        Assert.Equal(
+            rule.SecondWorkedExampleObjectStructure,
+            pole.Structure + rule.SecondWorkedExampleThicknessAdjustment);
+
+        Assert.Equal(
+            rule.SecondWorkedExampleMaximumAttackRank,
+            rule.SecondWorkedExampleObjectStructure + rule.CapBonusDice);
+
+        var smashing = EnvironmentEntryById("smashing").Smashing!;
+
+        Assert.InRange(
+            rule.SecondWorkedExampleThicknessAdjustment,
+            smashing.GmMayAdjustStructureByMin,
+            smashing.GmMayAdjustStructureByMax);
+
+        // And the pole's printed ceiling really is not the table's row, or the anchor would be the
+        // same claim as the motorcycle's made twice.
+        Assert.NotEqual(rule.SecondWorkedExampleMaximumAttackRank, pole.MaximumAttackRank);
+    }
+
+    /// <summary>
+    /// <b>Chapter 4 and Chapter 7 both print the cover rule, and the two transcriptions agree.</b>
+    ///
+    /// <para>p.75's <c>modifier_cover</c> says an attack goes through cover whose Structure it
+    /// exceeds and that the target may answer with that Structure; p.108's <c>damaging_cover</c> is
+    /// the same two clauses with the second option spelled out. So this is the same kind of second
+    /// printing <c>corroborated_by</c> exists for elsewhere in this store, and the entry carries the
+    /// citation.</para>
+    ///
+    /// <para><b>Chapter 4's sentence is what the expectation is built from</b>, rather than a string
+    /// typed here: the two files state the rule in different words, so what is compared is the two
+    /// clauses' content — that both name the cover's Structure as the threshold an attack rank has
+    /// to beat, and that both grant the target that Structure as a passive defence.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoChaptersThatPrintDamagingCoverAgreeAboutIt()
+    {
+        var chapterFour = CombatEntryById("modifier_cover").Cover!;
+        var chapterSeven = EnvironmentEntryById("damaging_cover").DamagingCover!;
+
+        // Chapter 4 grants the passive defence and Chapter 7 says what it is, so the flag and the
+        // phrase have to agree — a file that had dropped either would leave the other unopposed.
+        Assert.True(chapterFour.TargetMayUseTheCoversStructureAsAPassiveDefense);
+        Assert.Contains("passive defense", chapterSeven.TargetMayUseTheObjectsStructureAs, StringComparison.Ordinal);
+
+        // Both name the same threshold, in each chapter's own words.
+        foreach (var clause in new[] { chapterFour.AttackingThroughCoverRequires, chapterSeven.AttackPenetratesWhen })
+        {
+            Assert.Contains("attack rank", clause, StringComparison.Ordinal);
+            Assert.Contains("Structure", clause, StringComparison.Ordinal);
+        }
+
+        // The citation is on the entry, so a reader lands on the other printing.
+        Assert.Contains(
+            EnvironmentEntryById("damaging_cover").CorroboratedBy ?? [],
+            reference => reference.Contains("p.75", StringComparison.Ordinal));
+
+        // The control: the two entries really are two files' worth of words rather than one copied
+        // into the other, which is what this store's deferral policy exists to prevent.
+        Assert.NotEqual(
+            chapterFour.AttackingThroughCoverRequires,
+            chapterSeven.AttackPenetratesWhen,
+            StringComparer.Ordinal);
+    }
+
+    /// <summary>Which fields an environment entry that defers to another store may carry.</summary>
+    private static readonly HashSet<string> EnvironmentReferenceOnlyFields =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            "transcribed_here", "printed_name", "option_kind", "detail_store", "power_id", "option_id"
+        };
+
+    /// <summary>
+    /// <b>An entry that says it defers must actually defer.</b> The three Pros and Cons pp.108-109
+    /// print are priced on the Powers they modify in <c>data/rules/powers.json</c>, and a Hero Point
+    /// figure copied into this store would be the second transcription
+    /// <see cref="AnEntryThatDefersToAnotherChapterCarriesReferencesAndNothingElse"/> was written
+    /// over <c>resolve.json</c> to prevent — the difference here being that the other store is the
+    /// character rules rather than another chapter, which changes nothing about the argument.
+    /// </summary>
+    [Fact]
+    public void AnEnvironmentEntryThatDefersToTheCharacterRulesCarriesReferencesAndNothingElse()
+    {
+        var deferring = Environment().Entries.Where(e => e.ToxinOption?.TranscribedHere == false).ToList();
+
+        // Positive control: a rule over an empty set is satisfied by there being nothing to check.
+        Assert.Equal(EnvRules.ToxinOptions.Length, deferring.Count);
+
+        var faults = new List<string>();
+
+        foreach (var entry in deferring)
+        {
+            var strangers = EntryLeaves(entry.Id, entry, stopAt: null)
+                .Select(leaf => leaf.Path[(leaf.Path.LastIndexOf('.') + 1)..])
+                .Where(name => !EnvironmentReferenceOnlyFields.Contains(name))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            if (strangers.Count > 0)
+                faults.Add($"{entry.Id} sets transcribed_here false and still carries {string.Join(", ", strangers)}");
+        }
+
+        Assert.True(
+            faults.Count == 0,
+            "An entry that hands a mechanic to the character rules may carry the reference and "
+            + "nothing more — the Hero Point cost belongs on the Power, where PowerProConTests "
+            + "holds it to the page: " + string.Join("; ", faults));
+    }
+
+    /// <summary>
+    /// <b>Every Pro or Con this chapter names resolves in the character rules.</b>
+    ///
+    /// <para>The three deferring entries name a Power and an option on it; the two toxin tables name
+    /// an option in every row's printed parenthesis. None of them is transcribed here, so a
+    /// reference that resolved to nothing would leave this store pointing at a rule that has been
+    /// renamed away — which is the shape of failure <c>PlayRulesRepository</c>'s throwing lookup
+    /// exists to prevent one layer down.</para>
+    ///
+    /// <para><b>Two of the three live on a Power rather than in <c>pros.json</c> or
+    /// <c>cons.json</c>, and that is a finding rather than an inconvenience.</b> Caustic, Lethal
+    /// Disease and Non-Lethal Disease are printed in Chapter 7 and are Power-specific options in
+    /// <c>powers.json</c>; Toxin is Chapter 2's generic Con and is in <c>cons.json</c>. So the
+    /// lookup tries both stores and the test asserts which one answered, or a reference could drift
+    /// from one to the other unnoticed.</para>
+    /// </summary>
+    [Fact]
+    public void EveryProOrConTheToxinTablesNameResolvesInTheCharacterRules()
+    {
+        var generic = _f.Rules.Pros.Select(p => p.Id)
+            .Concat(_f.Rules.Cons.Select(c => c.Id))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var onPowers = _f.Rules.Powers
+            .SelectMany(power => power.PowerPros.Concat(power.PowerCons).Select(o => (power.Id, o.Id)))
+            .ToHashSet();
+
+        // Positive control on both stores: a lookup against an empty set would resolve nothing and
+        // fault everything, but a lookup against a set that had lost one store would fault only the
+        // references into it, and read as a data error.
+        Assert.True(generic.Count >= 40, $"Only {generic.Count} generic Pro and Con ids were loaded.");
+        Assert.True(onPowers.Count >= 100, $"Only {onPowers.Count} Power-specific options were loaded.");
+
+        var faults = new List<string>();
+        var resolvedOnAPower = 0;
+        var resolvedGenerically = 0;
+
+        // The three deferring entries: each names the Power its option is priced on.
+        foreach (var entry in Environment().Entries.Where(e => e.ToxinOption is not null))
+        {
+            var option = entry.ToxinOption!;
+
+            Assert.Equal(EnvRules.ToxinOptionDetailStore, option.DetailStore);
+
+            if (onPowers.Contains((option.PowerId, option.OptionId))) resolvedOnAPower++;
+            else faults.Add($"{entry.Id}: powers.json has no '{option.OptionId}' on the Power '{option.PowerId}'");
+        }
+
+        Assert.Equal(EnvRules.ToxinOptions.Length, resolvedOnAPower);
+
+        // And every option either table's rows name, wherever it lives.
+        var referenced = EnvironmentEntryById("diseases_table").DiseasesTable!.Rows
+            .Select(r => (Row: r.Name, r.Options))
+            .Concat(EnvironmentEntryById("drugs_and_poisons_table").DrugsAndPoisonsTable!.Rows
+                .Select(r => (Row: r.Name, r.Options)))
+            .ToList();
+
+        Assert.Equal(
+            EnvRules.TableSizes.Diseases + EnvRules.TableSizes.DrugsAndPoisons,
+            referenced.Count);
+
+        foreach (var (row, options) in referenced)
+        {
+            Assert.NotEmpty(options);
+
+            foreach (var id in options)
+            {
+                if (generic.Contains(id)) resolvedGenerically++;
+                else if (onPowers.Any(pair => string.Equals(pair.Item2, id, StringComparison.Ordinal))) resolvedOnAPower++;
+                else faults.Add($"'{row}' names the Pro or Con '{id}', which is in neither store");
+            }
+        }
+
+        // Both halves have to have fired, or "everything resolved" would be a claim about one store
+        // with the other never consulted.
+        Assert.True(resolvedGenerically > 0 && resolvedOnAPower > EnvRules.ToxinOptions.Length,
+            $"{resolvedGenerically} references resolved generically and {resolvedOnAPower} on a Power.");
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
     /// <summary>One Chapter 6 section: its heading and its prose.</summary>
     private sealed record CorpusSection(string Heading, int Page, string Text);
 
@@ -4008,7 +4973,7 @@ public sealed class PlayRulesDataTests
 
         // Positive control: an extraction that stopped matching would fault nothing and prove
         // nothing, which is the shape of guard failure this repository has shipped four times.
-        Assert.True(checkedCount >= 112, $"Only {checkedCount} entries were read across the six play rules files.");
+        Assert.True(checkedCount >= 139, $"Only {checkedCount} entries were read across the seven play rules files.");
         Assert.True(corroborations >= 8, $"Only {corroborations} corroborating references were read; Ch.1 reprints three of Ch.3's rules and two of Ch.5's, and Ch.2 reprints three of Ch.4's.");
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
@@ -4134,7 +5099,13 @@ public sealed class PlayRulesDataTests
                 "triggers", "applies_even_if_coerced", "requires_remotely_reasonable",
                 "some_powers_require_resolve", "npc_flaws_bite_when_the_opportunity_arises",
                 // Chapter 6
-                "condition", "applies_to", "every_weapon_has_one"),
+                "condition", "applies_to", "every_weapon_has_one",
+                // Chapter 7
+                "is_an_attack", "attack_rank_depends_on", "roll_asked_for_when",
+                "roll_is_asked_for_by", "sources", "applies_when", "work_like", "toxins_are",
+                "read_the_table_when", "most_goals_need", "hazard_grades",
+                "hold_breath_minutes_equal_to", "minor_withstood_for_minutes_equal_to",
+                "major_withstood_for_pages_equal_to"),
             ["roll"] = Keys(
                 "die_sides", "pool_formula", "success_map", "dice_rolled", "counting_faces",
                 "dice_per_success", "gm_may_veto", "net_success_formula", "min_dice", "max_dice",
@@ -4167,10 +5138,25 @@ public sealed class PlayRulesDataTests
                 "worked_example_trait_rank", "worked_example_maximum_effective_rank",
                 "worked_example_armed_maximum_effective_rank", "worked_example_unarmed_rank",
                 "worked_example_gear_limit", "standard_power_level_trait_cap",
-                "maximum_effective_rank_is", "you_may_use_instead"),
+                "maximum_effective_rank_is", "you_may_use_instead",
+                // Chapter 7
+                "rank", "hard_landing_bonus_dice", "soft_landing_penalty_dice",
+                "soft_landing_allows_active_defense", "resisted_only_with",
+                "gm_may_allow_a_creative_active_defense", "roll_trait", "roll_traits",
+                "roll_against", "perception_penalty_dice_underwater",
+                "scuba_mask_reduces_visual_perception_penalty_to",
+                "underwater_physical_attack_penalty_dice",
+                "underwater_active_defense_penalty_dice", "underwater_combat_edge",
+                "agility_used_for_movement_challenge_rolls", "close_combat_bonus_dice",
+                "thrown_attack_bonus_dice", "thrown_attack_trait", "cap_bonus_dice",
+                "sonic_underwater_bonus_dice", "table_is_a_guide", "read_off", "most_goals_need",
+                "attack_penetrates_when", "target_may_use_the_objects_structure_as"),
             ["threshold"] = Keys(
                 "threshold_min", "threshold_max", "difficulty", "threshold", "threshold_source",
                 "static_threshold_used_when", "helper_rolls_against_threshold",
+                // Chapter 7
+                "threshold_depends_on", "roll_against", "bend_or_small_hole_min_net_successes",
+                "big_hole_min_net_successes",
                 "helper_threshold_difficulty", "gm_discretion_difficulties", "net_success_formula",
                 // Chapter 4
                 "after_a_fight_threshold", "after_a_fight_difficulty", "full_rest_threshold",
@@ -4276,7 +5262,51 @@ public sealed class PlayRulesDataTests
                 "balance_options_exclude", "subdual_marker", "default_damage",
                 "ancient_and_modern_damage", "advanced_damage", "advanced_physical_exceptions",
                 "ranged_weapons_reach", "ranged_reach_exceptions", "subdual", "features",
-                "bonus_dice"),
+                "bonus_dice",
+                // Chapter 7, and the same catch-all argument once more.
+                "is_an_attack", "works_like", "resisted_only_with", "table_is_a_guide",
+                "minor_goals", "major_goals", "gm_supplies_in_a_minor_disaster",
+                "gm_supplies_in_a_major_disaster", "remaining_goals_come_from", "a_goal_is",
+                "a_goal_may_be_worth_its_own_scene", "who_decides_a_goal_needs_its_own_scene",
+                "resolution_read_off", "narrator", "embellishment", "kinds_are_lumped_into", "why",
+                "gravity_and_magnetism_are_energy", "gravity_and_magnetism_are",
+                "gravity_and_magnetism_represented_with",
+                "gravity_and_magnetism_if_classified_as_energy", "types",
+                "force_kinetic_attacks_are", "sonic_footnote_is_offered_as_optional",
+                "sonic_in_a_vacuum", "up_to_feet", "hard_landing_examples", "soft_landing_examples",
+                "minor_examples", "major_examples", "minor_damage_per_minute_after_that",
+                "major_damage_per_page_after_that", "maximum_hazard_damage_per_page",
+                "maximum_applies_across_simultaneous_hazards", "powers_that_protect",
+                "damage_per_page_after_that", "all_suffocation_damage_removed_when",
+                "removal_is_immediate", "defeated_rather_than_killed_unless",
+                "surviving_is_explained_by", "travel_speed", "ignored_by",
+                "deep_water_complexities_left_to", "every_character_effectively_has", "at_rank",
+                "for_the_purpose_of", "the_power_must_be_bought_to_use_it_for",
+                "distances_are_deliberately_abstract", "maximum_weight_normally",
+                "static_value_assumes", "weight", "examples", "heat", "electricity",
+                "vehicles_and_complex_machines_have", "simple_objects_have", "structure_determines",
+                "gm_may_adjust_structure_by_min", "gm_may_adjust_structure_by_max",
+                "adjustment_factors", "adjustment_factors_are_open_ended",
+                "bend_or_small_hole_max_net_successes",
+                "net_successes_may_be_combined_over_attempts",
+                "an_especially_thick_object_may_need_several_attempts", "materials",
+                "footnoted_row_materials", "attack_penetrates_when",
+                "target_may_use_the_objects_structure_as", "options_given", "thrown_attack_is",
+                "attack_rank_caps_at", "worked_example_object", "worked_example_object_body",
+                "worked_example_maximum_attack_rank", "second_worked_example_object",
+                "second_worked_example_structure_from_the_table",
+                "second_worked_example_thickness_adjustment",
+                "second_worked_example_object_structure",
+                "second_worked_example_maximum_attack_rank", "degradation_dice_per_page",
+                "degradation_applies_to", "degradation_is_only_for_these_purposes",
+                "ordinary_human_strength_degrades_nothing", "edge_cases_left_to", "scenery",
+                "maximum_attack_rank", "uses_instead_of_body_or_structure", "requires",
+                "always_breaks_apart_after", "objects", "weight_rank", "toxins_are_described_as",
+                "passive_defenses_named", "resistance_is_a_power",
+                "the_pros_and_cons_apply_only_to", "unless", "printed_name", "option_kind",
+                "detail_store", "power_id", "option_id", "power", "options", "footnoted",
+                "footnoted_row_names", "options_are_referenced_not_transcribed", "effects",
+                "traits", "rank_min", "rank_max"),
             ["duration"] = Keys(
                 "penalty_duration", "regain_consciousness", "limit_per_story",
                 "limit_per_scene_per_group", "concurrent_scenes_each_allow_one",
@@ -4289,6 +5319,11 @@ public sealed class PlayRulesDataTests
                 "pages_per_exchange", "on_a_special_effect", "surprise_lasts", "penalty_lasts",
                 "lasts", "target_loses_their_next_turn_to_act", "duration_formula", "expires_at",
                 "duration_reduced_by", "free_when_the_duration_reaches", "extends_to",
+                // Chapter 7
+                "track_time_in_pages_for_a_major_hazard_even_out_of_combat",
+                "always_breaks_apart_after", "degradation_dice_per_page",
+                "hold_breath_minutes_equal_to", "minor_withstood_for_minutes_equal_to",
+                "major_withstood_for_pages_equal_to", "removal_is_immediate",
                 "may_be_repeated_scene_after_scene", "limit_per_scene",
                 "full_allows_attacks_on_subsequent_pages", "limit_per_target_per_battle",
                 "participants_act_at", "counted_per", "first_active_defense_on_a_page_is_unpenalised",
@@ -4339,6 +5374,7 @@ public sealed class PlayRulesDataTests
         Assert.Equal(meta.Header.VerifiedFieldsClosedList, challenge.Header.VerifiedFieldsClosedList);
         Assert.Equal(meta.Header.VerifiedFieldsClosedList, resolve.Header.VerifiedFieldsClosedList);
         Assert.Equal(meta.Header.VerifiedFieldsClosedList, Equipment().Header.VerifiedFieldsClosedList);
+        Assert.Equal(meta.Header.VerifiedFieldsClosedList, Environment().Header.VerifiedFieldsClosedList);
 
         var closed = meta.Header.VerifiedFieldsClosedList;
         Assert.NotEmpty(closed);
@@ -4404,9 +5440,10 @@ public sealed class PlayRulesDataTests
             .Concat(Combat().Entries.Select(e => (e.Id, e.Kind)))
             .Concat(Gritty().Entries.Select(e => (e.Id, e.Kind)))
             .Concat(Equipment().Entries.Select(e => (e.Id, e.Kind)))
+            .Concat(Environment().Entries.Select(e => (e.Id, e.Kind)))
             .ToList();
 
-        Assert.True(kinds.Count >= 112, $"Only {kinds.Count} entries were read across the six files.");
+        Assert.True(kinds.Count >= 139, $"Only {kinds.Count} entries were read across the seven files.");
 
         var faults = kinds
             .Where(k => !CanonicalChallengeRules.EntryKinds.Contains(k.Kind, StringComparer.Ordinal))
@@ -4428,6 +5465,7 @@ public sealed class PlayRulesDataTests
     [InlineData("combat.json")]
     [InlineData("gritty.json")]
     [InlineData("equipment.json")]
+    [InlineData("environment.json")]
     public void EachFileSaysWhatItIsWhereItSitsAndThatNothingReadsIt(string fileName)
     {
         var header = HeaderOf(fileName);
@@ -4445,6 +5483,7 @@ public sealed class PlayRulesDataTests
         "combat.json" => Combat().Header,
         "gritty.json" => Gritty().Header,
         "equipment.json" => Equipment().Header,
+        "environment.json" => Environment().Header,
         _ => Resolve().Header
     };
 
@@ -4456,7 +5495,8 @@ public sealed class PlayRulesDataTests
             .Concat(Resolve().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
             .Concat(Combat().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
             .Concat(Gritty().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
-            .Concat(Equipment().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)));
+            .Concat(Equipment().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
+            .Concat(Environment().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)));
 
     /// <summary>
     /// <b>Descriptions in <c>data/rules/</c> are this project's own words, never the book's.</b>
@@ -4488,6 +5528,9 @@ public sealed class PlayRulesDataTests
         "equipment.json",
         "The default Gear Limit in most games is 6d. That means the maximum effective rank you "
         + "can have when using a piece of mundane gear is 6d plus whatever bonus it provides.")]
+    [InlineData(
+        "environment.json",
+        "Falls are treated like attacks that can only be resisted with passive defenses")]
     public void NoDescriptionRepeatsARunOfTheBooksOwnWords(string fileName, string knownCorpusSentence)
     {
         const int run = 10;
@@ -4624,6 +5667,26 @@ public sealed class PlayRulesDataTests
     [InlineData("combat.json", "movement")]
     [InlineData("combat.json", "attacking_minions")]
     [InlineData("combat.json", "ambushes")]
+    // Chapter 7. The first two change results outright - a rate in minutes under a ceiling in
+    // pages, and a rank Chapter 4's throwing formula subtracts without either page defining it.
+    // The rest are the chapter's own hedges: an undefined "super strong", an undefined "mundane",
+    // an optional footnote, a scope granted for one purpose, a maximum named and never printed,
+    // a table given no duration, a distinction drawn and then dropped, a state the page never
+    // says is undone, a mask stated for one sense, a goal that can be failed with no rule for
+    // failing it, and a Power used against two named Traits.
+    [InlineData("environment.json", "hostile_environments")]
+    [InlineData("environment.json", "massive_objects")]
+    [InlineData("environment.json", "scenery_as_weapons")]
+    [InlineData("environment.json", "toxins")]
+    [InlineData("environment.json", "energy_types")]
+    [InlineData("environment.json", "leaping")]
+    [InlineData("environment.json", "lifting")]
+    [InlineData("environment.json", "scorching")]
+    [InlineData("environment.json", "smashing")]
+    [InlineData("environment.json", "suffocation")]
+    [InlineData("environment.json", "swimming")]
+    [InlineData("environment.json", "disasters")]
+    [InlineData("environment.json", "drugs_and_poisons_table")]
     public void TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect(string file, string id)
     {
         var ambiguity = file switch
@@ -4632,6 +5695,7 @@ public sealed class PlayRulesDataTests
             "challenge.json" => ChallengeEntryById(id).Ambiguity,
             "combat.json" => CombatEntryById(id).Ambiguity,
             "gritty.json" => GrittyEntryById(id).Ambiguity,
+            "environment.json" => EnvironmentEntryById(id).Ambiguity,
             _ => ResolveEntryById(id).Ambiguity
         };
 
@@ -4663,6 +5727,10 @@ public sealed class PlayRulesDataTests
     [InlineData("equipment.json", "Weapon Features")]
     [InlineData("equipment.json", "Armor")]
     [InlineData("equipment.json", "pp.91-104")]
+    [InlineData("environment.json", "p.110")]
+    [InlineData("environment.json", "chapter opening")]
+    [InlineData("environment.json", "description column")]
+    [InlineData("environment.json", "powers.json")]
     public void TheHeaderSaysWhatWasDeliberatelyLeftOut(string fileName, string mustName)
     {
         var omitted = HeaderOf(fileName).DeliberatelyOmitted;
@@ -4689,6 +5757,7 @@ public sealed class PlayRulesDataTests
     [InlineData("combat.json")]
     [InlineData("gritty.json")]
     [InlineData("equipment.json")]
+    [InlineData("environment.json")]
     public void EveryFieldInAPlayRulesFileDeserializesIntoATestModel(string fileName)
     {
         var json = File.ReadAllText(Path.Combine(PlayDataPath, fileName));
@@ -4700,6 +5769,7 @@ public sealed class PlayRulesDataTests
             "combat.json" => JsonSerializer.Deserialize<PlayFile<CombatEntry>>(json, Strict()),
             "gritty.json" => JsonSerializer.Deserialize<PlayFile<GrittyEntry>>(json, Strict()),
             "equipment.json" => JsonSerializer.Deserialize<PlayFile<EquipmentEntry>>(json, Strict()),
+            "environment.json" => JsonSerializer.Deserialize<PlayFile<EnvironmentEntry>>(json, Strict()),
             _ => JsonSerializer.Deserialize<PlayFile<ResolveEntry>>(json, Strict())
         });
 
@@ -4793,7 +5863,30 @@ public sealed class PlayRulesDataTests
             "advanced_weapons.weapons",
             "ancient_weapons.interpretation.row_alignment",
             "modern_weapons.interpretation.row_alignment",
-            "advanced_weapons.interpretation.row_alignment"
+            "advanced_weapons.interpretation.row_alignment",
+            // environment.json's ten tables, and the same argument. The corpus already carries the
+            // printed columns, so TheChapterSevenTablesAreReadOutOfTheCorpusColumns derives every
+            // row from data/rulebook/ch07-environment.json rather than typing a hundred and twenty
+            // rows into CanonicalEnvironmentRules a second time. Six of the ten need a reading of
+            // how the printed columns line up, which each entry's interpretation records; the other
+            // four the extractor prints straight, and they are here because the corpus is the book
+            // and a canonical copy of it would only be something else to disagree with.
+            "disaster_results.disaster_results",
+            "energy_types.energy_types.types",
+            "falling_table.falling_table",
+            "lifting_table.lifting_table",
+            "scorching_table.scorching_table",
+            "smashing_table.smashing_table.rows",
+            "scenery_table.scenery_table",
+            "massive_objects_table.massive_objects_table",
+            "diseases_table.diseases_table.rows",
+            "drugs_and_poisons_table.drugs_and_poisons_table.rows",
+            "disaster_results.interpretation.row_alignment",
+            "lifting_table.interpretation.row_alignment",
+            "scorching_table.interpretation.row_alignment",
+            "smashing_table.interpretation.row_alignment",
+            "scenery_table.interpretation.row_alignment",
+            "massive_objects_table.interpretation.row_alignment"
         };
 
     /// <summary>
@@ -5691,7 +6784,179 @@ public sealed class PlayRulesDataTests
             ["weapon_bonus.weapon_bonus.advanced_damage"] = Is(CanonicalEquipmentRules.WeaponBonus.AdvancedDamage),
             ["weapon_bonus.weapon_bonus.advanced_physical_exceptions"] = Is(CanonicalEquipmentRules.WeaponBonus.AdvancedPhysicalExceptions),
             ["weapon_bonus.weapon_bonus.ranged_weapons_reach"] = Is(CanonicalEquipmentRules.WeaponBonus.RangedWeaponsReach),
-            ["weapon_bonus.weapon_bonus.ranged_reach_exceptions"] = Is(CanonicalEquipmentRules.WeaponBonus.RangedReachExceptions)
+            ["weapon_bonus.weapon_bonus.ranged_reach_exceptions"] = Is(CanonicalEquipmentRules.WeaponBonus.RangedReachExceptions),
+
+            // ── environment.json, Chapter 7 ──────────────────────────────────
+            // disasters
+            ["disasters.disaster.minor_goals"] = Is(EnvRules.Disasters.MinorGoals),
+            ["disasters.disaster.major_goals"] = Is(EnvRules.Disasters.MajorGoals),
+            ["disasters.disaster.gm_supplies_in_a_minor_disaster"] = Is(EnvRules.Disasters.GmSuppliesInAMinorDisaster),
+            ["disasters.disaster.gm_supplies_in_a_major_disaster"] = Is(EnvRules.Disasters.GmSuppliesInAMajorDisaster),
+            ["disasters.disaster.remaining_goals_come_from"] = Is(EnvRules.Disasters.RemainingGoalsComeFrom),
+            ["disasters.disaster.a_goal_is"] = Is(EnvRules.Disasters.AGoalIs),
+            ["disasters.disaster.most_goals_need"] = Is(EnvRules.Disasters.MostGoalsNeed),
+            ["disasters.disaster.a_goal_may_be_worth_its_own_scene"] = Is(EnvRules.Disasters.AGoalMayBeWorthItsOwnScene),
+            ["disasters.disaster.who_decides_a_goal_needs_its_own_scene"] = Is(EnvRules.Disasters.WhoDecidesAGoalNeedsItsOwnScene),
+            ["disasters.disaster.resolution_read_off"] = Is(EnvRules.Disasters.ResolutionReadOff),
+            ["disasters.disaster.read_the_table_when"] = Is(EnvRules.Disasters.ReadTheTableWhen),
+            // energy
+            ["energy.energy.kinds_are_lumped_into"] = Is(EnvRules.Energy.KindsAreLumpedInto),
+            ["energy.energy.why"] = Is(EnvRules.Energy.Why),
+            ["energy.energy.gravity_and_magnetism_are_energy"] = Is(EnvRules.Energy.GravityAndMagnetismAreEnergy),
+            ["energy.energy.gravity_and_magnetism_are"] = Is(EnvRules.Energy.GravityAndMagnetismAre),
+            ["energy.energy.gravity_and_magnetism_represented_with"] = Is(EnvRules.Energy.GravityAndMagnetismRepresentedWith),
+            ["energy.energy.gravity_and_magnetism_if_classified_as_energy"] = Is(EnvRules.Energy.GravityAndMagnetismIfClassifiedAsEnergy),
+            // energy_types
+            ["energy_types.energy_types.force_kinetic_attacks_are"] = Is(EnvRules.EnergyTypes.ForceKineticAttacksAre),
+            ["energy_types.energy_types.sonic_footnote_is_offered_as_optional"] = Is(EnvRules.EnergyTypes.SonicFootnoteIsOfferedAsOptional),
+            ["energy_types.energy_types.sonic_in_a_vacuum"] = Is(EnvRules.EnergyTypes.SonicInAVacuum),
+            ["energy_types.energy_types.sonic_underwater_bonus_dice"] = Is(EnvRules.EnergyTypes.SonicUnderwaterBonusDice),
+            // falling
+            ["falling.falling.is_an_attack"] = Is(EnvRules.Falling.IsAnAttack),
+            ["falling.falling.resisted_only_with"] = Is(EnvRules.Falling.ResistedOnlyWith),
+            ["falling.falling.gm_may_allow_a_creative_active_defense"] = Is(EnvRules.Falling.GmMayAllowACreativeActiveDefense),
+            ["falling.falling.attack_rank_depends_on"] = Is(EnvRules.Falling.AttackRankDependsOn),
+            ["falling.falling.read_off"] = Is(EnvRules.Falling.ReadOff),
+            ["falling.falling.hard_landing_examples"] = Is(EnvRules.Falling.HardLandingExamples),
+            ["falling.falling.hard_landing_bonus_dice"] = Is(EnvRules.Falling.HardLandingBonusDice),
+            ["falling.falling.soft_landing_examples"] = Is(EnvRules.Falling.SoftLandingExamples),
+            ["falling.falling.soft_landing_penalty_dice"] = Is(EnvRules.Falling.SoftLandingPenaltyDice),
+            ["falling.falling.soft_landing_allows_active_defense"] = Is(EnvRules.Falling.SoftLandingAllowsActiveDefense),
+            // hostile_environments
+            ["hostile_environments.hostile_environment.hazard_grades"] = Is(EnvRules.HostileEnvironments.HazardGrades),
+            ["hostile_environments.hostile_environment.minor_examples"] = Is(EnvRules.HostileEnvironments.MinorExamples),
+            ["hostile_environments.hostile_environment.major_examples"] = Is(EnvRules.HostileEnvironments.MajorExamples),
+            ["hostile_environments.hostile_environment.minor_withstood_for_minutes_equal_to"] = Is(EnvRules.HostileEnvironments.MinorWithstoodForMinutesEqualTo),
+            ["hostile_environments.hostile_environment.minor_damage_per_minute_after_that"] = Is(EnvRules.HostileEnvironments.MinorDamagePerMinuteAfterThat),
+            ["hostile_environments.hostile_environment.major_withstood_for_pages_equal_to"] = Is(EnvRules.HostileEnvironments.MajorWithstoodForPagesEqualTo),
+            ["hostile_environments.hostile_environment.major_damage_per_page_after_that"] = Is(EnvRules.HostileEnvironments.MajorDamagePerPageAfterThat),
+            ["hostile_environments.hostile_environment.track_time_in_pages_for_a_major_hazard_even_out_of_combat"] = Is(EnvRules.HostileEnvironments.TrackTimeInPagesForAMajorHazardEvenOutOfCombat),
+            ["hostile_environments.hostile_environment.maximum_hazard_damage_per_page"] = Is(EnvRules.HostileEnvironments.MaximumHazardDamagePerPage),
+            ["hostile_environments.hostile_environment.maximum_applies_across_simultaneous_hazards"] = Is(EnvRules.HostileEnvironments.MaximumAppliesAcrossSimultaneousHazards),
+            ["hostile_environments.hostile_environment.powers_that_protect"] = Is(EnvRules.HostileEnvironments.PowersThatProtect),
+            // suffocation
+            ["suffocation.suffocation.hold_breath_minutes_equal_to"] = Is(EnvRules.Suffocation.HoldBreathMinutesEqualTo),
+            ["suffocation.suffocation.damage_per_page_after_that"] = Is(EnvRules.Suffocation.DamagePerPageAfterThat),
+            ["suffocation.suffocation.all_suffocation_damage_removed_when"] = Is(EnvRules.Suffocation.AllSuffocationDamageRemovedWhen),
+            ["suffocation.suffocation.removal_is_immediate"] = Is(EnvRules.Suffocation.RemovalIsImmediate),
+            ["suffocation.suffocation.defeated_rather_than_killed_unless"] = Is(EnvRules.Suffocation.DefeatedRatherThanKilledUnless),
+            ["suffocation.suffocation.surviving_is_explained_by"] = Is(EnvRules.Suffocation.SurvivingIsExplainedBy),
+            // swimming
+            ["swimming.swimming.travel_speed"] = Is(EnvRules.Swimming.TravelSpeed),
+            ["swimming.swimming.agility_used_for_movement_challenge_rolls"] = Is(EnvRules.Swimming.AgilityUsedForMovementChallengeRolls),
+            ["swimming.swimming.perception_penalty_dice_underwater"] = Is(EnvRules.Swimming.PerceptionPenaltyDiceUnderwater),
+            ["swimming.swimming.scuba_mask_reduces_visual_perception_penalty_to"] = Is(EnvRules.Swimming.ScubaMaskReducesVisualPerceptionPenaltyTo),
+            ["swimming.swimming.underwater_combat_edge"] = Is(EnvRules.Swimming.UnderwaterCombatEdge),
+            ["swimming.swimming.underwater_physical_attack_penalty_dice"] = Is(EnvRules.Swimming.UnderwaterPhysicalAttackPenaltyDice),
+            ["swimming.swimming.underwater_active_defense_penalty_dice"] = Is(EnvRules.Swimming.UnderwaterActiveDefensePenaltyDice),
+            ["swimming.swimming.ignored_by"] = Is(EnvRules.Swimming.IgnoredBy),
+            ["swimming.swimming.deep_water_complexities_left_to"] = Is(EnvRules.Swimming.DeepWaterComplexitiesLeftTo),
+            // leaping
+            ["leaping.leaping.every_character_effectively_has"] = Is(EnvRules.Leaping.EveryCharacterEffectivelyHas),
+            ["leaping.leaping.at_rank"] = Is(EnvRules.Leaping.AtRank),
+            ["leaping.leaping.for_the_purpose_of"] = Is(EnvRules.Leaping.ForThePurposeOf),
+            ["leaping.leaping.the_power_must_be_bought_to_use_it_for"] = Is(EnvRules.Leaping.ThePowerMustBeBoughtToUseItFor),
+            ["leaping.leaping.distances_are_deliberately_abstract"] = Is(EnvRules.Leaping.DistancesAreDeliberatelyAbstract),
+            // lifting
+            ["lifting.lifting.maximum_weight_normally"] = Is(EnvRules.Lifting.MaximumWeightNormally),
+            ["lifting.lifting.static_value_assumes"] = Is(EnvRules.Lifting.StaticValueAssumes),
+            ["lifting.lifting.roll_asked_for_when"] = Is(EnvRules.Lifting.RollAskedForWhen),
+            ["lifting.lifting.roll_is_asked_for_by"] = Is(EnvRules.Lifting.RollIsAskedForBy),
+            ["lifting.lifting.roll_trait"] = Is(EnvRules.Lifting.RollTrait),
+            ["lifting.lifting.roll_against"] = Is(EnvRules.Lifting.RollAgainst),
+            ["lifting.lifting.threshold_depends_on"] = Is(EnvRules.Lifting.ThresholdDependsOn),
+            ["lifting.lifting.read_off"] = Is(EnvRules.Lifting.ReadOff),
+            // scorching
+            ["scorching.scorching.sources"] = Is(EnvRules.Scorching.Sources),
+            ["scorching.scorching.is_an_attack"] = Is(EnvRules.Scorching.IsAnAttack),
+            ["scorching.scorching.resisted_only_with"] = Is(EnvRules.Scorching.ResistedOnlyWith),
+            ["scorching.scorching.gm_may_allow_a_creative_active_defense"] = Is(EnvRules.Scorching.GmMayAllowACreativeActiveDefense),
+            ["scorching.scorching.works_like"] = Is(EnvRules.Scorching.WorksLike),
+            ["scorching.scorching.table_is_a_guide"] = Is(EnvRules.Scorching.TableIsAGuide),
+            // smashing
+            ["smashing.smashing.vehicles_and_complex_machines_have"] = Is(EnvRules.Smashing.VehiclesAndComplexMachinesHave),
+            ["smashing.smashing.simple_objects_have"] = Is(EnvRules.Smashing.SimpleObjectsHave),
+            ["smashing.smashing.structure_determines"] = Is(EnvRules.Smashing.StructureDetermines),
+            ["smashing.smashing.gm_may_adjust_structure_by_min"] = Is(EnvRules.Smashing.GmMayAdjustStructureByMin),
+            ["smashing.smashing.gm_may_adjust_structure_by_max"] = Is(EnvRules.Smashing.GmMayAdjustStructureByMax),
+            ["smashing.smashing.adjustment_factors"] = Is(EnvRules.Smashing.AdjustmentFactors),
+            ["smashing.smashing.adjustment_factors_are_open_ended"] = Is(EnvRules.Smashing.AdjustmentFactorsAreOpenEnded),
+            ["smashing.smashing.roll_traits"] = Is(EnvRules.Smashing.RollTraits),
+            ["smashing.smashing.roll_against"] = Is(EnvRules.Smashing.RollAgainst),
+            ["smashing.smashing.bend_or_small_hole_min_net_successes"] = Is(EnvRules.Smashing.BendOrSmallHoleMinNetSuccesses),
+            ["smashing.smashing.bend_or_small_hole_max_net_successes"] = Is(EnvRules.Smashing.BendOrSmallHoleMaxNetSuccesses),
+            ["smashing.smashing.big_hole_min_net_successes"] = Is(EnvRules.Smashing.BigHoleMinNetSuccesses),
+            ["smashing.smashing.net_successes_may_be_combined_over_attempts"] = Is(EnvRules.Smashing.NetSuccessesMayBeCombinedOverAttempts),
+            ["smashing.smashing.an_especially_thick_object_may_need_several_attempts"] = Is(EnvRules.Smashing.AnEspeciallyThickObjectMayNeedSeveralAttempts),
+            // smashing_table
+            ["smashing_table.smashing_table.footnoted_row_materials"] = Is(EnvRules.SmashingFootnotedRowMaterials),
+            // damaging_cover
+            ["damaging_cover.damaging_cover.applies_when"] = Is(EnvRules.DamagingCover.AppliesWhen),
+            ["damaging_cover.damaging_cover.attack_penetrates_when"] = Is(EnvRules.DamagingCover.AttackPenetratesWhen),
+            ["damaging_cover.damaging_cover.target_may_use_the_objects_structure_as"] = Is(EnvRules.DamagingCover.TargetMayUseTheObjectsStructureAs),
+            ["damaging_cover.damaging_cover.options_given"] = Is(EnvRules.DamagingCover.OptionsGiven),
+            // scenery_as_weapons
+            ["scenery_as_weapons.scenery_as_weapons.applies_to"] = Is(EnvRules.SceneryAsWeapons.AppliesTo),
+            ["scenery_as_weapons.scenery_as_weapons.close_combat_bonus_dice"] = Is(EnvRules.SceneryAsWeapons.CloseCombatBonusDice),
+            ["scenery_as_weapons.scenery_as_weapons.thrown_attack_trait"] = Is(EnvRules.SceneryAsWeapons.ThrownAttackTrait),
+            ["scenery_as_weapons.scenery_as_weapons.thrown_attack_bonus_dice"] = Is(EnvRules.SceneryAsWeapons.ThrownAttackBonusDice),
+            ["scenery_as_weapons.scenery_as_weapons.thrown_attack_is"] = Is(EnvRules.SceneryAsWeapons.ThrownAttackIs),
+            ["scenery_as_weapons.scenery_as_weapons.attack_rank_caps_at"] = Is(EnvRules.SceneryAsWeapons.AttackRankCapsAt),
+            ["scenery_as_weapons.scenery_as_weapons.cap_bonus_dice"] = Is(EnvRules.SceneryAsWeapons.CapBonusDice),
+            ["scenery_as_weapons.scenery_as_weapons.worked_example_object"] = Is(EnvRules.SceneryAsWeapons.WorkedExampleObject),
+            ["scenery_as_weapons.scenery_as_weapons.worked_example_object_body"] = Is(EnvRules.SceneryAsWeapons.WorkedExampleObjectBody),
+            ["scenery_as_weapons.scenery_as_weapons.worked_example_maximum_attack_rank"] = Is(EnvRules.SceneryAsWeapons.WorkedExampleMaximumAttackRank),
+            ["scenery_as_weapons.scenery_as_weapons.second_worked_example_object"] = Is(EnvRules.SceneryAsWeapons.SecondWorkedExampleObject),
+            ["scenery_as_weapons.scenery_as_weapons.second_worked_example_structure_from_the_table"] = Is(EnvRules.SceneryAsWeapons.SecondWorkedExampleStructureFromTheTable),
+            ["scenery_as_weapons.scenery_as_weapons.second_worked_example_thickness_adjustment"] = Is(EnvRules.SceneryAsWeapons.SecondWorkedExampleThicknessAdjustment),
+            ["scenery_as_weapons.scenery_as_weapons.second_worked_example_object_structure"] = Is(EnvRules.SceneryAsWeapons.SecondWorkedExampleObjectStructure),
+            ["scenery_as_weapons.scenery_as_weapons.second_worked_example_maximum_attack_rank"] = Is(EnvRules.SceneryAsWeapons.SecondWorkedExampleMaximumAttackRank),
+            ["scenery_as_weapons.scenery_as_weapons.degradation_dice_per_page"] = Is(EnvRules.SceneryAsWeapons.DegradationDicePerPage),
+            ["scenery_as_weapons.scenery_as_weapons.degradation_applies_to"] = Is(EnvRules.SceneryAsWeapons.DegradationAppliesTo),
+            ["scenery_as_weapons.scenery_as_weapons.degradation_is_only_for_these_purposes"] = Is(EnvRules.SceneryAsWeapons.DegradationIsOnlyForThesePurposes),
+            ["scenery_as_weapons.scenery_as_weapons.ordinary_human_strength_degrades_nothing"] = Is(EnvRules.SceneryAsWeapons.OrdinaryHumanStrengthDegradesNothing),
+            ["scenery_as_weapons.scenery_as_weapons.edge_cases_left_to"] = Is(EnvRules.SceneryAsWeapons.EdgeCasesLeftTo),
+            // massive_objects
+            ["massive_objects.massive_objects.works_like"] = Is(EnvRules.MassiveObjects.WorksLike),
+            ["massive_objects.massive_objects.uses_instead_of_body_or_structure"] = Is(EnvRules.MassiveObjects.UsesInsteadOfBodyOrStructure),
+            ["massive_objects.massive_objects.requires"] = Is(EnvRules.MassiveObjects.Requires),
+            ["massive_objects.massive_objects.always_breaks_apart_after"] = Is(EnvRules.MassiveObjects.AlwaysBreaksApartAfter),
+            // toxins
+            ["toxins.toxins.toxins_are"] = Is(EnvRules.Toxins.ToxinsAre),
+            ["toxins.toxins.toxins_are_described_as"] = Is(EnvRules.Toxins.ToxinsAreDescribedAs),
+            ["toxins.toxins.work_like"] = Is(EnvRules.Toxins.WorkLike),
+            ["toxins.toxins.resisted_only_with"] = Is(EnvRules.Toxins.ResistedOnlyWith),
+            ["toxins.toxins.passive_defenses_named"] = Is(EnvRules.Toxins.PassiveDefensesNamed),
+            ["toxins.toxins.resistance_is_a_power"] = Is(EnvRules.Toxins.ResistanceIsAPower),
+            ["toxins.toxins.the_pros_and_cons_apply_only_to"] = Is(EnvRules.Toxins.TheProsAndConsApplyOnlyTo),
+            ["toxins.toxins.unless"] = Is(EnvRules.Toxins.Unless),
+            // toxin_con_caustic
+            ["toxin_con_caustic.toxin_option.transcribed_here"] = Is(false),
+            ["toxin_con_caustic.toxin_option.printed_name"] = Is(EnvRules.ToxinOptions[0].PrintedName),
+            ["toxin_con_caustic.toxin_option.option_kind"] = Is(EnvRules.ToxinOptions[0].OptionKind),
+            ["toxin_con_caustic.toxin_option.detail_store"] = Is(EnvRules.ToxinOptionDetailStore),
+            ["toxin_con_caustic.toxin_option.power_id"] = Is(EnvRules.ToxinOptions[0].PowerId),
+            ["toxin_con_caustic.toxin_option.option_id"] = Is(EnvRules.ToxinOptions[0].OptionId),
+            // toxin_pro_lethal_disease
+            ["toxin_pro_lethal_disease.toxin_option.transcribed_here"] = Is(false),
+            ["toxin_pro_lethal_disease.toxin_option.printed_name"] = Is(EnvRules.ToxinOptions[1].PrintedName),
+            ["toxin_pro_lethal_disease.toxin_option.option_kind"] = Is(EnvRules.ToxinOptions[1].OptionKind),
+            ["toxin_pro_lethal_disease.toxin_option.detail_store"] = Is(EnvRules.ToxinOptionDetailStore),
+            ["toxin_pro_lethal_disease.toxin_option.power_id"] = Is(EnvRules.ToxinOptions[1].PowerId),
+            ["toxin_pro_lethal_disease.toxin_option.option_id"] = Is(EnvRules.ToxinOptions[1].OptionId),
+            // toxin_pro_non_lethal_disease
+            ["toxin_pro_non_lethal_disease.toxin_option.transcribed_here"] = Is(false),
+            ["toxin_pro_non_lethal_disease.toxin_option.printed_name"] = Is(EnvRules.ToxinOptions[2].PrintedName),
+            ["toxin_pro_non_lethal_disease.toxin_option.option_kind"] = Is(EnvRules.ToxinOptions[2].OptionKind),
+            ["toxin_pro_non_lethal_disease.toxin_option.detail_store"] = Is(EnvRules.ToxinOptionDetailStore),
+            ["toxin_pro_non_lethal_disease.toxin_option.power_id"] = Is(EnvRules.ToxinOptions[2].PowerId),
+            ["toxin_pro_non_lethal_disease.toxin_option.option_id"] = Is(EnvRules.ToxinOptions[2].OptionId),
+            // diseases_table
+            ["diseases_table.diseases_table.footnoted_row_names"] = Is(EnvRules.DiseasesFootnotedRowNames),
+            ["diseases_table.diseases_table.options_are_referenced_not_transcribed"] = Is(EnvRules.ToxinTableOptionsAreReferencedNotTranscribed),
+            // drugs_and_poisons_table
+            ["drugs_and_poisons_table.drugs_and_poisons_table.footnoted_row_names"] = Is(EnvRules.DrugsFootnotedRowNames),
+            ["drugs_and_poisons_table.drugs_and_poisons_table.options_are_referenced_not_transcribed"] = Is(EnvRules.ToxinTableOptionsAreReferencedNotTranscribed)
         };
 
     private static HashSet<string> RegisteredPaths =>
@@ -5726,10 +6991,11 @@ public sealed class PlayRulesDataTests
         // a records-to-classes refactor, a filter that matched everything — would report no faults
         // and prove nothing, which is the exact shape of the four guard failures CLAUDE.md lists.
         Assert.True(
-            leaves >= 590,
-            $"The walk found only {leaves} fact fields across the five files, which is fewer than "
-            + "the entries carry — there are 634 today, 98 of them Chapter 3's and 388 Chapter "
-            + "4's. It has stopped reading the models; fix the walk, not this number.");
+            leaves >= 820,
+            $"The walk found only {leaves} fact fields across the seven files, which is fewer than "
+            + "the entries carry — there are 878 today, 98 of them Chapter 3's, 388 Chapter 4's "
+            + "and 174 Chapter 7's. It has stopped reading the models; fix the walk, not this "
+            + "number.");
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
@@ -5777,6 +7043,9 @@ public sealed class PlayRulesDataTests
 
         if (Equipment().Entries.Any(e => string.Equals(e.Id, entryId, StringComparison.Ordinal)))
             return nameof(CanonicalEquipmentRules);
+
+        if (Environment().Entries.Any(e => string.Equals(e.Id, entryId, StringComparison.Ordinal)))
+            return nameof(CanonicalEnvironmentRules);
 
         return nameof(CanonicalChallengeRules);
     }
@@ -6134,7 +7403,8 @@ public sealed class PlayRulesDataTests
             .Concat(Resolve().Entries.Select(e => (e.Id, (object)e)))
             .Concat(Combat().Entries.Select(e => (e.Id, (object)e)))
             .Concat(Gritty().Entries.Select(e => (e.Id, (object)e)))
-            .Concat(Equipment().Entries.Select(e => (e.Id, (object)e)));
+            .Concat(Equipment().Entries.Select(e => (e.Id, (object)e)))
+            .Concat(Environment().Entries.Select(e => (e.Id, (object)e)));
 
     /// <summary>All three files, as (file, id, source_ref, corroborated_by) rows.</summary>
     private static IEnumerable<(string File, string Id, string SourceRef, IReadOnlyList<string>? CorroboratedBy)>
@@ -6144,7 +7414,8 @@ public sealed class PlayRulesDataTests
             .Concat(Resolve().Entries.Select(e => ("resolve.json", e.Id, e.SourceRef, e.CorroboratedBy)))
             .Concat(Combat().Entries.Select(e => ("combat.json", e.Id, e.SourceRef, e.CorroboratedBy)))
             .Concat(Gritty().Entries.Select(e => ("gritty.json", e.Id, e.SourceRef, e.CorroboratedBy)))
-            .Concat(Equipment().Entries.Select(e => ("equipment.json", e.Id, e.SourceRef, e.CorroboratedBy)));
+            .Concat(Equipment().Entries.Select(e => ("equipment.json", e.Id, e.SourceRef, e.CorroboratedBy)))
+            .Concat(Environment().Entries.Select(e => ("environment.json", e.Id, e.SourceRef, e.CorroboratedBy)));
 
     /// <summary>The descriptions of one file, as (id, description) pairs.</summary>
     private static IEnumerable<(string Id, string Description)> DescriptionsIn(string fileName) => fileName switch
@@ -6154,6 +7425,7 @@ public sealed class PlayRulesDataTests
         "combat.json" => Combat().Entries.Select(e => ($"combat.json/{e.Id}", e.Description)),
         "gritty.json" => Gritty().Entries.Select(e => ($"gritty.json/{e.Id}", e.Description)),
         "equipment.json" => Equipment().Entries.Select(e => ($"equipment.json/{e.Id}", e.Description)),
+        "environment.json" => Environment().Entries.Select(e => ($"environment.json/{e.Id}", e.Description)),
         _ => Resolve().Entries.Select(e => ($"resolve.json/{e.Id}", e.Description))
     };
 }
