@@ -3620,6 +3620,64 @@ public sealed class PlayRulesDataTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// <b>The hazard ceiling cannot be what limits a minor hazard, and the entry that records the
+    /// unit clash has to say which way round it runs.</b>
+    ///
+    /// <para>p.106 charges a minor hazard 1 point per <em>minute</em> and caps every hazard at
+    /// 1 point per <em>page</em>, and no page in the book gives a number converting one into the
+    /// other. <b>It does state the direction, though, and this store already carries it</b>:
+    /// <c>combat.json</c>'s <c>pages_and_turns</c> transcribes p.73's "a page represents a few
+    /// seconds of time in the game world", which the Glossary prints again on p.7. A page no longer
+    /// than a minute makes the per-page allowance the larger of the two over any stretch of time, so
+    /// the ceiling is slack against the minor rate rather than clamping it.</para>
+    ///
+    /// <para><b>The entry said the opposite.</b> Its <c>ambiguity</c> read that ten minutes in smoke
+    /// "could have taken at most a handful by the ceiling", which is true only of a page longer than
+    /// a minute and would send a simulator clamping damage the book does not clamp — a
+    /// result-changing reading, on one of the two ambiguities this chapter's guide singles out as
+    /// result-changing. Nothing caught it, because
+    /// <see cref="TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect"/> asserts an ambiguity is
+    /// <em>present</em> and says nothing at all about what it claims.</para>
+    ///
+    /// <para>So the comparison is made here against the unit the other file defines rather than left
+    /// to prose, and the entry is required to name the fact that settles the direction. What stays
+    /// genuinely open — how many pages a minute is, and what the ceiling means when a minor and a
+    /// major hazard overlap — is what the rewritten ambiguity is now about.</para>
+    /// </summary>
+    [Fact]
+    public void TheHazardCeilingIsSlackAgainstTheMinorRateItIsPrintedBeside()
+    {
+        var entry = EnvironmentEntryById("hostile_environments");
+        var hazard = entry.HostileEnvironment!;
+        var page = CombatEntryById("pages_and_turns").Page!;
+
+        // Positive control: both rates were found and are rates. A ceiling of nothing against a rate
+        // of nothing satisfies the comparison below without either figure having been read.
+        Assert.True(hazard.MinorDamagePerMinuteAfterThat > 0, "the minor hazard rate is not a rate");
+        Assert.True(hazard.MaximumHazardDamagePerPage > 0, "the hazard ceiling is not a rate");
+
+        // The unit fact, taken from the file that transcribes the page it is printed on rather than
+        // typed here: a page is seconds, so a minute is more than one page.
+        Assert.Contains("seconds", page.APageIs, StringComparison.Ordinal);
+        Assert.DoesNotContain("minute", page.APageIs, StringComparison.Ordinal);
+
+        // Which is all the arithmetic needs. A page is no longer than a minute, so a minute buys at
+        // least one page's worth of the ceiling, and the ceiling is the larger allowance.
+        Assert.True(
+            hazard.MaximumHazardDamagePerPage >= hazard.MinorDamagePerMinuteAfterThat,
+            $"a minor hazard spends {hazard.MinorDamagePerMinuteAfterThat} a minute against a "
+            + $"ceiling of {hazard.MaximumHazardDamagePerPage} a page, and a page is "
+            + $"'{page.APageIs}' — so the ceiling would be what limits a minor hazard after all");
+
+        // And the entry records that, rather than the other way round: it has to name the unit and
+        // the page that settle the direction, because that is the half of this the book does answer.
+        var ambiguity = entry.Ambiguity ?? "";
+
+        Assert.Contains("seconds", ambiguity, StringComparison.Ordinal);
+        Assert.Contains("p.73", ambiguity, StringComparison.Ordinal);
+    }
+
     /// <summary>Which fields an environment entry that defers to another store may carry.</summary>
     private static readonly HashSet<string> EnvironmentReferenceOnlyFields =
         new HashSet<string>(StringComparer.Ordinal)

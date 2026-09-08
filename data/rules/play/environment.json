@@ -263,7 +263,7 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
-      "ambiguity": "The ceiling is stated per page and a minor hazard's rate is stated per minute, and a page is not a minute - the two units are never reconciled. A character standing in smoke for ten minutes has taken ten points by the minor rate and could have taken at most a handful by the ceiling, depending on how many pages ten minutes is, which no page says."
+      "ambiguity": "The ceiling is stated per page and a minor hazard's rate is stated per minute, and no page in the book gives a number that converts one unit into the other. What the book does settle is the direction, and it prints it twice - Ch.4 p.73 and the Glossary p.7 both say a page is a few seconds - so a minute is many pages and the per-page ceiling is the larger allowance of the two. It is therefore slack against a minor hazard rather than clamping it: ten minutes in a smoke-filled room costs ten points at the minor rate, where a point a page over the same stretch would permit far more. What is left open is the arithmetic and the overlap - nothing says how many pages a minute is, so a simulator tracking pages has to invent the conversion for the minor rate, and nothing says what the ceiling means when a minor hazard and a major one are suffered together, since the major already spends the whole of it on its own."
     },
     {
       "id": "suffocation",
