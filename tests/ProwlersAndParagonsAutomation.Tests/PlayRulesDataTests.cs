@@ -3738,6 +3738,15 @@ public sealed class PlayRulesDataTests
     /// <c>powers.json</c>; Toxin is Chapter 2's generic Con and is in <c>cons.json</c>. So the
     /// lookup tries both stores and the test asserts which one answered, or a reference could drift
     /// from one to the other unnoticed.</para>
+    ///
+    /// <para><b>A Power-specific option is resolved against the Power the row inflicts, not against
+    /// <c>powers.json</c> at large.</b> All three of this section's options are printed with their
+    /// scope in the sentence — "This applies only to the Slay Power", "only to the Stun Power" — so
+    /// a row that hangs one off the other Power is wrong in exactly the way p.108 forbids, and a
+    /// lookup asking only whether the id exists somewhere cannot see it. Measured rather than
+    /// reasoned about: the Common Cold row moved onto <c>lethal_disease</c>, which is Slay's option
+    /// on a Stun row, passed. A row naming two Powers — Mustard Gas is Slay and Stun — clears if the
+    /// option sits on either, because the page scopes the option and not the row.</para>
     /// </summary>
     [Fact]
     public void EveryProOrConTheToxinTablesNameResolvesInTheCharacterRules()
@@ -3779,25 +3788,57 @@ public sealed class PlayRulesDataTests
             else faults.Add($"{entry.Id}: powers.json has no '{option.OptionId}' on the Power '{option.PowerId}'");
         }
 
-        // And every option either table's rows name, wherever it lives.
+        // And every option either table's rows name, wherever it lives — <b>against the Power that
+        // row inflicts</b>, not merely somewhere in powers.json. All three of this section's options
+        // are printed "this applies only to the Slay Power" or "only to the Stun Power", so a row is
+        // wrong in exactly the way the page forbids when it hangs one off the other Power, and a
+        // lookup that only asked whether the id exists somewhere cannot see that. Measured: a
+        // Common Cold row moved onto `lethal_disease` — Slay's option, on a Stun row — passed.
         var referenced = EnvironmentEntryById("diseases_table").DiseasesTable!.Rows
-            .Select(r => (Row: r.Name, r.Options))
+            .Select(r => (Row: r.Name, Powers: (IReadOnlyList<string>)[r.Power], r.Options))
             .Concat(EnvironmentEntryById("drugs_and_poisons_table").DrugsAndPoisonsTable!.Rows
-                .Select(r => (Row: r.Name, r.Options)))
+                .Select(r => (
+                    Row: r.Name,
+                    Powers: (IReadOnlyList<string>)[.. r.Effects.Select(e => e.Power)],
+                    r.Options)))
             .ToList();
 
         Assert.Equal(
             EnvRules.TableSizes.Diseases + EnvRules.TableSizes.DrugsAndPoisons,
             referenced.Count);
 
-        foreach (var (row, options) in referenced)
+        foreach (var (row, powers, options) in referenced)
         {
             Assert.NotEmpty(options);
+
+            // The Power a row names is the printed name; powers.json keys on the id. A row whose
+            // Power resolved to nothing would make every Power-specific lookup below fail open.
+            var powerIds = powers
+                .Select(name => name.ToLowerInvariant())
+                .ToList();
+
+            Assert.NotEmpty(powerIds);
+
+            foreach (var powerId in powerIds)
+            {
+                Assert.Contains(
+                    powerId,
+                    _f.Rules.Powers.Select(p => p.Id),
+                    StringComparer.Ordinal);
+            }
 
             foreach (var id in options)
             {
                 if (generic.Contains(id)) resolvedGenerically++;
-                else if (onPowers.Any(pair => string.Equals(pair.Item2, id, StringComparison.Ordinal))) resolvedOnAPower++;
+                else if (powerIds.Any(powerId => onPowers.Contains((powerId, id)))) resolvedOnAPower++;
+                else if (onPowers.Any(pair => string.Equals(pair.Item2, id, StringComparison.Ordinal)))
+                {
+                    faults.Add(
+                        $"'{row}' inflicts {string.Join(" and ", powers)} and names the Pro or Con "
+                        + $"'{id}', which powers.json carries on "
+                        + string.Join(", ", onPowers.Where(p => p.Item2 == id).Select(p => $"'{p.Item1}'"))
+                        + " and not on that Power");
+                }
                 else faults.Add($"'{row}' names the Pro or Con '{id}', which is in neither store");
             }
         }
