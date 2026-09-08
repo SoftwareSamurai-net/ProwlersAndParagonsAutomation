@@ -3564,6 +3564,62 @@ public sealed class PlayRulesDataTests
             StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// <b>Chapter 4 works out how far a throw goes and Chapter 7 says what is being thrown, so the
+    /// two chapters have to mean the same thing by both halves of one formula.</b>
+    ///
+    /// <para>p.74's <c>throwing_range</c> prints <c>throwing rank = Might − the object's weight
+    /// rank</c>. p.108 supplies both operands from the other end: <c>scenery_as_weapons</c> makes a
+    /// thrown object an attack on the same Trait, and <c>massive_objects</c> is the rule that puts
+    /// the very figure the formula subtracts in place of an object's Structure. Neither chapter
+    /// restates the other, which is why this is a check and not a duplication — but a file that
+    /// moved a throw onto Agility, or renamed the weight figure, would leave Chapter 4's formula
+    /// subtracting something no page supplies.</para>
+    ///
+    /// <para><b>The expectation is parsed out of the formula string rather than typed here</b>, the
+    /// way <see cref="TheEngineComputesTheEdgeThisChapterPrints"/> parses its operands: a formula
+    /// rewritten to name a different Trait produces a different operand and fails, where two
+    /// hard-coded strings would go on agreeing with each other for ever.</para>
+    ///
+    /// <para><b>The one thing the two chapters do not agree about is on record on both sides.</b>
+    /// "Weight rank" is defined nowhere in the book, and this pair of pages is where that costs
+    /// something — so <c>massive_objects</c>' <c>ambiguity</c> has to name Chapter 4's formula, or
+    /// the silence would be recorded where it does no harm and not where it does.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoChaptersThatPrintAThrowAgreeAboutItsTwoOperands()
+    {
+        var formula = CombatEntryById("throwing_range").Throwing!.RankFormula;
+
+        var operands = formula[(formula.IndexOf('=', StringComparison.Ordinal) + 1)..]
+            .Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        // Positive control on the parse: a formula that had stopped being a subtraction of two
+        // named things would leave one operand, and "both operands agree" would hold vacuously.
+        Assert.Equal(2, operands.Length);
+        Assert.NotEqual(operands[0], operands[1], StringComparer.Ordinal);
+
+        var scenery = EnvironmentEntryById("scenery_as_weapons").SceneryAsWeapons!;
+        var massive = EnvironmentEntryById("massive_objects").MassiveObjects!;
+
+        // The Trait the distance is worked out from is the Trait Chapter 7 rolls the throw on.
+        Assert.Equal(operands[0], scenery.ThrownAttackTrait, StringComparer.Ordinal);
+
+        // And what the formula subtracts is exactly what Chapter 7 puts in an object's place.
+        Assert.Equal(operands[1], massive.UsesInsteadOfBodyOrStructure, StringComparer.Ordinal);
+
+        // Chapter 7 makes a thrown object a ranged attack, which is the whole reason a distance has
+        // to be worked out for it at all — so Chapter 4's table is measuring this throw.
+        Assert.Contains("ranged", scenery.ThrownAttackIs, StringComparison.Ordinal);
+
+        // The gap is recorded where it bites. Chapter 4 subtracts a rank no page defines, and the
+        // entry that supplies that rank is the one that has to say so.
+        Assert.Contains(
+            "Chapter 4",
+            EnvironmentEntryById("massive_objects").Ambiguity ?? "",
+            StringComparison.Ordinal);
+    }
+
     /// <summary>Which fields an environment entry that defers to another store may carry.</summary>
     private static readonly HashSet<string> EnvironmentReferenceOnlyFields =
         new HashSet<string>(StringComparer.Ordinal)
