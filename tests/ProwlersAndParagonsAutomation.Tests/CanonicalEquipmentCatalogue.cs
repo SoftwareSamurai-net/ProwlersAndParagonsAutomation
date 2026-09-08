@@ -3,7 +3,7 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// <summary>
 /// Chapter 6's Weapon Features glossary (pp.88, 90), its equipment list (p.91), Custom Gear (p.92)
 /// and the Pros and Cons rule for gear (p.93), transcribed from the rulebook. This is what the rest
-/// of <c>data/rules/equipment.json</c> is checked against.
+/// of <c>data/rules/gear.json</c> is checked against.
 ///
 /// <para><b>Same standing as <see cref="CanonicalEquipmentRules"/>: this file is the rulebook.</b>
 /// Do not "fix" a failing test by editing a value here.</para>

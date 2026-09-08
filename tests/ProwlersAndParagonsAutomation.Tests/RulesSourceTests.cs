@@ -52,19 +52,56 @@ public sealed class RulesSourceTests
     }
 
     /// <summary>
+    /// Files in <c>data/rules/</c> that <see cref="RulesRepository"/> deliberately does not load, so
+    /// the check below is a check and not a running total. <b>It is an allowlist of two and every
+    /// entry has to earn its place, because "the list has to match what is shipped" is the whole
+    /// point of that check</b> — an exemption is how it stops being one.
+    ///
+    /// <para><c>meta.json</c> is provenance rather than rules. <c>gear.json</c> is Chapter 6
+    /// pp.88–93, extracted before anything consumes it: the data is verified first and wired up
+    /// second, which is the order the 141 Powers were done in and the order that made them
+    /// trustworthy. <c>EquipmentDataTests</c> is what reads it meanwhile, and putting it on
+    /// <see cref="RulesRepository.DataFileNames"/> is a deliberate act by the slice that adds a
+    /// collection for it — at which point this entry comes out.</para>
+    /// </summary>
+    private static readonly string[] NotLoadedByTheRepository = ["meta.json", "gear.json"];
+
+    /// <summary>
     /// DataFileNames is the contract a self-loading host works from. If a rules file is
     /// added and not listed, a browser build silently fetches an incomplete rules set — so
-    /// the list has to match what is actually shipped.
+    /// the list has to match what is actually shipped, bar the two files above.
     /// </summary>
     [Fact]
     public void DataFileNamesListsEveryShippedRulesFile()
     {
         var onDisk = Directory.GetFiles(RulesFixture.DataPath, "*.json")
             .Select(Path.GetFileName)
-            .Where(n => n != "meta.json")      // provenance, not rules the engine loads
+            .OfType<string>()
+            .Where(n => !NotLoadedByTheRepository.Contains(n, StringComparer.Ordinal))
             .Order();
 
         Assert.Equal(onDisk, RulesRepository.DataFileNames.Order());
+    }
+
+    /// <summary>
+    /// <b>An exemption for a file that is not there permits a name for nothing.</b> Each entry above
+    /// has to name a file that exists and that the repository really does not load — otherwise a
+    /// rules file could be added under a name the allowlist happens to carry and go unfetched in
+    /// every browser, which is exactly the failure the check above exists for.
+    /// </summary>
+    [Fact]
+    public void EveryFileExemptedFromThatListIsThereAndIsReallyNotLoaded()
+    {
+        Assert.NotEmpty(NotLoadedByTheRepository);
+
+        foreach (var name in NotLoadedByTheRepository)
+        {
+            Assert.True(File.Exists(Path.Combine(RulesFixture.DataPath, name)),
+                $"{name} is exempted from the shipped-files check and is not in data/rules/. An "
+                + "exemption for a file that has gone permits the name for nothing — delete it.");
+
+            Assert.DoesNotContain(name, RulesRepository.DataFileNames);
+        }
     }
 
     [Fact]

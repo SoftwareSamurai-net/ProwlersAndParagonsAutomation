@@ -3,7 +3,7 @@ namespace ProwlersAndParagonsAutomation.Engine.Models;
 /// <summary>
 /// Chapter 6's creation-side equipment, pp.88-93: armour, shields, the Weapon Features
 /// glossary, the mundane equipment list, Custom Gear and the Pros and Cons rule for gear.
-/// Read from <c>data/rules/equipment.json</c>.
+/// Read from <c>data/rules/gear.json</c>.
 ///
 /// <para><b>Nothing loads this yet, and that is deliberate.</b> The file is not on
 /// <see cref="RulesRepository.DataFileNames"/>, so no host fetches it and
@@ -63,6 +63,7 @@ public record EquipmentHeaderModel
     public string WhyHereAndNotInThePlayStore { get; init; } = "";
     public string TheWeaponTablesAreACopyAndThatIsDeliberate { get; init; } = "";
     public string NotYetLoaded { get; init; } = "";
+    public string WhyItIsCalledGearAndNotEquipment { get; init; } = "";
     public string PlacementNote { get; init; } = "";
     public IReadOnlyList<string> VerifiedFieldsClosedList { get; init; } = [];
     public string DescriptionsAreOurs { get; init; } = "";

@@ -2,7 +2,7 @@ namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
 /// Chapter 6's armour and shields, printed p.88, transcribed from the rulebook. This is what the
-/// armour half of <c>data/rules/equipment.json</c> is checked against.
+/// armour half of <c>data/rules/gear.json</c> is checked against.
 ///
 /// <para><b>Same standing as <see cref="CanonicalEquipmentRules"/>: this file is the rulebook.</b>
 /// Do not "fix" a failing test by editing a value here — open p.88.</para>

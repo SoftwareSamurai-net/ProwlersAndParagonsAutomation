@@ -9,7 +9,7 @@ namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
 /// <b>Chapter 6's creation-side equipment, pp.88-93, held to the page.</b>
-/// <c>data/rules/equipment.json</c> carries armour, shields, the Weapon Features glossary, the
+/// <c>data/rules/gear.json</c> carries armour, shields, the Weapon Features glossary, the
 /// mundane equipment list, Custom Gear and p.93's Pros and Cons rule, and this is what checks it.
 ///
 /// <para><b>Nothing in the application reads that file yet</b> — it is deliberately absent from
@@ -29,7 +29,7 @@ public sealed class EquipmentDataTests
 
     public EquipmentDataTests(RulesFixture fixture) => _f = fixture;
 
-    private const string FileName = "equipment.json";
+    private const string FileName = "gear.json";
     private const int ChapterFirstPage = 87;
     private const int ChapterLastPage = 104;
 
