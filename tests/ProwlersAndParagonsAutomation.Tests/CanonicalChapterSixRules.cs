@@ -533,25 +533,30 @@ public static class CanonicalChapterSixRules
 
     /// <summary>
     /// p.96's own arithmetic, replayed. Each stock vehicle's printed Vehicle Point total should be
-    /// its characteristics priced by CHARACTERISTICS plus its features priced by VEHICLE FEATURES.
-    /// <b>Five of the six come out exactly and the Submersible does not</b>, which is a fact about
-    /// the page rather than about the transcription — see that entry's <c>ambiguity</c>. The figure
-    /// is recorded so the discrepancy cannot quietly become two.
+    /// its characteristics priced by CHARACTERISTICS plus its features priced by VEHICLE FEATURES,
+    /// and <b>all six come out exactly</b>.
+    ///
+    /// <para><b>The Submersible only reconciles once "Rader (Sonar)" is read as the Power carrying
+    /// its own printed Con.</b> Ch.2 p.38 prints Radar at 3 Hero Points and, inside the same entry,
+    /// <c>CON Sonar (−1): This Power only works underwater</c> — so an underwater vehicle's sonar
+    /// is a 2 Hero Point Power, and 2 Vehicle Points through Unique Systems. Read as a bare 3-point
+    /// Radar it comes to fifteen against a printed fourteen, which this repository recorded as the
+    /// book's own arithmetic being one out. It is not: the parenthesis names the Con.</para>
     /// </summary>
     public static class StockVehicleArithmetic
     {
-        /// <summary>Stock vehicles whose printed total the rules on the same page reproduce.</summary>
+        /// <summary>Every stock vehicle: the rules on p.96 reproduce all six printed totals.</summary>
         public static readonly string[] ReconcileExactly =
-            ["Helicopter", "Jet Fighter", "Motorcycle", "Speedboat", "Sports Car"];
+            ["Helicopter", "Jet Fighter", "Motorcycle", "Speedboat", "Sports Car", "Submersible"];
 
-        /// <summary>The one that does not, and by how much the rules overshoot its printed total.</summary>
-        public const string DoesNotReconcile = "Submersible";
+        /// <summary>Ch.2 p.38: Radar is a flat 3 Hero Points.</summary>
+        public const int RadarFlatCost = 3;
 
-        /// <inheritdoc cref="DoesNotReconcile"/>
-        public const int SubmersibleOvershoot = 1;
+        /// <summary>Ch.2 p.38, inside the Radar entry: "CON Sonar (−1)".</summary>
+        public const int SonarConModifier = -1;
 
-        /// <summary>Ch.2 p.38 prices Radar at 3 HP, which Unique Systems converts one for one.</summary>
-        public const int SonarCostAsUniqueSystem = 3;
+        /// <summary>What p.96's "Rader (Sonar)" costs, and Unique Systems converts one for one.</summary>
+        public const int SonarCostAsUniqueSystem = RadarFlatCost + SonarConModifier;
     }
 
     /// <summary>

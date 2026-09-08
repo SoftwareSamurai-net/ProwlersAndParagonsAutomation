@@ -145,17 +145,20 @@ names beside their Body and a separate block of Speed, Control and Weapons. Pair
 in printed order is recorded as an `interpretation` on each entry rather than as a fact, and it was
 confirmed against the PDF with `RulebookExtractor --page 97` and `--page 98`: every Body row and its
 figures share a baseline exactly. **Three witnesses hold it where that diagnostic cannot run** — every
-capital-ship row's Control is p.94's −3d per 30 Health (nine rows at once), five of p.96's stock
+capital-ship row's Control is p.94's −3d per 30 Health (nine rows at once), all six of p.96's stock
 vehicles reprint a row characteristic for characteristic, and p.96's Foe example reprints the sedan's
 7d Body. A misalignment of one row breaks all three, which was measured by rotating one table's
 figures against its names.
 
-**One printed total does not reconcile, and it is recorded rather than repaired.** Priced through the
-rules on its own page — 1 Vehicle Point per rank of Body, Speed and Weapons, 2 per rank of Control,
-plus the features — the **Submersible** comes to 15 Vehicle Points against a printed **14**. The
-other five stock vehicles come out exactly, and no reading of the Passengers rating reconciles the
-Submersible without breaking the Speedboat. It is an `ambiguity` on the entry and an asserted
-overshoot of 1 in the tests, so it cannot quietly become two.
+**All six printed totals reconcile, and the sixth took a Con to get there.** Priced through the rules
+on its own page — 1 Vehicle Point per rank of Body, Speed and Weapons, 2 per rank of Control, plus
+the features — every stock vehicle comes out at its printed total exactly. The **Submersible** was
+recorded here as coming to 15 against a printed **14**, which was wrong: its feature line prints
+`Rader (Sonar)`, and the parenthesis names the Con that Ch.2 p.38 prints inside the Radar entry —
+`CON Sonar (−1): This Power only works underwater`. Radar is 3 Hero Points, the Con takes it to 2,
+and Unique Systems converts one for one, so the sonar is 2 Vehicle Points and the total is 14. The
+test derives that price out of `powers.json` rather than restating it, so a change to Radar or to
+its Con fails there instead of leaving a stale constant behind.
 
 **What is still owed on these three files is a consumer, not a reading.** Nothing in the application
 loads them, which is why they are off `DataFileNames` — see

@@ -900,16 +900,18 @@ public sealed class Chapter6RulesDataTests
     /// <b>The strongest thing in this file: p.96's six stock vehicles priced through the rules on
     /// the same page.</b> Two transcriptions can agree and both be wrong; the authors' arithmetic
     /// cannot. Every characteristic rate and every feature price on the way to a printed total has
-    /// to be right for the total to come out, and five of the six do.
+    /// to be right for the total to come out, and all six do.
     ///
-    /// <para><b>The sixth does not, and it is recorded rather than tuned away.</b> The Submersible's
-    /// characteristics and features come to fifteen Vehicle Points against a printed fourteen, and
-    /// no reading of the Passengers rating reconciles both it and the Speedboat — reading the rating
-    /// as a total rather than as extra passengers fixes the Submersible and breaks the Speedboat.
-    /// The overshoot is asserted by name so it cannot quietly become two.</para>
+    /// <para><b>The Submersible reconciles only because "Rader (Sonar)" carries the Con.</b> Read
+    /// as a bare Radar at 3 Hero Points it comes to fifteen against a printed fourteen, which is
+    /// what this repository first recorded as the book overshooting itself. Ch.2 p.38 prints
+    /// <c>CON Sonar (−1)</c> inside the Radar entry, so an underwater vehicle's sonar is a 2 Hero
+    /// Point Power and 2 Vehicle Points — and the printed total is exact. That price is read back
+    /// out of <c>powers.json</c> here rather than restated, so a change to Radar or to its Con
+    /// fails this test instead of leaving a stale constant behind.</para>
     /// </summary>
     [Fact]
-    public void FiveOfTheSixStockVehiclesPriceOutExactlyThroughTheRulesOnTheirOwnPage()
+    public void TheSixStockVehiclesPriceOutExactlyThroughTheRulesOnTheirOwnPage()
     {
         var vehicles = Vehicles();
         var rates = vehicles.Entries.Single(e => e.Id == "unique_vehicle_characteristics").UniqueVehicleCharacteristics!;
@@ -930,14 +932,12 @@ public sealed class Chapter6RulesDataTests
 
             foreach (var printed in stock.Features) total += FeatureCost(printed);
 
-            if (total == stock.VehiclePoints) reconciled.Add(stock.Name);
-            else
-            {
-                Assert.Equal(StockSums.DoesNotReconcile, stock.Name);
-                Assert.Equal(
-                    stock.VehiclePoints + StockSums.SubmersibleOvershoot,
-                    total);
-            }
+            Assert.True(
+                total == stock.VehiclePoints,
+                $"{stock.Name} prices out at {total} Vehicle Points against a printed "
+                + $"{stock.VehiclePoints}.");
+
+            reconciled.Add(stock.Name);
         }
 
         Assert.Equal(
@@ -956,11 +956,33 @@ public sealed class Chapter6RulesDataTests
             }
 
             if (printed.StartsWith("Rader", StringComparison.Ordinal))
-                return StockSums.SonarCostAsUniqueSystem;
+                return RadarWithTheSonarCon();
 
             return features[printed].Cost
                    ?? throw new InvalidOperationException($"{printed} has no flat price");
         }
+    }
+
+    /// <summary>
+    /// What p.96's "Rader (Sonar)" costs, read out of <c>powers.json</c>: Radar's own flat Hero
+    /// Point price plus the modifier on the Sonar Con printed inside its Ch.2 entry. Unique Systems
+    /// converts a Hero Point to a Vehicle Point one for one, so this is the figure in both.
+    ///
+    /// <para>Derived rather than restated on purpose — the constant it replaced said 3, which is
+    /// Radar without its Con, and that is what made the Submersible look like a book error.</para>
+    /// </summary>
+    private static int RadarWithTheSonarCon()
+    {
+        var powers = JsonSerializer.Deserialize<List<PowerModel>>(Raw("powers.json"), Lenient)!;
+        var radar = powers.Single(p => p.Id == "radar");
+        var sonar = radar.PowerCons.Single(c => c.Id == "sonar");
+
+        // The canonical figures are what the page prints; if either moves, the transcription and
+        // this derivation disagree here rather than silently repricing a stock vehicle.
+        Assert.Equal(StockSums.RadarFlatCost, radar.CostFlat);
+        Assert.Equal(StockSums.SonarConModifier, sonar.CostModifier);
+
+        return radar.CostFlat!.Value + sonar.CostModifier!.Value;
     }
 
     /// <summary>
@@ -1084,8 +1106,6 @@ public sealed class Chapter6RulesDataTests
             "vehicles.json/capital_ships",
             // The Foe example's halving direction.
             "vehicles.json/foe_and_minion_pilots",
-            // The Submersible's printed total, which the page's own rules overshoot by one.
-            "vehicles.json/stock_vehicles",
             // Pricing a feature the chapter invites players to invent.
             "vehicles.json/vehicle_features",
             "headquarters.json/base_features",

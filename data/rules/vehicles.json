@@ -1117,7 +1117,7 @@
       "interpretation": {
         "what_this_is": "Two readings this project takes of the printed entries, neither stated on the page.",
         "passengers_rating": "A feature line reading Passengers 4 or Passengers 8 is read as that many extra passengers, which is what the Passengers feature is priced per. That reading is what makes the Helicopter and the Speedboat come out at their printed totals; reading the figure as a total including the two the vehicle already carries breaks the Speedboat.",
-        "submersible_sonar": "The Submersible's feature list prints Rader (Sonar), read as the Radar Power taken through the Unique Systems feature at three Vehicle Points, that being the Power's own Hero Point cost."
+        "submersible_sonar": "The Submersible's feature list prints Rader (Sonar), read as the Radar Power carrying its own printed Sonar Con, taken through the Unique Systems feature. Ch.2 p.38 prices Radar at three Hero Points and prints CON Sonar (-1): This Power only works underwater - so the Power costs two Hero Points, and two Vehicle Points. The parenthesis names a Con the Power itself offers, which is the reading that makes the Submersible come out at its printed total."
       },
       "description": "Six vehicles already built and priced, offered as a starting point for somebody who does not want to spend the points characteristic by characteristic. Each may then be modified.",
       "verified_fields": [
@@ -1126,7 +1126,7 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.6 Equipment, p.96",
-      "ambiguity": "Five of the six entries come out at their printed Vehicle Point total when priced by the rules on the same page. The Submersible does not: its characteristics and features come to fifteen against a printed fourteen, and no reading of Passengers reconciles both it and the Speedboat."
+      "ambiguity": null
     },
     {
       "id": "stock_vehicle_upgrade_limit",
