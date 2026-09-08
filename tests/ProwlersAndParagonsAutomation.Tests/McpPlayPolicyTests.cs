@@ -169,15 +169,24 @@ public sealed class McpPlayPolicyTests
     [Fact]
     public void ThePolicysNotAppliedListsAreTheEnginesNotAppliedLists()
     {
-        // The control, and the only half that can supply its own: the parse found a table with rows
-        // in it. Whichever branch the entries half takes below leans on this one working.
-        var switches = ListedUnder("**`Encounter.SwitchesNotYetApplied`**");
+        // <b>Both lists are empty now, so neither half can supply the parse's control any more</b>
+        // — the Gear Limit's two switches were the last rows in this document's table and the
+        // engine applies them. The instrument itself is driven in
+        // <c>PlayEngineStepTests.TheGuideTableParseCanFindRowsAndTellThemApart</c>, over a document
+        // written for it; here each half's obligation depends on the engine's own list.
+        if (Encounter.SwitchesNotYetApplied.Count == 0)
+        {
+            Assert.Contains("`Encounter.SwitchesNotYetApplied` is empty", Flowed, StringComparison.Ordinal);
+            Assert.DoesNotContain("**`Encounter.SwitchesNotYetApplied`**", Text, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("`Encounter.SwitchesNotYetApplied` is empty", Flowed, StringComparison.Ordinal);
 
-        Assert.NotEmpty(switches);
-
-        Assert.Equal(
-            Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
-            switches.Order(StringComparer.Ordinal));
+            Assert.Equal(
+                Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
+                ListedUnder("**`Encounter.SwitchesNotYetApplied`**").Order(StringComparer.Ordinal));
+        }
 
         if (Encounter.EntriesNotYetApplied.Count == 0)
         {
@@ -339,14 +348,15 @@ public sealed class McpPlayPolicyTests
     /// GM could name and the table has forgotten fails here rather than being found by a caller.
     /// </para>
     ///
-    /// <para><b>Every row says <c>bought</c> now, so the two-valued control has moved, and this
-    /// paragraph is where it says where to.</b> It used to be this table itself — four rows one way
-    /// and six the other — and a comparison whose right-hand side has one value cannot tell a
-    /// working classifier from one that has stopped recognising the phrase at all. The case left in
-    /// this engine is <see cref="Encounter.SwitchesNotYetApplied"/>: a run with the Gear Limit on
-    /// says <c>not yet implemented</c> on page one and a run with an applied setting on does not, so
-    /// the substring test is watched answering both ways at the end of this test. Should that pair
-    /// ever go one-valued too, this guard is asserting nothing and wants a new control before it is
+    /// <para><b>Every row says <c>bought</c> now, so the two-valued control has moved twice, and
+    /// this paragraph is where it says where to.</b> It used to be this table itself — four rows one
+    /// way and six the other — and a comparison whose right-hand side has one value cannot tell a
+    /// working classifier from one that has stopped recognising the phrase at all. It then moved to
+    /// <see cref="Encounter.SwitchesNotYetApplied"/>, which is empty now that p.80's Gear Limit is
+    /// applied. The case left is <see cref="NotYetImplemented"/>: a clause inside a rule that is
+    /// otherwise applied, written by <c>Step</c> resolving a Minion group's attack, and the
+    /// substring test is watched answering both ways at the end of this test. Should that pair ever
+    /// go one-valued too, this guard is asserting nothing and wants a new control before it is
     /// worth reading.</para>
     /// </summary>
     [Fact]
@@ -387,32 +397,29 @@ public sealed class McpPlayPolicyTests
 
         // The control: every purchase was driven, and the classifier that sorted them can still see
         // its own phrase. That second half is no longer this table's to supply — every row answers
-        // "bought" — so it is driven off Encounter.SwitchesNotYetApplied instead, which is the one
-        // two-valued case this engine has left: the Gear Limit is announced as not yet implemented
-        // on page one and an applied setting is not.
+        // "bought" — nor the Gear Limit switch's, which is applied now. It comes off
+        // NotYetImplemented instead: p.77's unapplied clause, written by Step resolving a Minion
+        // group's attack, against the same attack made by one character, which does not say it.
         Assert.Equal(
             Enum.GetValues<ResolveSpend>().Select(k => PlayTools.Wire(k.ToString())).Order(StringComparer.Ordinal),
             answered.Keys.Order(StringComparer.Ordinal));
 
-        var unapplied = new Encounter(_f.Play, new SeededDice(21), TableRules.Book with { RaisedGearLimit = true })
-            .Begin([hero, villain]);
-
-        var applied = new Encounter(_f.Play, new SeededDice(21), TableRules.Book with { FatalDamage = true })
-            .Begin([hero, villain]);
-
         Assert.True(
-            unapplied.Ledger.Lines.Any(l => l.Text.Contains("not yet implemented", StringComparison.Ordinal)),
-            "the Gear Limit switch is what is left of the 'not yet implemented' classifier this test "
-            + "sorts on, and a run that turns it on did not say it. With every row of the table "
+            NotYetImplemented.ARunThatSaysIt(_f.Play)
+                .Any(l => l.Text.Contains(NotYetImplemented.Phrase, StringComparison.Ordinal)),
+            "p.77's unapplied clause is what is left of the 'not yet implemented' classifier this "
+            + "test sorts on, and the run that should say it did not. With every row of the table "
             + "reading 'bought', nothing else here can tell a working classifier from one that has "
             + "stopped recognising the phrase.");
 
-        Assert.DoesNotContain(applied.Ledger.Lines, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            NotYetImplemented.ARunThatDoesNot(_f.Play),
+            l => l.Text.Contains(NotYetImplemented.Phrase, StringComparison.Ordinal));
 
-        // And that run really did turn a setting on, or the two above are two silent runs agreeing.
-        Assert.Contains(applied.Ledger.Lines, l =>
-            l.Text.Contains("table setting FatalDamage is on", StringComparison.Ordinal));
+        // And that run really did resolve an attack, or the two above are two silent runs agreeing.
+        Assert.Contains(
+            NotYetImplemented.ARunThatDoesNot(_f.Play),
+            l => l.Text.Contains("attacks", StringComparison.Ordinal));
 
         foreach (var (purchase, says) in claimed.OrderBy(row => row.Key, StringComparer.Ordinal))
         {

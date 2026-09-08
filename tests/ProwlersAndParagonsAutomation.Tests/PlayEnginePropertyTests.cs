@@ -113,6 +113,75 @@ public sealed class PlayEnginePropertyTests
     }
 
     /// <summary>
+    /// <b>p.87's Gear Limit is reached by the property's own generator, and it is measured over the
+    /// whole seed range rather than assumed.</b>
+    ///
+    /// <para>The generator names an item on half its attacks and picks a row of p.75's table at
+    /// random, so an attack that is <em>both</em> item-backed and on one of the two weapon rows is
+    /// a conjunction no single seed can be made to produce. Read as a per-seed control that would
+    /// be a check that cannot fail for the reason it appears to be about, which is this
+    /// repository's most common guard fault.</para>
+    ///
+    /// <para>Two things are measured, because the cap and the bonus are different branches: that
+    /// some attack was capped at all, and that some attack was matched to a weapon Chapter 6 prints.
+    /// The party walks in carrying a sword, a wand and a club, and two of those three are printed
+    /// types — which is the point of taking the object off the generator rather than naming one
+    /// here.</para>
+    ///
+    /// <para><b>This control has already earned its keep.</b> The generator named a fixed object on
+    /// half its attacks whoever was swinging, so every swing but one combatant's was refused for
+    /// empty hands and not one attack in twenty-five seeds reached the branch at all — see
+    /// <c>RandomPolicy.Swung</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheGearLimitIsReachedSomewhereInTheSeedRange()
+    {
+        var capped = new List<int>();
+        var priced = new List<int>();
+
+        foreach (var seed in SeedRange)
+        {
+            var encounter = new Encounter(_play, new SeededDice(seed));
+            var state = encounter.Begin(Party());
+            var policy = new RandomPolicy(new SeededDice(seed * 7919));
+
+            for (var i = 0; i < 60 && !state.Over; i++)
+            {
+                if (state.Current is not { } actor)
+                {
+                    state = encounter.Step(state, new EndPage("")).State;
+                    continue;
+                }
+
+                state = encounter.Step(state, policy.Choose(state, actor)).State;
+                state = encounter.Step(state, new EndTurn(actor.Id)).State;
+            }
+
+            var lines = state.Ledger.Lines
+                .Where(l => string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal))
+                .ToList();
+
+            if (lines.Exists(l => l.Text.Contains("comes to bear as", StringComparison.Ordinal)))
+                capped.Add(seed);
+
+            if (lines.Exists(l => l.Text.Contains(" at +", StringComparison.Ordinal)))
+                priced.Add(seed);
+        }
+
+        Assert.True(
+            priced.Count > 0,
+            "no seed made an attack with a weapon Chapter 6 prints, so the Weapon Bonus branch is "
+            + "outside every property here. Check that RandomPolicy still swings what its actor is "
+            + "holding, and that Party() still walks in with an object one of the tables prints.");
+
+        Assert.True(
+            capped.Count > 0,
+            $"{priced.Count} seeds priced a weapon and none of them was capped, so p.87's ceiling "
+            + "never bit inside the property. Check that Party() still carries a Trait above the "
+            + "Gear Limit.");
+    }
+
+    /// <summary>
     /// <b>An encounter always terminates inside its page limit.</b>
     ///
     /// <para>The limit is what makes that true rather than an argument that it would be: two

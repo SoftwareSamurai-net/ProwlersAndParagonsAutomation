@@ -244,30 +244,46 @@ turned one of these table settings on without saying that the numbers do not car
 
 **`Encounter.EntriesNotYetApplied` is empty**, and that is a claim held to the engine rather than a
 sentence: no rule of Chapters 3–5 that this server names is left unapplied. p.75's cover, size and
-visibility were the last three on that list and are applied now — see **Modifiers** below. **What is
-still not modelled is the table settings under it, and nothing else**: `anything_resolve_can` used
-to be the other half of this sentence and buys all ten of a Hero's purchases now, so the two Gear
-Limit switches below are the whole of what a run can be told is not carried.
+visibility were the last three on that list and are applied now — see **Modifiers** below.
 
-**`Encounter.SwitchesNotYetApplied`** — table settings you may turn on, which are announced on
-page one of the run and do not move the numbers:
+**`Encounter.SwitchesNotYetApplied` is empty** too, and it is the same kind of claim. `RaisedGearLimit`
+and `GearLimitRank` were the last two on it. p.80 caps the Trait rank you can bring to bear *when
+using mundane equipment* and points at Chapter 6 for the detail; until Chapter 6 was extracted a
+fight had the ceiling and no Weapon Bonus for it to bite on, so neither the raised limit nor the
+default one could honestly be applied. Both are applied now — see **The Gear Limit** below — and
+`raised_gear_limit` moves the numbers, so a run that turns it on is a run whose figures carry it.
 
-| Setting | Entry |
-|---|---|
-| `RaisedGearLimit` | `gritty_raised_gear_limit` |
-| `GearLimitRank` | `gritty_raised_gear_limit` |
+**Every gritty rule is applied**: `fatal_damage`, `tough_minions`, `wound_penalties`,
+`active_defenses_cost`, `hard_targets`, `close_range_penalty`, `the_drop`, `friendly_fire`,
+`slow_healing` and `raised_gear_limit`, with the initiative variant beside them.
 
-Both are the same rule, and they are listed because the **default** Gear Limit is not applied
-either. p.80 caps the Trait rank you can bring to bear *when using mundane equipment*, and there is
-no equipment in a fight here: an attack names a Trait and never an item, a combatant carries no
-gear, and there is no Weapon Bonus anywhere in this repository's rules data for a limit to bite on.
-So a raised limit could not honestly be applied before the default one, and neither is. Send
-`raised_gear_limit` if you like — page one will say the numbers do not carry it — and cap a
-sword-swinging character's rank yourself.
+**One clause of one applied rule is still declined, and it is the only thing in this engine that
+writes the phrase.** p.77's Minion group bonus is applied; the sentence narrowing it — that the
+bonus does not count towards penetrating cover or harming somebody behind Armor or a Force Field —
+is not, because the entry's own `ambiguity` says both are decided by the very attack roll the bonus
+is granted to and the page offers no mechanism for two totals against one defence roll. A group's
+attack says so on its own ledger line. Do not narrate that narrowing as though it happened.
 
-**Every other gritty rule is applied**: `FatalDamage`, `ToughMinions`, `WoundPenalties`,
-`ActiveDefensesCost`, `HardTargets`, `close_range_penalty`, `the_drop`, `friendly_fire` and
-`slow_healing`, with the initiative variant beside them.
+## The Gear Limit
+
+**An attack that names a held item is capped.** Send `item` on an attack and the actor's Trait rank
+is capped at the Gear Limit in force — 6d by default, or whatever the campaign raised it to — and
+the weapon's bonus dice are added to what is left. A 10d Might swinging a basic sword rolls 8d, and
+the ledger line says the limit, the rank before and after, and which printed weapon the item was
+matched to.
+
+**It reaches the two weapon rows of p.75's table and no others.** `melee_weapon` and `ranged_weapon`
+are mundane equipment being used. `physical_power` and `mental_power` roll a Power's own rank, which
+is not equipment, and `unarmed` is a fist by the table's own word — each writes a line saying which
+silence it is. **p.87's close-combat exception is yours to take, not the engine's**: where a
+bare-handed rank beats what the limit lets a weapon carry, the page lets the wielder roll the
+bare-handed one, and the way to say so is to send the attack as `unarmed` with the item still in
+hand and the damage kind the weapon buys.
+
+**An item Chapter 6 does not print gets no bonus and the line says so.** The object a fight opens
+with is your own phrase, so it is matched to the longest printed weapon name inside it — "a basic
+sword" is the Sword, "a battle axe" is the Battle Axe rather than the Axe. A rolled-up newspaper is
+capped and adds nothing, and what a Weapon Bonus for it would be is yours to decide.
 
 **`slow_healing` is half a rule about the days after a fight, and page one of every run that takes
 it says which half the fight is carrying.** Inside a scene: nobody heals on regaining consciousness
@@ -376,8 +392,9 @@ built, which is the other server's question.
 `knockback`, `luring` and `team_attack` for a Hero, and `suppress_flaw`, `misfortune`, `villainy`
 and `anything_resolve_can` for the GM. **And what `anything_resolve_can` may *name* is now every one
 of the ten too** — the last table of this document says so, row by row, and is the one place to read
-that from. **Nothing a spend can produce carries a `not yet implemented` line any more.** What still
-does is a table setting: the Gear Limit, announced on page one of a run that turns it on.
+that from. **Nothing a spend can produce carries a `not yet implemented` line any more**, and no
+table setting does either. What still does is one clause of one applied rule: p.77's Minion group
+bonus, above.
 
 That does not make every spend a spend that always happens. A resolved spend still refuses on the
 ledger when the fight is not in a state for it — no roll on the table, nobody down under an effect,

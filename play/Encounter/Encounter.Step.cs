@@ -94,21 +94,12 @@ public sealed partial class Encounter
                 $"{actor.Name} has no rank in {attack.TraitId}, so there is no pool to throw");
         }
 
-        // p.75's cover, and the half of it that is a refusal rather than a penalty. First, because
-        // an attack that cannot be made is one nothing else about should happen to: no team attack
-        // recorded against the target, no defences halved by a charge, no dice thrown.
-        if (CoverRefused(state, actor, target, attack, lines) is { } hidden) return hidden;
-        if (attack.Charge && ChargeRefused(state, actor, attack, lines) is { } refused) return refused;
-        if (attack.Team && TeamAttackRefused(state, actor, target, lines) is { } spent) return spent;
-
-        // p.76's "use it ... on that same page", and its refusal. Before the dice for the reason
-        // cover's is: an attack that cannot be made is one nothing should happen about.
-        //
-        // <b>And after every refusal above, which is load-bearing rather than tidy.</b>
-        // `HeldItem.Used` is what discharges "use it or toss it aside on that same page", so an
-        // attack that was refused marking it would keep a weapon past a page turn that should have
-        // taken it — a state change bought by a refusal. Moving this block up is the mutation
-        // ARefusedAttackDoesNotSpendThePageTheItemWasWonOn exists to catch.
+        // p.76's two refusals about the object, and p.87's ceiling on what it carries. <b>Before
+        // p.75's refusals below, and that ordering is load-bearing.</b> An attack made with
+        // something the actor is not holding, or with the object of a standing partial grab, is not
+        // an attack at all — so neither refusal below should report on it first — and the rank the
+        // cover refusal compares with an obstacle's Structure is the rank the item actually brings
+        // to bear, which p.87 caps and Chapter 6's Weapon Bonus then adds to.
         if (attack.Item is { Length: > 0 })
         {
             // p.76's deadlock, and it is checked before the hand is, so both parties are refused
@@ -116,6 +107,26 @@ public sealed partial class Encounter
             if (FightingOverIt(state, actor, attack.Item.Trim(), lines) is { } locked) return locked;
             if (UsingWhatTheyDoNotHold(state, actor, attack.Item.Trim(), lines) is { } empty) return empty;
 
+            rank = GearLimited(state, actor, attack, attack.Item.Trim(), rank, lines);
+        }
+
+        // p.75's cover, and the half of it that is a refusal rather than a penalty. Before the
+        // dice, because an attack that cannot be made is one nothing else about should happen to:
+        // no team attack recorded against the target, no defences halved by a charge, nothing
+        // thrown.
+        if (CoverRefused(state, actor, attack, target, rank, lines) is { } hidden) return hidden;
+        if (attack.Charge && ChargeRefused(state, actor, attack, lines) is { } refused) return refused;
+        if (attack.Team && TeamAttackRefused(state, actor, target, lines) is { } spent) return spent;
+
+        // p.76's "use it ... on that same page".
+        //
+        // <b>After every refusal above, which is load-bearing rather than tidy.</b>
+        // `HeldItem.Used` is what discharges "use it or toss it aside on that same page", so an
+        // attack that was refused marking it would keep a weapon past a page turn that should have
+        // taken it — a state change bought by a refusal. Moving this block up is the mutation
+        // ARefusedAttackDoesNotSpendThePageTheItemWasWonOn exists to catch.
+        if (attack.Item is { Length: > 0 })
+        {
             state = UseTheItem(state, actor, attack.Item.Trim(), lines);
             actor = state[actor.Id];
         }
@@ -125,7 +136,7 @@ public sealed partial class Encounter
 
         state = CommitToTheAttack(state, actor, attack);
 
-        var (defenceTrait, defencePool, defenceIsActive) = ChooseDefence(state, target, attack, lines);
+        var (defenceTrait, defencePool, defenceIsActive) = ChooseDefence(state, target, attack, rank, lines);
         var defenceRoll = _counter.Roll(defencePool, _dice);
 
         var after = defenceIsActive ? CountActiveDefence(state, target.Id) : state;
@@ -556,7 +567,8 @@ public sealed partial class Encounter
     /// the wall. <c>docs/guide/play-engine.md</c> records the reading.</para>
     /// </summary>
     private EncounterState? CoverRefused(
-        EncounterState state, Combatant actor, Combatant target, Attack attack, List<LedgerLine> lines)
+        EncounterState state, Combatant actor, Attack attack, Combatant target, int attackRank,
+        List<LedgerLine> lines)
     {
         if (attack.Cover == Cover.None && attack.CoverStructure is null) return null;
 
@@ -574,14 +586,12 @@ public sealed partial class Encounter
                 + "Nothing was rolled.");
         }
 
-        var rank = actor.Rank(attack.TraitId);
-
-        if (GetsThrough(rank, structure)) return null;
+        if (GetsThrough(attackRank, structure)) return null;
 
         return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
             $"{actor.Name} attacks {target.Name} through cover of Structure {structure} with "
-            + $"{attack.TraitId} at rank {rank}d, and p.75 requires {rule.AttackingThroughCoverRequires}. "
-            + "Nothing was rolled.");
+            + $"{attack.TraitId} at rank {attackRank}d, and p.75 requires "
+            + $"{rule.AttackingThroughCoverRequires}. Nothing was rolled.");
     }
 
     /// <summary>
@@ -1233,7 +1243,7 @@ public sealed partial class Encounter
     /// the states that take them away.</para>
     /// </summary>
     private (string Trait, int Pool, bool Active) ChooseDefence(
-        EncounterState state, Combatant target, Attack attack, List<LedgerLine> lines)
+        EncounterState state, Combatant target, Attack attack, int attackRank, List<LedgerLine> lines)
     {
         var types = _play.GetCombat("lethal_and_subdual").DamageTypes!;
         var entry = _play.GetCombat("active_and_passive_defenses");
@@ -1300,7 +1310,7 @@ public sealed partial class Encounter
             {
                 // p.78's guard on going all-out: an opponent who could not penetrate the passive
                 // defence at its full rank still cannot, so for them it is not halved at all.
-                if (active || CouldPenetrate(state[attack.Actor], attack, target.Rank(trait) * hard))
+                if (active || CouldPenetrate(attackRank, target.Rank(trait) * hard))
                 {
                     rank = Halve(rank);
                 }
@@ -1535,8 +1545,8 @@ public sealed partial class Encounter
     /// out of that entry rather than typed — an entry that stops saying "greater than" is a rule this
     /// engine cannot apply. <c>docs/guide/play-engine.md</c> records it as a reading.</para>
     /// </summary>
-    private bool CouldPenetrate(Combatant attacker, Attack attack, int passiveRank) =>
-        GetsThrough(attacker.Rank(attack.TraitId), passiveRank);
+    private bool CouldPenetrate(int attackRank, int passiveRank) =>
+        GetsThrough(attackRank, passiveRank);
 
     /// <summary>
     /// <c>modifier_cover</c>'s one test — <c>attacking_through_cover_requires</c>, "an attack rank
@@ -3249,7 +3259,7 @@ public sealed partial class Encounter
             Effect: last.Effect, Area: last.Area);
 
         var (trait, pool, active) = rule.TheNewTargetMakesTheirOwnDefenseRoll
-            ? ChooseDefence(state, newTarget, redirected, lines)
+            ? ChooseDefence(state, newTarget, redirected, last.AttackRank, lines)
             : ("no defence of their own", 0, false);
 
         var answered = rule.TheNewTargetMakesTheirOwnDefenseRoll
