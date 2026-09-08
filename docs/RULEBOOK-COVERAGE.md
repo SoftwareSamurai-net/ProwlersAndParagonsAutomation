@@ -22,11 +22,11 @@ wrong on both figures and contradicted the resume marker four lines below it.)
 |---|---|
 | **Text extraction** | **DONE for the whole book, and regenerable.** All ten chapters are in `data/rulebook/`, printed pp.5–188, 1525 sections, each carrying its printed page. Rebuild with `dotnet run --project tools/RulebookExtractor -- <pdf> data/rulebook` |
 | **Do not trust the first extraction's reputation** | The corpus shipped once with every chapter opening scrambled, 135 empty sections and 83 doubled page numbers in mid-sentence, and the tests passed. See the completed entry in `PROGRESS.md`. **The damaged prose still read as English**, so judge a change here by re-running the extractor and the corpus tests, not by reading a paragraph and finding it plausible |
-| **Rules extraction** | Ch.1–2 complete, plus Ch.6 custom gear and Ch.7 toxins. **Ch.3, Ch.4 and Ch.5 are now extracted too**, into `data/rules/play/` rather than `data/rules/` — see their rows below and [`docs/guide/play-rules.md`](guide/play-rules.md). That is the whole of the play block, pp.67–86 |
-| **Next to read for *rules*** | **Chapter 6, printed p.94** — Gadgets, then Vehicles (94) and Headquarters (100), which is `PROGRESS.md`'s one acknowledged data gap. Ch.6 pp.87–93 are settled: Gear Limits, armour and weapons are free and untracked, Custom Gear (p.92) is the twelve extracted features |
+| **Rules extraction** | Ch.1–2 complete, plus Ch.6 custom gear and Ch.7 toxins. **Ch.3, Ch.4 and Ch.5 are extracted** into `data/rules/play/` rather than `data/rules/` — see their rows below and [`docs/guide/play-rules.md`](guide/play-rules.md). That is the whole of the play block, pp.67–86. **Ch.6 pp.94–104 are now extracted too**, into `data/rules/` and read by nothing yet — see the Chapter 6 section below |
+| **Next to read for *rules*** | **Chapter 6 pp.94–104 are now extracted** — Gadgets (94), Vehicles (94–100) and Headquarters (100–103), into `data/rules/gadgets.json`, `vehicles.json` and `headquarters.json`, held to the pages by `Chapter6RulesDataTests`. Printed p.104 carries no chapter text. What is left in this chapter is pp.87–93: Gear Limits, armour and weapons, of which pp.87–90 are already in `data/rules/play/equipment.json` for the fight engine and Custom Gear (p.92) is the twelve features in `gear_features.json` |
 | **Then** | Ch.7 pp.105–107 and 109–110 (Toxins on 108 is extracted); Ch.8 pp.111–125 (NPC, animal and Extra stat blocks — GM material, so decide whether it is in scope at all); Ch.9 pp.167–188 (printed 189 is the blank Hero Sheet form, not chapter text) |
 | **Reading it is now cheap** | The prose is in `data/rulebook/`, so a sweep no longer needs the PDF — grep the corpus, and open the page only to check a table |
-| **Updated** | the extraction sweep |
+| **Updated** | the Chapter 6 gadgets, vehicles and headquarters slice |
 
 ## The two stores
 
@@ -60,7 +60,7 @@ wrong on both figures and contradicted the resume marker four lines below it.)
 | 3 | Action | 67–72 | **EXTRACTED as play rules** — every mechanic on pp.67–71 is in `data/rules/play/`, locked by `PlayRulesDataTests` against `CanonicalChallengeRules`. Still NOT APPLICABLE to *character creation*, which is the question the rest of this column answers |
 | 4 | Combat | 73–82 | **EXTRACTED as play rules** — every mechanic on pp.73–79 is in `data/rules/play/combat.json` and the ten optional Gritty Combat Rules on pp.79–81 are in `gritty.json`, both locked by `PlayRulesDataTests` against `CanonicalCombatRules` and `CanonicalGrittyRules`. The Example of Combat on p.81 is not an entry; it is the fixture the entries are made to resolve. Still NOT APPLICABLE to *character creation*, except that the Edge and Health formulas it prints are the ones `DerivedStatsCalculator` already implements — tests now hold each pair to the same answer |
 | 5 | Resolve and Adversity | 83–86 | **EXTRACTED as play rules** — every mechanic on pp.83–85 is in `data/rules/play/resolve.json`, locked by `PlayRulesDataTests` against `CanonicalResolveRules`; p.86 carries no chapter text. Still NOT APPLICABLE to *character creation*, except that the starting-Resolve table it prints is what `DerivedStatsCalculator.CalculateResolve` already implements — a test now holds the two to the same answer |
-| 6 | Equipment | 87–104 | PARTIAL — UNREAD from p.94 |
+| 6 | Equipment | 87–104 | PARTIAL — **pp.94–104 EXTRACTED**, see the detail below. pp.87–93 are the remainder: pp.87–90 are transcribed into `data/rules/play/equipment.json` for the fight engine rather than for creation, and p.92's Custom Gear is `gear_features.json` |
 | 7 | Environment | 105–110 | PARTIAL — UNREAD apart from Toxins (p.108) |
 | 8 | Friends and Foes | 111–166 | PARTIAL — pp.111–125 UNREAD |
 | 9 | Superhero Gaming | 167–188 | UNREAD |
@@ -111,6 +111,56 @@ the shipped JSON rather than out of a number typed into the test.
 | 3 | 67–72 | Challenge rolls, assisting, contests, Defining Moments, judging thresholds | **EXTRACTED** — as *play* rules, into `data/rules/play/`, which is a subdirectory so that no csproj's non-recursive `data\rules\*.json` glob can reach it. Still NOT APPLICABLE to character creation |
 | 4 | 73–82 | Edge in combat, actions, range, movement, attacks and defenses, damage, Health, healing, special effects, grappling, combat stunts, minions, nine special cases, ten gritty rules, worked example | **EXTRACTED** — as *play* rules, into `data/rules/play/combat.json` (pp.73–79) and `gritty.json` (pp.79–81), beside Ch.3 and Ch.5 and under the same non-recursive glob. Still NOT APPLICABLE to character creation. **Edge here is how the number is used, and p.73 also prints how it is derived** — as does p.75 for Health, both reprinted from Ch.2 p.60 and both implemented in `DerivedStatsCalculator`; the two statements of each are now compared |
 | 5 | 83–86 | Earning and spending Resolve; earning and spending Adversity | **EXTRACTED** — as *play* rules, into `data/rules/play/resolve.json`, beside Ch.3 and under the same non-recursive glob. Still NOT APPLICABLE to character creation. The starting-Resolve **table** is Ch.5's own (p.83) and is implemented; Determination and the Condition/Plot Hook Flaws that add to it are Ch.2 p.60 |
+
+### Chapter 6, printed 94–104 — extracted
+
+Three files under `data/rules/`, **none of them on `RulesRepository.DataFileNames`**. That list is
+the contract for a host which fetches the character rules over HTTP, so putting a file on it makes
+the browser download it before its first render — a decision about the payload that belongs to the
+slice which teaches `CostCalculator` what a vehicle or a headquarters costs, not to the slice that
+read the pages. `RulesSourceTests.DataFileNamesListsEveryShippedRulesFile` names the three
+exclusions and requires each one to still exist, and `Chapter6RulesDataTests` holds all three to the
+rulebook meanwhile — so they are extracted data rather than unread data.
+
+**Two currencies, and neither is Hero Points.** A vehicle is bought in **Vehicle Points** at 25 per
+Hero Point of the Unique Vehicle Perk; a headquarters in **Base Points** at 3 per Hero Point of the
+Headquarters Perk. Every price in those two files is in the second currency. A **Gadget** is the
+exception in the other direction: it is not bought at all — a successful build *pays out* Hero
+Points equal to twice its Complexity.
+
+| Pages | What is there | Status |
+|---|---|---|
+| 94 | **Gadgets** — the 6d Technology prerequisite, Complexity 3 to the builder's Technology rank, the Technology roll against Complexity as its own threshold, the pool of twice Complexity in Hero Points, the Item Con that is credited nothing, the instability die, Science and Medicine as alternative Talents, and the ceiling of half the builder's Intellect per issue | **EXTRACTED** — `data/rules/gadgets.json`, seven entries |
+| 94–95 | **Vehicle characteristics and vehicle combat** — Body, Speed, Control and Weapons; the vehicular Gear Limit; piloting, Edge, chases, attacks and defences, damage and repair, targeting a system; capital ships and capital-ship ramming | **EXTRACTED** — `data/rules/vehicles.json` |
+| 96 | **Foe and Minion pilots**, **mundane vs unique vehicles**, what Vehicle Points buy, the **six stock vehicles**, and the optional cap on upgrading one | **EXTRACTED** — same file |
+| 96–100 | The **23 vehicle features**, each with a Vehicle Point price: four are drawbacks that pay points back (Giant, Open Cockpit, Swimming, Transforming), one is free (Running), five are priced per unit and one is graded | **EXTRACTED** — same file |
+| 97–98 | The three **mundane vehicle tables** — 24 air/space rows, 15 ground, 15 water | **EXTRACTED** — derived out of `data/rulebook/ch06-equipment.json` rather than typed a second time; see the pairing note below |
+| 100–103 | **Headquarters** — the Perk, the +1d an advanced feature may be worth on a roll, and all **22 base features** with the price of each and what each grade buys. Mobile and Training Facilities carry mechanics of their own and have entries beside the table | **EXTRACTED** — `data/rules/headquarters.json`, five entries |
+| 104 | Nothing — the page carries no chapter text at all | **NOT APPLICABLE** |
+
+**The three mundane vehicle tables are paired, and the pairing is this project's reading.** The book
+sets each as four columns and the extractor reads a table of three or more columns **across** rather
+than down (see [`guide/rulebook-corpus.md`](guide/rulebook-corpus.md)), so each arrives as a block of
+names beside their Body and a separate block of Speed, Control and Weapons. Pairing them row by row
+in printed order is recorded as an `interpretation` on each entry rather than as a fact, and it was
+confirmed against the PDF with `RulebookExtractor --page 97` and `--page 98`: every Body row and its
+figures share a baseline exactly. **Three witnesses hold it where that diagnostic cannot run** — every
+capital-ship row's Control is p.94's −3d per 30 Health (nine rows at once), five of p.96's stock
+vehicles reprint a row characteristic for characteristic, and p.96's Foe example reprints the sedan's
+7d Body. A misalignment of one row breaks all three, which was measured by rotating one table's
+figures against its names.
+
+**One printed total does not reconcile, and it is recorded rather than repaired.** Priced through the
+rules on its own page — 1 Vehicle Point per rank of Body, Speed and Weapons, 2 per rank of Control,
+plus the features — the **Submersible** comes to 15 Vehicle Points against a printed **14**. The
+other five stock vehicles come out exactly, and no reading of the Passengers rating reconciles the
+Submersible without breaking the Speedboat. It is an `ambiguity` on the entry and an asserted
+overshoot of 1 in the tests, so it cannot quietly become two.
+
+**What is still owed on these three files is a consumer, not a reading.** Nothing in the application
+loads them, which is why they are off `DataFileNames` — see
+[`guide/rules-engine.md`](guide/rules-engine.md) for what a slice that priced a vehicle or a
+headquarters would have to add.
 
 ---
 
