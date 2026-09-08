@@ -479,9 +479,21 @@ echo "Every icon the published page and its manifest name is served: $(echo "$ic
 # compiled into the WebAssembly payload rather than written in index.html, so the list is derived
 # from the razor sources instead of from the published page. The failure is the same shape and
 # quieter still — a missing `<img>` draws its alt text on a coloured band and nothing errors.
+#
+# **The pattern matches every spelling and rejects the ones it cannot check, rather than only
+# matching the one spelling in the tree today.** The first version began `src="[^":/]`, which was
+# meant to exclude an absolute URL and instead excluded a *leading slash* — so `src="/logo.svg"`,
+# which is exactly how index.html spells its own icons four lines up, matched nothing and was
+# skipped. So did `src="logo.svg?v=2"`. With one image in the repository the control below turns
+# either of those into a loud failure with the wrong diagnosis; with two it is a silent pass on
+# the unmatched one, which is the failure this whole check exists to prevent. Meanwhile an
+# absolute `https://…/x.svg` *did* match and was looked for under publish/wwwroot, because `:` is
+# never a URL's first character. A filter that quietly drops what it does not recognise is the
+# same shape as a denylist of spellings; this one takes everything and says out loud what it
+# cannot answer for.
 component_images=$(
-  grep -rho 'src="[^":/][^"]*\.\(svg\|png\|webp\|avif\|jpg\|jpeg\|gif\)"' "$root/web" --include='*.razor' \
-    | sed 's/src="//; s/"$//' | sort -u
+  grep -rhoE 'src="[^"]+\.(svg|png|webp|avif|jpg|jpeg|gif)([?#][^"]*)?"' "$root/web" --include='*.razor' \
+    | sed -E 's/^src="//; s/"$//' | sort -u
 )
 
 # The positive control: this repository has exactly one such image today, and a scan that stopped
@@ -494,8 +506,29 @@ case "$component_images" in
 esac
 
 for image in $component_images; do
-  [ -s "$root/publish/wwwroot/$image" ] || {
-    echo "::error::a component draws $image and publish/wwwroot/$image is missing or empty."
+  case "$image" in
+    # Nothing on disk to check, and nothing this script can honestly say about it. Both are
+    # refused rather than skipped: `img-src 'self' data:` permits a data URI and forbids the
+    # remote one, so a component naming an external host is a defect whoever added it should
+    # hear about here rather than as a blank image in a browser.
+    data:*)
+      echo "::error::a component draws an inline data: URI. Put the artwork in wwwroot and name"
+      echo "the file, so this check and the CSP can both see what is being drawn."
+      exit 2 ;;
+    *://*|//*)
+      echo "::error::a component draws $image from another origin, which img-src 'self' data:"
+      echo "forbids: the browser blocks it and paints the alt text. Serve it from wwwroot."
+      exit 2 ;;
+  esac
+
+  # A leading slash resolves against `<base href="/">` and a query or fragment is not part of
+  # the filename, so both are taken off before the file is looked for. The `src` is reported as
+  # the component actually spells it.
+  on_disk=${image%%[?#]*}
+  on_disk=${on_disk#/}
+
+  [ -s "$root/publish/wwwroot/$on_disk" ] || {
+    echo "::error::a component draws $image and publish/wwwroot/$on_disk is missing or empty."
     echo "The browser gets the SPA fallback for it and paints the alt text instead."
     exit 2
   }
