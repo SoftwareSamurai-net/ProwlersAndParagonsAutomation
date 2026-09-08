@@ -73,13 +73,13 @@ public sealed class McpPlayServerTests
     // ── The contract ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// The four tools as a stranger's configuration spells them. <b>Literals, not
+    /// The five tools as a stranger's configuration spells them. <b>Literals, not
     /// <c>PlayServer</c>'s constants</b>: a constant compared with itself proves nothing about a
     /// contract somebody else has written down — the same reasoning <see cref="McpServerTests"/>
     /// records for the character server's six.
     /// </summary>
     private static readonly string[] WireNames =
-        ["combat_guide", "run_encounters", "start_encounter", "take_turn"];
+        ["combat_guide", "run_encounters", "run_matrix", "start_encounter", "take_turn"];
 
     /// <summary>
     /// <b>The wire names are the contract.</b> A stranger configures a client against them and the
@@ -87,7 +87,7 @@ public sealed class McpPlayServerTests
     /// dropped from the list is a method nobody can call.
     /// </summary>
     [Fact]
-    public async Task TheFourToolsAreServedUnderTheirWireNames() =>
+    public async Task TheFiveToolsAreServedUnderTheirWireNames() =>
         await WithClient(async client =>
         {
             var served = (await client.ListToolsAsync()).Select(t => t.Name).Order(StringComparer.Ordinal);
@@ -2017,10 +2017,19 @@ public sealed class McpPlayServerTests
             Assert.Equal(500 + PlayTools.FewestRuns - 1, answer["seeds"]!["last"]!.GetValue<int>());
 
             // The policy's own Name, not a string written here: a balance figure is a figure about a
-            // particular way of playing, and IPolicy.Name is what that way is called.
+            // particular way of playing, and IPolicy.Name is what that way is called. The default is
+            // the standard style going after whoever is nearly down.
             Assert.Equal(
-                new AttackTheWeakest(_play).Name,
+                StylePolicy.For(PlayStyle.Standard, Targeting.Weakest, _play).Name,
                 answer["policy"]!["name"]!.GetValue<string>());
+
+            // <b>And the two guesses inside it come back apart</b>, each with the sentence a reader
+            // is meant to argue with. A style quoted without its note is a name.
+            Assert.Equal("standard", answer["style"]!["id"]!.GetValue<string>());
+            Assert.Equal("weakest", answer["targeting"]!["id"]!.GetValue<string>());
+
+            Assert.False(string.IsNullOrWhiteSpace(answer["style"]!["note"]!.GetValue<string>()));
+            Assert.False(string.IsNullOrWhiteSpace(answer["targeting"]!["note"]!.GetValue<string>()));
 
             var table = answer["table"]!.AsObject();
 
@@ -3040,6 +3049,58 @@ public sealed class McpPlayServerTests
             {
                 ["kind"] = "attack", ["actor"] = "nobody_in_this_fight",
                 ["target"] = "villain", ["trait_id"] = "might"
+            })),
+
+            // ── The styles, the target selectors and the matrix ──────────────
+
+            ["NO_SUCH_STYLE"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["style"] = "everybody_runs_away"
+            })),
+
+            // <b>Refused by its own name, not as "no such style".</b> narrative is a real way of
+            // playing and its absence from the seeded list is a decision: nothing in this engine
+            // makes a Flaw bite, so a seeded policy pretending to it would name a measurement that
+            // was measuring something else.
+            ["NARRATIVE_IS_NOT_SEEDED"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["style"] = "narrative"
+            })),
+
+            ["NO_SUCH_TARGETING"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["targeting"] = "whoever_looks_shiftiest"
+            })),
+
+            ["TOO_FEW_RUNS_A_CELL"] = new(client => Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns
+            })),
+
+            ["NO_SUCH_MATCHUP"] = new(client => Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRunsACell,
+                ["matchups"] = "everybody_against_everybody"
+            })),
+
+            ["NO_PARTY"] = new(client => Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = NobodyIsAHero(),
+                ["runs"] = PlayTools.FewestRunsACell
+            })),
+
+            ["MATRIX_TOO_LARGE"] = new(client => Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.MostRuns
             })),
 
             ["ENCOUNTER_OVER"] = new(async client => await Call(client, "take_turn",
@@ -5167,6 +5228,894 @@ public sealed class McpPlayServerTests
             if (entry!["id"]!.GetValue<string>() == who) entry["holding"] = "the sword";
         }
 
+        return fight;
+    }
+
+    /// <summary>
+    /// A Hero and a Villain who cannot get through each other — 1d of Might against 20d of
+    /// Toughness, both ways — so every run of the fight is a draw.
+    /// </summary>
+    private static JsonArray Stalemate() =>
+    [
+        new JsonObject
+        {
+            ["kind"] = "hero", ["id"] = "hero", ["side"] = "heroes",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Hero",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 1, ["toughness"] = 20, ["willpower"] = 4 }
+            }
+        },
+        new JsonObject
+        {
+            ["kind"] = "villain", ["id"] = "villain", ["side"] = "villains",
+            ["character"] = new JsonObject
+            {
+                ["Name"] = "the Villain",
+                ["SelectedTierId"] = "standard",
+                ["AbilityRanks"] = new JsonObject { ["might"] = 1, ["toughness"] = 20, ["willpower"] = 4 }
+            }
+        }
+    ];
+
+    // ── Styles, targeting, the unfair line and the matrix ─────────────────
+
+    /// <summary>
+    /// <b>The unfair flag sits exactly where the owner put it: at a half, inclusive, over at least a
+    /// hundred runs.</b>
+    ///
+    /// <para><b>Driven at the boundary, because no fight can be made to land on it.</b> "Half or
+    /// less chance of victory over a hundred or more sims" is a sentence with two edges and both are
+    /// asked here — 50 wins in 100 is unfair and 51 is not, and 50 in 99 is neither, because below
+    /// the floor "not unfair" and "not enough fights to say" are different answers and only one of
+    /// them is reassuring. The wire test below is the control that this predicate is the one the
+    /// report actually calls.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(50, 100, true)]
+    [InlineData(51, 100, false)]
+    [InlineData(0, 100, true)]
+    [InlineData(100, 100, false)]
+    public void TheUnfairFlagSitsAtTheOwnersLine(int wins, int runs, bool unfair) =>
+        Assert.Equal(unfair, PlayTools.IsUnfair(wins, runs));
+
+    /// <summary>
+    /// <b>And it is null below the floor rather than false</b>, at exactly one run short of it.
+    /// </summary>
+    [Fact]
+    public void BelowTheOwnersFloorTheFlagIsNoAnswerRatherThanAGoodOne()
+    {
+        Assert.Null(PlayTools.IsUnfair(50, PlayTools.FewestRunsForAVerdict - 1));
+        Assert.NotNull(PlayTools.IsUnfair(50, PlayTools.FewestRunsForAVerdict));
+    }
+
+    /// <summary>
+    /// <b>A side that cannot win is flagged and the side beating it is not — over the wire, out of a
+    /// real report.</b>
+    ///
+    /// <para>Its control is the other half of the same answer: a report that flagged everything, or
+    /// that had lost the field, would fail on the winning side. And the sentence saying the line is
+    /// the owner's rather than the book's is asserted to be in the same object as the flag, because
+    /// a threshold quoted without it reads as a rule.</para>
+    /// </summary>
+    [Fact]
+    public async Task AHopelesslyOutmatchedSideIsFlaggedAndTheOneBeatingItIsNot() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = Lopsided(heroMight: 14, villainToughness: 1),
+                ["runs"] = PlayTools.FewestRunsForAVerdict,
+                ["seed"] = 4_100,
+                ["style"] = "mano_a_mano"
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var sides = answer["by_side"]!.AsArray()
+                .ToDictionary(s => s!["side"]!.GetValue<string>(), s => s!, StringComparer.Ordinal);
+
+            Assert.True(sides["villains"]["unfair"]!.GetValue<bool>(),
+                "a Villain who loses every fight is not flagged: " + sides["villains"].ToJsonString());
+
+            Assert.False(sides["heroes"]["unfair"]!.GetValue<bool>(),
+                "the side winning every fight is flagged too, so the flag is not measuring "
+                + "anything: " + sides["heroes"].ToJsonString());
+
+            var threshold = answer["unfair_threshold"]!;
+
+            Assert.Equal(PlayTools.UnfairAtOrBelow, threshold["win_rate_at_or_below"]!.GetValue<double>());
+            Assert.Equal(PlayTools.FewestRunsForAVerdict, threshold["fewest_runs"]!.GetValue<int>());
+
+            Assert.Contains("not a rule", threshold["note"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>A draw is a win for neither side, so a fight nobody ever wins flags both of them.</b>
+    ///
+    /// <para><b>This is the case the word "unfair" reads wrongly for, which is why the report says
+    /// so rather than leaving it to be worked out.</b> The flag is a win rate at or below a half, and
+    /// a draw counts against that rate on both sides at once — so two combatants who cannot get
+    /// through each other come back with <c>unfair: true</c> against each of them, which is not "the
+    /// other side is beating you" in either direction. The <c>draw_rate</c> beside it is what tells
+    /// the two apart, and <c>unfair_threshold.note</c> now says so in the same object.</para>
+    ///
+    /// <para>The control is the draw rate itself: a fight that resolved would make the two flags a
+    /// claim about somebody winning, and this one has nobody winning at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task AFightNobodyEverWinsIsFlaggedAgainstBothSides() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = Stalemate(),
+                ["runs"] = PlayTools.FewestRunsForAVerdict,
+                ["seed"] = 4_150,
+                ["style"] = "mano_a_mano",
+                ["maxPages"] = 3
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            // The control: nobody won any of them.
+            Assert.Equal(1.0, answer["draw_rate"]!.GetValue<double>());
+
+            var sides = answer["by_side"]!.AsArray();
+
+            Assert.Equal(2, sides.Count);
+
+            Assert.All(sides, side =>
+            {
+                Assert.Equal(0.0, side!["win_rate"]!.GetValue<double>());
+
+                Assert.True(side["unfair"]!.GetValue<bool>(),
+                    "a side that never wins is not flagged: " + side.ToJsonString());
+            });
+
+            // And the sentence that keeps the flag from being read as "they are beating you".
+            Assert.Contains("draw", answer["unfair_threshold"]!["note"]!.GetValue<string>(),
+                StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b>The flag is no answer at all below the floor, in a real report.</b>
+    ///
+    /// <para>The same fight, the same seeds and one run short of the owner's hundred: the rate is
+    /// still there and the verdict is not, which is the difference between a figure and a claim.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task ARateBelowTheFloorCarriesNoVerdict() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = Lopsided(heroMight: 14, villainToughness: 1),
+                ["runs"] = PlayTools.FewestRunsForAVerdict - 1,
+                ["seed"] = 4_100
+            });
+
+            var sides = answer["by_side"]!.AsArray();
+
+            Assert.All(sides, side =>
+            {
+                Assert.NotNull(side!["win_rate"]);
+                Assert.Null(side["unfair"]?.GetValue<bool?>());
+            });
+        });
+
+    /// <summary>
+    /// <b>The style argument reaches the fight, and the proof is a pool that did not move.</b>
+    ///
+    /// <para><c>mano_a_mano</c>'s whole claim is that nobody spends, so a report under it has to say
+    /// no Resolve and no Adversity left anybody — and the control is the same fight under
+    /// <c>min_max</c> on the same seeds, which does spend. An argument the SDK dropped would give
+    /// two identical answers, which is exactly the failure the <c>max_pages</c> guard was written
+    /// for one section further down.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheStyleReachesTheFightAndIsEchoedWithItsNote() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Under(string style) =>
+                await Call(client, "run_encounters", new Dictionary<string, object?>
+                {
+                    ["combatants"] = TwoSides(),
+                    ["runs"] = PlayTools.FewestRuns,
+                    ["seed"] = 909,
+                    ["style"] = style
+                });
+
+            var quiet = await Under("mano_a_mano");
+            var greedy = await Under("min_max");
+
+            Assert.Equal("mano_a_mano", quiet["style"]!["id"]!.GetValue<string>());
+            Assert.Equal("min_max", greedy["style"]!["id"]!.GetValue<string>());
+
+            Assert.NotEqual(
+                quiet["style"]!["note"]!.GetValue<string>(),
+                greedy["style"]!["note"]!.GetValue<string>());
+
+            Assert.Equal(0.0, quiet["mean_adversity_spent"]!.GetValue<double>());
+
+            Assert.All(quiet["by_side"]!.AsArray(), side =>
+                Assert.Equal(0.0, side!["mean_resolve_spent"]!.GetValue<double>()));
+
+            // The control: the same fight, the same seeds, a style that does spend.
+            Assert.True(
+                greedy["mean_adversity_spent"]!.GetValue<double>() > 0
+                || greedy["by_side"]!.AsArray().Any(s => s!["mean_resolve_spent"]!.GetValue<double>() > 0),
+                "min_max spent nothing either, so mano_a_mano's zero is not evidence about the "
+                + "style argument: " + greedy["by_side"]!.ToJsonString());
+        });
+
+    /// <summary>
+    /// <b>The targeting argument reaches the fight too, and the proof is who dies.</b>
+    ///
+    /// <para>Three opponents, one Hero, and the frailest of the three is the one
+    /// <c>weakest</c> goes after and <c>strongest</c> leaves alone — so the frail one's defeat rate
+    /// has to be the higher of the two under <c>weakest</c>. Both echoes are checked as well,
+    /// because an argument the SDK dropped runs on the default and says so in the answer.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheTargetingReachesTheFightAndIsEchoedWithItsNote() =>
+        await WithClient(async client =>
+        {
+            async Task<JsonNode> Going(string targeting) =>
+                await Call(client, "run_encounters", new Dictionary<string, object?>
+                {
+                    ["combatants"] = ThreeOnOne(),
+                    ["runs"] = PlayTools.FewestRunsForAVerdict,
+                    ["seed"] = 5_050,
+                    ["style"] = "mano_a_mano",
+                    ["targeting"] = targeting
+                });
+
+            var weakest = await Going("weakest");
+            var strongest = await Going("strongest");
+
+            Assert.Equal("weakest", weakest["targeting"]!["id"]!.GetValue<string>());
+            Assert.Equal("strongest", strongest["targeting"]!["id"]!.GetValue<string>());
+
+            Assert.NotEqual(
+                weakest["targeting"]!["note"]!.GetValue<string>(),
+                strongest["targeting"]!["note"]!.GetValue<string>());
+
+            static double DefeatRate(JsonNode report, string id) =>
+                report["by_combatant"]!.AsArray()
+                    .Single(c => string.Equals(c!["id"]!.GetValue<string>(), id, StringComparison.Ordinal))!
+                    ["defeat_rate"]!.GetValue<double>();
+
+            Assert.True(DefeatRate(weakest, "frail") > DefeatRate(strongest, "frail"),
+                $"the frailest opponent went down {DefeatRate(weakest, "frail")} of the time when "
+                + $"the Hero was going after the weakest and {DefeatRate(strongest, "frail")} when "
+                + "they were going after the strongest, which is the wrong way round or no "
+                + "difference at all — so the selector is not reaching the fight.");
+        });
+
+    /// <summary>
+    /// <b>The report answers what a character is best and worst at, and the two tables reconcile
+    /// with each other.</b>
+    ///
+    /// <para><b>Every attack somebody made was answered by somebody</b>, so one side's exchanges
+    /// have to add up to the other side's answered defences — two tables built out of two different
+    /// halves of the same observation, which is what makes this a check rather than a restatement.
+    /// And every defeat filed under <c>defeated_by</c> has to add up to the defeat rate the report
+    /// prints beside it.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheReportSaysWhatLandedAndWhatHeldAndTheTablesReconcile() =>
+        await WithClient(async client =>
+        {
+            var runs = PlayTools.FewestRuns;
+
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = runs,
+                ["seed"] = 2_020,
+                ["style"] = "mano_a_mano"
+            });
+
+            Assert.Equal(0, answer["defence_traits_unread"]!.GetValue<int>());
+
+            var byCombatant = answer["by_combatant"]!.AsArray();
+
+            long Swings(string side) => byCombatant
+                .Where(c => !string.Equals(c!["side"]!.GetValue<string>(), side, StringComparison.Ordinal))
+                .SelectMany(c => c!["attack_forms"]!.AsArray())
+                .Sum(f => f!["exchanges"]!.GetValue<long>());
+
+            long Answers(string side) => byCombatant
+                .Where(c => string.Equals(c!["side"]!.GetValue<string>(), side, StringComparison.Ordinal))
+                .SelectMany(c => c!["defences"]!.AsArray())
+                .Sum(d => d!["answered"]!.GetValue<long>());
+
+            Assert.True(Swings("heroes") > 0, "nobody attacked the Heroes, so there is nothing to reconcile.");
+
+            Assert.Equal(Swings("heroes"), Answers("heroes"));
+            Assert.Equal(Swings("villains"), Answers("villains"));
+
+            // And what put each of them out adds up to how often they were put out.
+            foreach (var combatant in byCombatant)
+            {
+                var filed = combatant!["defeated_by"]!.AsArray().Sum(d => d!["runs"]!.GetValue<int>());
+
+                Assert.Equal(
+                    Math.Round((double)filed / runs, 3),
+                    combatant["defeat_rate"]!.GetValue<double>());
+            }
+        });
+
+    /// <summary>
+    /// <b>The matrix has a cell for every matchup and every style, and the seeds are derived from
+    /// the one the caller gave.</b>
+    ///
+    /// <para>Rows are the party and each Hero alone; columns are every style this server simulates,
+    /// taken from the server's own list rather than a count written here. The seed blocks are
+    /// checked for being consecutive and non-overlapping, because that is the whole claim a derived
+    /// seed makes: no two cells share a fight, and any one of them can be reopened with
+    /// <c>run_encounters</c> on its own block.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheMatrixHasACellPerMatchupAndStyleWithDerivedSeeds() =>
+        await WithClient(async client =>
+        {
+            const int Base = 7_000;
+            var perCell = PlayTools.FewestRunsACell;
+
+            var answer = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = perCell,
+                ["seed"] = Base,
+                ["maxPages"] = 8
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var styles = answer["styles"]!.AsArray().Select(s => s!.GetValue<string>()).ToList();
+
+            Assert.Equal(StylePolicy.StyleIds.Order(StringComparer.Ordinal), styles.Order(StringComparer.Ordinal));
+
+            var rows = answer["matrix"]!.AsArray();
+
+            // One row for the party and one for each Hero alone.
+            Assert.Equal(["cho", "felix", "party"],
+                rows.Select(r => r!["matchup"]!.GetValue<string>()).Order(StringComparer.Ordinal));
+
+            Assert.Equal(rows.Count * styles.Count, answer["cells"]!.GetValue<int>());
+            Assert.Equal((long)rows.Count * styles.Count * perCell, answer["total_runs"]!.GetValue<long>());
+
+            // A Hero alone is that Hero and the opposition, and nobody else.
+            var alone = rows.Single(r => string.Equals(r!["matchup"]!.GetValue<string>(), "cho", StringComparison.Ordinal))!;
+
+            Assert.Equal(["cho", "villain"],
+                alone["combatants"]!.AsArray().Select(c => c!.GetValue<string>()).Order(StringComparer.Ordinal));
+
+            // <b>Consecutive blocks, in the order the rows and then the columns are listed.</b>
+            var blocks = rows
+                .SelectMany(r => r!["cells"]!.AsArray())
+                .Select(c => (First: c!["seeds"]!["first"]!.GetValue<int>(), Last: c["seeds"]!["last"]!.GetValue<int>()))
+                .ToList();
+
+            Assert.Equal(Base, blocks[0].First);
+
+            for (var i = 0; i < blocks.Count; i++)
+            {
+                Assert.Equal(Base + i * perCell, blocks[i].First);
+                Assert.Equal(blocks[i].First + perCell - 1, blocks[i].Last);
+            }
+
+            Assert.Equal(blocks[^1].Last, answer["seeds"]!["last"]!.GetValue<long>());
+
+            // Every cell carries the three things a row of this table is read for.
+            Assert.All(rows.SelectMany(r => r!["cells"]!.AsArray()), cell =>
+            {
+                Assert.Contains(cell!["style"]!.GetValue<string>(), styles, StringComparer.Ordinal);
+                Assert.InRange(cell["win_rate"]!.GetValue<double>(), 0, 1);
+                Assert.NotNull(cell["unfair"]?.GetValue<bool?>());
+                Assert.True(cell["mean_pages"]!.GetValue<double>() > 0);
+            });
+
+            // And the guess behind each column travels with it.
+            foreach (var style in styles)
+                Assert.False(string.IsNullOrWhiteSpace(answer["style_notes"]![style]!.GetValue<string>()));
+
+            // The fifth style is named as absent rather than missing.
+            Assert.Contains("narrative", answer["narrative"]!.GetValue<string>(), StringComparison.Ordinal);
+        });
+
+    /// <summary>
+    /// <b><c>matchups</c> narrows the rows, and the two narrow answers add up to the wide one.</b>
+    /// </summary>
+    [Fact]
+    public async Task TheMatchupsArgumentChoosesTheRows() =>
+        await WithClient(async client =>
+        {
+            async Task<List<string>> Rows(string? matchups)
+            {
+                var arguments = new Dictionary<string, object?>
+                {
+                    ["combatants"] = PartyOfTwo(),
+                    ["runs"] = PlayTools.FewestRunsACell,
+                    ["seed"] = 7_500,
+                    ["maxPages"] = 6
+                };
+
+                if (matchups is not null) arguments["matchups"] = matchups;
+
+                var answer = await Call(client, "run_matrix", arguments);
+
+                Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+                return answer["matrix"]!.AsArray()
+                    .Select(r => r!["matchup"]!.GetValue<string>())
+                    .Order(StringComparer.Ordinal)
+                    .ToList();
+            }
+
+            Assert.Equal(["party"], await Rows("party"));
+            Assert.Equal(["cho", "felix"], await Rows("each_hero_alone"));
+            Assert.Equal(["cho", "felix", "party"], await Rows("all"));
+            Assert.Equal(["cho", "felix", "party"], await Rows(null));
+        });
+
+    /// <summary>
+    /// <b>Any cell of the matrix reopens as a <c>run_encounters</c> call on its own seed block, and
+    /// the two answers are the same fight.</b>
+    ///
+    /// <para><b>That is the promise the echoed seeds make and it holds two claims at once.</b> The
+    /// first is the one PLAY-POLICY.md prints — a cell is one number in a table of twenty, and a
+    /// reader who wants the detail of one calls <c>run_encounters</c> on that block. The second is
+    /// the one nothing was checking: <b>a Hero-alone row is that Hero against the <em>same</em>
+    /// opposition the party row faced</b>, off the same combatants the call was built with. Ids in
+    /// the echo cannot show that — two rows can name the same Villain and fight two different
+    /// sheets — but a win rate to the last run can, because the two runs would diverge on the first
+    /// roll if any figure of the Villain's differed.</para>
+    ///
+    /// <para>The controls are that the two calls really are the same setup: the style, the target
+    /// selector, the page limit and the seed block are taken out of the matrix's own answer rather
+    /// than typed a second time, and the rate is asserted to be a real fight rather than 0 against
+    /// 0 — a matchup nobody ever won would reconcile trivially.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACellReopensAsRunEncountersOnItsOwnBlockAgainstTheSameOpposition() =>
+        await WithClient(async client =>
+        {
+            const int Base = 7_700;
+            const int Pages = 8;
+            var perCell = PlayTools.FewestRunsACell;
+
+            var matrix = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = perCell,
+                ["seed"] = Base,
+                ["maxPages"] = Pages
+            });
+
+            Assert.True(matrix["ok"]!.GetValue<bool>(), matrix.ToJsonString());
+
+            // <b>No two cells share a fight</b>, asked as the property rather than as the formula:
+            // every block is compared with every other for an overlap.
+            var blocks = matrix["matrix"]!.AsArray()
+                .SelectMany(r => r!["cells"]!.AsArray())
+                .Select(c => (First: c!["seeds"]!["first"]!.GetValue<int>(),
+                              Last: c["seeds"]!["last"]!.GetValue<int>()))
+                .ToList();
+
+            Assert.True(blocks.Count > 1, "one cell cannot overlap with anything.");
+
+            for (var a = 0; a < blocks.Count; a++)
+            {
+                for (var b = a + 1; b < blocks.Count; b++)
+                {
+                    Assert.False(blocks[a].First <= blocks[b].Last && blocks[b].First <= blocks[a].Last,
+                        $"cells {a} and {b} share seeds: {blocks[a]} and {blocks[b]}. Two cells on "
+                        + "one fight are two figures nobody can tell apart.");
+                }
+            }
+
+            // One Hero's own row, and its first column.
+            var row = matrix["matrix"]!.AsArray()
+                .Single(r => string.Equals(r!["matchup"]!.GetValue<string>(), "cho", StringComparison.Ordinal))!;
+
+            var cell = row["cells"]!.AsArray()[0]!;
+
+            var reopened = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = OneHeroOf(PartyOfTwo(), "cho"),
+                ["runs"] = matrix["runs_a_cell"]!.GetValue<int>(),
+                ["seed"] = cell["seeds"]!["first"]!.GetValue<int>(),
+                ["style"] = cell["style"]!.GetValue<string>(),
+                ["targeting"] = matrix["targeting"]!["id"]!.GetValue<string>(),
+                ["maxPages"] = matrix["max_pages"]!.GetValue<int>()
+            });
+
+            Assert.True(reopened["ok"]!.GetValue<bool>(), reopened.ToJsonString());
+
+            var side = matrix["side"]!.GetValue<string>();
+
+            var apart = reopened["by_side"]!.AsArray()
+                .Single(s => string.Equals(s!["side"]!.GetValue<string>(), side, StringComparison.Ordinal))!;
+
+            // The control: somebody won some of them, so this is a reconciliation and not two zeroes.
+            Assert.True(cell["win_rate"]!.GetValue<double>() > 0,
+                "the Hero never won a single one of this cell's fights, so two matching rates would "
+                + "say nothing about the two calls being the same fight.");
+
+            Assert.Equal(cell["win_rate"]!.GetValue<double>(), apart["win_rate"]!.GetValue<double>());
+            Assert.Equal(cell["draw_rate"]!.GetValue<double>(), reopened["draw_rate"]!.GetValue<double>());
+            Assert.Equal(cell["mean_pages"]!.GetValue<double>(), reopened["mean_pages"]!.GetValue<double>());
+        });
+
+    /// <summary>
+    /// <b>The cap is on the whole table and not on each cell, which is the thing a per-cell cap
+    /// would get wrong.</b>
+    ///
+    /// <para>Every cell here is the owner's own floor of a hundred — a perfectly ordinary figure —
+    /// and there are enough rows that the call would run more fights than this transport answers in
+    /// one go. There is no progress and no cancel over it, so what matters is the length of the one
+    /// call. The control is the same hundred a cell with a small party, which is answered.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheMatrixCapsTheWholeTableRatherThanEachCell() =>
+        await WithClient(async client =>
+        {
+            var perCell = PlayTools.FewestRunsACell;
+            var styles = StylePolicy.StyleIds.Count;
+
+            // Enough Heroes that the rows times the styles times the floor passes the cap.
+            var many = 1 + PlayTools.MostRuns / (perCell * styles);
+
+            var crowd = new JsonArray();
+
+            for (var i = 0; i < many; i++)
+                crowd.Add(Sheet("hero", $"hero{i:00}", $"Hero {i}", "heroes", might: 8, toughness: 5));
+
+            crowd.Add(Sheet("villain", "villain", "the Villain", "villains", might: 9, toughness: 6));
+
+            var refused = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = crowd,
+                ["runs"] = perCell,
+
+                // Only so the mutation that removes the cap fails quickly instead of running the
+                // five thousand fights this refusal exists to prevent.
+                ["maxPages"] = 1
+            });
+
+            Assert.False(refused["ok"]!.GetValue<bool>(), refused.ToJsonString());
+            Assert.Equal("MATRIX_TOO_LARGE", refused["problem"]!["code"]!.GetValue<string>());
+
+            // The refusal says what to do about it rather than only that it will not.
+            var message = refused["problem"]!["message"]!.GetValue<string>();
+
+            Assert.Contains(PlayTools.MostRuns.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                message, StringComparison.Ordinal);
+            Assert.Contains("matchups", message, StringComparison.Ordinal);
+
+            // The control: the same runs a cell, with a party small enough to fit.
+            var answered = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = perCell,
+                ["maxPages"] = 6
+            });
+
+            Assert.True(answered["ok"]!.GetValue<bool>(), answered.ToJsonString());
+            Assert.True(answered["total_runs"]!.GetValue<long>() <= PlayTools.MostRuns);
+        });
+
+    /// <summary>One Hero of a fight and everybody not on their side — the matrix's own "alone".</summary>
+    private static JsonArray OneHeroOf(JsonArray fight, string hero)
+    {
+        var side = fight.Single(c => string.Equals(c!["id"]!.GetValue<string>(), hero, StringComparison.Ordinal))!
+            ["side"]!.GetValue<string>();
+
+        return
+        [
+            .. fight
+                .Where(c => string.Equals(c!["id"]!.GetValue<string>(), hero, StringComparison.Ordinal)
+                            || !string.Equals(c["side"]!.GetValue<string>(), side, StringComparison.Ordinal))
+                .Select(c => c!.DeepClone())
+        ];
+    }
+
+    /// <summary>Two Heroes and a Villain, which gives a matrix three rows.</summary>
+    private static JsonArray PartyOfTwo() =>
+    [
+        Sheet("hero", "cho", "Cho", "heroes", might: 8, toughness: 5),
+        Sheet("hero", "felix", "Felix", "heroes", might: 7, toughness: 5),
+        Sheet("villain", "villain", "the Villain", "villains", might: 9, toughness: 6)
+    ];
+
+    /// <summary>
+    /// One Hero against three, built so the weakest, the strongest and the hardest hitter are three
+    /// different characters — which is what makes the target selectors distinguishable.
+    /// </summary>
+    private static JsonArray ThreeOnOne() =>
+    [
+        Sheet("hero", "hero", "the Hero", "heroes", might: 11, toughness: 8),
+        Sheet("villain", "frail", "the frail one", "villains", might: 4, toughness: 1),
+        Sheet("villain", "tank", "the tank", "villains", might: 4, toughness: 9),
+        Sheet("villain", "sniper", "the sniper", "villains", might: 12, toughness: 3)
+    ];
+
+    /// <summary>One combatant off a bare sheet — nothing here is a legal character and nothing needs
+    /// to be, because whether a character is legal is the other server's question.</summary>
+    private static JsonObject Sheet(
+        string kind, string id, string name, string side, int might, int toughness) => new()
+    {
+        ["kind"] = kind,
+        ["id"] = id,
+        ["side"] = side,
+        ["character"] = new JsonObject
+        {
+            ["Name"] = name,
+            ["SelectedTierId"] = "standard",
+            ["AbilityRanks"] = new JsonObject
+            {
+                ["might"] = might, ["toughness"] = toughness, ["willpower"] = 4, ["agility"] = 4
+            }
+        }
+    };
+
+    /// <summary>
+    /// <b>A character's defeats come back as a rate and a side's as a mean, and the two are spelled
+    /// differently because a party of four goes down more than once a fight.</b>
+    ///
+    /// <para>The same division answered <c>3.315</c> under the key <c>rate</c> — a figure that reads
+    /// exactly like a proportion and is not one, printed beside four that are. The control here is
+    /// the pair: the side's figure has to be above one on this fight, and the characters' have to be
+    /// proportions, or the two keys are not measuring different things.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASidesDefeatsAreAMeanAndACharactersAreARate() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = ThreeOnOne(),
+                ["runs"] = PlayTools.FewestRunsForAVerdict,
+                ["seed"] = 6_060,
+                ["style"] = "reckless"
+            });
+
+            var villains = answer["by_side"]!.AsArray()
+                .Single(s => string.Equals(s!["side"]!.GetValue<string>(), "villains", StringComparison.Ordinal))!;
+
+            var filed = villains["defeated_by"]!.AsArray();
+
+            Assert.True(filed.Count > 0, "nobody on the Villains' side went down, so there is nothing to file.");
+
+            Assert.All(filed, row => Assert.Null(row!["rate"]));
+
+            Assert.True(filed.Sum(r => r!["mean_a_run"]!.GetValue<double>()) > 1,
+                "three opponents went down fewer than once a fight between them, so the case this "
+                + "distinction exists for is not being reached: "
+                + filed.ToJsonString());
+
+            Assert.All(answer["by_combatant"]!.AsArray(), combatant =>
+                Assert.All(combatant!["defeated_by"]!.AsArray(), row =>
+                {
+                    Assert.Null(row!["mean_a_run"]);
+                    Assert.InRange(row["rate"]!.GetValue<double>(), 0, 1);
+                }));
+        });
+
+    /// <summary>
+    /// The sections of the play policy whose backticked names are answer keys rather than prose —
+    /// the two this slice added, plus the styles table that names what a caller may ask for.
+    /// </summary>
+    private static readonly string[] SectionsNamingWhatComesBack =
+    [
+        "## Styles: how a fight is played",
+        "## Is this fight too unfair, and what has the party no answer for"
+    ];
+
+    /// <summary>
+    /// <b>Every name the play policy prints in those sections is one this server really answers
+    /// with, or really accepts.</b>
+    ///
+    /// <para><b>The echo keys fall outside the guard that already exists, and that is the finding
+    /// this is here for.</b>
+    /// <see cref="EveryArgumentNameThePolicyPrintsIsSpelledTheWayTheSchemaSpellsIt"/> reads the
+    /// <c>## The calls</c> section and checks spans against the tools' <em>input schemas</em>;
+    /// <see cref="EveryProvenanceNameThePolicyPrintsIsOneThisServerEchoes"/> covers exactly two keys
+    /// of the echoed table. Everything this slice added — <c>attack_forms</c>, <c>defences</c>,
+    /// <c>defeated_by</c>, <c>unfair</c>, the style ids, the selector ids — is an answer key or an
+    /// accepted value in a third place, and nothing was holding any of them to the server. That is
+    /// the same fault the <c>max_pages</c> guard was written for: the document is right-looking and
+    /// wrong, and a model reading it looks for a field that never arrives.</para>
+    ///
+    /// <para><b>Held in both directions.</b> Every span in those sections has to be something the
+    /// server produces or accepts, and the keys the document undertakes to name have to still be in
+    /// it — otherwise a parse that had stopped finding spans would pass in silence, which is how
+    /// three of this repository's historical guards were wrong.</para>
+    /// </summary>
+    [Fact]
+    public async Task EveryReportKeyThePolicyNamesIsOneThisServerAnswersWith() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRunsForAVerdict,
+                ["seed"] = 3_030
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var matrix = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = PlayTools.FewestRunsACell,
+                ["seed"] = 3_030,
+                ["maxPages"] = 6
+            });
+
+            var produced = new HashSet<string>(StringComparer.Ordinal);
+
+            Keys(answer, produced);
+            Keys(matrix, produced);
+
+            foreach (var name in StylePolicy.StyleIds) produced.Add(name);
+            foreach (var name in StylePolicy.TargetingIds) produced.Add(name);
+            foreach (var name in PlayTools.Policies) produced.Add(name);
+            foreach (var name in PlayTools.Matchups) produced.Add(name);
+            foreach (var tool in (await client.ListToolsAsync()).Select(t => t.Name)) produced.Add(tool);
+
+            // `narrative` is the one name here the server refuses rather than answers with, which is
+            // the whole point of it being in the document.
+            produced.Add(StylePolicy.NarrativeStyle);
+
+            // The two JSON literals the document quotes as values rather than as keys.
+            produced.Add("null");
+            produced.Add("false");
+
+            var spans = SectionsNamingWhatComesBack.SelectMany(SpansUnder).ToList();
+
+            // The control on the parse, before its result is compared with anything: it found the
+            // names those sections are there to name.
+            foreach (var named in ReportKeysThePolicyUndertakesToName)
+            {
+                Assert.Contains(named, spans, StringComparer.Ordinal);
+            }
+
+            var invented = spans.Where(s => !produced.Contains(s)).Order(StringComparer.Ordinal).ToList();
+
+            Assert.True(invented.Count == 0,
+                "mcp-play/PLAY-POLICY.md names " + string.Join(", ", invented)
+                + ", and this server answers with no such thing — a reader is being sent looking "
+                + "for a field that never arrives, or asking for a value that is refused.");
+        });
+
+    /// <summary>
+    /// <b>A matrix row and a matrix cell carry exactly the keys the play policy names, and this is
+    /// asked <em>of the cell</em> rather than of the whole answer.</b>
+    ///
+    /// <para><b>The spelling guard above cannot localise a key and this is what that costs.</b> It
+    /// builds one flat set out of every key of two whole answers and asks whether the document
+    /// names anything outside it — so a key that exists <em>somewhere</em> satisfies a mention
+    /// <em>anywhere</em>. Renaming a cell's <c>mean_pages</c> to <c>mean_page_count</c> leaves it
+    /// green, because <c>run_encounters</c> answers with a <c>mean_pages</c> of its own and the
+    /// union still contains the word. A caller reading a cell would find nothing there.</para>
+    ///
+    /// <para>So the shape is asserted where it is published: every cell has these six keys and no
+    /// others, every row these three. It is an exact set rather than a <c>Contains</c> for the same
+    /// reason — a key quietly added to a cell is a figure the document does not explain.</para>
+    /// </summary>
+    [Fact]
+    public async Task AMatrixRowAndCellCarryExactlyTheKeysThePolicyNames() =>
+        await WithClient(async client =>
+        {
+            var matrix = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = PlayTools.FewestRunsACell,
+                ["seed"] = 3_300,
+                ["matchups"] = "party",
+                ["maxPages"] = 4
+            });
+
+            Assert.True(matrix["ok"]!.GetValue<bool>(), matrix.ToJsonString());
+
+            var row = Assert.Single(matrix["matrix"]!.AsArray())!;
+
+            Assert.Equal(
+                ["cells", "combatants", "matchup"],
+                row.AsObject().Select(p => p.Key).Order(StringComparer.Ordinal));
+
+            var cells = row["cells"]!.AsArray();
+
+            Assert.Equal(StylePolicy.StyleIds.Count, cells.Count);
+
+            Assert.All(cells, cell => Assert.Equal(
+                ["draw_rate", "mean_pages", "seeds", "style", "unfair", "win_rate"],
+                cell!.AsObject().Select(p => p.Key).Order(StringComparer.Ordinal)));
+
+            Assert.All(cells, cell => Assert.Equal(
+                ["first", "last"],
+                cell!["seeds"]!.AsObject().Select(p => p.Key).Order(StringComparer.Ordinal)));
+        });
+
+    /// <summary>
+    /// The names those sections exist to name — the control for the check above, which would
+    /// otherwise pass in silence on a parse that had stopped finding spans.
+    /// </summary>
+    private static readonly string[] ReportKeysThePolicyUndertakesToName =
+    [
+        "style", "targeting", "unfair", "unfair_threshold", "attack_forms", "defences",
+        "defeated_by", "mean_pages_survived", "defence_traits_unread", "land_rate", "hold_rate",
+        "by_combatant", "by_side", "mano_a_mano", "standard", "min_max", "reckless",
+        "weakest", "strongest", "highest_threat", "narrative",
+
+        // The two spellings the defeat figure takes, which the document draws the distinction
+        // between in as many words and nothing was holding it to.
+        "rate", "mean_a_run",
+
+        // <b>The matrix's own answer keys, which fell outside both guards.</b> The section that
+        // named them was `## The calls`, in prose and without backticks, and that section is read
+        // by the *argument* guard against the tools' input schemas — so nothing anywhere held a
+        // cell's spellings to what a cell answers with.
+        "matrix", "matchup", "cells", "win_rate", "draw_rate", "mean_pages", "runs_a_cell",
+        "total_runs", "style_notes", "seeds", "max_pages"
+    ];
+
+    /// <summary>Every backticked lower-case name under one heading, to the next heading.</summary>
+    private static List<string> SpansUnder(string heading)
+    {
+        var text = PlayPolicy.Text;
+        var at = text.IndexOf(heading, StringComparison.Ordinal);
+
+        Assert.True(at >= 0,
+            $"mcp-play/PLAY-POLICY.md no longer has the section \"{heading}\". Either it has "
+            + "stopped describing what comes back, or this parse has stopped finding it — and in "
+            + "both cases nothing holds the spellings together.");
+
+        var from = at + heading.Length;
+        var next = text.IndexOf("\n## ", from, StringComparison.Ordinal);
+        var section = next < 0 ? text[from..] : text[from..next];
+
+        return new Regex(@"`([a-z][a-z_0-9]*)`", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(section)
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>Every key anywhere in a JSON answer, however deep.</summary>
+    private static void Keys(JsonNode? node, HashSet<string> into)
+    {
+        switch (node)
+        {
+            case JsonObject o:
+                foreach (var (key, value) in o)
+                {
+                    into.Add(key);
+                    Keys(value, into);
+                }
+
+                break;
+
+            case JsonArray a:
+                foreach (var item in a) Keys(item, into);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The same fight with nobody in it whose <c>kind</c> is <c>hero</c> — a Villain against a Foe,
+    /// which is a fight this engine resolves and a matrix cannot have rows for.
+    /// </summary>
+    private static JsonArray NobodyIsAHero()
+    {
+        var fight = TwoSides();
+        fight[0]!["kind"] = "foe";
         return fight;
     }
 

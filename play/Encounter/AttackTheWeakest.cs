@@ -66,24 +66,10 @@ public sealed class AttackTheWeakest : IPolicy
     {
         ArgumentNullException.ThrowIfNull(actor);
 
-        if (AttackTraits is { } chosen) return chosen;
-
-        var rows = _play.GetCombat("attack_and_defense_table").AttackDefenseTable!;
-
-        var named = rows
-            .SelectMany(r => r.DefenseTraits.Append(r.AttackTrait))
-            .Where(t => !string.Equals(t, "Power", StringComparison.Ordinal))
-            .Select(t => t.Replace("1/2 ", "", StringComparison.Ordinal).ToLowerInvariant().Replace(' ', '_'))
-            .ToHashSet(StringComparer.Ordinal);
-
-        var abilities = rows
-            .Select(r => r.AttackTrait)
-            .Where(t => !string.Equals(t, "Power", StringComparison.Ordinal))
-            .Select(t => t.ToLowerInvariant().Replace(' ', '_'));
-
-        var powers = actor.TraitRanks.Keys.Where(id => !named.Contains(id));
-
-        return [.. abilities.Concat(powers).Distinct(StringComparer.Ordinal)];
+        // <b>The derivation itself lives in <c>AttackOptions</c></b>, because the style policies need
+        // exactly the same one: a second copy here would be a second thing to correct when p.75's
+        // table is corrected, and the two would agree right up until somebody corrected one of them.
+        return AttackTraits ?? AttackOptions.AvailableTo(_play, actor);
     }
 
     /// <inheritdoc/>

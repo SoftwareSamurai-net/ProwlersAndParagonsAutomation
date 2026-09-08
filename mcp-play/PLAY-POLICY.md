@@ -180,9 +180,11 @@ every answer for exactly this reason.
   wearing a percentage sign.
 - **Seeds.** The runs are seeded `seed`, `seed + 1`, … so the same call gives the same answer.
   Quote the range; a figure nobody can reproduce is an anecdote.
-- **Policy.** A policy is *not a rule*. It is a guess about how people play — `attack_the_weakest`
-  focuses fire on whoever is nearly down and buys a reroll when a roll came close, which is one
-  real table habit out of several. A balance figure is a figure about a party that plays that way.
+- **Policy.** A policy is *not a rule*. It is a guess about how people play — the default,
+  `standard`, has each side seize the initiative when the other looks faster and answer a point
+  spent against it with one of its own, which is one real table habit out of several. A balance
+  figure is a figure about a party that plays that way. It comes back as `policy`, and the two
+  guesses inside it come back separately as `style` and `targeting`, each with its own `note`.
 - **Table settings.** The default is the book's baseline, which is every optional Gritty rule
   **off**, in clear air. A run with `wound_penalties` on is measuring a different game from one
   without it, and so is a run in the dark — which is why the scene's `visibility` comes back inside
@@ -195,6 +197,91 @@ row of `by_combatant` echoes its own `size` and `invisible` beside its defeat ra
 says which fight it measured without anybody having to remember what they sent.
 
 Say what was measured, in those terms, or do not say it.
+
+## Styles: how a fight is played
+
+**A fight is run in a style, and a style is a guess rather than a rule.** Nothing in Chapters 3–5
+says *when* a person would spend a point; the book only says what a point buys. So each of these is
+a way of playing, written down so it can be argued with, and its one-sentence `note` comes back in
+every answer beside the figures.
+
+| `style` | What it does |
+|---|---|
+| `mano_a_mano` | Villain and Heroes fight on their sheets alone: not a point of Resolve or Adversity is spent. |
+| `standard` | The default. Each side seizes the initiative when the other looks faster on Edge, and answers a point spent against it on the previous page with a reroll of its own. |
+| `min_max` | Both sides exploit the rules: dice priced against the shortfall, a reroll where the dice cannot reach, a seized initiative that moves the order, team attacks between adjacent allies, and all-out only where the counterattack could not put them down. |
+| `reckless` | All-out on every page and never a point spent on staying alive — not a way anybody plays, but the upper bound the other three sit under. |
+
+**`narrative` is refused by name, and that is a decision rather than a gap.** It means the Villain
+acting befitting their character, with their Flaws coming up — and a seed cannot fake it: **nothing
+in this engine makes a Flaw bite** (p.85 hands "whenever the opportunity presents itself" to the GM,
+and the suppression spend it sells says the same), and "befitting" is a judgement rather than a
+comparison. Run it live with `take_turn`, with you as the Villain. Ask for it as a style and you get
+a refusal that says exactly this, so nobody reads its absence as an oversight.
+
+**Who a side goes after is a separate axis**, `targeting`, and any of the three composes with any
+style — how freely a table spends and who it swings at are not the same habit.
+
+| `targeting` | Who it picks |
+|---|---|
+| `weakest` | The default: whoever has the least Health left, or the fewest bodies for a group of Minions. |
+| `strongest` | Whoever has the most left — take the hardest one down while everybody is fresh. |
+| `highest_threat` | Whoever has done the most damage so far, and before anybody has landed anything, whoever has the greatest attack rank. |
+
+**`attack_the_weakest` is still there**, as `policy`, and it is the policy this server shipped with —
+kept so the measurements taken under it stay reproducible. Given, it overrides `style` and
+`targeting`.
+
+## Is this fight too unfair, and what has the party no answer for
+
+Two questions, and the tools answer them in two different shapes.
+
+**`unfair` is a threshold the owner set and not a rule the book prints.** A side is flagged where it
+wins half its fights or fewer over at least 100 runs. Below that many runs the flag is `null` and
+not `false`, because "not unfair" and "not enough fights to say" are different answers and only one
+of them is reassuring. The figure and the sentence come back in `unfair_threshold`; quote them with
+the flag.
+
+**Every side carries it, and a draw counts against all of them.** A run neither side won is a win
+for nobody, so it lowers both rates — which means two combatants who cannot get through each other
+come back with `unfair: true` against *each* of them. That is the honest answer to the question the
+flag is for (is this fight worth playing) and the wrong reading of the word: nobody is being beaten
+there. **`draw_rate` is what tells the two apart, so read it beside the flag** and never narrate a
+flagged side as losing without looking at it.
+
+**What a party has no answer for is `by_combatant` and `by_side`**, and every figure in them is
+*observed* rather than declared:
+
+- `attack_forms` — each Trait or Power the character actually swung, how many exchanges it made, how
+  many landed, the damage it did and the Minions it took out. The first row is what they are best
+  at.
+- `defences` — each Trait that answered *for* them, how often, and how often it held. The first row
+  is what they lean on; a low `hold_rate` is where they are weakest.
+- `defeated_by` — what put them out, by attacker and by the Trait or Power that did it. A defeat with
+  no attacker against it is p.79's dying clock or an effect, which belong to nobody's turn. **A
+  character's figure is a `rate` and a side's is a `mean_a_run`**, because one character goes down at
+  most once a fight and a party of four does not — a side's count over N is not a proportion and is
+  not spelled like one.
+- `mean_pages_survived` — how long they lasted.
+
+A `land_rate` or a `hold_rate` of `null` means that Trait was never swung or never answered, which
+is not the same finding as one that never worked.
+
+### What a matrix cell carries
+
+`run_matrix` answers one table under `matrix`. Each row is a `matchup` — the whole party, or one
+Hero by name — and its `cells` are one per style. A cell is a `win_rate`, an `unfair` flag, a
+`draw_rate`, the `mean_pages` and its own `seeds` block; `runs_a_cell` and `total_runs` are at the
+top, and `style_notes` carries the guess behind each column so a table is quotable on its own.
+
+**A cell is one number and the detail of it is a `run_encounters` call away**: pass that cell's own
+`seeds.first`, its `style`, the table's `targeting` and `max_pages`, and the same combatants — the
+Hero alone, for a Hero's row — and you get the whole per-character report for exactly those fights.
+The blocks are consecutive and never overlap, so no two cells are the same fight.
+
+**`defence_traits_unread` is at the top of every report and should be `0`.** The Trait that answered
+an attack is the one figure here read back out of a ledger sentence rather than off the state; above
+zero, the `defences` tables are short by that many rows and something has moved.
 
 ## The calls
 
@@ -212,11 +299,18 @@ answer is JSON of this server's own making and the arguments are the tool's sign
 - **`take_turn`** — an `encounterId` and **one** `intent`. Acting and rolling are one call: there is
   no separate "roll" step, because an intent is a request and the engine decides what it produces.
   Answers with the ledger lines that step added and the public state.
-- **`run_encounters`** — the same setup, `visibility` included, plus `runs`, `policy` and
-  `maxPages`, run headless. That
+- **`run_encounters`** — the same setup, `visibility` included, plus `runs`, `style`, `targeting`,
+  `policy` and `maxPages`, run headless. That
   last one is the sharpest of the camelCase pair above: the answer prints the page limit back in
   snake_case, and sending it that way sends an argument the schema has not got. Its echoed table
   carries where the settings came from, so a rate quoted off it is reproducible from its own answer.
+- **`run_matrix`** — the same setup again, plus `runs` (per cell), `matchups` and `targeting`, and
+  it answers **one table**: rows are matchups — the whole party against the opposition, and each
+  Hero alone against it — and columns are every simulated style. Each cell is a win rate, an
+  `unfair` flag, a draw rate, the mean pages, and its own block of seeds. It refuses fewer than 100
+  runs a cell, because every cell carries a verdict; it caps the whole table so one call cannot run
+  for minutes; and the seed blocks are consecutive and derived from the one base `seed`, so any cell
+  can be reopened in detail with `run_encounters` on that block.
 
 A combatant is either a character sheet — the shape the character server's `creation_guide`
 describes — with a `kind` of `hero`, `villain`, `foe` or `extra` and a `side`, or a group of

@@ -253,6 +253,35 @@ lives there, and nothing about it is repeated here.
   caveat beside a number is read by nobody; the number is what gets quoted. **The policy is a guess
   about how people play and not a rule** — that is `IPolicy`'s own doc comment, and it is why the
   name is in the report.
+- **`run_encounters` takes a `style` and a `targeting`, and echoes both with their notes.** They
+  default to `standard` and `weakest`; the two are separate arguments and separate echo objects
+  because they are two guesses — how freely a side spends and who it swings at are not the same
+  habit, and a reader arguing with one has to see which one they are arguing with. **`narrative` is
+  refused by its own name** rather than falling into "no such style", because its absence is a
+  decision: nothing in `play/` makes a Flaw bite, so a seeded policy pretending to it would put a
+  name on a measurement that was measuring something else. `attack_the_weakest` stays as `policy`,
+  the escape hatch, so `PROGRESS.md`'s first balance measurement is still reproducible from its own
+  echo.
+- **The report answers the owner's second question as well as his first**, and every figure in it is
+  *observed* rather than declared. Per character and per side: which attack forms landed damage and
+  how much by Trait, which defences held by Trait, what defeated them by attacker and Trait, and the
+  mean pages survived — all off `Encounter.RunObserved`, which reads them off the engine's own
+  record of each roll. A report built off the intents instead would credit an attack the rules
+  refused with a miss. `defence_traits_unread` is published beside them, and should be `0`.
+- **`unfair` is a threshold the owner set and the answer says so beside every flag.** A side at or
+  below half over at least a hundred runs; `null` rather than `false` below the floor, because "not
+  unfair" and "not enough fights to say" are different answers. `PlayTools.IsUnfair` is public so
+  the boundary can be driven at the boundary — no fight can be made to land on exactly a half — with
+  a real lopsided report as the control that it is the predicate the report calls.
+- **`run_matrix` is the same measurement across every simulated style and every matchup, as one
+  table.** Rows are the party against the opposition and each Hero alone against it; columns are the
+  four styles; each cell is a win rate, an `unfair` flag, a draw rate, the mean pages and its own
+  block of seeds. It refuses fewer than 100 runs a cell because every cell carries a verdict, and it
+  caps the *whole table* rather than each cell — there is no progress and no cancel over this
+  transport, so what matters is how long the one call takes and twenty cells at a safe size each
+  still add up to the session that looks broken. **The seed blocks are consecutive and derived from
+  the one base seed**, so no two cells share a fight and any cell can be reopened in detail with
+  `run_encounters` on its own block, which is the whole claim a derived seed makes.
 - **Acting and rolling are one tool.** `declare_intent` beside `roll` is the engine's internals
   rather than the conversation's: an intent is a *request*, and a separate rolling call would let a
   caller declare an attack, look at the dice, and decide afterwards what was being attempted. It is
