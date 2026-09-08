@@ -994,10 +994,9 @@ public sealed class PlayTools
 
         foreach (var side in sides)
         {
-            var members = setup.Combatants
+            var members = Tally.Merged(setup.Combatants
                 .Where(c => string.Equals(c.Side, side, StringComparison.Ordinal))
-                .Select(c => tallies[c.Id])
-                .ToList();
+                .Select(c => tallies[c.Id]));
 
             bySide.Add(new JsonObject
             {
@@ -1013,9 +1012,9 @@ public sealed class PlayTools
                 ["mean_health_remaining"]  = holdsHealth[side] ? Mean(healthBySide[side], runs) : null,
                 ["mean_resolve_spent"]     = Mean(openingBySide[side] * runs - resolveSpentBySide[side], runs),
 
-                ["attack_forms"]           = AttackForms(Tally.Merged(members), runs),
-                ["defences"]               = Defences(Tally.Merged(members)),
-                ["defeated_by"]            = DefeatedBy(Tally.Merged(members), runs)
+                ["attack_forms"]           = AttackForms(members, runs),
+                ["defences"]               = Defences(members),
+                ["defeated_by"]            = DefeatedBy(members, runs, oneCharacter: false)
             });
         }
 
@@ -1068,7 +1067,7 @@ public sealed class PlayTools
                 // out-rolled the attack rather than one that was declared.
                 ["attack_forms"]          = AttackForms(tally, runs),
                 ["defences"]              = Defences(tally),
-                ["defeated_by"]           = DefeatedBy(tally, runs)
+                ["defeated_by"]           = DefeatedBy(tally, runs, oneCharacter: true)
             });
         }
 
@@ -1313,18 +1312,34 @@ public sealed class PlayTools
             })
     ];
 
-    /// <summary>What put this combatant out of the fight, by attacker and by what they used.</summary>
-    private static JsonArray DefeatedBy(Tally tally, int runs) =>
+    /// <summary>
+    /// What put this combatant — or this side — out of the fight, by attacker and by what they used.
+    ///
+    /// <para><b>A combatant's figure is a rate and a side's is a mean, and they are spelled
+    /// differently because they are different things.</b> One character goes down at most once a
+    /// fight, so their count over N is a proportion between nothing and one. A side of four does
+    /// not: the same division answered <c>3.315</c>, which reads exactly like a rate and is not one.
+    /// A figure that looks like something it is not is the shape of defect this whole report is
+    /// written against.</para>
+    /// </summary>
+    private static JsonArray DefeatedBy(Tally tally, int runs, bool oneCharacter) =>
     [
         .. tally.Defeats
             .OrderByDescending(pair => pair.Value)
             .ThenBy(pair => pair.Key, StringComparer.Ordinal)
-            .Select(pair => (JsonNode)new JsonObject
-            {
-                ["by"]   = pair.Key,
-                ["runs"] = pair.Value,
-                ["rate"] = Rate(pair.Value, runs)
-            })
+            .Select(pair => (JsonNode)(oneCharacter
+                ? new JsonObject
+                {
+                    ["by"]   = pair.Key,
+                    ["runs"] = pair.Value,
+                    ["rate"] = Rate(pair.Value, runs)
+                }
+                : new JsonObject
+                {
+                    ["by"]          = pair.Key,
+                    ["runs"]        = pair.Value,
+                    ["mean_a_run"]  = Mean(pair.Value, runs)
+                }))
     ];
 
     // ── Reading a setup ───────────────────────────────────────────────────

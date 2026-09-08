@@ -251,7 +251,10 @@ the flag.
 - `defences` — each Trait that answered *for* them, how often, and how often it held. The first row
   is what they lean on; a low `hold_rate` is where they are weakest.
 - `defeated_by` — what put them out, by attacker and by the Trait or Power that did it. A defeat with
-  no attacker against it is p.79's dying clock or an effect, which belong to nobody's turn.
+  no attacker against it is p.79's dying clock or an effect, which belong to nobody's turn. **A
+  character's figure is a `rate` and a side's is a `mean_a_run`**, because one character goes down at
+  most once a fight and a party of four does not — a side's count over N is not a proportion and is
+  not spelled like one.
 - `mean_pages_survived` — how long they lasted.
 
 A `land_rate` or a `hold_rate` of `null` means that Trait was never swung or never answered, which

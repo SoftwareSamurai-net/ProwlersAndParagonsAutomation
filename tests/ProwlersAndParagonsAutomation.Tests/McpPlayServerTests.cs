@@ -5564,6 +5564,49 @@ public sealed class McpPlayServerTests
     };
 
     /// <summary>
+    /// <b>A character's defeats come back as a rate and a side's as a mean, and the two are spelled
+    /// differently because a party of four goes down more than once a fight.</b>
+    ///
+    /// <para>The same division answered <c>3.315</c> under the key <c>rate</c> — a figure that reads
+    /// exactly like a proportion and is not one, printed beside four that are. The control here is
+    /// the pair: the side's figure has to be above one on this fight, and the characters' have to be
+    /// proportions, or the two keys are not measuring different things.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASidesDefeatsAreAMeanAndACharactersAreARate() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = ThreeOnOne(),
+                ["runs"] = PlayTools.FewestRunsForAVerdict,
+                ["seed"] = 6_060,
+                ["style"] = "reckless"
+            });
+
+            var villains = answer["by_side"]!.AsArray()
+                .Single(s => string.Equals(s!["side"]!.GetValue<string>(), "villains", StringComparison.Ordinal))!;
+
+            var filed = villains["defeated_by"]!.AsArray();
+
+            Assert.True(filed.Count > 0, "nobody on the Villains' side went down, so there is nothing to file.");
+
+            Assert.All(filed, row => Assert.Null(row!["rate"]));
+
+            Assert.True(filed.Sum(r => r!["mean_a_run"]!.GetValue<double>()) > 1,
+                "three opponents went down fewer than once a fight between them, so the case this "
+                + "distinction exists for is not being reached: "
+                + filed.ToJsonString());
+
+            Assert.All(answer["by_combatant"]!.AsArray(), combatant =>
+                Assert.All(combatant!["defeated_by"]!.AsArray(), row =>
+                {
+                    Assert.Null(row!["mean_a_run"]);
+                    Assert.InRange(row["rate"]!.GetValue<double>(), 0, 1);
+                }));
+        });
+
+    /// <summary>
     /// The sections of the play policy whose backticked names are answer keys rather than prose —
     /// the two this slice added, plus the styles table that names what a caller may ask for.
     /// </summary>
