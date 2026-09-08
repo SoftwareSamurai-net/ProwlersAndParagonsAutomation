@@ -75,7 +75,7 @@ as in scope. **Nothing here is a defect.**
 
 **Waiting on the owner — not work an agent can pick up**
 
-- [ ] **[13](#13-the-owners-branding-and-the-sign-in-email)** — branding; the kit is awaited on [issue #161](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/issues/161)
+- [x] **[13](#13-the-owners-branding-and-the-sign-in-email)** — the owner's favicons and manifest are served and the mark sits in the banner beside the wordmark, on all four palettes; the four shell goldens were regenerated on the runner. Verified by the orchestrator 2026-09-09: the manifest's colour format and its need for an unmasked icon each went red under mutation. Two choices are recorded in the entry for the owner
 - [ ] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — whether character variants deserve a mechanism; its own entry recommends deferring
 
 **Ready to build, specified enough to start**
@@ -1079,6 +1079,8 @@ competitor's and the competitor's is better. It is built by `signInMessage` in `
 which `scripts/probe-mail.mjs` imports rather than reassembling — see item 8's account of why that
 matters. Any change here is **outward-facing and costs the hourly allowance to test**, so it is
 proofed against the probe and not against a real inbox.
+
+**Built 2026-09-08 from the kit the owner attached to issue #161 — see the pull request that carried it.** The HTML5 favicon pack (`favicon.svg`, `.ico`, 96px, the Apple touch icon, two manifest icons) is served from `web/wwwroot/` with `<link>`s in `index.html`, and `site.webmanifest` names the app, with `theme_color` the Hero palette's primary and `background_color` its surface. The mark in the banner is the eye cropped out of the kit's own `favicon.svg` — the first 81 of its paths on their own tile, derived from the shipped file so a clean checkout rebuilds it — placed inside `.banner-title` as an `<img>` with the vendor's name as its alt, so no component names a colour. The dark tile stays under the eye because 45 of those 81 paths are the eye's counters in that dark, and the brand red is invisible on the Villain banner's crimson without it. The review found both manifest icons declared maskable when the lockup bleeds to its edges (13% of the pixels fall outside the safe circle, and nothing was left for an unmasked draw), the publish-side image scan skipping a leading slash, the crop guard unable to tell the first 81 paths from the last, and a 320px measurement claimed for a harness that never takes one; each is fixed with a guard. Two choices are the owner's and stay open here rather than decided by an agent: whether the tile keeps its own dark or takes each banner's colour (the latter needs a second file — an inline SVG would be a component naming the brand's red); and which identity the installed app's chrome wears, since `theme_color` cannot follow the palette and a Villain player who installs the site gets a navy band above a crimson banner.
 
 **Asked on 2026-09-06, the owner did not recognise the email comparison** ("I dont know what this means"), so that half is dropped until they raise it again. The kit is on their work PC; [issue #161](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/issues/161) is where they will attach it, and nothing here starts until it is there.
 
