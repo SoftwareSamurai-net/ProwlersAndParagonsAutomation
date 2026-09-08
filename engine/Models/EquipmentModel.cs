@@ -407,8 +407,30 @@ public record EquipmentItemModel
 
     public int? BonusDice { get; init; }
     public string? BonusAppliesTo { get; init; }
+
+    /// <summary>
+    /// How hard the item is to <b>break</b>: Handcuffs at Inhuman (5) and Zip Tie at Brutal (4),
+    /// the only two the page prints. <b>Not the difficulty of using the item</b> — that is
+    /// <see cref="UseThreshold"/>, and the two say opposite things about the same number.
+    /// </summary>
     public int? BreakThreshold { get; init; }
+
+    /// <inheritdoc cref="BreakThreshold"/>
     public string? BreakThresholdLabel { get; init; }
+
+    /// <summary>
+    /// The difficulty of a roll made to <b>use</b> the item: Rappelling Gear's Easy (0). It is a
+    /// separate field from <see cref="BreakThreshold"/> because recording it there would say the
+    /// gear falls apart on a roll anybody makes, which is not what the page states.
+    /// </summary>
+    public int? UseThreshold { get; init; }
+
+    /// <inheritdoc cref="UseThreshold"/>
+    public string? UseThresholdLabel { get; init; }
+
+    /// <summary>The Trait that roll is made with, where the page names one.</summary>
+    public string? UseTrait { get; init; }
+
     public string? Duration { get; init; }
     public string Description { get; init; } = "";
     public IReadOnlyList<string> VerifiedFields { get; init; } = [];

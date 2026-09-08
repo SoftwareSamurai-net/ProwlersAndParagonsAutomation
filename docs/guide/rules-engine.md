@@ -247,6 +247,15 @@ the page is silent on both.
   the outcome the comment gives as the reason not to credit it, so the comment and the code disagree
   about what "not credited" means.
 
+**Three items on p.91 print a `Label (n)` figure and only two of them are about breaking the item.**
+Handcuffs' Inhuman (5) and Zip Tie's Brutal (4) are thresholds to break; Rappelling Gear's Easy (0)
+is the **Agility roll that uses it**, and it was recorded as a third break threshold — which says the
+gear falls apart on a roll nobody fails, and dropped the Trait the page names. `break_threshold` and
+`use_threshold` are separate fields for that reason. **No check that reads a value and compares it to
+a figure typed beside it can see this**: 0 and "Easy" are both correct figures and the defect is which
+field they sit in, so `EveryThresholdOnAnItemIsTheKindOfRollThePagePrints` slices p.91 into per-item
+sentences and asks what kind of roll each one describes.
+
 ### The discipline is the play store's, applied to a creation-side file
 
 `verified_fields` from a closed list declared in the file's own header and always including

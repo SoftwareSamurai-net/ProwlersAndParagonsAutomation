@@ -564,8 +564,13 @@ public sealed class EquipmentDataTests
         Assert.Equal("Inhuman", items["handcuffs"].BreakThresholdLabel);
         Assert.Equal(4, items["zip_tie"].BreakThreshold);
         Assert.Equal("Brutal", items["zip_tie"].BreakThresholdLabel);
-        Assert.Equal(0, items["rappelling_gear"].BreakThreshold);
-        Assert.Equal("Easy", items["rappelling_gear"].BreakThresholdLabel);
+
+        // Rappelling Gear's Easy (0) is the roll that uses it, not a threshold to break it, and the
+        // page names the Trait. EveryThresholdOnAnItemIsTheKindOfRollThePagePrints is why.
+        Assert.Null(items["rappelling_gear"].BreakThreshold);
+        Assert.Equal(0, items["rappelling_gear"].UseThreshold);
+        Assert.Equal("Easy", items["rappelling_gear"].UseThresholdLabel);
+        Assert.Equal("Agility", items["rappelling_gear"].UseTrait);
 
         // The one granted Power the page prints a rank for.
         Assert.Equal(9, items["parabolic_microphone"].GrantedPowerRank);
@@ -587,6 +592,110 @@ public sealed class EquipmentDataTests
                     $"{item.Id} grants '{id}', which is not a Power in powers.json.");
             }
         }
+    }
+
+    /// <summary>
+    /// <b>Three items on p.91 print a Label (n) figure and they are not all the same kind of
+    /// figure.</b> Handcuffs' Inhuman (5) and Zip Tie's Brutal (4) are thresholds "to break" the
+    /// item; Rappelling Gear's Easy (0) is the Agility roll that <em>uses</em> it. Recording that
+    /// third one as a break threshold — which is how it was recorded — says the gear falls apart on
+    /// a roll nobody fails, and drops the Trait the page names.
+    ///
+    /// <para><b>Nothing above could see it.</b> Every check on these items reads a value out of the
+    /// file and compares it to a figure typed beside it, and 0 and "Easy" are both correct figures;
+    /// the defect is which field they are in, and a field name is not a value. So this reads each
+    /// item's own printed sentence out of the corpus and asks what kind of roll it describes.</para>
+    ///
+    /// <para>Sliced by the same name regex
+    /// <see cref="TheEquipmentListIsDerivedFromTheCorpusAndPricesNothing"/> tiles the list with, so
+    /// the two agree about where an item's text begins and ends.</para>
+    /// </summary>
+    [Fact]
+    public void EveryThresholdOnAnItemIsTheKindOfRollThePagePrints()
+    {
+        var printed = PrintedItemSentences();
+        var items = Equipment().EquipmentCatalogue.Items;
+
+        // Positive controls on the slice: every item is there, and a sentence really did come with
+        // each of them — an empty haystack would pass every assertion below.
+        Assert.Equal(items.Count, printed.Count);
+        Assert.All(items, i => Assert.False(string.IsNullOrWhiteSpace(printed[i.Name])));
+
+        var breaking = items.Where(i => i.BreakThreshold is not null).ToList();
+        var using_ = items.Where(i => i.UseThreshold is not null).ToList();
+
+        // Positive controls on the split: there are some of each, and no item claims to be both.
+        Assert.Equal(2, breaking.Count);
+        Assert.Equal(1, using_.Count);
+        Assert.Empty(items.Where(i => i.BreakThreshold is not null && i.UseThreshold is not null));
+
+        var faults = new List<string>();
+
+        foreach (var item in breaking)
+        {
+            var sentence = printed[item.Name];
+            var figure = $"{item.BreakThresholdLabel} ({item.BreakThreshold})";
+
+            if (!sentence.Contains("threshold to break", StringComparison.OrdinalIgnoreCase))
+                faults.Add($"{item.Id} records a break threshold and its printed text is not about breaking it");
+
+            if (!sentence.Contains(figure, StringComparison.Ordinal))
+                faults.Add($"{item.Id} records {figure}, which p.91 does not print for it");
+        }
+
+        foreach (var item in using_)
+        {
+            var sentence = printed[item.Name];
+            var figure = $"{item.UseThresholdLabel} ({item.UseThreshold})";
+
+            if (sentence.Contains("threshold to break", StringComparison.OrdinalIgnoreCase))
+                faults.Add($"{item.Id} records a use threshold and its printed text is about breaking it");
+
+            if (!sentence.Contains(figure, StringComparison.Ordinal))
+                faults.Add($"{item.Id} records {figure}, which p.91 does not print for it");
+
+            if (!sentence.Contains("roll", StringComparison.OrdinalIgnoreCase))
+                faults.Add($"{item.Id} records a use threshold and p.91 prints no roll for it");
+
+            if (item.UseTrait is null || !sentence.Contains(item.UseTrait, StringComparison.Ordinal))
+                faults.Add($"{item.Id} records the Trait '{item.UseTrait}', which p.91 does not name for it");
+        }
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+
+        // And nothing else on the list prints a Label (n) figure that neither field caught, which is
+        // what stops this passing by only looking at the three it already knows about.
+        var withFigures = printed
+            .Where(pair => Regex.IsMatch(pair.Value, @"\b[A-Z][a-z]+ \(\d+\)"))
+            .Select(pair => pair.Key)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(
+            breaking.Concat(using_).Select(i => i.Name).Order(StringComparer.Ordinal).ToList(),
+            withFigures);
+    }
+
+    /// <summary>
+    /// p.91's list as name to printed sentence, cut at each name the same regex finds. An item's
+    /// text runs from its own colon to the next item's name, which is what makes a per-item
+    /// question answerable against the page at all.
+    /// </summary>
+    private static Dictionary<string, string> PrintedItemSentences()
+    {
+        var block = ChapterSixSections().Single(s => s.Page == 91 && s.Heading == "EQUIPMENT");
+        var names = Regex.Matches(block.Text, @"(?<name>[A-Z][A-Za-z]*(?:[ ,/]+[A-Za-z]+)*): ");
+        var sentences = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        for (var i = 0; i < names.Count; i++)
+        {
+            var start = names[i].Index + names[i].Length;
+            var end = i + 1 < names.Count ? names[i + 1].Index : block.Text.Length;
+
+            sentences[names[i].Groups["name"].Value] = block.Text[start..end].Trim();
+        }
+
+        return sentences;
     }
 
     // ── Custom Gear and its Pros and Cons, pp.92-93 ──────────────────────────
