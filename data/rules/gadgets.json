@@ -31,14 +31,14 @@
         "maximum_per_issue_trait": "intellect",
         "maximum_per_issue_divisor": 2
       },
-      "description": "Not every character can improvise hardware mid-story. The builder needs six dice of Technology before the rules open to them at all, plus somewhere to work and something to work with, and the number they can turn out inside one issue is tied to how clever they are rather than to how skilled.",
+      "description": "Not every character can improvise hardware mid-story. The builder needs six dice of Technology before the rules open to them at all, plus somewhere to work and something to work with, and the number they can turn out inside one issue is tied to how clever they are rather than to how skilled. An odd Intellect gives a whole number: the Introduction's glossary (p.7) settles every halving in the book in one direction, upward, and says so in as many words.",
       "verified_fields": [
         "prerequisite",
         "rank",
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
-      "ambiguity": "The per-issue ceiling is a half and the chapter never says which way it rounds. The Introduction's book-wide rule (p.7) says a half rounds up, so an odd Intellect is covered by that unless this page meant otherwise, and this page says nothing."
+      "ambiguity": null
     },
     {
       "id": "gadget_complexity",

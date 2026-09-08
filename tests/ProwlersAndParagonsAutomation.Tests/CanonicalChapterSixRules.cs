@@ -40,6 +40,15 @@ public static class CanonicalChapterSixRules
     public const int LastPageWithText = 103;
 
     /// <summary>
+    /// The Introduction's glossary, printed p.7. It is here rather than in a Chapter 6 fixture
+    /// because it is what makes two of this chapter's halvings not ambiguous — and the phrase that
+    /// does the work is the last four words.
+    /// </summary>
+    public const string BookWideHalvingRule =
+        "Half: Whenever we refer to half of an odd number (or half of an odd number of dice), "
+        + "always round up, regardless of the context.";
+
+    /// <summary>
     /// <b>The pages each file is allowed to cite</b>, which is the range its own header declares:
     /// "this file is p.94 alone", "this file is pp.94-100", "this file is pp.100-103".
     ///

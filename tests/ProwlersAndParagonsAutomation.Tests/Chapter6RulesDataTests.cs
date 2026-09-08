@@ -1094,21 +1094,25 @@ public sealed class Chapter6RulesDataTests
 
     /// <summary>
     /// <b>p.96's Foe example, replayed: half of a 7d Body is 4 points of damage.</b> The halving
-    /// rounds up, which is the Introduction's book-wide rule (p.7) and not something this page
-    /// states — so the entry carries the printed figures and its <c>ambiguity</c> carries the
-    /// silence. Rounding the other way gives 3, which the page does not print.
+    /// rounds up, which is the Introduction's book-wide rule on p.7 — and this example is the
+    /// chapter demonstrating it rather than a coincidence to hedge against, which is what the
+    /// entry's <c>ambiguity</c> used to call it. Rounding the other way gives 3, which the page
+    /// does not print, so the example distinguishes the two directions on its own.
     /// </summary>
     [Fact]
     public void TheFoePilotExampleOnPageNinetySixComesOutAsPrinted()
     {
-        var foes = Vehicles().Entries.Single(e => e.Id == "foe_and_minion_pilots").FoeAndMinionPilots!;
+        var entry = Vehicles().Entries.Single(e => e.Id == "foe_and_minion_pilots");
+        var foes = entry.FoeAndMinionPilots!;
 
         Assert.Equal(foes.FoeWorkedExampleDamageCapacity,
             (int)Math.Ceiling(foes.FoeWorkedExampleBody / 2.0));
 
         Assert.NotEqual(foes.FoeWorkedExampleDamageCapacity, foes.FoeWorkedExampleBody / 2);
 
-        Assert.NotNull(Vehicles().Entries.Single(e => e.Id == "foe_and_minion_pilots").Ambiguity);
+        // The example is a witness for p.7 rather than a question about it, so there is nothing
+        // left for a consumer to settle here.
+        Assert.Null(entry.Ambiguity);
     }
 
     // ── The readings, each labelled and each derived ─────────────────────────
@@ -1174,8 +1178,6 @@ public sealed class Chapter6RulesDataTests
 
         string[] expected =
         [
-            // Half an Intellect, with no rounding direction on the page.
-            "gadgets.json/gadget_prerequisites",
             // The granted pool is not the character's budget and its lifetime is unstated.
             "gadgets.json/gadget_build",
             // Whether the current use is counted before or after the die is rolled.
@@ -1186,8 +1188,6 @@ public sealed class Chapter6RulesDataTests
             "vehicles.json/vehicle_damage_and_repair",
             // Health in multiples of thirty with no formula, and its Control rate on another page.
             "vehicles.json/capital_ships",
-            // The Foe example's halving direction.
-            "vehicles.json/foe_and_minion_pilots",
             // Pricing a feature the chapter invites players to invent.
             "vehicles.json/vehicle_features",
             "headquarters.json/base_features",
@@ -1200,6 +1200,49 @@ public sealed class Chapter6RulesDataTests
         ];
 
         Assert.Equal(expected.Order(), recorded.Select(r => $"{r.File}/{r.Entry}").Order());
+    }
+
+    /// <summary>
+    /// <b>No entry records a halving as an open question, because the book answers every one of
+    /// them on p.7.</b> The Introduction's glossary reads "Half: Whenever we refer to half of an
+    /// odd number (or half of an odd number of dice), always round up, regardless of the context" —
+    /// and "regardless of the context" is the whole of the point, so a chapter that halves a
+    /// number without repeating the rule has not left anything unsaid.
+    ///
+    /// <para>Two entries here recorded one anyway: the Gadget per-issue ceiling ("half your
+    /// Intellect") and the Foe damage capacity ("only half as much damage as usual"). Both
+    /// ambiguities cited p.7 and then hedged past it, and the second hedged past a worked example
+    /// on its own page — p.96 halves a 7d Body and gets 4. An <c>ambiguity</c> is a standing
+    /// invitation for a consumer to pick a reading in its own code, and the reading it invited
+    /// here is one <c>CostCalculator</c> contradicts in eight places, every one of them a
+    /// <c>Math.Ceiling</c>.</para>
+    ///
+    /// <para>The glossary sentence is read out of the corpus rather than restated, so this fails if
+    /// the rule this rests on is not in the book.</para>
+    /// </summary>
+    [Fact]
+    public void NoEntryLeavesAHalvingOpenThatPageSevenAlreadySettles()
+    {
+        var glossary = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RulebookPath, "ch00-introduction.json")));
+
+        var text = string.Join(" ", glossary.RootElement.GetProperty("sections").EnumerateArray()
+            .Select(s => s.GetProperty("text").GetString() ?? ""));
+
+        Assert.Contains(CanonicalChapterSixRules.BookWideHalvingRule, text, StringComparison.Ordinal);
+
+        foreach (var (file, _) in Coverage)
+        {
+            using var document = JsonDocument.Parse(Raw(file));
+
+            foreach (var entry in document.RootElement.GetProperty("entries").EnumerateArray())
+            {
+                var ambiguity = entry.GetProperty("ambiguity");
+                if (ambiguity.ValueKind == JsonValueKind.Null) continue;
+
+                Assert.DoesNotContain("round", ambiguity.GetString()!, StringComparison.OrdinalIgnoreCase);
+            }
+        }
     }
 
     /// <summary>

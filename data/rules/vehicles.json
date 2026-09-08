@@ -366,13 +366,13 @@
         "applies_to_capital_ships": false
       },
       "interpretation": null,
-      "description": "A weaker antagonist does not get stronger by climbing into a car. A Foe's vehicle gives out after half the punishment it would take from anybody else, and Minions in vehicles are still Minions - one rank for all of them, group bonuses on both of the rolls a vehicle attack can use, and one machine wrecked for every net success against them.",
+      "description": "A weaker antagonist does not get stronger by climbing into a car. A Foe's vehicle gives out after half the punishment it would take from anybody else, and Minions in vehicles are still Minions - one rank for all of them, group bonuses on both of the rolls a vehicle attack can use, and one machine wrecked for every net success against them. Halving an odd Body gives a whole number upward, which the Introduction's glossary settles for the whole book and which this page then demonstrates: seven becomes four.",
       "verified_fields": [
         "effect",
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.6 Equipment, p.96",
-      "ambiguity": "The Foe example halves a Body of seven and gets four, so the halving rounds up here, but the page states no rule and the book-wide rounding direction is what the example happens to agree with."
+      "ambiguity": null
     },
     {
       "id": "mundane_vehicles_air_space",
