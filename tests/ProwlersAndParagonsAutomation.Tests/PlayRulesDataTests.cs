@@ -68,7 +68,13 @@ public sealed class PlayRulesDataTests
             "Ch.4 Combat",
             CanonicalCombatRules.FirstPage,
             CanonicalCombatRules.LastPage,
-            ["ch04-combat.json", "ch00-introduction.json"])
+            ["ch04-combat.json", "ch00-introduction.json"]),
+        new(
+            "equipment.json",
+            "Ch.6 Equipment",
+            CanonicalEquipmentRules.FirstPage,
+            CanonicalEquipmentRules.LastPage,
+            ["ch06-equipment.json", "ch00-introduction.json"])
     ];
 
     private static PlayFileFacts FactsFor(string fileName) =>
@@ -335,6 +341,86 @@ public sealed class PlayRulesDataTests
         bool? MustBeSpentOnTheSamePage,
         bool? ThenUnconscious,
         string? UnconsciousUntil);
+
+    // ── Chapter 6's models ───────────────────────────────────────────────────
+
+    private sealed record WeaponRowModel(
+        string Name, string Class, int? BonusDice, bool Subdual, IReadOnlyList<string> Features);
+
+    private sealed record EquipmentGearLimitModel(
+        string WhatItIs,
+        int DefaultRank,
+        string Usually,
+        string MaximumEffectiveRankIs,
+        string WorkedExampleWeapon,
+        int WorkedExampleWeaponBonusDice,
+        string WorkedExampleTrait,
+        int WorkedExampleTraitRank,
+        int WorkedExampleMaximumEffectiveRank,
+        bool TraitCapIsADifferentThing,
+        int StandardPowerLevelTraitCap,
+        string MakesMundaneGearLessUsefulFor);
+
+    private sealed record CloseCombatExceptionModel(
+        string AppliesTo,
+        string Condition,
+        string YouMayUseInstead,
+        bool AtTheWieldersOption,
+        string WorkedExampleWeapon,
+        int WorkedExampleWeaponBonusDice,
+        int WorkedExampleGearLimit,
+        int WorkedExampleArmedMaximumEffectiveRank,
+        int WorkedExampleUnarmedRank,
+        string WhatTheWeaponStillBuys);
+
+    private sealed record RaisedLimitModel(
+        IReadOnlyList<int> RaisedOptions,
+        bool RaisedOptionsAreOpenEnded,
+        bool MayBeDisregardedEntirely,
+        string Suits,
+        int PowersAreOvershadowedUnlessTheTraitCapExceedsTheGearLimitBy,
+        IReadOnlyList<string> BalanceOptionsGiven,
+        int BalanceOptionBonusDice,
+        string BalanceOptionsExclude);
+
+    private sealed record WeaponBonusModel(
+        bool EveryWeaponHasOne,
+        IReadOnlyList<string> MeleeAttackTraits,
+        IReadOnlyList<string> MeleeDefenseTraits,
+        IReadOnlyList<string> RangedAttackTraits,
+        string AddedTo,
+        string SubdualMarker,
+        string DefaultDamage,
+        string AncientAndModernDamage,
+        string AdvancedDamage,
+        IReadOnlyList<string> AdvancedPhysicalExceptions,
+        string RangedWeaponsReach,
+        IReadOnlyList<string> RangedReachExceptions);
+
+    /// <summary>
+    /// <b>How the printed table's columns were paired, which is a reading and not a printed
+    /// column.</b> The extractor splits each weapons table into two blocks and pairing them row by
+    /// row is this project's; see
+    /// <see cref="TheThreeWeaponsTablesArePairedOutOfTheCorpusColumns"/>, which derives it.
+    /// </summary>
+    private sealed record EquipmentInterpretationModel(string WhatThisIs, string RowAlignment);
+
+    private sealed record EquipmentEntry(
+        string Id,
+        string Name,
+        string Kind,
+        string PrintedUnder,
+        string Description,
+        IReadOnlyList<string> VerifiedFields,
+        string SourceRef,
+        IReadOnlyList<string>? CorroboratedBy,
+        string? Ambiguity,
+        EquipmentGearLimitModel? GearLimit,
+        CloseCombatExceptionModel? CloseCombatException,
+        RaisedLimitModel? RaisedLimit,
+        WeaponBonusModel? WeaponBonus,
+        IReadOnlyList<WeaponRowModel>? Weapons,
+        EquipmentInterpretationModel? Interpretation);
 
     private sealed record SpendingOverviewModel(
         bool GmMayExpandTheUses, bool ListedUsesAreTheBasicOnes);
@@ -1136,12 +1222,14 @@ public sealed class PlayRulesDataTests
 
     private static PlayFile<CombatEntry> Combat() => Load<CombatEntry>("combat.json");
     private static PlayFile<GrittyEntry> Gritty() => Load<GrittyEntry>("gritty.json");
+    private static PlayFile<EquipmentEntry> Equipment() => Load<EquipmentEntry>("equipment.json");
 
     private static MetaEntry MetaEntryById(string id) => Meta().Entries.Single(e => e.Id == id);
     private static CombatEntry CombatEntryById(string id) => Combat().Entries.Single(e => e.Id == id);
     private static GrittyEntry GrittyEntryById(string id) => Gritty().Entries.Single(e => e.Id == id);
     private static ChallengeEntry ChallengeEntryById(string id) => Challenge().Entries.Single(e => e.Id == id);
     private static ResolveEntry ResolveEntryById(string id) => Resolve().Entries.Single(e => e.Id == id);
+    private static EquipmentEntry EquipmentEntryById(string id) => Equipment().Entries.Single(e => e.Id == id);
 
     // ── The dice model, play_meta.json ───────────────────────────────────────
 
@@ -2392,6 +2480,341 @@ public sealed class PlayRulesDataTests
             Combat().Entries.Where(e => e.PrintedUnderNote is not null).Select(e => e.Id));
     }
 
+    // ── Chapter 6: the Gear Limit, and the tables it bites on ────────────────
+
+    /// <summary>
+    /// Every feature name the three weapons tables print, longest first so the row regex below
+    /// prefers <c>Armor Piercing</c> to <c>Armor</c>. <b>It is a closed vocabulary on purpose</b>:
+    /// the parse below is what proves the pairing, and a parse that accepted any word at all would
+    /// tile any text and prove nothing.
+    /// </summary>
+    private static readonly string[] WeaponFeatureNames =
+    [
+        "Armor Piercing", "Line of Sight", "Two-Handed", "Penetrating", "Versatile", "Flexible",
+        "Irritant", "Launcher", "Readied", "Binding", "Braced", "Dazzle", "Ensnare", "Shield",
+        "Shock", "Burst", "Stun", "Thrown", "Area"
+    ];
+
+    /// <summary>
+    /// One printed row of a weapons table's right-hand block: the Weapon Bonus, its optional
+    /// subdual marker, and the features cell.
+    /// </summary>
+    private static Regex WeaponBonusRow()
+    {
+        var feature = "(?:" + string.Join('|', WeaponFeatureNames.Select(Regex.Escape)) + ")";
+
+        return new Regex(
+            @"(?<bonus>\+\d+d|—)(?<sub> \(s\))? (?<features>—|"
+            + feature + "(?:, " + feature + ")*)",
+            RegexOptions.CultureInvariant);
+    }
+
+    /// <summary>
+    /// <b>The three weapons tables are paired out of the corpus, not typed into a canonical
+    /// file.</b>
+    ///
+    /// <para>The book prints each table as four columns — type, class, Weapon Bonus, features —
+    /// and the extractor reads a three-or-more-column table across rather than down, so each one
+    /// arrives as two blocks: the names beside their class, and the bonuses beside their features.
+    /// <b>Pairing the two blocks row by row is this project's reading</b>, which is why each entry
+    /// carries an <c>interpretation</c> saying so and why the rows are on
+    /// <see cref="DerivedPaths"/> rather than in <see cref="CanonicalEquipmentRules"/>: sixty-three
+    /// rows transcribed a second time would be a second thing to disagree with the first, where the
+    /// corpus is the book.</para>
+    ///
+    /// <para><b>What anchors the pairing is that three of its rows are printed a second time, in
+    /// prose.</b> p.87's Gear Limit paragraph gives the pistol two dice, p.87's close-combat
+    /// exception gives the battle axe three, and Ch.4 p.80's own worked example gives a basic sword
+    /// two — three sentences in two chapters, none of them in a table. A misalignment of one row
+    /// moves all three.</para>
+    ///
+    /// <para><b>Two controls on the parse itself.</b> Each block is required to <em>tile</em>: the
+    /// rows are matched end to end from the first character, and what is left over must not begin
+    /// another row — the advanced table is followed on the same page by its feature glossary, so
+    /// "there is nothing else here" is a claim worth making. And the parser is driven past the end
+    /// of a block and required to fail, because a parser that quietly returned a short list would
+    /// make a truncated table agree with a truncated expectation.</para>
+    /// </summary>
+    [Fact]
+    public void TheThreeWeaponsTablesArePairedOutOfTheCorpusColumns()
+    {
+        var sections = ChapterSixSections();
+
+        var typeBlocks = sections.Where(s => TypeRows(s.Text).Count >= 15).ToList();
+
+        var bonusBlocks = sections
+            .Where(s => s.Heading.Contains("WEAPONS —", StringComparison.Ordinal)
+                        && s.Heading.Contains("BONUS FEATURES", StringComparison.Ordinal))
+            .ToList();
+
+        // The controls on finding the blocks at all. The Armor table's heading also ends in BONUS
+        // FEATURES and is deliberately not one of these three.
+        Assert.Equal(3, typeBlocks.Count);
+        Assert.Equal(3, bonusBlocks.Count);
+
+        int[] sizes =
+        [
+            CanonicalEquipmentRules.WeaponTableSizes.Ancient,
+            CanonicalEquipmentRules.WeaponTableSizes.Modern,
+            CanonicalEquipmentRules.WeaponTableSizes.Advanced
+        ];
+
+        string[] entryIds = ["ancient_weapons", "modern_weapons", "advanced_weapons"];
+
+        var everyRow = new List<WeaponRowModel>();
+
+        for (var table = 0; table < 3; table++)
+        {
+            var names = TypeRows(typeBlocks[table].Text);
+
+            Assert.Equal(sizes[table], names.Count);
+
+            var (rows, rest) = BonusRows(bonusBlocks[table].Text, names.Count);
+
+            // The tiling control: nothing after the last row starts another one. The advanced
+            // table is followed by the feature glossary on the same page, so this is the assertion
+            // that says the table was read to its end and no further.
+            var next = WeaponBonusRow().Match(rest);
+            Assert.False(
+                next.Success && next.Index == 0,
+                $"{entryIds[table]}: the corpus block carries another row after the "
+                + $"{names.Count} the table is supposed to have — '{next.Value}'");
+
+            var expected = names
+                .Zip(rows, (n, r) => new WeaponRowModel(n.Name, n.Class, r.BonusDice, r.Subdual, r.Features))
+                .ToList();
+
+            var shipped = EquipmentEntryById(entryIds[table]).Weapons;
+
+            Assert.NotNull(shipped);
+            Assert.Equal(expected.Count, shipped!.Count);
+
+            for (var i = 0; i < expected.Count; i++)
+            {
+                Assert.Equal(expected[i].Name, shipped[i].Name);
+                Assert.Equal(expected[i].Class, shipped[i].Class);
+                Assert.Equal(expected[i].BonusDice, shipped[i].BonusDice);
+                Assert.Equal(expected[i].Subdual, shipped[i].Subdual);
+                Assert.Equal(expected[i].Features, shipped[i].Features);
+            }
+
+            everyRow.AddRange(expected);
+        }
+
+        // The three prose anchors, each read out of the derived rows rather than out of the file.
+        int? BonusOf(string name) =>
+            everyRow.Single(r => string.Equals(r.Name, name, StringComparison.Ordinal)).BonusDice;
+
+        Assert.Equal(
+            CanonicalEquipmentRules.AnchorRows.PistolBonusDice,
+            BonusOf(CanonicalEquipmentRules.AnchorRows.PistolName));
+
+        Assert.Equal(
+            CanonicalEquipmentRules.AnchorRows.BattleAxeBonusDice,
+            BonusOf(CanonicalEquipmentRules.AnchorRows.BattleAxeName));
+
+        Assert.Equal(
+            CanonicalGrittyRules.GearLimit.WorkedExampleWeaponBonusDice,
+            BonusOf(CanonicalEquipmentRules.AnchorRows.SwordName));
+
+        // And the parser really can run out, so a block that had lost a row could not agree with an
+        // expectation that had lost the same one.
+        Assert.Throws<InvalidOperationException>(
+            () => BonusRows(bonusBlocks[0].Text, sizes[0] + 1));
+    }
+
+    /// <summary>
+    /// <b>Chapter 4 and Chapter 6 both print the Gear Limit, and the two transcriptions agree.</b>
+    ///
+    /// <para>p.80 states the rule and points at Chapter 6 for the detail; p.87 is that detail. The
+    /// default rank and the raised options are printed in both places, so this is the same kind of
+    /// second printing <c>corroborated_by</c> exists for — and the entry carries the citation.</para>
+    ///
+    /// <para><b>Each chapter's worked example is replayed through the shipped JSON</b>, and neither
+    /// figure is typed here: p.80's basic sword is looked up in Chapter 6's own ancient table, and
+    /// p.87's pistol in its modern one, and each is added to the default rank the file carries.
+    /// Two transcriptions can agree and both be wrong; the authors' arithmetic cannot.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoChaptersThatPrintTheGearLimitAgreeAboutIt()
+    {
+        var chapterFour = GrittyEntryById("gritty_raised_gear_limit").GearLimit!;
+        var chapterSix = EquipmentEntryById("gear_limit").GearLimit!;
+        var raised = EquipmentEntryById("raising_the_gear_limit").RaisedLimit!;
+
+        Assert.Equal(chapterFour.DefaultRank, chapterSix.DefaultRank);
+        Assert.Equal(chapterFour.RaisedOptions, raised.RaisedOptions);
+        Assert.Equal(chapterFour.RaisedOptionsAreOpenEnded, raised.RaisedOptionsAreOpenEnded);
+
+        // The citation is on the entry, so a reader lands on the other printing.
+        Assert.Contains(
+            EquipmentEntryById("raising_the_gear_limit").CorroboratedBy ?? [],
+            reference => reference.Contains("p.80", StringComparison.Ordinal));
+
+        int BonusOf(string entryId, string weapon) =>
+            EquipmentEntryById(entryId).Weapons!
+                .Single(w => string.Equals(w.Name, weapon, StringComparison.Ordinal))
+                .BonusDice!.Value;
+
+        // p.80's sword: 6 + 2 = 8, with the 2 read out of Chapter 6's ancient table.
+        var sword = BonusOf("ancient_weapons", CanonicalEquipmentRules.AnchorRows.SwordName);
+
+        Assert.Equal(chapterFour.WorkedExampleWeaponBonusDice, sword);
+        Assert.Equal(
+            chapterFour.WorkedExampleMaximumEffectiveRankAtTheDefaultLimit,
+            chapterSix.DefaultRank + sword);
+
+        // p.87's pistol: the same arithmetic on the other chapter's own example.
+        var pistol = BonusOf("modern_weapons", CanonicalEquipmentRules.AnchorRows.PistolName);
+
+        Assert.Equal(chapterSix.WorkedExampleWeaponBonusDice, pistol);
+        Assert.Equal(chapterSix.WorkedExampleMaximumEffectiveRank, chapterSix.DefaultRank + pistol);
+
+        // The control: the example is a weapon with a bonus on it, so the sums above are sums of
+        // two figures rather than of one and a zero — and the two chapters' examples are different
+        // weapons, or "they agree" would be one arithmetic done twice.
+        Assert.True(sword > 0 && pistol > 0);
+        Assert.NotEqual(
+            chapterFour.WorkedExampleWeapon, chapterSix.WorkedExampleWeapon, StringComparer.Ordinal);
+
+        // p.87's close-combat exception does its own arithmetic on a third weapon, and it comes out
+        // of the same table: 6 + 3 = 9, which is what the unarmed 12d is allowed to beat.
+        var exception = EquipmentEntryById("gear_limit_close_combat_exception").CloseCombatException!;
+        var axe = BonusOf("ancient_weapons", CanonicalEquipmentRules.AnchorRows.BattleAxeName);
+
+        Assert.Equal(exception.WorkedExampleWeaponBonusDice, axe);
+        Assert.Equal(exception.WorkedExampleGearLimit, chapterSix.DefaultRank);
+        Assert.Equal(exception.WorkedExampleArmedMaximumEffectiveRank, chapterSix.DefaultRank + axe);
+        Assert.True(exception.WorkedExampleUnarmedRank > exception.WorkedExampleArmedMaximumEffectiveRank);
+    }
+
+    /// <summary>
+    /// <b>Every Chapter 6 entry names a heading printed on the page it cites</b>, the same
+    /// narrowing <see cref="EveryChapterFourEntryNamesAHeadingPrintedOnThePageItCites"/> makes and
+    /// with the same known limit: it cannot tell two headings on one page apart.
+    /// </summary>
+    [Fact]
+    public void EveryChapterSixEntryNamesAHeadingPrintedOnThePageItCites()
+    {
+        var headings = ChapterHeadings("ch06-equipment.json");
+
+        // Positive control: the lookup found the chapter's headings at all.
+        Assert.True(headings.Count >= 100, $"Only {headings.Count} headings were read out of Chapter 6.");
+
+        // Negative control, on a heading that really exists on another page: GEAR LIMITS is p.87's
+        // and no other page's.
+        Assert.Contains((87, "GEAR LIMITS"), headings);
+        Assert.DoesNotContain((88, "GEAR LIMITS"), headings);
+
+        var faults = new List<string>();
+
+        foreach (var entry in Equipment().Entries)
+        {
+            var page = int.Parse(
+                Regex.Match(entry.SourceRef, @"\bp\.(\d+)\b").Groups[1].Value,
+                CultureInfo.InvariantCulture);
+
+            if (!headings.Contains((page, entry.PrintedUnder)))
+            {
+                faults.Add(
+                    $"equipment.json/{entry.Id}: printed_under '{entry.PrintedUnder}' is not a "
+                    + $"heading on p.{page} of Chapter 6");
+            }
+        }
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>One Chapter 6 section: its heading and its prose.</summary>
+    private sealed record CorpusSection(string Heading, int Page, string Text);
+
+    private static IReadOnlyList<CorpusSection> ChapterSixSections()
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RulebookPath, "ch06-equipment.json")));
+
+        return
+        [
+            .. document.RootElement.GetProperty("sections").EnumerateArray()
+                .Select(section => new CorpusSection(
+                    section.GetProperty("heading").GetString() ?? "",
+                    section.TryGetProperty("printed_page", out var page)
+                        && page.ValueKind == JsonValueKind.Number
+                            ? page.GetInt32()
+                            : 0,
+                    section.GetProperty("text").GetString() ?? ""))
+        ];
+    }
+
+    /// <summary>
+    /// The left-hand block of a weapons table, as (type, class) rows: words accumulate until
+    /// <c>Melee</c> or <c>Ranged</c> closes a row. A block whose last row does not close is not a
+    /// type block and yields nothing.
+    /// </summary>
+    private static List<(string Name, string Class)> TypeRows(string text)
+    {
+        var rows = new List<(string, string)>();
+        var current = new List<string>();
+
+        foreach (var token in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (string.Equals(token, "Melee", StringComparison.Ordinal)
+                || string.Equals(token, "Ranged", StringComparison.Ordinal))
+            {
+                rows.Add((string.Join(' ', current), token));
+                current.Clear();
+            }
+            else
+            {
+                current.Add(token);
+            }
+        }
+
+        return current.Count == 0 ? rows : [];
+    }
+
+    /// <summary>
+    /// The right-hand block of a weapons table, as <paramref name="count"/> rows, and whatever text
+    /// follows them. <b>It throws rather than returning a short list</b>, because a parser that
+    /// stopped early would let a truncated block agree with a truncated expectation.
+    /// </summary>
+    private static (List<(int? BonusDice, bool Subdual, IReadOnlyList<string> Features)>, string)
+        BonusRows(string text, int count)
+    {
+        var row = WeaponBonusRow();
+        var rows = new List<(int?, bool, IReadOnlyList<string>)>();
+        var at = 0;
+
+        for (var i = 0; i < count; i++)
+        {
+            var match = row.Match(text, at);
+
+            if (!match.Success || match.Index != at)
+            {
+                throw new InvalidOperationException(
+                    $"row {i + 1} of {count} does not start at character {at} of the corpus block: "
+                    + $"'{text[at..Math.Min(text.Length, at + 40)]}'");
+            }
+
+            var bonus = match.Groups["bonus"].Value;
+            var features = match.Groups["features"].Value;
+
+            rows.Add((
+                string.Equals(bonus, "—", StringComparison.Ordinal)
+                    ? null
+                    : int.Parse(bonus[1..^1], CultureInfo.InvariantCulture),
+                match.Groups["sub"].Success,
+                string.Equals(features, "—", StringComparison.Ordinal)
+                    ? []
+                    : features.Split(", ", StringSplitOptions.None)));
+
+            at = match.Index + match.Length;
+            if (at < text.Length && text[at] == ' ') at++;
+        }
+
+        return (rows, text[at..]);
+    }
+
     /// <summary>Every (printed page, heading) pair in one chapter of the corpus.</summary>
     private static HashSet<(int Page, string Heading)> ChapterHeadings(string file)
     {
@@ -3585,7 +4008,7 @@ public sealed class PlayRulesDataTests
 
         // Positive control: an extraction that stopped matching would fault nothing and prove
         // nothing, which is the shape of guard failure this repository has shipped four times.
-        Assert.True(checkedCount >= 105, $"Only {checkedCount} entries were read across the five play rules files.");
+        Assert.True(checkedCount >= 112, $"Only {checkedCount} entries were read across the six play rules files.");
         Assert.True(corroborations >= 8, $"Only {corroborations} corroborating references were read; Ch.1 reprints three of Ch.3's rules and two of Ch.5's, and Ch.2 reprints three of Ch.4's.");
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
@@ -3709,7 +4132,9 @@ public sealed class PlayRulesDataTests
                 // Chapter 5
                 "granted_at", "depends_on", "applies_when", "available_when", "awarded_at",
                 "triggers", "applies_even_if_coerced", "requires_remotely_reasonable",
-                "some_powers_require_resolve", "npc_flaws_bite_when_the_opportunity_arises"),
+                "some_powers_require_resolve", "npc_flaws_bite_when_the_opportunity_arises",
+                // Chapter 6
+                "condition", "applies_to", "every_weapon_has_one"),
             ["roll"] = Keys(
                 "die_sides", "pool_formula", "success_map", "dice_rolled", "counting_faces",
                 "dice_per_success", "gm_may_veto", "net_success_formula", "min_dice", "max_dice",
@@ -3734,7 +4159,15 @@ public sealed class PlayRulesDataTests
                 "at_or_below_half_full_health_penalty_dice", "at_or_below_zero_health_penalty_dice",
                 "health_per_net_success", "damage_per_net_success", "net_successes_per_minion_defeated",
                 "minions_defeated_per_net_success", "exchange_win_bonus_dice_next_exchange",
-                "net_successes_to_move_one_range_class", "attack_traits"),
+                "net_successes_to_move_one_range_class", "attack_traits",
+                // Chapter 6
+                "raised_options", "balance_option_bonus_dice",
+                "powers_are_overshadowed_unless_the_trait_cap_exceeds_the_gear_limit_by",
+                "melee_attack_traits", "melee_defense_traits", "ranged_attack_traits", "added_to",
+                "worked_example_trait_rank", "worked_example_maximum_effective_rank",
+                "worked_example_armed_maximum_effective_rank", "worked_example_unarmed_rank",
+                "worked_example_gear_limit", "standard_power_level_trait_cap",
+                "maximum_effective_rank_is", "you_may_use_instead"),
             ["threshold"] = Keys(
                 "threshold_min", "threshold_max", "difficulty", "threshold", "threshold_source",
                 "static_threshold_used_when", "helper_rolls_against_threshold",
@@ -3834,7 +4267,16 @@ public sealed class PlayRulesDataTests
                 "requires_being_defeated_to_free_yourself_from_an_effect",
                 "at_or_below_half_full_health_penalty_dice", "at_or_below_zero_health_penalty_dice",
                 "detail_chapter", "final_say", "worked_example_net_successes",
-                "area_attack_minions_per_net_success"),
+                "area_attack_minions_per_net_success",
+                // Chapter 6, and the same catch-all argument: an entry claiming "effect" is
+                // claiming that something about what the mechanic DOES was checked.
+                "usually", "makes_mundane_gear_less_useful_for", "trait_cap_is_a_different_thing",
+                "what_the_weapon_still_buys", "at_the_wielders_option", "may_be_disregarded_entirely",
+                "raised_options_are_open_ended", "suits", "balance_options_given",
+                "balance_options_exclude", "subdual_marker", "default_damage",
+                "ancient_and_modern_damage", "advanced_damage", "advanced_physical_exceptions",
+                "ranged_weapons_reach", "ranged_reach_exceptions", "subdual", "features",
+                "bonus_dice"),
             ["duration"] = Keys(
                 "penalty_duration", "regain_consciousness", "limit_per_story",
                 "limit_per_scene_per_group", "concurrent_scenes_each_allow_one",
@@ -3896,6 +4338,7 @@ public sealed class PlayRulesDataTests
 
         Assert.Equal(meta.Header.VerifiedFieldsClosedList, challenge.Header.VerifiedFieldsClosedList);
         Assert.Equal(meta.Header.VerifiedFieldsClosedList, resolve.Header.VerifiedFieldsClosedList);
+        Assert.Equal(meta.Header.VerifiedFieldsClosedList, Equipment().Header.VerifiedFieldsClosedList);
 
         var closed = meta.Header.VerifiedFieldsClosedList;
         Assert.NotEmpty(closed);
@@ -3960,9 +4403,10 @@ public sealed class PlayRulesDataTests
             .Concat(Resolve().Entries.Select(e => (e.Id, e.Kind)))
             .Concat(Combat().Entries.Select(e => (e.Id, e.Kind)))
             .Concat(Gritty().Entries.Select(e => (e.Id, e.Kind)))
+            .Concat(Equipment().Entries.Select(e => (e.Id, e.Kind)))
             .ToList();
 
-        Assert.True(kinds.Count >= 105, $"Only {kinds.Count} entries were read across the five files.");
+        Assert.True(kinds.Count >= 112, $"Only {kinds.Count} entries were read across the six files.");
 
         var faults = kinds
             .Where(k => !CanonicalChallengeRules.EntryKinds.Contains(k.Kind, StringComparer.Ordinal))
@@ -3983,6 +4427,7 @@ public sealed class PlayRulesDataTests
     [InlineData("resolve.json")]
     [InlineData("combat.json")]
     [InlineData("gritty.json")]
+    [InlineData("equipment.json")]
     public void EachFileSaysWhatItIsWhereItSitsAndThatNothingReadsIt(string fileName)
     {
         var header = HeaderOf(fileName);
@@ -3999,6 +4444,7 @@ public sealed class PlayRulesDataTests
         "challenge.json" => Challenge().Header,
         "combat.json" => Combat().Header,
         "gritty.json" => Gritty().Header,
+        "equipment.json" => Equipment().Header,
         _ => Resolve().Header
     };
 
@@ -4009,7 +4455,8 @@ public sealed class PlayRulesDataTests
             .Concat(Challenge().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
             .Concat(Resolve().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
             .Concat(Combat().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
-            .Concat(Gritty().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)));
+            .Concat(Gritty().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)))
+            .Concat(Equipment().Entries.Select(e => (e.Id, (object)e, e.VerifiedFields)));
 
     /// <summary>
     /// <b>Descriptions in <c>data/rules/</c> are this project's own words, never the book's.</b>
@@ -4037,6 +4484,10 @@ public sealed class PlayRulesDataTests
     [InlineData(
         "gritty.json",
         "You suffer a cumulative \u2212 1d penalty to all active defense rolls after the first on the same page.")]
+    [InlineData(
+        "equipment.json",
+        "The default Gear Limit in most games is 6d. That means the maximum effective rank you "
+        + "can have when using a piece of mundane gear is 6d plus whatever bonus it provides.")]
     public void NoDescriptionRepeatsARunOfTheBooksOwnWords(string fileName, string knownCorpusSentence)
     {
         const int run = 10;
@@ -4209,6 +4660,9 @@ public sealed class PlayRulesDataTests
     [InlineData("resolve.json", "p.86")]
     [InlineData("combat.json", "p.82")]
     [InlineData("gritty.json", "p.82")]
+    [InlineData("equipment.json", "Weapon Features")]
+    [InlineData("equipment.json", "Armor")]
+    [InlineData("equipment.json", "pp.91-104")]
     public void TheHeaderSaysWhatWasDeliberatelyLeftOut(string fileName, string mustName)
     {
         var omitted = HeaderOf(fileName).DeliberatelyOmitted;
@@ -4234,6 +4688,7 @@ public sealed class PlayRulesDataTests
     [InlineData("resolve.json")]
     [InlineData("combat.json")]
     [InlineData("gritty.json")]
+    [InlineData("equipment.json")]
     public void EveryFieldInAPlayRulesFileDeserializesIntoATestModel(string fileName)
     {
         var json = File.ReadAllText(Path.Combine(PlayDataPath, fileName));
@@ -4244,6 +4699,7 @@ public sealed class PlayRulesDataTests
             "challenge.json" => (object?)JsonSerializer.Deserialize<PlayFile<ChallengeEntry>>(json, Strict()),
             "combat.json" => JsonSerializer.Deserialize<PlayFile<CombatEntry>>(json, Strict()),
             "gritty.json" => JsonSerializer.Deserialize<PlayFile<GrittyEntry>>(json, Strict()),
+            "equipment.json" => JsonSerializer.Deserialize<PlayFile<EquipmentEntry>>(json, Strict()),
             _ => JsonSerializer.Deserialize<PlayFile<ResolveEntry>>(json, Strict())
         });
 
@@ -4325,7 +4781,19 @@ public sealed class PlayRulesDataTests
             // gritty.json's Wound Penalties: p.81 hangs its parenthetical on the whole of "0 Health
             // or less", and which half it governs is a reading — derived from p.75's own defeat
             // figure by TheWoundPenaltyParentheticalCoversTheNegativeHalfOfItsBand.
-            "gritty_wound_penalties.interpretation.fatal_damage_is_required_below_health"
+            "gritty_wound_penalties.interpretation.fatal_damage_is_required_below_health",
+            // equipment.json's three weapons tables. The rows are NOT typed into
+            // CanonicalEquipmentRules: the corpus already carries the printed columns, and a
+            // second transcription of sixty-three rows is a second thing to disagree with the
+            // first. TheThreeWeaponsTablesArePairedOutOfTheCorpusColumns derives every row from
+            // data/rulebook/ch06-equipment.json instead, and the pairing of the two blocks the
+            // extractor splits each table into is the reading each interpretation records.
+            "ancient_weapons.weapons",
+            "modern_weapons.weapons",
+            "advanced_weapons.weapons",
+            "ancient_weapons.interpretation.row_alignment",
+            "modern_weapons.interpretation.row_alignment",
+            "advanced_weapons.interpretation.row_alignment"
         };
 
     /// <summary>
@@ -5176,7 +5644,54 @@ public sealed class PlayRulesDataTests
             ["gritty_wound_penalties.wound_penalties.zero_or_less_parenthetical"] = Is(CanonicalGrittyRules.WoundPenalties.ZeroOrLessParenthetical),
             ["gritty_wound_penalties.wound_penalties.applies_to"] = Is(CanonicalGrittyRules.WoundPenalties.AppliesTo),
             ["gritty_wound_penalties.wound_penalties.cost_resolve_to_ignore"] = Is(CanonicalGrittyRules.WoundPenalties.CostResolveToIgnore),
-            ["gritty_wound_penalties.wound_penalties.pages_ignored_per_resolve_point"] = Is(CanonicalGrittyRules.WoundPenalties.PagesIgnoredPerResolvePoint)
+            ["gritty_wound_penalties.wound_penalties.pages_ignored_per_resolve_point"] = Is(CanonicalGrittyRules.WoundPenalties.PagesIgnoredPerResolvePoint),
+
+            // ── equipment.json, Chapter 6 pp.87-90 ───────────────────────────
+            ["gear_limit.gear_limit.what_it_is"] = Is(CanonicalEquipmentRules.GearLimit.WhatItIs),
+            ["gear_limit.gear_limit.default_rank"] = Is(CanonicalEquipmentRules.GearLimit.DefaultRank),
+            ["gear_limit.gear_limit.usually"] = Is(CanonicalEquipmentRules.GearLimit.Usually),
+            ["gear_limit.gear_limit.maximum_effective_rank_is"] = Is(CanonicalEquipmentRules.GearLimit.MaximumEffectiveRankIs),
+            ["gear_limit.gear_limit.worked_example_weapon"] = Is(CanonicalEquipmentRules.GearLimit.WorkedExampleWeapon),
+            ["gear_limit.gear_limit.worked_example_weapon_bonus_dice"] = Is(CanonicalEquipmentRules.GearLimit.WorkedExampleWeaponBonusDice),
+            ["gear_limit.gear_limit.worked_example_trait"] = Is(CanonicalEquipmentRules.GearLimit.WorkedExampleTrait),
+            ["gear_limit.gear_limit.worked_example_trait_rank"] = Is(CanonicalEquipmentRules.GearLimit.WorkedExampleTraitRank),
+            ["gear_limit.gear_limit.worked_example_maximum_effective_rank"] = Is(CanonicalEquipmentRules.GearLimit.WorkedExampleMaximumEffectiveRank),
+            ["gear_limit.gear_limit.trait_cap_is_a_different_thing"] = Is(CanonicalEquipmentRules.GearLimit.TraitCapIsADifferentThing),
+            ["gear_limit.gear_limit.standard_power_level_trait_cap"] = Is(CanonicalEquipmentRules.GearLimit.StandardPowerLevelTraitCap),
+            ["gear_limit.gear_limit.makes_mundane_gear_less_useful_for"] = Is(CanonicalEquipmentRules.GearLimit.MakesMundaneGearLessUsefulFor),
+
+            ["gear_limit_close_combat_exception.close_combat_exception.applies_to"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.AppliesTo),
+            ["gear_limit_close_combat_exception.close_combat_exception.condition"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.Condition),
+            ["gear_limit_close_combat_exception.close_combat_exception.you_may_use_instead"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.YouMayUseInstead),
+            ["gear_limit_close_combat_exception.close_combat_exception.at_the_wielders_option"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.AtTheWieldersOption),
+            ["gear_limit_close_combat_exception.close_combat_exception.worked_example_weapon"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.WorkedExampleWeapon),
+            ["gear_limit_close_combat_exception.close_combat_exception.worked_example_weapon_bonus_dice"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.WorkedExampleWeaponBonusDice),
+            ["gear_limit_close_combat_exception.close_combat_exception.worked_example_gear_limit"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.WorkedExampleGearLimit),
+            ["gear_limit_close_combat_exception.close_combat_exception.worked_example_armed_maximum_effective_rank"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.WorkedExampleArmedMaximumEffectiveRank),
+            ["gear_limit_close_combat_exception.close_combat_exception.worked_example_unarmed_rank"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.WorkedExampleUnarmedRank),
+            ["gear_limit_close_combat_exception.close_combat_exception.what_the_weapon_still_buys"] = Is(CanonicalEquipmentRules.CloseCombatCarveOut.WhatTheWeaponStillBuys),
+
+            ["raising_the_gear_limit.raised_limit.raised_options"] = Is(CanonicalEquipmentRules.RaisedLimit.RaisedOptions),
+            ["raising_the_gear_limit.raised_limit.raised_options_are_open_ended"] = Is(CanonicalEquipmentRules.RaisedLimit.RaisedOptionsAreOpenEnded),
+            ["raising_the_gear_limit.raised_limit.may_be_disregarded_entirely"] = Is(CanonicalEquipmentRules.RaisedLimit.MayBeDisregardedEntirely),
+            ["raising_the_gear_limit.raised_limit.suits"] = Is(CanonicalEquipmentRules.RaisedLimit.Suits),
+            ["raising_the_gear_limit.raised_limit.powers_are_overshadowed_unless_the_trait_cap_exceeds_the_gear_limit_by"] = Is(CanonicalEquipmentRules.RaisedLimit.PowersAreOvershadowedUnlessTheTraitCapExceedsTheGearLimitBy),
+            ["raising_the_gear_limit.raised_limit.balance_options_given"] = Is(CanonicalEquipmentRules.RaisedLimit.BalanceOptionsGiven),
+            ["raising_the_gear_limit.raised_limit.balance_option_bonus_dice"] = Is(CanonicalEquipmentRules.RaisedLimit.BalanceOptionBonusDice),
+            ["raising_the_gear_limit.raised_limit.balance_options_exclude"] = Is(CanonicalEquipmentRules.RaisedLimit.BalanceOptionsExclude),
+
+            ["weapon_bonus.weapon_bonus.every_weapon_has_one"] = Is(CanonicalEquipmentRules.WeaponBonus.EveryWeaponHasOne),
+            ["weapon_bonus.weapon_bonus.melee_attack_traits"] = Is(CanonicalEquipmentRules.WeaponBonus.MeleeAttackTraits),
+            ["weapon_bonus.weapon_bonus.melee_defense_traits"] = Is(CanonicalEquipmentRules.WeaponBonus.MeleeDefenseTraits),
+            ["weapon_bonus.weapon_bonus.ranged_attack_traits"] = Is(CanonicalEquipmentRules.WeaponBonus.RangedAttackTraits),
+            ["weapon_bonus.weapon_bonus.added_to"] = Is(CanonicalEquipmentRules.WeaponBonus.AddedTo),
+            ["weapon_bonus.weapon_bonus.subdual_marker"] = Is(CanonicalEquipmentRules.WeaponBonus.SubdualMarker),
+            ["weapon_bonus.weapon_bonus.default_damage"] = Is(CanonicalEquipmentRules.WeaponBonus.DefaultDamage),
+            ["weapon_bonus.weapon_bonus.ancient_and_modern_damage"] = Is(CanonicalEquipmentRules.WeaponBonus.AncientAndModernDamage),
+            ["weapon_bonus.weapon_bonus.advanced_damage"] = Is(CanonicalEquipmentRules.WeaponBonus.AdvancedDamage),
+            ["weapon_bonus.weapon_bonus.advanced_physical_exceptions"] = Is(CanonicalEquipmentRules.WeaponBonus.AdvancedPhysicalExceptions),
+            ["weapon_bonus.weapon_bonus.ranged_weapons_reach"] = Is(CanonicalEquipmentRules.WeaponBonus.RangedWeaponsReach),
+            ["weapon_bonus.weapon_bonus.ranged_reach_exceptions"] = Is(CanonicalEquipmentRules.WeaponBonus.RangedReachExceptions)
         };
 
     private static HashSet<string> RegisteredPaths =>
@@ -5259,6 +5774,9 @@ public sealed class PlayRulesDataTests
 
         if (Gritty().Entries.Any(e => string.Equals(e.Id, entryId, StringComparison.Ordinal)))
             return nameof(CanonicalGrittyRules);
+
+        if (Equipment().Entries.Any(e => string.Equals(e.Id, entryId, StringComparison.Ordinal)))
+            return nameof(CanonicalEquipmentRules);
 
         return nameof(CanonicalChallengeRules);
     }
@@ -5615,7 +6133,8 @@ public sealed class PlayRulesDataTests
             .Concat(Challenge().Entries.Select(e => (e.Id, (object)e)))
             .Concat(Resolve().Entries.Select(e => (e.Id, (object)e)))
             .Concat(Combat().Entries.Select(e => (e.Id, (object)e)))
-            .Concat(Gritty().Entries.Select(e => (e.Id, (object)e)));
+            .Concat(Gritty().Entries.Select(e => (e.Id, (object)e)))
+            .Concat(Equipment().Entries.Select(e => (e.Id, (object)e)));
 
     /// <summary>All three files, as (file, id, source_ref, corroborated_by) rows.</summary>
     private static IEnumerable<(string File, string Id, string SourceRef, IReadOnlyList<string>? CorroboratedBy)>
@@ -5624,7 +6143,8 @@ public sealed class PlayRulesDataTests
             .Concat(Challenge().Entries.Select(e => ("challenge.json", e.Id, e.SourceRef, e.CorroboratedBy)))
             .Concat(Resolve().Entries.Select(e => ("resolve.json", e.Id, e.SourceRef, e.CorroboratedBy)))
             .Concat(Combat().Entries.Select(e => ("combat.json", e.Id, e.SourceRef, e.CorroboratedBy)))
-            .Concat(Gritty().Entries.Select(e => ("gritty.json", e.Id, e.SourceRef, e.CorroboratedBy)));
+            .Concat(Gritty().Entries.Select(e => ("gritty.json", e.Id, e.SourceRef, e.CorroboratedBy)))
+            .Concat(Equipment().Entries.Select(e => ("equipment.json", e.Id, e.SourceRef, e.CorroboratedBy)));
 
     /// <summary>The descriptions of one file, as (id, description) pairs.</summary>
     private static IEnumerable<(string Id, string Description)> DescriptionsIn(string fileName) => fileName switch
@@ -5633,6 +6153,7 @@ public sealed class PlayRulesDataTests
         "challenge.json" => Challenge().Entries.Select(e => ($"challenge.json/{e.Id}", e.Description)),
         "combat.json" => Combat().Entries.Select(e => ($"combat.json/{e.Id}", e.Description)),
         "gritty.json" => Gritty().Entries.Select(e => ($"gritty.json/{e.Id}", e.Description)),
+        "equipment.json" => Equipment().Entries.Select(e => ($"equipment.json/{e.Id}", e.Description)),
         _ => Resolve().Entries.Select(e => ($"resolve.json/{e.Id}", e.Description))
     };
 }

@@ -5418,7 +5418,7 @@ public sealed class PlayEngineStepTests
         ];
     }
 
-    /// <summary>One entry's <c>source_ref</c>, whichever of the five files it is in.</summary>
+    /// <summary>One entry's <c>source_ref</c>, whichever of the six files it is in.</summary>
     private string SourceRefOf(string id)
     {
         foreach (var (file, entryId) in _play.EntryIds())
@@ -5432,6 +5432,7 @@ public sealed class PlayEngineStepTests
                 PlayRulesRepository.CombatFile => _play.GetCombat(id).SourceRef,
                 PlayRulesRepository.GrittyFile => _play.GetGritty(id).SourceRef,
                 PlayRulesRepository.ResolveFile => _play.GetResolve(id).SourceRef,
+                PlayRulesRepository.EquipmentFile => _play.GetEquipment(id).SourceRef,
                 var other => throw new InvalidOperationException($"Unknown play rules file {other}.")
             };
         }
