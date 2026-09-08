@@ -738,6 +738,90 @@ public sealed class PlayStyleTests
         return int.Parse(text[start..end], System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    // ── The fifth style, which is not one ─────────────────────────────────
+
+    /// <summary>
+    /// The claims the refusal of <c>narrative</c> is made of, as the phrases that carry them.
+    ///
+    /// <para>Three: that "befitting" is a judgement, that nothing here makes a Flaw bite, and that
+    /// the place it does live is <c>take_turn</c>. A refusal that dropped any one of them is a
+    /// refusal that reads as an oversight, which is the one thing this one exists not to be.</para>
+    /// </summary>
+    private static readonly string[] WhyNarrativeIsNotSeeded = ["befitting", "Flaw bite", "take_turn"];
+
+    /// <summary>
+    /// <b>The reason <c>narrative</c> is refused says the same thing in all three places it is
+    /// written down.</b>
+    ///
+    /// <para><b>The <em>name</em> is already held together by the code</b> — the server compares
+    /// against <see cref="StylePolicy.NarrativeStyle"/> and refuses with
+    /// <see cref="StylePolicy.NarrativeIsNotSeeded"/>, so there is no second spelling of it to
+    /// drift, and renaming the constant is caught by the wire fixture that asks for the style by its
+    /// literal name. <b>The <em>reason</em> was not.</b> `docs/guide/play-engine.md` says the
+    /// constant "carries that sentence in one place … and `PLAY-POLICY.md` prints it", and both
+    /// documents in fact paraphrase it — so any of the three could have been edited into saying
+    /// something the other two do not.</para>
+    ///
+    /// <para>Held on the claims rather than on the bytes, because a paraphrase is the right shape
+    /// for a document and a wrong shape to compare literally. The control is the first assertion of
+    /// each pair: every phrase has to be in the constant, so a list that had rotted into phrases
+    /// nobody uses fails on the code rather than passing on the documents.</para>
+    /// </summary>
+    [Fact]
+    public void TheReasonNarrativeIsRefusedIsTheSameInAllThreePlaces()
+    {
+        // <b>Each document is read at the section that is about this, and not whole.</b> "A Flaw
+        // bites" is a phrase p.85's suppression spend uses too, three hundred lines away — so a
+        // whole-document search is satisfied by a sentence about something else, and rewording the
+        // styles section left it green.
+        var policy = SectionOf(
+            ProwlersAndParagonsAutomation.McpPlay.PlayPolicy.Text,
+            "## Styles: how a fight is played", "\n## ");
+
+        var guide = SectionOf(
+            File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "docs", "guide", "play-engine.md")),
+            "### The four styles, and the fifth that is not one", "\n### ");
+
+        Assert.NotEmpty(WhyNarrativeIsNotSeeded);
+
+        foreach (var claim in WhyNarrativeIsNotSeeded)
+        {
+            Assert.Contains(claim, StylePolicy.NarrativeIsNotSeeded, StringComparison.Ordinal);
+
+            Assert.Contains(claim, policy, StringComparison.Ordinal);
+            Assert.Contains(claim, guide, StringComparison.Ordinal);
+        }
+
+        // And the name is still absent from the list a caller may choose from, which is the whole
+        // of what "refused by name" means.
+        Assert.DoesNotContain(StylePolicy.NarrativeStyle, StylePolicy.StyleIds, StringComparer.Ordinal);
+
+        Assert.Contains(StylePolicy.NarrativeStyle, policy, StringComparison.Ordinal);
+        Assert.Contains(StylePolicy.NarrativeStyle, guide, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// One section of a document: from <paramref name="heading"/> to the next heading at
+    /// <paramref name="nextLevel"/> or above, so a phrase found somewhere else entirely does not
+    /// count as this section saying it.
+    /// </summary>
+    private static string SectionOf(string text, string heading, string nextLevel)
+    {
+        var at = text.IndexOf(heading, StringComparison.Ordinal);
+
+        Assert.True(at >= 0,
+            $"the section \"{heading}\" is gone, so nothing holds the refusal's reason together "
+            + "there any more.");
+
+        var from = at + heading.Length;
+        var next = text.IndexOf(nextLevel, from, StringComparison.Ordinal);
+        var upper = text.IndexOf("\n## ", from, StringComparison.Ordinal);
+
+        if (upper >= 0 && (next < 0 || upper < next)) next = upper;
+
+        return next < 0 ? text[from..] : text[from..next];
+    }
+
     // ── The fights ────────────────────────────────────────────────────────
 
     /// <summary>Two Heroes the Villain is quicker than: <c>standard</c>'s seize has its trigger.</summary>
