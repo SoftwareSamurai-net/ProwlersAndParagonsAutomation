@@ -1470,6 +1470,27 @@ says, and that heading is what the end-to-end `BOOT` check reads.
 same value in a place that *does* have a document and four palettes to be wrong about, and it is
 the obvious thing to reach for.
 
+**The generator also shipped both icons as `"purpose": "maskable"`, and that survived the first
+edit of this file.** It is two faults and the second is the one with teeth.
+
+- **A `maskable` icon must keep its content inside a circle 80% of the icon's width**, because the
+  platform is free to crop it to whatever shape its home screen uses. These two are the full
+  lockup bled to the edges. Measured over the 192px file — decode it with `scripts/visual/png.mjs`,
+  take the corner pixel as the ground, count what falls outside that circle — **13% of the
+  non-background pixels are outside the safe zone**, and the furthest reach 111% of the
+  half-width. Under a round mask the wordmark reads `wareSamur` and the tagline is gone. The
+  keyword was a promise about artwork that the artwork does not keep.
+- **And with both entries marked `maskable`, nothing in the manifest was usable as an ordinary
+  icon.** An omitted `purpose` means `any`, which is what every context except an Android adaptive
+  icon asks for: the install prompt, the task switcher, the desktop window. The file offered a
+  masked icon to a platform that wanted an unmasked one and gave it no second choice.
+
+Both entries say `"purpose": "any"` now, which is what this artwork is — full-bleed, no safe zone,
+right drawn as it stands. `EveryIconTheAppNamesIsServedAndTheManifestNamesTheApp` requires at least
+one such entry. **Putting `maskable` back means adding padded artwork with it**, as a third and
+fourth icon rather than as a keyword on these two; nothing in CI measures a safe zone, so the
+check on that half is the paragraph above and a pair of eyes.
+
 **The policy needs nothing.** The manifest is same-origin, so it is covered by `default-src 'self'`
 (`manifest-src` falls back to it), and every icon is a same-origin image under the existing
 `img-src 'self' data:`. `scripts/write-cloudflare-headers.sh` is unchanged by any of this.

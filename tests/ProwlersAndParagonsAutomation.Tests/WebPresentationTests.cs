@@ -2199,6 +2199,27 @@ public sealed class WebPresentationTests
 
         Assert.NotEmpty(icons);
 
+        // At least one icon a platform may draw unmasked, which is what an omitted `purpose`
+        // means and what every context except an Android adaptive icon asks for — the install
+        // prompt, the task switcher, the desktop window. The generator shipped both of these
+        // marked `maskable` and nothing else, which leaves those contexts with no icon to pick
+        // and is a claim about the artwork that the artwork does not support: a maskable icon
+        // must keep its content inside a circle of 80% of its width, and this one is the full
+        // lockup bled to the edges. Measured over the 192px file with `scripts/visual/png.mjs`,
+        // 13% of its non-background pixels fall outside that circle and the furthest reach 111%
+        // of the half-width; under a round mask the wordmark reads `wareSamur` and the tagline
+        // is gone. Adding `maskable` back means adding padded artwork with it, not a keyword.
+        Assert.True(
+            icons.Any(icon =>
+                !icon.TryGetProperty("purpose", out var purpose)
+                || (purpose.GetString() ?? "")
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Contains("any", StringComparer.Ordinal)),
+            "site.webmanifest lists no icon a platform may draw unmasked — every entry names a "
+            + "`purpose` and none of them includes `any`. An install prompt and a task switcher "
+            + "have nothing to pick, and `maskable` on this pack's full-bleed lockup crops the "
+            + "wordmark. See the comment above.");
+
         foreach (var icon in icons)
         {
             var src = icon.GetProperty("src").GetString() ?? "";
