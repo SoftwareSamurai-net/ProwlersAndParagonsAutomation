@@ -389,6 +389,63 @@ tokens rots the first time one of them moves, silently.
   because the point of that control is that the avenues are a closed set with a marking of their
   own, so a *tool* that grew the underline would arrive as a fourth avenue.
 
+### The owner's mark keeps its own ground, and that is what lets it sit in every palette
+
+**`web/wwwroot/logo.svg` is the eye out of the owner's lockup, on the dark tile it was drawn on.**
+It is the third part of the wordmark rather than a fourth item in the row: it is *inside*
+`.banner-title`, which is the one block in this band that opts out of `align-items: baseline`, so
+it opts out with it and `proof-align.html` goes on excluding the whole block by name. As a sibling
+of that block it would join the baseline row, where an image's baseline is its own bottom edge — a
+32px tile hanging its foot on the text line, and a spread the alignment harness would be right to
+fail.
+
+**Two decisions were made about the file, and the second is the one that matters.**
+
+- **It is cropped to the eye.** The lockup carries `SoftwareSamurai.net` and a tagline below the
+  mark, and at `--space-7` those are a grey smudge where words should be. The crop is the first 81
+  paths of `favicon.svg` moved into a square of their own by one `translate`, coordinates
+  untouched — so the two files are provably the same drawing, which
+  `TheBannersMarkIsTheOwnersArtworkCroppedAndNeverPrints` checks path by path. Regenerate it from
+  `favicon.svg` in the same folder; the kit it originally came from is not in the repository.
+- **It keeps its dark ground, and was not lifted off it.** Lifting it is the obvious thing to
+  do — a transparent mark takes whatever surface it lands on — and it is wrong here twice over.
+  The banner's fill is `--primary`, which is `#1B4F9C` for a Hero and `#8B0F1D` for a Villain in
+  **both** themes, and this mark's red on that crimson is a mark nobody can see: the tile is
+  exactly what makes one file work on both. And the ground is not only a backdrop — **45 of the 81
+  paths are that same dark** and are the counters *inside* the eye, so a transparent version paints
+  them as shapes where the artwork has holes. It is not the same drawing.
+
+  **That figure read 56 here and in the guard's own doc comment until somebody counted it.** 56 is
+  57 dark paths in the whole lockup less its ground — the count for the file that was *not*
+  cropped, which is the arithmetic anybody re-deriving this would do wrong the same way. The guard
+  asserts it now, so the number in this paragraph cannot drift from the artwork again.
+
+**An `<img>`, never inlined, and that is rule 1 rather than a preference.** The artwork is two
+colours of somebody else's and it carries them itself, exactly as the favicon pack and the two
+typefaces do. Inlined into a component those fills would be a component naming a colour, which
+`NoComponentNamesAColour` refuses and should: there is no token for another firm's brand red, and
+a mark redrawn in `--accent` is not the mark. Kept as a file it is an image like any other and the
+four palettes never touch it — which is also why `app.css` gives it a size, a corner and nothing
+else. The `--radius` is because a square dark tile on a coloured band reads as a hole in the band.
+
+**It is not inside the home link.** The mark says who made the site; `Prowlers & Paragons` says
+what the site is. Folding the two into one anchor makes them one claim, and leaves the image either
+announcing the destination a second time or carrying no name at all — so it is its own element with
+its own `alt`, which axe requires and which a decorative `alt=""` would have satisfied while telling
+a screen reader nothing.
+
+**It does not print**, and `.banner-mark` is named in the print block although `.banner` above it
+already covers the whole band — the same reason the two palette switches and their menu are named
+there. This one is the only image in the app's chrome, and the printed sheet's entire colour budget
+is about 6mm of heading tint.
+
+**This moved four pixel goldens and no others**: `shell-hero-light`, `shell-hero-dark`,
+`shell-villain-light` and `shell-villain-dark` are the pages that draw the band. Measured
+before-and-after with `scripts/visual/diff.mjs`, each is ~0.66% of its pixels inside one bounding
+box in the top-left corner — the tile, and the wordmark moved right by its width and the column
+gap. `front-door-*`, `rules-reference` and `explained-sheet` came back pixel-identical, which is the
+answer to "does the front door draw the banner": it does not.
+
 ### The settings menu, and why it is the character switcher's mechanism
 
 **The Hero/Villain and Light/Dark/Auto switches live behind `SettingsMenu` now.** That took the
@@ -1377,6 +1434,87 @@ Ch.9 builds Villains exactly like Heroes and prints no separate stat-block forma
 - **One route puts the palette on the document.** `MainLayout` applies it from the character on the render after any change of character — restored, sampled, taken from a recording, switched by hand. Three call sites used to push `ppSetMode` themselves. That made it render-reached, so it left the interop guard's by-hand allow-list and goes through `Theme`, guarded like `Motion` and `Shortcuts`; unguarded it would throw out of every render of the shell. The **theme** switch is different and deliberately so: it pushes from the click, because it follows the reader rather than the character and changes on nothing else.
 - **`.mode-switch` names the Hero/Villain control, not the pill shape.** The light/dark control briefly carried the same class, which made `.mode-switch button` match five buttons and the identity switch report three pressed states at once. The shape is shared by selector list; `BannerTests` caught it in under a minute. **Both controls are inside `SettingsMenu` now** — see the banner section above, including why they are drawn on `--panel` rather than on `--primary`.
 - Only the palette differs. If a layout change seems necessary for one mode, the layout is wrong for both.
+
+### `site.webmanifest` is the one file in this app that names a colour, and it has to
+
+**"No component names a colour" is a rule about components, and a manifest is not one.** It is a
+static JSON document the *operating system* reads before any of this app's CSS exists — the two
+colours in it paint the splash screen and tint the platform's own chrome around an installed
+shortcut, at a moment when there is no document to carry a token and no `data-mode` to read. A
+`var()` there is not a thing; the file names a hex or it names nothing.
+
+**So the question is not whether to name one but which one, and a manifest can name exactly one
+where the app has four.** The two fields are matched to the tokens whose *role* they stand in for,
+rather than picked:
+
+- **`background_color: #F7F9FC` is hero-light `--surface`.** That field paints the ground the
+  platform shows while the app is still starting, which is the page's own ground one moment early
+  — and the page's ground is `--surface`.
+- **`theme_color: #1B4F9C` is hero-light `--primary`.** That field tints the platform's chrome
+  immediately above the page, which is where this app's banner is — and the banner is a
+  `--primary` fill. Not `--heading`, which happens to hold the same value here and is *text*:
+  taking the coinciding one would put the wrong role in the file, and the two part company the
+  moment anybody looks at villain-light.
+
+**Hero-light, because that is what an un-stamped first visit renders** — no stored `pp.theme.v1`,
+a light system, and `data-mode` defaulting to hero. **Do not "fix" this by matching the reader's
+theme.** Nothing writes this file at request time and the site is static on purpose, and the
+alternative is four manifests the platform has no way to choose between.
+
+**The cost of that is one frame for one of the two fields and the whole session for the other, and
+this paragraph said "a frame" about both.** `background_color` really is a splash frame: the
+platform paints it while the app starts and the page's own `--surface` takes over the moment
+`theme.js` stamps the document. `theme_color` does not go anywhere. It tints the chrome the
+platform draws around an **installed** app — the status bar above a standalone window, the title
+bar of a desktop one — for as long as that window is open, and nothing in the page can move it,
+because a `<meta name="theme-color">` is the only lever and this app names no colour in
+`index.html` on purpose. So a Villain player who installs the site gets a navy band above a crimson
+banner, permanently, and a Hero player in dark mode gets the light palette's navy above the dark
+one's, which happen to be the same `#1B4F9C` and so cost nothing.
+
+**Which identity the installed chrome should wear is the owner's call and has not been made.** The
+field holds hero-light `--primary` because that is the un-stamped default, which is a defensible
+answer rather than a considered one; villain-light `--primary` is `#8B0F1D`, and the neutral third
+option is `--surface`, which reads as "no band" instead of as the wrong one. Nothing here should be
+changed on somebody's own initiative — a manifest colour is a decision about what the app looks
+like to the people who install it.
+
+**The generator shipped `"theme_color": "E63536"` and `"background_color": "312D34"`, unhashed.**
+Neither is a colour any browser will parse and both are dropped in silence, so the guard requires
+`#RRGGBB` and refuses the generator's placeholder name as well —
+`EveryIconTheAppNamesIsServedAndTheManifestNamesTheApp` in `WebPresentationTests`. That guard also
+pins the manifest's `name` to the front door's `<h1>`, read out of `Home.razor` rather than
+restated: two spellings is how a home-screen icon comes to be labelled something the site never
+says, and that heading is what the end-to-end `BOOT` check reads.
+
+**`index.html` still names no colour and must not.** A `<meta name="theme-color">` would be the
+same value in a place that *does* have a document and four palettes to be wrong about, and it is
+the obvious thing to reach for.
+
+**The generator also shipped both icons as `"purpose": "maskable"`, and that survived the first
+edit of this file.** It is two faults and the second is the one with teeth.
+
+- **A `maskable` icon must keep its content inside a circle 80% of the icon's width**, because the
+  platform is free to crop it to whatever shape its home screen uses. These two are the full
+  lockup bled to the edges. Measured over the 192px file — decode it with `scripts/visual/png.mjs`,
+  take the corner pixel as the ground, count what falls outside that circle — **13% of the
+  non-background pixels are outside the safe zone**, and the furthest reach 111% of the
+  half-width. Under a round mask the wordmark reads `wareSamur` and the tagline is gone. The
+  keyword was a promise about artwork that the artwork does not keep.
+- **And with both entries marked `maskable`, nothing in the manifest was usable as an ordinary
+  icon.** An omitted `purpose` means `any`, which is what every context except an Android adaptive
+  icon asks for: the install prompt, the task switcher, the desktop window. The file offered a
+  masked icon to a platform that wanted an unmasked one and gave it no second choice.
+
+Both entries say `"purpose": "any"` now, which is what this artwork is — full-bleed, no safe zone,
+right drawn as it stands. `EveryIconTheAppNamesIsServedAndTheManifestNamesTheApp` requires at least
+one such entry. **Putting `maskable` back means adding padded artwork with it**, as a third and
+fourth icon rather than as a keyword on these two; nothing in CI measures a safe zone, so the
+check on that half is the paragraph above and a pair of eyes.
+
+**The policy needs nothing.** The manifest is same-origin, so it is covered by `default-src 'self'`
+(`manifest-src` falls back to it), and every icon is a same-origin image under the existing
+`img-src 'self' data:`. `scripts/write-cloudflare-headers.sh` is unchanged by any of this.
 
 ## The accounts panel on `/admin`, and why it introduces no idiom of its own
 

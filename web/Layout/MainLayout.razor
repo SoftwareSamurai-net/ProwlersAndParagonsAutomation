@@ -49,7 +49,34 @@
      all. It said "not here, because a door onto an empty room is worse than a wall"; the room is
      `/campaign`, and it exists now. *@
   <div class="banner-inner">
+    @* **The owner's mark, and it belongs to the wordmark rather than to the row.**
+
+       `.banner-title` is the one item in this band that opts out of `align-items: baseline`,
+       because it is two lines and has no single text line to share — see the note on it in
+       app.css. The mark is the third part of that same lockup, so it opts out with it: it sits
+       *inside* `.banner-title`, laid out against the two lines of type it belongs to, and
+       `proof-align.html` goes on excluding that whole block by name. Put beside the block as a
+       sibling instead and it would join the baseline row, where an image's baseline is its own
+       bottom edge — a tile hanging its foot on the text line, and a spread the alignment
+       harness would be right to fail.
+
+       **An `<img>` rather than inline SVG, and that is the rule rather than a preference.** The
+       artwork is two colours of the owner's own and it carries them itself, the way the favicon
+       pack and the two typefaces do. Inlined into this file those fills would be a *component*
+       naming a colour, which `NoComponentNamesAColour` refuses and should — there is no token
+       for somebody else's brand red, and a mark redrawn in `--accent` is not the mark. As a
+       file it is an image like any other, and none of the four palettes touches it.
+
+       **Not inside the home link.** This says who made the site; `Prowlers & Paragons` says what
+       the site is. Folding the mark into the anchor would make the two one claim, and would
+       leave the image either announcing the destination a second time or carrying no name at
+       all. So it is its own element with its own alt text — which axe requires, and which a
+       decorative `alt=""` would have satisfied while telling a screen reader nothing.
+
+       `width`/`height` are the file's own, so the box is reserved at the right shape before the
+       image arrives; `app.css` sizes it. *@
     <div class="banner-title">
+        <img class="banner-mark" src="logo.svg" width="1800" height="1800" alt="SoftwareSamurai.net" />
         <NavLink class="banner-home" href="" Match="NavLinkMatch.All">Prowlers &amp; Paragons</NavLink>
         <small>@Subtitle</small>
     </div>
