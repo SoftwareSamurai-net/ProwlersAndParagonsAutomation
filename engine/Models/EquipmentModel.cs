@@ -405,6 +405,22 @@ public record EquipmentItemModel
     /// <summary>The one item whose granted Power is printed with a rank.</summary>
     public int? GrantedPowerRank { get; init; }
 
+    /// <summary>
+    /// <b>The option a granted Power is bought by naming</b>, where the id cannot carry it.
+    /// Immunity is "named and paid for separately" and Super Senses — Acute is printed "Acute (X)",
+    /// so <c>immunity</c> and <c>super_senses_acute</c> are half an answer on their own: the Gas
+    /// Mask's is Toxins and the Parabolic Microphone's is Hearing. The other Super Senses options
+    /// are separate entries whose own names carry the sense, and those record nothing here.
+    /// </summary>
+    public string? GrantedPowerSelection { get; init; }
+
+    /// <summary>
+    /// A narrowing the page puts on the granted Power — the Gas Mask's Immunity reaches only what
+    /// gets in through the eyes or the lungs. Recording the Power without it grants more than p.91
+    /// does.
+    /// </summary>
+    public string? GrantedPowerLimitedTo { get; init; }
+
     public int? BonusDice { get; init; }
     public string? BonusAppliesTo { get; init; }
 

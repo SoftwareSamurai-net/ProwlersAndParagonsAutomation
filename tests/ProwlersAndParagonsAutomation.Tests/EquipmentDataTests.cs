@@ -677,6 +677,99 @@ public sealed class EquipmentDataTests
     }
 
     /// <summary>
+    /// <b>Two of the granted Powers are bought by naming an option, and the id alone does not carry
+    /// it.</b> Immunity is priced per unit because "each immunity is named and paid for separately",
+    /// and Super Senses — Acute is printed "Acute (X)" with the sense chosen at purchase. So
+    /// <c>grants_powers: ["immunity"]</c> on the Gas Mask and <c>["super_senses_acute"]</c> on the
+    /// Parabolic Microphone were half of what p.91 prints — the Toxins and the Hearing were gone,
+    /// and so was the Gas Mask's "limited to" clause, which is the difference between immunity to
+    /// what you breathe and immunity to poison.
+    ///
+    /// <para><b>The existing check could not see it</b>: it resolves each granted id in
+    /// <c>powers.json</c>, and both of these resolve. A Power that resolves and is under-specified
+    /// looks exactly like one that is right.</para>
+    ///
+    /// <para><b>Which Powers need an option is read out of <c>powers.json</c>, not listed here</b> —
+    /// a name printed "(X)" or a per-unit price is the book saying the option is the purchase. So an
+    /// item that starts granting a different such Power is caught without this test being edited,
+    /// and the option itself has to be a word p.91 prints in that item's own sentence.</para>
+    /// </summary>
+    [Fact]
+    public void EveryGrantedPowerBoughtByNamingAnOptionRecordsTheOptionThePagePrints()
+    {
+        var printed = PrintedItemSentences();
+        var items = Equipment().EquipmentCatalogue.Items;
+
+        var needsAnOption = items
+            .Where(i => (i.GrantsPowers ?? []).Any(PowerIsBoughtByNamingAnOption))
+            .ToList();
+
+        // Positive controls: the classifier finds Powers of both kinds among what the list grants,
+        // so the sweep below is a distinction rather than an empty set.
+        Assert.Equal(2, needsAnOption.Count);
+        Assert.True(
+            items.Any(i => (i.GrantsPowers ?? []).Count > 0 && !needsAnOption.Contains(i)),
+            "No item grants a Power that carries its own option, so the split proves nothing.");
+
+        var faults = new List<string>();
+
+        foreach (var item in items)
+        {
+            var sentence = printed[item.Name];
+            var wanted = needsAnOption.Contains(item);
+
+            if (wanted && string.IsNullOrWhiteSpace(item.GrantedPowerSelection))
+            {
+                faults.Add(
+                    $"{item.Id} grants a Power whose option is the purchase and records no "
+                    + $"granted_power_selection; p.91 says: \"{sentence}\"");
+                continue;
+            }
+
+            if (!wanted && item.GrantedPowerSelection is not null)
+            {
+                faults.Add($"{item.Id} records an option for a Power that carries its own");
+                continue;
+            }
+
+            if (wanted && !sentence.Contains(item.GrantedPowerSelection!, StringComparison.OrdinalIgnoreCase))
+                faults.Add($"{item.Id} records the option '{item.GrantedPowerSelection}', which p.91 does not print for it");
+
+            // The narrowing, wherever the page puts one on a granted Power — and nowhere else.
+            var isLimited = sentence.Contains("Power limited to", StringComparison.Ordinal);
+
+            if (isLimited && string.IsNullOrWhiteSpace(item.GrantedPowerLimitedTo))
+                faults.Add($"{item.Id}: p.91 limits the Power it grants and the file records no limit");
+
+            if (!isLimited && item.GrantedPowerLimitedTo is not null)
+                faults.Add($"{item.Id} records a limit p.91 does not put on the Power it grants");
+        }
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+
+        // And the one narrowing the page does print, by name, so the sweep above is not vacuous.
+        var gasMask = items.Single(i => i.Id == "gas_mask");
+        Assert.Equal("Toxins", gasMask.GrantedPowerSelection);
+        Assert.Contains("eyes", gasMask.GrantedPowerLimitedTo!, StringComparison.Ordinal);
+        Assert.Equal("Hearing", items.Single(i => i.Id == "parabolic_microphone").GrantedPowerSelection);
+    }
+
+    /// <summary>
+    /// <b>A Power the book buys by naming an option</b>, read off its own entry rather than listed:
+    /// a printed name carrying "(X)", or a per-unit price, which is what "each is named and paid for
+    /// separately" costs out as.
+    /// </summary>
+    private bool PowerIsBoughtByNamingAnOption(string powerId)
+    {
+        var power = _f.Rules.GetPower(powerId);
+
+        Assert.True(power is not null, $"'{powerId}' is not a Power in powers.json.");
+
+        return power!.Name.Contains("(X)", StringComparison.Ordinal)
+               || string.Equals(power.CostType, "per_unit", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// p.91's list as name to printed sentence, cut at each name the same regex finds. An item's
     /// text runs from its own colon to the next item's name, which is what makes a per-item
     /// question answerable against the page at all.
@@ -1080,8 +1173,10 @@ public sealed class EquipmentDataTests
             "ancient_weapons.interpretation.row_alignment",
             "modern_weapons.interpretation.row_alignment",
             "advanced_weapons.interpretation.row_alignment",
-            // TheEquipmentListIsDerivedFromTheCorpusAndPricesNothing and
-            // TheItemsThatCarryAMechanicalEffectCarryTheFiguresThePagePrints
+            // TheEquipmentListIsDerivedFromTheCorpusAndPricesNothing,
+            // TheItemsThatCarryAMechanicalEffectCarryTheFiguresThePagePrints,
+            // EveryThresholdOnAnItemIsTheKindOfRollThePagePrints and
+            // EveryGrantedPowerBoughtByNamingAnOptionRecordsTheOptionThePagePrints
             "equipment_catalogue.items"
         };
 

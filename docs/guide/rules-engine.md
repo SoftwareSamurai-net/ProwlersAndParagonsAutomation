@@ -247,6 +247,16 @@ the page is silent on both.
   the outcome the comment gives as the reason not to credit it, so the comment and the code disagree
   about what "not credited" means.
 
+**Two of p.91's granted Powers are bought by naming an option, and the id alone is half an answer.**
+Immunity is priced per unit because each one is "named and paid for separately", and Super Senses —
+Acute is printed "Acute (X)": so the Gas Mask's Toxins, its "limited to" clause, and the Parabolic
+Microphone's Hearing were all missing from a file that said only `immunity` and `super_senses_acute`.
+`granted_power_selection` and `granted_power_limited_to` carry them. **Resolving an id is not
+checking it** — both of those resolve, and an under-specified grant looks exactly like a right one —
+so `EveryGrantedPowerBoughtByNamingAnOptionRecordsTheOptionThePagePrints` reads *which* Powers need an
+option off `powers.json` (a name carrying `(X)`, or a per-unit price) rather than listing them, and
+requires the option to be a word p.91 prints in that item's own sentence.
+
 **Three items on p.91 print a `Label (n)` figure and only two of them are about breaking the item.**
 Handcuffs' Inhuman (5) and Zip Tie's Brutal (4) are thresholds to break; Rappelling Gear's Easy (0)
 is the **Agility roll that uses it**, and it was recorded as a third break threshold — which says the

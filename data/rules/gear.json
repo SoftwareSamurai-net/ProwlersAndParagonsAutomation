@@ -1645,12 +1645,14 @@
           "immunity"
         ],
         "granted_power_rank": null,
+        "granted_power_selection": "Toxins",
+        "granted_power_limited_to": "toxins that affect the eyes or are inhaled",
         "bonus_dice": null,
         "bonus_applies_to": null,
         "break_threshold": null,
         "break_threshold_label": null,
         "duration": null,
-        "description": "Seals the eyes and the lungs, which is where most of what you would breathe or blink at gets in.",
+        "description": "A sealed mask. It hands the wearer the Immunity Power against toxins, and only against the ones that reach a person through their eyes or their breath - anything absorbed or injected gets through it.",
         "verified_fields": [
           "name",
           "description",
@@ -1772,6 +1774,7 @@
           "super_senses_acute"
         ],
         "granted_power_rank": 9,
+        "granted_power_selection": "Hearing",
         "bonus_dice": null,
         "bonus_applies_to": null,
         "break_threshold": null,
