@@ -280,6 +280,13 @@ bare-handed rank beats what the limit lets a weapon carry, the page lets the wie
 bare-handed one, and the way to say so is to send the attack as `unarmed` with the item still in
 hand and the damage kind the weapon buys.
 
+**The limit in force rides back inside `table`.** `start_encounter` and `run_encounters` both echo
+`table.gear_limit` — the rank an item-backed attack is actually capped at, whether the campaign
+raised it, and where the figure came from. It is echoed as a figure because the two switches beside
+it say only that a rank was *set*, and a reader deciding whether a rate is about their game needs
+the number the fight was resolved under. A rank stored without `raised_gear_limit` is a figure the
+table has not adopted and the echo reports the default.
+
 **An item Chapter 6 does not print gets no bonus and the line says so.** The object a fight opens
 with is your own phrase, so it is matched to the longest printed weapon name inside it — "a basic
 sword" is the Sword, "a battle axe" is the Battle Axe rather than the Axe. A rolled-up newspaper is
