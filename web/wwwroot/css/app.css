@@ -231,8 +231,15 @@ hr {
    **The obvious worry about the second track was measured and is not real.** A `1fr` track takes
    its content as its own minimum, so the natural defence is `minmax(0, 1fr)` — and it buys
    nothing here: the wordmark is two words and wraps, so with the plain `1fr` in place
-   `proof-narrow-shell.html` still reports `NARROW: PASS` at both 375px and 320px. The band's
-   width is held by that harness, not by a track keyword written on a hunch. */
+   `proof-narrow-shell.html` still reports `NARROW: PASS`. The band's width is held by that
+   harness rather than by a track keyword written on a hunch.
+
+   **What that harness holds is 375px, and only 375px.** Its iframe is a fixed `width: 375px` and
+   no page in `wwwroot` measures any other, so the 320px figure this comment used to claim
+   alongside it was a local measurement taken once by hand and reverted — true when it was made
+   and held by nothing since. Read this as "the narrow case in CI is 375". If 320 is worth
+   holding, it wants a harness of its own and a broken twin with it, not a second number in a
+   comment. */
 .banner-mark {
     width: var(--space-7);
     height: var(--space-7);
