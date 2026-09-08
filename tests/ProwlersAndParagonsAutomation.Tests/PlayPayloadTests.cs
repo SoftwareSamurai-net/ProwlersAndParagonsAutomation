@@ -205,8 +205,8 @@ public sealed class PlayPayloadTests
     /// is the whole failure, and which a path check alone misses.
     /// </summary>
     private static readonly string[] PlayFileNames =
-        ["challenge.json", "combat.json", "equipment.json", "gritty.json", "play_meta.json",
-         "resolve.json"];
+        ["challenge.json", "combat.json", "environment.json", "equipment.json", "gritty.json",
+         "play_meta.json", "resolve.json"];
 
     private static bool IsUnderPlay(string path) =>
         Path.GetFullPath(path).StartsWith(
@@ -376,7 +376,7 @@ public sealed class PlayPayloadTests
     private static readonly string[] PlayFileTokens =
     [
             "play_meta.json", "challenge.json", "resolve.json", "combat.json", "gritty.json",
-            "rules/play", @"rules\play"
+            "environment.json", "rules/play", @"rules\play"
         ];
 
     /// <summary>
