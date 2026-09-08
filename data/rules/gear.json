@@ -44,8 +44,14 @@
       "description"
     ],
     "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
-    "ambiguity": "The page states the rank as Toughness plus the bonus and never restates the Gear Limit beside it, while p.87 names armour as one of the two things the limit is usually about. Whether a 12d Toughness wearer reaches 12d plus the bonus or only the limit plus the bonus is therefore not settled on the page; the Deflecting feature on p.93 is the one armour rule that does say 'subject to the Gear Limit' in as many words, which is some evidence the rest was meant to be too.",
-    "interpretation": null
+    "corroborated_by": [
+      "Ultimate Edition, Ch.6 Equipment, p.87"
+    ],
+    "ambiguity": null,
+    "interpretation": {
+      "what_this_is": "This project's reading of a rule p.88 does not restate, taken from the page before it. It is not a fact p.88 states.",
+      "gear_limit_note": "The Gear Limit caps a worn suit, so a wearer's effective Armor rank is the lesser of their Toughness and the game's Gear Limit, plus the suit's Armor Bonus - not their whole Toughness plus the bonus. p.88 states the rank and never restates the limit, but p.87 settles it four times over: the limit is the maximum Trait rank you can apply when using mundane equipment that boosts your Traits 'for a specific purpose (usually armor and weapons)'; its worked example gives the maximum effective rank as the limit plus the bonus rather than the whole trait capped afterwards, which fixes the order of the arithmetic; it says in as many words that this makes mundane gear, especially armor and weapons, less useful to a superhuman; and its one printed exception is stated for melee weapons alone, so armour is not exempt. p.93's Deflecting agrees, being the one armour rule that says 'subject to the game's Gear Limit' outright. A Power's rank substituted in for Toughness under the second sentence of this entry is a Trait rank like any other and is capped the same way. This was recorded as the book's silence and is not one: the silence is p.88's, and the page before it answers, so a consumer of this file inherits no doubt."
+    }
   },
   "armor_table": {
     "id": "armor_table",

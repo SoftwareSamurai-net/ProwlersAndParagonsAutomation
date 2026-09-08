@@ -193,6 +193,19 @@ not in it** — they have been `gear_features.json` since the custom-gear slice,
 p.93's own headings out of the corpus and requires each to resolve to one of the twelve, which is the
 check that says the twelve are all of them.
 
+**The Gear Limit caps a worn suit, and p.88 is not where that is written.** p.88 gives the Armor
+rank as Toughness plus the suit's bonus and never restates the limit, so the effective rank is the
+lesser of Toughness and the Gear Limit, *plus* the bonus — 8d in a standard game, whatever the
+wearer's Toughness. **p.87 settles it and the file records it as an `interpretation`, not as an
+`ambiguity`**: the limit is about equipment that boosts a Trait "(usually armor and weapons)", its
+worked example fixes the order of the arithmetic at limit-plus-bonus, it says outright that this
+makes armour less useful to a superhuman, and its one printed exception is for melee weapons alone.
+A Power's rank substituted in for Toughness under the same entry's second sentence is a Trait rank
+and is capped the same way. This was recorded here as the book's silence, which it is not — the
+silence is p.88's, and **a doubt the book has settled is one the consumer slice would resolve by
+guessing.** `ThePageEightySevenGearLimitAnswersWhatPageEightyEightLeavesOut` reads all four
+sentences out of the corpus, so it fails if the page it rests on is not the page that is there.
+
 **It is called `gear.json` and not `equipment.json` because that name was taken.** The play store's
 file is `data/rules/play/equipment.json`, and `PlayPayloadTests` refuses any file in `data/rules/`
 whose *basename* matches one under `play/` — by name as well as by path, because a play file copied
@@ -242,7 +255,7 @@ heading the corpus found on that page; `ambiguity` for the book's silence and `i
 this project's reading, never a fact field for either. Descriptions are original text — a test fails
 any run of ten consecutive words shared with `data/rulebook/ch06-equipment.json`. And
 `EveryFactFieldOfEveryEntryIsComparedAgainstTheRulebook` walks the models by reflection so a field
-added to the data cannot quietly go unchecked, with a positive control on the walk (159 leaves today)
+added to the data cannot quietly go unchecked, with a positive control on the walk (161 leaves today)
 and a negative control that feeds an unregistered field to the same classifier and requires it to be
 reported.
 

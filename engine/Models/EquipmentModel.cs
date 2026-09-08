@@ -109,6 +109,13 @@ public record EquipmentInterpretationModel
     public string? RowAlignment { get; init; }
     public string? CopyRuleNote { get; init; }
     public string? GrantedPowersResolvedToIdsNote { get; init; }
+
+    /// <summary>
+    /// Whether the Gear Limit caps a worn suit. p.88 states the Armor rank and never restates
+    /// the limit beside it; p.87 does, and names armour, so this is a reading of one page from
+    /// another rather than a figure either page prints twice.
+    /// </summary>
+    public string? GearLimitNote { get; init; }
 }
 
 /// <summary>p.88: what wearing a suit of armour does.</summary>

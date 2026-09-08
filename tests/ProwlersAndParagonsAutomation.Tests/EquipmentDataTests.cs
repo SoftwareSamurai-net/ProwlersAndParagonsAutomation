@@ -192,6 +192,68 @@ public sealed class EquipmentDataTests
     }
 
     /// <summary>
+    /// <b>The Gear Limit question p.88 leaves out is answered on p.87, so the entry carries a
+    /// reading and not a silence.</b>
+    ///
+    /// <para>p.88 gives the Armor rank as Toughness plus the bonus and never restates the limit,
+    /// which was recorded here as the book's silence. It is not one: <b>the silence is p.88's and
+    /// the page before it answers</b>, so an <c>ambiguity</c> there hands the consumer slice a doubt
+    /// the book has already settled — and a slice that inherits a doubt tends to resolve it by
+    /// guessing.</para>
+    ///
+    /// <para><b>The four sentences are read out of the corpus rather than quoted here</b>, so this
+    /// fails if the page it rests on is not the page that is there: the limit is about equipment
+    /// that boosts a Trait "(usually armor and weapons)"; the worked example fixes the order of the
+    /// arithmetic at limit-plus-bonus rather than trait-capped-afterwards; the limit is said to make
+    /// gear less useful to a superhuman; and the one printed exception is stated for melee weapons
+    /// alone, which is what leaves armour inside the rule.</para>
+    /// </summary>
+    [Fact]
+    public void ThePageEightySevenGearLimitAnswersWhatPageEightyEightLeavesOut()
+    {
+        var limits = ChapterSixSections().Single(s => s.Page == 87 && s.Heading == "GEAR LIMITS");
+        var exception = ChapterSixSections().Single(s => s.Page == 87 && s.Heading == "EXCEPTION: CLOSE COMBAT");
+
+        // The page really says the four things the reading rests on. Without these the entry below
+        // is one more assertion about the file rather than about the book.
+        Assert.Contains("(usually armor and weapons)", limits.Text, StringComparison.Ordinal);
+        Assert.Contains("less useful for characters with superhuman", limits.Text, StringComparison.Ordinal);
+        Assert.Contains("involves melee weapons", exception.Text, StringComparison.Ordinal);
+
+        // The order of the arithmetic, derived: the default limit plus the worked example's Weapon
+        // Bonus is the worked example's maximum effective rank. Capping the sum instead would give
+        // the limit, not the sum, so 6 + 2 == 8 is the whole of the distinction.
+        var defaultLimit = DiceFigure(limits.Text, @"default Gear Limit in most games is (\d+)d");
+        var pistolBonus = DiceFigure(limits.Text, @"a pistol has a \+(\d+)d Weapon Bonus");
+        var pistolMaximum = DiceFigure(limits.Text, @"maximum effective rank with a pistol is (\d+)d");
+
+        Assert.Equal(pistolMaximum, defaultLimit + pistolBonus);
+        Assert.NotEqual(pistolMaximum, defaultLimit);
+
+        var rule = Equipment().ArmorRule;
+
+        // A reading, labelled as one — never a fact field, because p.88 does not state it.
+        Assert.NotNull(rule.Armor);
+        Assert.Null(rule.Ambiguity);
+
+        Assert.NotNull(rule.Interpretation);
+        Assert.False(string.IsNullOrWhiteSpace(rule.Interpretation!.GearLimitNote));
+        Assert.Contains("p.87", rule.Interpretation.GearLimitNote!, StringComparison.Ordinal);
+
+        Assert.NotNull(rule.CorroboratedBy);
+        Assert.Contains("p.87", rule.CorroboratedBy!.Single(), StringComparison.Ordinal);
+    }
+
+    private static int DiceFigure(string text, string pattern)
+    {
+        var match = Regex.Match(text, pattern);
+
+        Assert.True(match.Success, $"p.87 no longer prints a figure matching /{pattern}/.");
+
+        return int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
     /// Bulky and Rigid, and the whole of the difference between them: a strong wearer shrugs off
     /// weight and nobody shrugs off stiffness. Asserted as a pair, because either half alone is a
     /// statement about the file rather than about the page.
@@ -1179,7 +1241,7 @@ public sealed class EquipmentDataTests
         // no faults and prove nothing, which is the shape of four historical guard failures here.
         Assert.True(leaves >= 145,
             $"The walk found only {leaves} fact fields in {FileName}, which is fewer than the "
-            + "entries carry — there are 159 today. It has stopped reading the models; fix the "
+            + "entries carry — there are 161 today. It has stopped reading the models; fix the "
             + "walk, not this number.");
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));
