@@ -244,9 +244,15 @@ public abstract record Intent(string Actor);
 /// <para><b>It is the caller's word, and the default is the other way because the page's is.</b>
 /// <c>range_classes</c>' <c>ranged_attacks_reach</c> is the rule — a ranged attack reaches Close
 /// Range or Distant Range — and thrown weapons are printed beside it as an <em>exception</em>. So a
-/// ranged attack reaches Distant unless somebody says otherwise, and this is where they say it: a
-/// fight here has no equipment in it, so nothing can tell a pistol from a throwing knife but the
-/// person running the fight.</para>
+/// ranged attack reaches Distant unless somebody says otherwise, and this is where they say it.</para>
+///
+/// <para><b>It is no longer the only thing that can say it.</b> When this was written a fight had no
+/// equipment in it and nothing could tell a pistol from a throwing knife but the person running the
+/// fight; an attack names an <see cref="Item"/> now, and Chapter 6 prints <c>Thrown</c> against the
+/// rows the rule is ignored for — so an attack made with one of those is exempt whether or not this
+/// flag was set, which is <c>Encounter.ThrownItemIsExempt</c>. The declaration still covers what a
+/// printed row cannot: an item no table carries, and a weapon being used in a way its row does not
+/// describe.</para>
 ///
 /// <para>It changes nothing for an attack the rule never reached — a fist, a sword, a Power whose
 /// own Range is not <c>ranged</c> — and the ledger says so rather than leaving a caller thinking
@@ -267,11 +273,19 @@ public abstract record Intent(string Actor);
 /// <para><b>And it is refused while a partial grab is being fought over it</b>, for either party:
 /// p.76's half-measure says "they can't use it, but neither can you".</para>
 ///
-/// <para><b>It changes no figure and is not allowed to.</b> There is no Weapon Bonus anywhere in
-/// this repository's rules data and no sheet says which Trait a weapon backs — see the Gear Limit in
-/// <c>docs/guide/play-engine.md</c> — so naming an item moves neither the pool, nor the row of p.75's
-/// table, nor the damage. What it does is spend the page p.76 gives the winner, so the item stays
-/// with them past the page turn instead of being tossed aside at it.</para>
+/// <para><b>It moves the pool, and only through p.87's Gear Limit.</b> On p.75's two weapon rows the
+/// actor's Trait rank is capped at the limit in force and the item's printed Weapon Bonus is added
+/// to what is left — a figure read out of <c>data/rules/play/equipment.json</c> rather than one this
+/// engine has an opinion about. It still moves neither the row of p.75's table nor the damage: which
+/// row an attack is on and what it inflicts are the caller's, and an item nothing in Chapter 6
+/// prints is capped and adds nothing, with the ledger saying the figure is the GM's. See the Gear
+/// Limit in <c>docs/guide/play-engine.md</c>.</para>
+///
+/// <para><b>It also decides p.79's Close Range exemption where the row carries it</b>, because the
+/// printed row knows what <see cref="CloseRangeOnly"/> was written not to know: an item Chapter 6
+/// prints as <c>Thrown</c> is one of the weapons that rule is ignored for. And it spends the page
+/// p.76 gives the winner, so an item that was used stays with them past the page turn instead of
+/// being tossed aside at it.</para>
 /// </param>
 public sealed record Attack(
     string Actor,

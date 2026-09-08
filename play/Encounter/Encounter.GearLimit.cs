@@ -170,6 +170,79 @@ public sealed partial class Encounter
     }
 
     /// <summary>
+    /// Whether the item this attack is made with is one p.79's Close Range rule exempts, by the
+    /// feature Chapter 6 prints against it — with a line saying so.
+    ///
+    /// <para><b>Two slices met here and disagreed.</b> <see cref="Attack.CloseRangeOnly"/> was
+    /// written when "a fight here has no equipment in it, so nothing can tell a pistol from a
+    /// throwing knife but the person running the fight" was true. It is not true now: an attack
+    /// names an item, the item is matched to a printed row, and the row carries the printed
+    /// features. So a caller who named a throwing knife and did not also remember the flag had
+    /// their target docked two dice for a weapon the page exempts by name.</para>
+    ///
+    /// <para><b>The exemption is derived from the two entries' own words and from nothing else.</b>
+    /// <c>gritty_close_range</c> applies only to attacks usable at <c>Distant or Extreme Range</c>
+    /// and is <c>ignored_for</c> "ordinary thrown weapons"; <c>weapon_bonus</c> says a ranged weapon
+    /// reaches Distant Range <em>unless</em> it has one of <c>ranged_reach_exceptions</c>. The
+    /// feature this reads is the one named in both — which is <c>Thrown</c> and is looked up rather
+    /// than typed, because the other exception, <c>Line of Sight</c>, moves the reach the other way:
+    /// a sniper's rifle is not a short-range weapon and must not be exempted with the knife. A pair
+    /// that stops naming exactly one feature between them throws rather than guessing.</para>
+    ///
+    /// <para><b>The caller's declaration still comes first</b>, because it covers what this cannot:
+    /// an item no table prints, and a weapon somebody has decided to use in a way the printed row
+    /// does not describe.</para>
+    /// </summary>
+    private bool ThrownItemIsExempt(
+        EncounterState state, Combatant target, Combatant attacker, Attack attack,
+        GrittyEntry entry, List<LedgerLine> lines)
+    {
+        if (attack.Item is not { Length: > 0 } item) return false;
+
+        var (weapon, table, _) = WeaponFor(item.Trim());
+        var thrown = ThrownFeature();
+
+        if (weapon is null || !weapon.Features.Contains(thrown, StringComparer.Ordinal)) return false;
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{attacker.Name} is inside Close Range of {target.Name}, and what they are attacking "
+            + $"with is the {table} table's {weapon.Name}, which p.89 prints as {thrown}. p.88 says "
+            + $"a ranged weapon reaches "
+            + $"{_play.GetEquipment("weapon_bonus").WeaponBonus!.RangedWeaponsReach} unless it has "
+            + $"a feature like that one, and p.79 ignores this rule for "
+            + $"{entry.CloseRangePenalty!.IgnoredFor}: {target.Name}'s active defence keeps its "
+            + "dice"));
+
+        return true;
+    }
+
+    /// <summary>
+    /// The printed weapon feature that means a ranged weapon does not reach past Close Range: the
+    /// one <c>weapon_bonus</c>'s reach exceptions and <c>gritty_close_range</c>'s exemption both
+    /// name.
+    /// </summary>
+    private string ThrownFeature()
+    {
+        var reach = _play.GetEquipment("weapon_bonus").WeaponBonus!;
+        var ignored = _play.GetGritty("gritty_close_range").CloseRangePenalty!.IgnoredFor;
+
+        var named = reach.RangedReachExceptions
+            .Where(feature => ignored.Contains(feature, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return named.Count == 1
+            ? named[0]
+            : throw new InvalidOperationException(
+                $"gritty_close_range is ignored for '{ignored}' and weapon_bonus lists "
+                + $"'{string.Join("', '", reach.RangedReachExceptions)}' as the features that move a "
+                + "ranged weapon's reach. The two name "
+                + $"{(named.Count == 0 ? "no feature" : "more than one feature")} between them, so "
+                + "this engine cannot tell which printed feature p.79's exemption is about and will "
+                + "not guess. See docs/guide/play-engine.md's readings table.");
+    }
+
+    /// <summary>
     /// The row one of Chapter 6's three tables prints for the item a caller named, and the table it
     /// is in — or null where none of them prints one, or where two of them do and the page gives no
     /// way to tell which.

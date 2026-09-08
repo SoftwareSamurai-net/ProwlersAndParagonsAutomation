@@ -919,10 +919,14 @@ public sealed partial class Encounter
     /// are read and a pair that no longer agrees is a throw rather than a penalty applied on
     /// nothing.</para>
     ///
-    /// <para><b>The exception is the caller's and the default is the page's.</b> Thrown weapons are
+    /// <para><b>The exception is the caller's, and now the item's too.</b> Thrown weapons are
     /// printed as an exception to the reach, not as the reach — so <see cref="Attack.CloseRangeOnly"/>
-    /// is what turns the penalty off, and a declaration that turned nothing off says so. There is
-    /// no equipment in a fight here, so nothing else could tell a pistol from a throwing knife.</para>
+    /// is what turns the penalty off, and a declaration that turned nothing off says so. <b>This
+    /// paragraph used to end "there is no equipment in a fight here, so nothing else could tell a
+    /// pistol from a throwing knife", and that stopped being true</b> when an attack started naming
+    /// an item and Chapter 6 started saying what each printed weapon is: an item whose row carries
+    /// the <c>Thrown</c> feature is exempt whether or not the flag was set. See
+    /// <c>ThrownItemIsExempt</c>.</para>
     ///
     /// <para>It moves an <b>active</b> defence and nothing else, because the entry says
     /// <c>penalty_dice_to_active_defense</c>: a soak is a soak whatever is being shot at you.</para>
@@ -980,6 +984,11 @@ public sealed partial class Encounter
 
             return 0;
         }
+
+        // And the item's own printed row says the same thing the declaration does, where the caller
+        // named one: p.79 ignores the rule for thrown weapons, and Chapter 6 prints which weapons
+        // those are. See ThrownItemIsExempt.
+        if (ThrownItemIsExempt(state, target, attacker, attack, entry, lines)) return 0;
 
         ReachIsStillPrinted(rule.AppliesOnlyToAttacksUsableAt);
 

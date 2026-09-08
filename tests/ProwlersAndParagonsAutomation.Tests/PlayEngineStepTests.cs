@@ -7027,6 +7027,86 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A shot made with a weapon Chapter 6 prints as Thrown costs the dodger nothing, and the
+    /// same shot with a pistol costs them the printed dice.</b>
+    ///
+    /// <para><b>This is the junction of two slices that disagreed.</b> <c>CloseRangeOnly</c> was
+    /// written when nothing in a fight could tell a pistol from a throwing knife but the person
+    /// running it. An attack names an item now and Chapter 6 prints <c>Thrown</c> against the very
+    /// weapons p.79 says to ignore the rule for — so a caller who named a throwing knife and did not
+    /// also remember the flag had their target docked two dice for a weapon the page exempts by
+    /// name.</para>
+    ///
+    /// <para><b>The feature is looked up in the two entries rather than typed here</b>, and the
+    /// controls are what make that worth anything: the exemption is a fact about
+    /// <em>this row's</em> features, so the pistol — a printed ranged weapon with no Thrown on it —
+    /// still pays, and the sniper's rifle pays too, which is the case that would break a reading
+    /// keyed on "has one of the reach exceptions" rather than on Thrown itself.</para>
+    /// </summary>
+    [Fact]
+    public void AThrownWeaponsOwnPrintedRowExemptsItFromTheCloseRangePenalty()
+    {
+        var penalty = _play.GetGritty("gritty_close_range").CloseRangePenalty!.PenaltyDiceToActiveDefense;
+
+        Assert.NotEqual(0, penalty);
+
+        // The controls on the data this turns on: one row carries the feature and the other two do
+        // not, and the sniper's rifle carries the *other* reach exception.
+        Assert.Contains(
+            "Thrown",
+            _play.GetEquipment("modern_weapons").Weapons!
+                .Single(w => string.Equals(w.Name, "Throwing Knife", StringComparison.Ordinal))
+                .Features,
+            StringComparer.Ordinal);
+
+        Assert.DoesNotContain(
+            "Thrown",
+            _play.GetEquipment("modern_weapons").Weapons!
+                .Single(w => string.Equals(w.Name, "Pistol", StringComparison.Ordinal))
+                .Features,
+            StringComparer.Ordinal);
+
+        Assert.Contains(
+            "Line of Sight",
+            _play.GetEquipment("modern_weapons").Weapons!
+                .Single(w => string.Equals(w.Name, "Rifle, Sniper", StringComparison.Ordinal))
+                .Features,
+            StringComparer.Ordinal);
+
+        // The knife is exempt: the switch on and the switch off throw the same dice, and the line
+        // names the feature that decided it.
+        var thrownOn = Shot("a throwing knife", CloseRangeOn);
+
+        Assert.Equal(Shot("a throwing knife", null).Thrown, thrownOn.Thrown);
+
+        var said = Assert.Single(
+            thrownOn.Lines,
+            l => string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal)).Text;
+
+        Assert.Contains("Throwing Knife", said, StringComparison.Ordinal);
+        Assert.Contains("keeps its dice", said, StringComparison.Ordinal);
+
+        // The pistol is not, and neither is the sniper's rifle — so the exemption is this row's
+        // feature rather than "the caller named an item" or "the row has a reach exception".
+        Assert.Equal(Shot("a pistol", null).Thrown + penalty, Shot("a pistol", CloseRangeOn).Thrown);
+
+        Assert.Equal(
+            Shot("a sniper rifle", null).Thrown + penalty,
+            Shot("a sniper rifle", CloseRangeOn).Thrown);
+    }
+
+    /// <summary>One ranged exchange at Close Range, made with <paramref name="item"/> in hand.</summary>
+    private (int Thrown, IReadOnlyList<LedgerLine> Lines) Shot(string item, TableRules? table)
+    {
+        var (attacker, dodger) = Pair("agility", 6);
+
+        return Exchange(
+            attacker.Carrying(item), dodger,
+            new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon, Item: item),
+            table: table);
+    }
+
+    /// <summary>
     /// <b>It costs the dodging kind of defence and nothing else.</b>
     ///
     /// <para>The entry's field is <c>penalty_dice_to_active_defense</c> in as many words: a soak is

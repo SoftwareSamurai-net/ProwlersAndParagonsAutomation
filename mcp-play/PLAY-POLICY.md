@@ -301,6 +301,13 @@ defense rank exactly as for an attack rank and whether it is taken is the wielde
 a defender's weapon as having helped them.** Mundane armour is not reachable at all: a combatant
 carries no gear, so no defence in a fight here is item-backed.
 
+**A thrown weapon exempts itself from `close_range_penalty`.** p.79 ignores that rule for ordinary
+thrown weapons, and Chapter 6 prints which weapons those are — so an attack whose `item` is a row
+carrying the `Thrown` feature costs the dodger nothing up close, and you do not have to remember
+`close_range_only` as well. A pistol still costs them the two dice, and so does a sniper's rifle.
+Keep sending `close_range_only` for an item no table prints, or for a weapon being used in a way its
+printed row does not describe.
+
 **Say a weapon's name the way you say it, not the way the table files it.** The three tables are
 alphabetical, so eight rows are printed inverted — `Rifle, Sniper`, `Pistol, Snub`, `Shield,
 Spiked`, `Shotgun, Automatic`, `Blast Rifle, Military` and the three grenades — and both spellings
