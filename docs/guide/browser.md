@@ -1457,11 +1457,27 @@ rather than picked:
   moment anybody looks at villain-light.
 
 **Hero-light, because that is what an un-stamped first visit renders** — no stored `pp.theme.v1`,
-a light system, and `data-mode` defaulting to hero. Somebody who has chosen dark, or whose
-character is a Villain, gets one splash frame in the other palette before `theme.js` stamps the
-document; that is a frame, and the alternative is four manifests the platform has no way to choose
-between. **Do not "fix" this by matching the reader's theme.** Nothing writes this file at request
-time and the site is static on purpose.
+a light system, and `data-mode` defaulting to hero. **Do not "fix" this by matching the reader's
+theme.** Nothing writes this file at request time and the site is static on purpose, and the
+alternative is four manifests the platform has no way to choose between.
+
+**The cost of that is one frame for one of the two fields and the whole session for the other, and
+this paragraph said "a frame" about both.** `background_color` really is a splash frame: the
+platform paints it while the app starts and the page's own `--surface` takes over the moment
+`theme.js` stamps the document. `theme_color` does not go anywhere. It tints the chrome the
+platform draws around an **installed** app — the status bar above a standalone window, the title
+bar of a desktop one — for as long as that window is open, and nothing in the page can move it,
+because a `<meta name="theme-color">` is the only lever and this app names no colour in
+`index.html` on purpose. So a Villain player who installs the site gets a navy band above a crimson
+banner, permanently, and a Hero player in dark mode gets the light palette's navy above the dark
+one's, which happen to be the same `#1B4F9C` and so cost nothing.
+
+**Which identity the installed chrome should wear is the owner's call and has not been made.** The
+field holds hero-light `--primary` because that is the un-stamped default, which is a defensible
+answer rather than a considered one; villain-light `--primary` is `#8B0F1D`, and the neutral third
+option is `--surface`, which reads as "no band" instead of as the wrong one. Nothing here should be
+changed on somebody's own initiative — a manifest colour is a decision about what the app looks
+like to the people who install it.
 
 **The generator shipped `"theme_color": "E63536"` and `"background_color": "312D34"`, unhashed.**
 Neither is a colour any browser will parse and both are dropped in silence, so the guard requires
