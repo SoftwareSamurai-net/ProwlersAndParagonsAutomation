@@ -157,6 +157,7 @@ public sealed class PlayStyleTests
     public void MinMaxSpendsOnSeedsWhereStandardDoesNot()
     {
         var apart = new List<int>();
+        var dice = 0;
 
         foreach (var seed in Hundred.Take(30))
         {
@@ -164,12 +165,23 @@ public sealed class PlayStyleTests
             var greedy = LedgerReading.Purchases(RunOne(new MinMax(_play), LevelEdges(), seed)).Count;
 
             if (careful == 0 && greedy > 0) apart.Add(seed);
+
+            dice += DiceBought(RunOne(new MinMax(_play), LevelEdges(), seed));
         }
 
         Assert.True(apart.Count > 0,
             "on none of thirty level-Edged seeds did min_max buy anything standard did not — so "
             + "the two styles are measuring the same thing and the report's style name says "
             + "nothing.");
+
+        // <b>And the rule that came apart is named, not merely the difference.</b> Two of this
+        // style's five rules can spend and only one of them is the interesting one: a seized
+        // initiative would satisfy the count above on its own, so the dice it prices against a
+        // shortfall are counted separately. Without this, deleting the pricing rule leaves the
+        // fixture green.
+        Assert.True(dice > 0,
+            "min_max bought no dice at all over thirty seeds, so the rule that prices p.84's "
+            + "purchase against the shortfall is not being reached.");
     }
 
     // ── the target-selection axis ─────────────────────────────────────────
@@ -431,6 +443,11 @@ public sealed class PlayStyleTests
     private static int AllOutLines(EncounterState state) =>
         state.Ledger.Lines.Count(l => string.Equals(l.Rule, "going_all_out", StringComparison.Ordinal)
                                       && l.Text.Contains("goes all-out", StringComparison.Ordinal));
+
+    private static int DiceBought(EncounterState state) =>
+        state.Ledger.Lines.Count(l =>
+            string.Equals(l.Rule, "spend_challenge_roll_dice", StringComparison.Ordinal)
+            && LedgerReading.IsAPurchase(l, state[l.Actor].Name));
 
     private static int SeizeLines(EncounterState state) =>
         state.Ledger.Lines.Count(l => string.Equals(l.Rule, "seizing_initiative", StringComparison.Ordinal)
