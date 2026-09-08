@@ -357,7 +357,10 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
-      "ambiguity": "The static maximum is named and never printed. The page says the weight you can lift under good conditions depends on Might, and the table beside it gives thresholds for a roll rather than a ceiling for a rank - so nothing here answers what a given Might can lift when nobody is hurrying. Whether the table doubles as that ceiling, by reading a Might rank as a threshold passed automatically, is a reading the page does not offer."
+      "corroborated_by": [
+        "Ultimate Edition, Ch.2 Characters, p.17"
+      ],
+      "ambiguity": "The static maximum is named here and printed elsewhere: Ch.2 p.17's Weight table gives the most a Might rank can lift, 1d at fifty pounds up to 24d at a megaton, and p.17 is where the phrase weight rank is defined. So what this page leaves open is narrower than it looks. Every band on the table beside this rule closes on a weight that table ranks, and the printed threshold is exactly half that rank in all twelve rows - a hundred pounds is 2d and threshold 1, a megaton is 24d and threshold 12 - but the page never says the two are related, so reading a threshold back as half a weight rank is a derivation and not a rule. Nor does anything say what happens when a Might rank already exceeds the threshold: whether the roll is skipped, or made anyway."
     },
     {
       "id": "lifting_table",
@@ -851,7 +854,10 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
-      "ambiguity": "\"Weight rank\" is used and never defined. Two figures on the page could be it - the threshold column of the Lifting table, which runs one to twelve, and the first column of the table beside this rule, which runs fourteen to sixty-nine - and they are not the same scale. Chapter 4's throwing formula subtracts an object's weight rank from Might, so the choice decides whether anything can be thrown at all."
+      "corroborated_by": [
+        "Ultimate Edition, Ch.2 Characters, p.17"
+      ],
+      "ambiguity": "\"Weight rank\" is defined, in another chapter: Ch.2 p.17 prints the Weight table against Might and says that \"when not referring to Might, the rank that corresponds to an object's weight on this table is sometimes called its weight rank\". That settles which of this page's two columns it is. The first column of the table beside this rule is on that scale - the Eiffel Tower's 18d is the table's ten kilotons, an aircraft carrier's 21d its hundred, the Great Pyramid's 26d two ranks past its top - while the Lifting table's threshold column is half a weight rank and so cannot be one. What is genuinely open is the top of the scale: Ch.2 prints ranks 1d to 24d and stops at a megaton, and this table runs to 69d, so the four rows above 24d name a weight the book never gives. Chapter 4's throwing formula subtracts an object's weight rank from Might, and for those four rows there is no printed weight to subtract from anything."
     },
     {
       "id": "massive_objects_table",

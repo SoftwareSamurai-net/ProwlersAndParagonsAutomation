@@ -3676,12 +3676,152 @@ public sealed class PlayRulesDataTests
         // to be worked out for it at all — so Chapter 4's table is measuring this throw.
         Assert.Contains("ranged", scenery.ThrownAttackIs, StringComparison.Ordinal);
 
-        // The gap is recorded where it bites. Chapter 4 subtracts a rank no page defines, and the
-        // entry that supplies that rank is the one that has to say so.
+        // The gap is recorded where it bites. Chapter 4 subtracts a rank whose scale is printed two
+        // hundred pages away and whose top four rows are off the end of it, and the entry that
+        // supplies that rank is the one that has to say so.
         Assert.Contains(
             "Chapter 4",
             EnvironmentEntryById("massive_objects").Ambiguity ?? "",
             StringComparison.Ordinal);
+    }
+
+    /// <summary>Chapter 2 p.17's Weight table, as printed weight (lower case) to Might rank.</summary>
+    private static Dictionary<string, int> ChapterTwoWeightTable()
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RulebookPath, "ch02-characters.json")));
+
+        foreach (var section in document.RootElement.GetProperty("sections").EnumerateArray())
+        {
+            if (!string.Equals(
+                    section.GetProperty("heading").GetString(),
+                    "WEIGHT — RANK WEIGHT RANK WEIGHT",
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (!section.TryGetProperty("printed_page", out var page)
+                || page.ValueKind != JsonValueKind.Number
+                || page.GetInt32() != 17)
+            {
+                continue;
+            }
+
+            return Regex
+                .Matches(
+                    section.GetProperty("text").GetString() ?? "",
+                    @"(?<rank>\d+)d (?<weight>[\d,]+ (?:pounds|tons?|kilotons?|megatons?))")
+                .ToDictionary(
+                    m => m.Groups["weight"].Value.ToLowerInvariant(),
+                    m => int.Parse(m.Groups["rank"].Value, CultureInfo.InvariantCulture),
+                    StringComparer.Ordinal);
+        }
+
+        throw new InvalidOperationException("Chapter 2 has no Weight table on p.17.");
+    }
+
+    /// <summary>
+    /// <b>"Weight rank" is defined, and the definition is in Chapter 2.</b> p.17's Might entry
+    /// prints the Weight table and then says, in as many words, that "when not referring to Might,
+    /// the rank that corresponds to an object's weight on this table is sometimes called its weight
+    /// rank". Chapter 7 uses the phrase on p.108 and Chapter 4 subtracts it on p.74, and neither
+    /// page repeats the definition — which is why both entries read as though there were not one.
+    ///
+    /// <para><b>Both Chapter 7 entries said there was not, and both were wrong in a way that
+    /// changes results.</b> <c>massive_objects</c> offered two candidate columns and said they were
+    /// not the same scale, so "the choice decides whether anything can be thrown at all";
+    /// <c>lifting</c> said the static lifting maximum was "named and never printed". p.17 prints it,
+    /// and this repository's own <c>data/rules/abilities.json</c> already records it under Might.
+    /// Nothing here could see that, because every Chapter 7 check reads Chapter 7's corpus.</para>
+    ///
+    /// <para><b>What the corpus proves, rather than what this comment claims.</b> Read Chapter 2's
+    /// table out of the corpus and two things fall out at once. Every Lifting band closes on a
+    /// weight that table ranks, and the printed threshold is exactly <em>half</em> that rank in all
+    /// twelve rows — so the threshold column cannot itself be a weight rank, which disposes of one
+    /// of <c>massive_objects</c>' two candidates. And the two objects the Lifting table and the
+    /// Massive Objects table have in common — an aircraft carrier and a skyscraper — carry a weight
+    /// rank that lands inside the Lifting band they are printed in, which is the other candidate
+    /// confirmed. Neither holds under any other reading of the scale.</para>
+    ///
+    /// <para>What is left open, and stays on the entry: Chapter 2 prints 1d to 24d and stops at a
+    /// megaton, while the Massive Objects table runs to 69d, so its top four rows name a weight the
+    /// book never gives.</para>
+    /// </summary>
+    [Fact]
+    public void TheWeightRankChapterSevenUsesIsTheOneChapterTwoDefines()
+    {
+        var weights = ChapterTwoWeightTable();
+
+        // Positive control: the table was found whole, both ends included. A partial parse would
+        // silently drop the bands it could not rank and every loop below would run on fewer rows.
+        Assert.Equal(24, weights.Count);
+        Assert.Equal(1, weights["50 pounds"]);
+        Assert.Equal(24, weights["1 megaton"]);
+
+        var lifting = EnvironmentEntryById("lifting_table").LiftingTable!;
+        var massive = EnvironmentEntryById("massive_objects_table").MassiveObjectsTable!;
+
+        Assert.Equal(EnvRules.TableSizes.Lifting, lifting.Count);
+        Assert.Equal(EnvRules.TableSizes.MassiveObjects, massive.Count);
+
+        // Every band closes on a weight Chapter 2 ranks, and its threshold is half that rank.
+        var ceilings = new List<int>();
+
+        foreach (var band in lifting)
+        {
+            var ceiling = band.Weight.Split(" to ")[^1].ToLowerInvariant();
+
+            if (ceiling.StartsWith("under ", StringComparison.Ordinal))
+                ceiling = ceiling["under ".Length..];
+
+            Assert.True(
+                weights.TryGetValue(ceiling, out var rank),
+                $"the Lifting band '{band.Weight}' closes on '{ceiling}', which Chapter 2's Weight "
+                + "table does not print");
+
+            Assert.Equal(0, rank % 2);
+            Assert.Equal(rank / 2, band.Threshold);
+
+            ceilings.Add(rank);
+        }
+
+        // And the bands interlock on Chapter 2's scale as well as on their printed strings.
+        for (var row = 1; row < ceilings.Count; row++)
+            Assert.Equal(ceilings[row - 1] + 2, ceilings[row]);
+
+        // The other candidate, confirmed from the other end: the objects both Chapter 7 tables name
+        // carry a weight rank inside the Lifting band they are printed in.
+        var shared = lifting
+            .SelectMany((band, index) => band.Examples.Select(name => (Name: name, Band: index)))
+            .Join(
+                massive.SelectMany(row => row.Objects.Select(name => (Name: name, row.WeightRank))),
+                left => left.Name,
+                right => right.Name,
+                (left, right) => (left.Name, left.Band, right.WeightRank),
+                StringComparer.Ordinal)
+            .ToList();
+
+        // Positive control: the two tables really do share rows, or the loop below proves nothing.
+        Assert.Equal(2, shared.Count);
+
+        foreach (var (name, band, weightRank) in shared)
+        {
+            Assert.InRange(weightRank, band == 0 ? 1 : ceilings[band - 1], ceilings[band]);
+            Assert.True(weightRank > 0, $"{name} carries no weight rank");
+        }
+
+        // Both entries cite the chapter that defines the figure they use, so a reader lands on it.
+        foreach (var id in new[] { "lifting", "massive_objects" })
+        {
+            Assert.Contains(
+                EnvironmentEntryById(id).CorroboratedBy ?? [],
+                reference => reference.Contains("p.17", StringComparison.Ordinal));
+        }
+
+        // And the one thing that is still open is on the entry it bites: the printed scale stops at
+        // 24d and this table does not.
+        Assert.Contains(massive, row => row.WeightRank > weights.Values.Max());
     }
 
     /// <summary>
