@@ -3105,6 +3105,13 @@ public sealed class PlayRulesDataTests
     /// <para><b>So the shape is derived rather than described.</b> Whether a table has one corpus
     /// section or two is a fact about <c>ch07-environment.json</c>, and the claim "two blocks" is
     /// allowed in a <c>row_alignment</c> exactly when the corpus really carries two.</para>
+    ///
+    /// <para><b>What this cannot do, stated rather than claimed.</b> It reads one phrase out of a
+    /// paragraph of prose, so it catches a <c>row_alignment</c> that names the wrong shape and not
+    /// one that names the right shape and then describes it wrongly. Measured: the Smashing entry
+    /// says "two blocks" twice, so editing one of the two is a null mutation and the honest report
+    /// is that it is null, not that the check has a hole. Both directions were broken and watched —
+    /// Scenery's run rewritten as "two blocks", and Smashing's every occurrence removed.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(ChapterSevenInterpretedTables))]
