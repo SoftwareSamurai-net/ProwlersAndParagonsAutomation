@@ -539,6 +539,29 @@ public static class CanonicalChapterSixRules
     }
 
     /// <summary>
+    /// <b>Limits a vehicle feature's own entry prints beside its price</b>, mapped to the printed
+    /// sentence so the test can find it in the corpus rather than trust this file for it.
+    ///
+    /// <para>One today. It is here because it was missing: <c>VehicleFeatureRow</c> had
+    /// <c>requires</c> for other features and <c>restricted_to</c> for a kind of vehicle, and
+    /// nowhere at all for a numeric floor — so p.99's Mecha rule was read, modelled around and
+    /// dropped. A validator built on the file as shipped would have passed a 14d Body Mecha whose
+    /// limbs cost one point.</para>
+    /// </summary>
+    public static class VehicleFeatureLimits
+    {
+        /// <summary>Feature id to the sentence its entry prints, exactly as the corpus holds it.</summary>
+        public static readonly IReadOnlyDictionary<string, string> PrintedSentence =
+            new Dictionary<string, string>
+            {
+                ["mecha"] = "A vehicle’s Might must equal at least half its Body."
+            };
+
+        /// <summary>Words the recorded constraint has to name, so an empty rider cannot stand in.</summary>
+        public static readonly string[] MechaConstraintNames = ["Might", "Body", "half"];
+    }
+
+    /// <summary>
     /// p.96's own arithmetic, replayed. Each stock vehicle's printed Vehicle Point total should be
     /// its characteristics priced by CHARACTERISTICS plus its features priced by VEHICLE FEATURES,
     /// and <b>all six come out exactly</b>.

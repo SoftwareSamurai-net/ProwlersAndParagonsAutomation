@@ -1167,6 +1167,7 @@
           "mechanic": "Room for freight, with the ramps and lifts needed to get it in and out. Its space is counted apart from anything the Hidden Compartments feature provides.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 96
         },
         {
@@ -1180,6 +1181,7 @@
           "mechanic": "A long-range transmitter of whatever kind the setting considers current. It is kit rather than a Power, so it is less flexible than the Communications Power and needs a network at the far end to reach anywhere distant.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 98
         },
         {
@@ -1193,6 +1195,7 @@
           "mechanic": "The machine can present itself as a different vehicle of the same type, by projection, illusion or actual alteration. On a Transforming vehicle it can instead hide the fact that two shapes are one machine.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 98
         },
         {
@@ -1206,6 +1209,7 @@
           "mechanic": "The machine travels through air, through space, or both. It needs room to work in and cannot be flown indoors or through anything tight.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 98
         },
         {
@@ -1219,6 +1223,7 @@
           "mechanic": "The machine is far bigger than an ordinary road vehicle: it blocks several lanes, will not pass through most tunnels, and cannot use ordinary streets without wrecking them. Paying for this gives points back.",
           "requires": [],
           "restricted_to": "ground vehicles",
+          "constraint": null,
           "printed_page": 98
         },
         {
@@ -1232,6 +1237,7 @@
           "mechanic": "A vehicle's guns fire once a page however many people are aboard, and further attacks take the ordinary multiple-action penalty against the machine rather than against the shooter. Each station bought lets one more character take one extra shot per page free of that penalty.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 98
         },
         {
@@ -1248,6 +1254,7 @@
           "mechanic": "Concealed storage. The cheaper grade hides weapons and personal effects; the dearer one hides people or a worthwhile quantity of cargo.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 98
         },
         {
@@ -1261,6 +1268,7 @@
           "mechanic": "The machine can drive itself, at a Vehicles rank equal to the points put in. What is actually doing the driving is up to the player - a computer, an enchantment, or something that considers itself a person.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 98
         },
         {
@@ -1274,6 +1282,7 @@
           "mechanic": "The machine is built like a person, with arms that end in hands and legs it can move, crouch and peer over things with. The limbs have a Might rank the player buys; fine work with them is a Control roll, and an attack with them uses Might where a vehicle would use Weapons.",
           "requires": [],
           "restricted_to": "ground vehicles",
+          "constraint": "The vehicle's Might may not be lower than half its Body, which is a floor on what the limbs cost rather than a cap: a 14d Body Mecha owes at least 7 Vehicle Points of Might before anything else.",
           "printed_page": 99
         },
         {
@@ -1287,6 +1296,7 @@
           "mechanic": "The crew are out in the open: they can be shot at directly and cannot put the machine's Body between themselves and an attack. Paying for this gives points back.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 99
         },
         {
@@ -1300,6 +1310,7 @@
           "mechanic": "A vehicle seats a driver and one other by default. Each point bought seats four more.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 99
         },
         {
@@ -1313,6 +1324,7 @@
           "mechanic": "Only a named person, or a named few, can work the machine at all - by access code, by biology, by being worthy of it, or by whatever else suits.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 99
         },
         {
@@ -1326,6 +1338,7 @@
           "mechanic": "The machine can be driven from elsewhere, at the same cost in attention as sitting in it.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 99
         },
         {
@@ -1339,6 +1352,7 @@
           "mechanic": "The machine travels on land. It costs nothing, and it is one of the three movement features that force a second set of Speed and Control figures when a machine has more than one.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 99
         },
         {
@@ -1352,6 +1366,7 @@
           "mechanic": "Anti-theft measures well beyond the ordinary: stealing the machine is a challenge roll at the Superhuman threshold of six.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 99
         },
         {
@@ -1365,6 +1380,7 @@
           "mechanic": "A full detection suite behaving as Radar together with four of the Super Senses - circular, telescopic, thermal and ultra vision. What it picks up can be recorded, and transmitted if the machine also carries a Com System.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 100
         },
         {
@@ -1378,6 +1394,7 @@
           "mechanic": "Anything from surfboard-sized up to motorcycle-sized, able to go where ordinary vehicles cannot. It still has to be a vehicle: something a character could pick up and carry about is a Power with the Item Con instead.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 100
         },
         {
@@ -1393,6 +1410,7 @@
             "flight, to fly in an atmosphere"
           ],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 100
         },
         {
@@ -1408,6 +1426,7 @@
             "flight, to fly in an atmosphere"
           ],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 100
         },
         {
@@ -1423,6 +1442,7 @@
             "swimming"
           ],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 100
         },
         {
@@ -1436,6 +1456,7 @@
           "mechanic": "The machine travels on water. Paying for this gives points back, and it is one of the three movement features that force a second set of Speed and Control figures when a machine has more than one.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 100
         },
         {
@@ -1451,6 +1472,7 @@
             "two or more of flight, running, submersible and swimming"
           ],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 100
         },
         {
@@ -1464,6 +1486,7 @@
           "mechanic": "Vehicle Points buy Abilities, Talents and Powers for the machine at the price a character would pay in Hero Points. A Power bought this way opens at zero dice even when it would normally come with a free baseline rank; the single exception is that a Mecha's Might is the baseline for Strike.",
           "requires": [],
           "restricted_to": null,
+          "constraint": null,
           "printed_page": 100
         }
       ],

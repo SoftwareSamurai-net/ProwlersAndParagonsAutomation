@@ -14,6 +14,7 @@ using ProwlersAndParagonsAutomation.Engine.Models;
 // happens here rather than in the scanner. Do not "tidy" these back to fully qualified names.
 using FeaturePrices = ProwlersAndParagonsAutomation.Tests.CanonicalChapterSixRules.FeaturePriceShape;
 using StockSums = ProwlersAndParagonsAutomation.Tests.CanonicalChapterSixRules.StockVehicleArithmetic;
+using FeatureLimits = ProwlersAndParagonsAutomation.Tests.CanonicalChapterSixRules.VehicleFeatureLimits;
 
 namespace ProwlersAndParagonsAutomation.Tests;
 
@@ -823,6 +824,50 @@ public sealed class Chapter6RulesDataTests
         var dearest = features.Where(f => f.Cost is not null).MaxBy(f => f.Cost!.Value)!;
         Assert.Equal(FeaturePrices.DearestVehicleFeature, dearest.Id);
         Assert.Equal(FeaturePrices.DearestVehicleFeatureCost, dearest.Cost);
+    }
+
+    /// <summary>
+    /// <b>A numeric limit a vehicle feature's entry prints is on the entry.</b> A price is not the
+    /// whole of what these entries state: p.99's Mecha prints "A vehicle’s Might must equal at
+    /// least half its Body", which is a floor on a purchase in exactly the class of the Control cap
+    /// the file already records under <c>unique_vehicle_characteristics</c>.
+    ///
+    /// <para>It was missing, and the model is why: <c>requires</c> names other features and
+    /// <c>restricted_to</c> names a kind of vehicle, so a floor on a rank had nowhere to go and was
+    /// dropped rather than recorded. The sentence is looked up in the corpus here rather than
+    /// trusted from the fixture, so the page losing it fails this test.</para>
+    ///
+    /// <para>The closing assertion is the half that keeps it honest: <b>exactly</b> the features on
+    /// the canonical list carry a constraint, so one invented for a feature the page states nothing
+    /// about goes red here.</para>
+    /// </summary>
+    [Fact]
+    public void EveryLimitAVehicleFeaturesEntryPrintsIsOnTheEntry()
+    {
+        var features = Vehicles().Entries.Single(e => e.Id == "vehicle_features").Features!
+            .ToDictionary(f => f.Id, StringComparer.Ordinal);
+
+        foreach (var (id, sentence) in FeatureLimits.PrintedSentence)
+        {
+            var feature = features[id];
+
+            var heading = feature.PrintedPage == 96
+                ? feature.Name.ToUpperInvariant()
+                : "VEHICLES — " + feature.Name.ToUpperInvariant();
+
+            Assert.Contains(sentence, Section(feature.PrintedPage, heading), StringComparison.Ordinal);
+
+            Assert.False(string.IsNullOrWhiteSpace(feature.Constraint),
+                $"p.{feature.PrintedPage} states a limit under {feature.Name} that the entry does "
+                + $"not record: \"{sentence}\"");
+        }
+
+        foreach (var word in FeatureLimits.MechaConstraintNames)
+            Assert.Contains(word, features["mecha"].Constraint!, StringComparison.Ordinal);
+
+        Assert.Equal(
+            FeatureLimits.PrintedSentence.Keys.Order(),
+            features.Values.Where(f => f.Constraint is not null).Select(f => f.Id).Order());
     }
 
     /// <summary>

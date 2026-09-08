@@ -447,6 +447,17 @@ public record VehicleFeatureRow
     /// <summary>A kind of vehicle the feature is limited to, or null.</summary>
     public string? RestrictedTo { get; init; }
 
+    /// <summary>
+    /// A hard limit the entry prints beside its price, or null — the same field
+    /// <see cref="BaseFeatureRow.Constraint"/> carries for a headquarters.
+    ///
+    /// <para><b>It exists because p.99's Mecha prints one and this record had nowhere to put
+    /// it</b>: "A vehicle's Might must equal at least half its Body" is a floor on a purchase, in
+    /// the same class as Control being capped at half the vehicle's Speed, and a validator built
+    /// on this data without it would pass a 14d Mecha with 1d limbs.</para>
+    /// </summary>
+    public string? Constraint { get; init; }
+
     public int PrintedPage { get; init; }
 }
 
