@@ -2335,9 +2335,20 @@ public sealed class WebPresentationTests
     /// <para><b>The ground stays, and that is the crop decision.</b> The banner's fill is
     /// <c>--primary</c>, which is navy for a Hero and crimson for a Villain; the mark's red on
     /// that crimson is a mark nobody can see. Lifted off its ground it would also stop being the
-    /// same drawing — 56 of the paths kept here are the <em>same dark</em> as the ground and are
-    /// the counters inside the eye, so a transparent version paints them as shapes where the
-    /// artwork has holes. See <c>docs/guide/browser.md</c>.</para>
+    /// same drawing — 45 of the 81 paths kept here are the <em>same dark</em> as the ground and
+    /// are the counters inside the eye, so a transparent version paints them as shapes where the
+    /// artwork has holes. That number is asserted below rather than only written down: it read
+    /// 56 here and in <c>docs/guide/browser.md</c> until it was counted, which is 57 dark paths
+    /// in the whole lockup less its ground — the figure for the file that was <em>not</em>
+    /// cropped. See <c>docs/guide/browser.md</c>.</para>
+    ///
+    /// <para><b>Which 81, and not merely that they are the owner's.</b> Rebuilding
+    /// <c>logo.svg</c> from the <em>last</em> 81 paths of the pack — the wordmark and the tagline
+    /// rather than the eye — left every assertion here green, because each of them is still a
+    /// path the pack contains. The banner would draw the grey smudge this crop exists to avoid
+    /// and the guard would call it the owner's artwork correctly cropped. So the kept paths are
+    /// held to being <c>favicon.svg</c>'s first run <em>in order</em>, which is what the
+    /// paragraph above claims and what makes it reproducible.</para>
     ///
     /// <para><b>And it does not print.</b> <c>.banner</c> is in the print block's hide list and
     /// covers this element already — but a selector that is only correct because of another
@@ -2400,6 +2411,26 @@ public sealed class WebPresentationTests
             + "— its own tile ground — is expected. The mark must be the owner's artwork moved, "
             + "not redrawn.");
         Assert.Matches(Rx(@"^M0 0L\d+ 0L\d+ \d+L0 \d+L0 0Z$"), foreign[0]);
+
+        // The eye is the pack's first run after its own ground, in order — see the doc comment
+        // for the mutation that walked through everything above. Compared as a sequence rather
+        // than as a set, because "these are all paths the pack has somewhere" was the claim that
+        // let the wordmark through wearing the mark's name.
+        Assert.Equal(whole.Skip(1).Take(kept.Count - 1), kept.Skip(1));
+
+        // The dark counters, counted rather than remembered. The tile ground is `kept[0]` and is
+        // excluded; what is left is the ink of the eye, and this is the figure the "a transparent
+        // version paints holes as shapes" argument rests on.
+        var ground = Rx("<path\\s+fill=\"([^\"]+)\"").Match(mark).Groups[1].Value;
+        var counters = Rx("<path\\s+fill=\"([^\"]+)\"").Matches(mark)
+            .Skip(1)
+            .Count(m => m.Groups[1].Value.Equals(ground, StringComparison.OrdinalIgnoreCase));
+
+        Assert.True(counters == 45,
+            $"{counters} of the {kept.Count - 1} paths in the crop are the tile's own {ground}, "
+            + "and 45 is the figure browser.md and the comment above argue from. If the artwork "
+            + "changed, count again and move both — the number is the whole of why this mark "
+            + "cannot simply be lifted off its ground.");
 
         // Named on paper as well as covered by `.banner`, for the reason the doc comment gives.
         var hidden = Rx(@"([^{}]+)\{([^{}]*)\}")

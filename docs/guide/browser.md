@@ -411,9 +411,14 @@ fail.
   do — a transparent mark takes whatever surface it lands on — and it is wrong here twice over.
   The banner's fill is `--primary`, which is `#1B4F9C` for a Hero and `#8B0F1D` for a Villain in
   **both** themes, and this mark's red on that crimson is a mark nobody can see: the tile is
-  exactly what makes one file work on both. And the ground is not only a backdrop — 56 of the 81
-  paths are that same dark and are the counters *inside* the eye, so a transparent version paints
+  exactly what makes one file work on both. And the ground is not only a backdrop — **45 of the 81
+  paths are that same dark** and are the counters *inside* the eye, so a transparent version paints
   them as shapes where the artwork has holes. It is not the same drawing.
+
+  **That figure read 56 here and in the guard's own doc comment until somebody counted it.** 56 is
+  57 dark paths in the whole lockup less its ground — the count for the file that was *not*
+  cropped, which is the arithmetic anybody re-deriving this would do wrong the same way. The guard
+  asserts it now, so the number in this paragraph cannot drift from the artwork again.
 
 **An `<img>`, never inlined, and that is rule 1 rather than a preference.** The artwork is two
 colours of somebody else's and it carries them itself, exactly as the favicon pack and the two
