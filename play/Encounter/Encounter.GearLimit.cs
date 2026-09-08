@@ -117,6 +117,59 @@ public sealed partial class Encounter
     }
 
     /// <summary>
+    /// The half of pp.87–88 that lands on the <em>defending</em> side, said on the ledger because
+    /// this engine does not apply it.
+    ///
+    /// <para><b>Chapter 6 prices a weapon in both directions and this engine reads one of them.</b>
+    /// p.88: "you add its Weapon Bonus to your Agility or Martial Arts rank when defending yourself
+    /// against close combat attacks", and p.87's ceiling is on "the maximum Trait rank you can apply
+    /// when using mundane equipment" — a sentence about applying a Trait, not about attacking with
+    /// one. So a defender with a printed melee weapon in their hands has a Weapon Bonus this engine
+    /// does not lend them and a cap it does not put on them, and <b>both are silent unless something
+    /// says so</b>, which is the case this ledger exists for.</para>
+    ///
+    /// <para><b>It is named rather than applied, and the reason is on the entry itself.</b> The
+    /// close-combat exception's own <c>ambiguity</c> records that the swap to the bare-handed figure
+    /// is a permission the page never says who takes — and p.87 prints it as "your unarmed attack
+    /// <em>or defense</em> rank", so the defending half carries exactly the same unresolved choice
+    /// the attacking half does. Applying the cap alone would take dice off a defender the page
+    /// offers a way out to; applying the bonus alone would lend dice the ceiling is supposed to
+    /// bound. Both halves are one decision and it is the wielder's, so what is applied here is
+    /// nothing and what is written is which nothing it is.</para>
+    ///
+    /// <para><b>Mundane armour is the other half of p.87's "usually armor and weapons", and it
+    /// cannot be reached at all.</b> A <c>Combatant</c> carries no gear — <c>SelectedGear</c> is on
+    /// the character sheet and <c>CombatantFactory</c> never reads it — so no defence in a fight
+    /// here is item-backed, and the Armor <em>Power</em> is a Power rather than mundane equipment.
+    /// The cap on the defensive side is therefore unreached rather than declined, and
+    /// <c>docs/guide/play-engine.md</c> says so.</para>
+    /// </summary>
+    private void ArmedDefence(
+        EncounterState state, Combatant target, Attack attack, List<LedgerLine> lines)
+    {
+        if (attack.Type is not (AttackType.Unarmed or AttackType.MeleeWeapon)) return;
+        if (target.Holding is not { } held) return;
+
+        var (weapon, table, _) = WeaponFor(held.Name);
+
+        if (weapon is null || !string.Equals(weapon.Class, "Melee", StringComparison.Ordinal)) return;
+
+        var entry = _play.GetEquipment("weapon_bonus");
+        var rule = entry.WeaponBonus!;
+        var carve = _play.GetEquipment("gear_limit_close_combat_exception");
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{target.Name} answers a close combat attack holding {held.Name}, which is the "
+            + $"{table} table's {weapon.Name}. p.88 adds a melee weapon's Weapon Bonus to "
+            + $"{string.Join(" or ", rule.MeleeDefenseTraits)} on this side of the roll and p.87 "
+            + $"caps {_play.GetEquipment("gear_limit").GearLimit!.WhatItIs} whichever side it is "
+            + $"applied on: this engine applies neither, because {carve.Ambiguity} — and the same "
+            + "permission is printed for a defense rank as for an attack rank. What the defence "
+            + "rolls is the Trait as it stands"));
+    }
+
+    /// <summary>
     /// The row one of Chapter 6's three tables prints for the item a caller named, and the table it
     /// is in — or null where none of them prints one, or where two of them do and the page gives no
     /// way to tell which.

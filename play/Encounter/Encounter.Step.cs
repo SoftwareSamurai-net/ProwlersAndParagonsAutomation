@@ -1278,6 +1278,11 @@ public sealed partial class Encounter
 
         var candidates = DefenceCandidates(target, attack, lines, state);
 
+        // pp.87-88's other half: a defender holding a printed melee weapon has a Weapon Bonus this
+        // engine does not lend them and a ceiling it does not put on them. Neither is applied and
+        // the line says which nothing it is — see ArmedDefence.
+        ArmedDefence(state, target, attack, lines);
+
         // p.80's Hard Targets, on the defending half: a machine's passive defences answer at twice
         // their rank, and the doubling is applied to the rank before either printed halving.
         var hard = HardTargetFactor(state, target, attack, lines);

@@ -292,6 +292,15 @@ with is your own phrase, so it is matched to the longest printed weapon name ins
 sword" is the Sword, "a battle axe" is the Battle Axe rather than the Axe. A rolled-up newspaper is
 capped and adds nothing, and what a Weapon Bonus for it would be is yours to decide.
 
+**Only the attacker's side of Chapter 6 is applied, and the defender's is reported.** p.88 also adds
+a melee weapon's bonus to Agility or Martial Arts *when defending against close combat attacks*, and
+p.87's ceiling is written about applying a Trait rather than about attacking with one. This engine
+does neither on the defending side: a defender holding a printed melee weapon rolls the Trait as it
+stands, and a ledger line citing `weapon_bonus` says so, because p.87's exception is offered for a
+defense rank exactly as for an attack rank and whether it is taken is the wielder's. **Do not narrate
+a defender's weapon as having helped them.** Mundane armour is not reachable at all: a combatant
+carries no gear, so no defence in a fight here is item-backed.
+
 **Say a weapon's name the way you say it, not the way the table files it.** The three tables are
 alphabetical, so eight rows are printed inverted — `Rifle, Sniper`, `Pistol, Snub`, `Shield,
 Spiked`, `Shotgun, Automatic`, `Blast Rifle, Military` and the three grenades — and both spellings

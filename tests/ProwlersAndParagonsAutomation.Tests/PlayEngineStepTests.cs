@@ -8849,6 +8849,81 @@ public sealed class PlayEngineStepTests
             PoolOf(might: 10, item: "a shield", AttackType.MeleeWeapon));
     }
 
+    /// <summary>
+    /// <b>A defender with a weapon in their hands keeps the Trait they had, and the ledger says
+    /// that pp.87–88's defending half is what was not applied.</b>
+    ///
+    /// <para>Chapter 6 prices a weapon in both directions: p.88 adds its bonus to "your Agility or
+    /// Martial Arts rank when defending yourself against close combat attacks", and p.87's ceiling
+    /// is on "the maximum Trait rank you can apply", which is a sentence about applying a Trait
+    /// rather than about attacking with one. This engine reads the attacking half only, and an
+    /// unapplied rule nothing writes down is the one shape of silence this ledger exists to
+    /// prevent — so the line names the entry, the row the item matched, and the reason: p.87's
+    /// exception is printed for a defense rank exactly as it is for an attack rank, and whether it
+    /// is taken is the wielder's.</para>
+    ///
+    /// <para><b>Both sides of the condition are driven.</b> The same fight with the defender's hands
+    /// empty writes no such line, and neither does one where the defender is holding something no
+    /// weapons table prints — so the line is a fact about a printed melee weapon in somebody's hands
+    /// and not about every defence roll in the engine.</para>
+    /// </summary>
+    [Fact]
+    public void ADefenderHoldingAWeaponIsNotCappedAndNotGivenItsBonusAndTheLedgerSaysSo()
+    {
+        var armed = Defence(defenderHolds: "a basic sword");
+
+        var line = Assert.Single(
+            armed.Lines, l => string.Equals(l.Rule, "weapon_bonus", StringComparison.Ordinal));
+
+        Assert.Contains("Sword", line.Text, StringComparison.Ordinal);
+        Assert.Contains("applies neither", line.Text, StringComparison.Ordinal);
+
+        // The Trait is what it was: neither the bonus nor the cap moved the defence pool.
+        Assert.Equal(Defence(defenderHolds: null).Pool, armed.Pool);
+
+        // The controls, both directions of the condition.
+        Assert.DoesNotContain(
+            Defence(defenderHolds: null).Lines,
+            l => string.Equals(l.Rule, "weapon_bonus", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            Defence(defenderHolds: "a rolled-up newspaper").Lines,
+            l => string.Equals(l.Rule, "weapon_bonus", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// One melee exchange in which the defender is holding <paramref name="defenderHolds"/>, as its
+    /// lines and the dice their defence actually threw.
+    /// </summary>
+    private (int Pool, IReadOnlyList<LedgerLine> Lines) Defence(string? defenderHolds)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 5, ["agility"] = 10, ["toughness"] = 3
+        };
+
+        var encounter = new Encounter(_play, new SeededDice(15));
+
+        var state = encounter.Begin([
+            Combatant.Hero("armed", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"]),
+            Combatant.Villain("target", "the Villain", edge: 5, health: 10, traits, ["agility", "toughness"])
+        ]);
+
+        if (defenderHolds is not null) state = state.With(state["target"].Carrying(defenderHolds));
+
+        var lines = encounter
+            .Step(state, new Attack("armed", "target", "might", Type: AttackType.MeleeWeapon)).Added;
+
+        var exchange = lines.Single(l => l.Text.Contains("defends with", StringComparison.Ordinal)).Text;
+
+        var at = exchange.IndexOf("defends with agility ", StringComparison.Ordinal)
+                 + "defends with agility ".Length;
+
+        var end = exchange.IndexOf("d for ", at, StringComparison.Ordinal);
+
+        return (int.Parse(exchange[at..end], CultureInfo.InvariantCulture), lines);
+    }
+
     /// <summary>Chapter 6's printed Weapon Bonus for one row, read out of the shipped table.</summary>
     private int Bonus(string table, string name) =>
         _play.GetEquipment(table).Weapons!
