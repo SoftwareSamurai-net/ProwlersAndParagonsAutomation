@@ -2102,6 +2102,16 @@ public sealed class WebPresentationTests
     /// labelled with; two spellings is how a home-screen icon comes to be called something the
     /// site never says. The generator ships <c>MyWebSite</c> and unhashed colours, all of which
     /// are refused here — a placeholder that survives is a manifest nobody edited.</para>
+    ///
+    /// <para><b>"A file is there" was the whole of this check once, and it was not enough.</b>
+    /// Repointing <c>&lt;link rel="icon" type="image/png" sizes="96x96"&gt;</c> at
+    /// <c>/join.html</c> — a real file, twelve kilobytes of it — left this test green, and a
+    /// browser asking for that gets an HTML document where a PNG should be and draws its own
+    /// glyph, which is the exact failure the paragraph above says this exists to prevent. So the
+    /// bytes are opened: the first four of them have to be the signature of the format the
+    /// <c>href</c>'s extension claims, and a PNG's <c>IHDR</c> — width and height, big-endian, at
+    /// a fixed offset, needing no decoder — has to be the size the markup or the manifest says it
+    /// is. That is the difference between "something is served here" and "the icon is here".</para>
     /// </summary>
     [Fact]
     public void EveryIconTheAppNamesIsServedAndTheManifestNamesTheApp()
@@ -2115,8 +2125,11 @@ public sealed class WebPresentationTests
             .Select(m => m.Value)
             .Select(tag => (
                 Rel: Rx("rel\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value,
-                Href: Rx("href\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value))
-            .Select(l => (Rel: l.Rel.Split(' ', StringSplitOptions.RemoveEmptyEntries), l.Href))
+                Href: Rx("href\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value,
+                // Carried along so the byte check below can hold the file to the size the markup
+                // promised a browser it would find there. Empty for a link that declares none.
+                Sizes: Rx("sizes\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value))
+            .Select(l => (Rel: l.Rel.Split(' ', StringSplitOptions.RemoveEmptyEntries), l.Href, l.Sizes))
             .Where(l => l.Rel.Any(r => r is "icon" or "shortcut" or "apple-touch-icon" or "manifest"))
             .ToList();
 
@@ -2131,7 +2144,7 @@ public sealed class WebPresentationTests
 
         var manifestHref = links.Single(l => l.Rel.Contains("manifest", StringComparer.Ordinal)).Href;
 
-        foreach (var (rel, href) in links)
+        foreach (var (rel, href, sizes) in links)
         {
             // Root-relative on purpose, and asserted so the two files cannot drift into
             // addressing one pack two ways: site.webmanifest names its own icons absolutely,
@@ -2144,6 +2157,13 @@ public sealed class WebPresentationTests
                 $"index.html points <link rel=\"{string.Join(' ', rel)}\"> at {href}, which is "
                 + "not in wwwroot. The browser falls back to its own glyph and nothing notices.");
             Assert.True(new FileInfo(file).Length > 128, $"{href} is empty.");
+
+            // The manifest is in this list because it is linked beside the pack and has to exist
+            // too; it is JSON rather than an image and is parsed in full a few lines below.
+            if (!rel.Contains("manifest", StringComparer.Ordinal))
+            {
+                AssertServedFileIsTheImageItClaimsToBe(file, $"index.html's <link> to {href}", sizes);
+            }
         }
 
         var manifestText = File.ReadAllText(Path.Combine(root, manifestHref.TrimStart('/')));
@@ -2191,6 +2211,88 @@ public sealed class WebPresentationTests
                 $"site.webmanifest lists {src}, which is not in wwwroot. An installed shortcut "
                 + "gets whatever the platform draws for an icon that would not load.");
             Assert.True(new FileInfo(file).Length > 128, $"{src} is empty.");
+
+            AssertServedFileIsTheImageItClaimsToBe(
+                file,
+                $"site.webmanifest's icon {src}",
+                icon.TryGetProperty("sizes", out var declared) ? declared.GetString() ?? "" : "");
+        }
+    }
+
+    /// <summary>
+    /// Opens the first bytes of a file an icon declaration points at and holds them to what that
+    /// declaration promised — the format its extension names, and, for a PNG, the pixel size the
+    /// <c>sizes</c> attribute or field claims.
+    ///
+    /// <para><b>Why the bytes rather than the path.</b> <c>File.Exists</c> plus a length floor
+    /// says a file is served there; it does not say an <em>icon</em> is. Pointed at
+    /// <c>/join.html</c> — twelve kilobytes, and a file this repository certainly has — the
+    /// caller's assertions above all held, while a browser asking for that PNG would get an HTML
+    /// document and quietly draw its own default glyph. That is the silent failure the caller's
+    /// doc comment names, reached by the one route it could not see.</para>
+    ///
+    /// <para><b>No image library is needed for either half.</b> The signature is the first four
+    /// bytes, and a PNG's dimensions are two big-endian 32-bit integers at a fixed offset in the
+    /// <c>IHDR</c> chunk, which the format requires to come first. An SVG is text, so it is
+    /// enough that it opens as one — its size is a viewBox rather than a pixel count, and
+    /// declaring <c>sizes="any"</c> for it is what the markup already does.</para>
+    /// </summary>
+    private static void AssertServedFileIsTheImageItClaimsToBe(string file, string what, string sizes)
+    {
+        var head = new byte[24];
+
+        using (var stream = File.OpenRead(file))
+        {
+            _ = stream.ReadAtLeast(head, head.Length, throwOnEndOfStream: false);
+        }
+
+        var extension = Path.GetExtension(file).ToUpperInvariant();
+
+        switch (extension)
+        {
+            case ".PNG":
+                Assert.True(
+                    head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47,
+                    $"{what} is not a PNG — its first bytes are not the PNG signature. A browser "
+                    + "asked for an image and got something else, and draws its own glyph.");
+
+                // IHDR is mandated to be the first chunk, so width and height are big-endian at
+                // 16 and 20. Read here rather than decoded: nothing else about the pixels matters.
+                var width = (head[16] << 24) | (head[17] << 16) | (head[18] << 8) | head[19];
+                var height = (head[20] << 24) | (head[21] << 16) | (head[22] << 8) | head[23];
+
+                if (!string.IsNullOrEmpty(sizes) && !sizes.Equals("any", StringComparison.OrdinalIgnoreCase))
+                {
+                    Assert.True(sizes.Equals($"{width}x{height}", StringComparison.Ordinal),
+                        $"{what} declares sizes=\"{sizes}\" and the file is {width}x{height}. A "
+                        + "platform picking an icon by the size it was told about gets the wrong "
+                        + "one scaled, which is a blurry mark rather than a missing one.");
+                }
+
+                break;
+
+            case ".ICO":
+                // The ICONDIR header: two reserved zero bytes, then type 1 for an icon.
+                Assert.True(head[0] == 0 && head[1] == 0 && head[2] == 1 && head[3] == 0,
+                    $"{what} is not a Windows icon file.");
+                break;
+
+            case ".SVG":
+                var text = File.ReadAllText(file);
+
+                Assert.True(
+                    text.TrimStart().StartsWith("<svg", StringComparison.OrdinalIgnoreCase)
+                    || text.TrimStart().StartsWith("<?xml", StringComparison.OrdinalIgnoreCase),
+                    $"{what} does not open as SVG.");
+                Assert.Contains("<svg", text, StringComparison.OrdinalIgnoreCase);
+                break;
+
+            default:
+                Assert.Fail(
+                    $"{what} has the extension {extension}, which this guard does not know how to "
+                    + "open. Teach it the format or stop naming that file as an icon — an "
+                    + "unchecked one is how the last hole here got in.");
+                break;
         }
     }
 
