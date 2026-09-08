@@ -380,7 +380,7 @@ public static class CanonicalChapterSixRules
         // −3d Control. When creating a unique vehicle from scratch, Body, Speed, and Control have an initial
         // rank of 0d, while Weapons has an initial rank of \"n/a\"."
         //
-        // These five rates are what the stock vehicle arithmetic fixture replays: five of the six printed
+        // These five rates are what the stock vehicle arithmetic fixture replays: all six printed
         // totals on the same page come out exactly, so a wrong rate here is caught by the authors' own sums.
         ["unique_vehicle_characteristics.unique_vehicle_characteristics.body_cost_per_rank"]               = 1,
         ["unique_vehicle_characteristics.unique_vehicle_characteristics.speed_cost_per_rank"]              = 1,
@@ -492,9 +492,9 @@ public static class CanonicalChapterSixRules
     /// anchors the pairing of each mundane table's two printed blocks. Each is looked up out of the
     /// corpus by the test rather than compared with the number beside it here.
     ///
-    /// <para>p.96's Foe example gives the sedan seven dice of Body; p.96's six stock vehicles
-    /// reprint five rows of pp.97-98 characteristic for characteristic — and the sixth,
-    /// <see cref="StockOnlyVehicle"/>, is a stock entry with no row of its own.</para>
+    /// <para>p.96's Foe example gives the sedan seven dice of Body, and every one of p.96's six
+    /// stock vehicles reprints a row of pp.97-98 characteristic for characteristic — across all
+    /// three tables, and under a different name in half of them.</para>
     /// </summary>
     public static class AnchorRows
     {
@@ -504,7 +504,16 @@ public static class CanonicalChapterSixRules
         /// <inheritdoc cref="SedanRowName"/>
         public const int SedanBody = 7;
 
-        /// <summary>Stock vehicle name to mundane-table row name, for the five that are both.</summary>
+        /// <summary>
+        /// Stock vehicle name to mundane-table row name. <b>All six are both</b>, which is what
+        /// makes this witness worth having: six of p.96's entries reprint a row of pp.97-98's
+        /// tables characteristic for characteristic, from three different tables, and a
+        /// misalignment of one row moves at least one of them.
+        ///
+        /// <para>Three of the six are named differently in the two places, which is why this is a
+        /// map and not a set — the tables file a car under its class and the stock list under its
+        /// name.</para>
+        /// </summary>
         public static readonly IReadOnlyDictionary<string, string> StockToTableRow =
             new Dictionary<string, string>
             {
@@ -512,11 +521,9 @@ public static class CanonicalChapterSixRules
                 ["Jet Fighter"] = "Airplane, Jet Fighter",
                 ["Motorcycle"]  = "Motorcycle",
                 ["Speedboat"]   = "Speedboat",
+                ["Sports Car"]  = "Car, Sports",
                 ["Submersible"] = "Submersible"
             };
-
-        /// <summary>The one stock vehicle the mundane tables do not print a row for.</summary>
-        public const string StockOnlyVehicle = "Sports Car";
     }
 
     /// <summary>

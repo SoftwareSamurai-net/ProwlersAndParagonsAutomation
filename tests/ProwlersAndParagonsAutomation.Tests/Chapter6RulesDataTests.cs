@@ -544,7 +544,7 @@ public sealed class Chapter6RulesDataTests
     /// exactly.</para>
     ///
     /// <para><b>Three witnesses hold the alignment here, where the diagnostic cannot run.</b> Every
-    /// capital-ship row's Control equals p.94's −3d per 30 Health; five of p.96's stock vehicles
+    /// capital-ship row's Control equals p.94's −3d per 30 Health; all six of p.96's stock vehicles
     /// reprint a row characteristic for characteristic; and p.96's Foe example reprints the sedan's
     /// Body. A misalignment of one row breaks all three.</para>
     /// </summary>
@@ -649,9 +649,15 @@ public sealed class Chapter6RulesDataTests
 
     /// <summary>
     /// <b>Witnesses two and three: the rows the chapter prints a second time, away from the
-    /// tables.</b> p.96's Foe example gives the sedan its Body in prose, and five of p.96's six
-    /// stock vehicles reprint a table row characteristic for characteristic. Neither is anywhere
-    /// near the table it agrees with, so a misalignment of one row moves them.
+    /// tables.</b> p.96's Foe example gives the sedan its Body in prose, and <b>all six</b> of
+    /// p.96's stock vehicles reprint a table row characteristic for characteristic. Neither is
+    /// anywhere near the table it agrees with, so a misalignment of one row moves them.
+    ///
+    /// <para>This said five, and named the Sports Car as the one the tables do not print a row
+    /// for. They do: the Ground table's <c>Car, Sports</c> is 6d Body, 7d Speed, +2d Control and
+    /// unarmed, which is the stock Sports Car exactly. The claim cost a witness and asserted
+    /// something untrue about the book to do it, so what stands in its place is the map being
+    /// exhaustive over the stock list rather than a sixth entry being forbidden.</para>
     /// </summary>
     [Fact]
     public void TheRowsTheChapterPrintsASecondTimeAgreeWithTheTables()
@@ -682,11 +688,11 @@ public sealed class Chapter6RulesDataTests
             Assert.Equal(r.Weapons, s.Weapons);
         }
 
-        // The negative control the roster needs: the sixth stock vehicle is stock only, so a
-        // mapping that had quietly grown a sixth entry would be claiming a row that is not there.
-        Assert.DoesNotContain(CanonicalChapterSixRules.AnchorRows.StockOnlyVehicle,
-            CanonicalChapterSixRules.AnchorRows.StockToTableRow.Keys);
-        Assert.Contains(CanonicalChapterSixRules.AnchorRows.StockOnlyVehicle, stock.Keys);
+        // Every stock vehicle is a witness, so the map has to name every one of them: a map that
+        // quietly dropped an entry would still pass the loop above on whatever was left.
+        Assert.Equal(
+            stock.Keys.Order(),
+            CanonicalChapterSixRules.AnchorRows.StockToTableRow.Keys.Order());
     }
 
     private static readonly Regex StockLine =
