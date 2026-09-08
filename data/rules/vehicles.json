@@ -1,0 +1,1508 @@
+{
+  "header": {
+    "what_this_is": "Chapter 6's Vehicles rules, printed pp.94-100, as data: the four characteristics and what each one does, how a vehicle fights, capital ships, what happens when a Foe or a Minion is driving, the three tables of mundane vehicles, the Unique Vehicle Perk and what Vehicle Points buy, the six stock vehicles, and the twenty-three features with their prices.",
+    "not_logic": "Data only. Nothing here decides what a character costs today: RulesRepository.DataFileNames deliberately does not list this file, because the consumer slice - the one that teaches CostCalculator and the sheet about vehicles - is the slice that gets to decide how it is loaded. The csproj globs copy it to every host's output directory regardless, which is where the consumer will find it.",
+    "two_currencies": "A vehicle is bought in Vehicle Points, which are not Hero Points. Hero Points buy the Unique Vehicle Perk at twenty-five Vehicle Points each, and every price in this file below that line is in Vehicle Points. The one place the two meet again is the Unique Systems feature, which spends a Vehicle Point wherever a character would spend a Hero Point.",
+    "deliberately_omitted": "Gadgets (p.94) are in gadgets.json and Headquarters (p.100) in headquarters.json, so each file answers one question. The chapter's printed range is pp.87-104 and this file is pp.94-100; the Gear Limit and the weapons tables on pp.87-90 were transcribed for the fight engine into data/rules/play/equipment.json and are not repeated here. Printed p.104 carries no chapter text at all.",
+    "verified_fields_closed_list": [
+      "cost",
+      "rank",
+      "roll",
+      "threshold",
+      "effect",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, pp.94-100"
+  },
+  "entries": [
+    {
+      "id": "vehicle_body",
+      "name": "Body",
+      "kind": "formula",
+      "printed_under": "BODY",
+      "body": {
+        "measures": "durability, counting countermeasures and screens",
+        "counts_as": [
+          "armor",
+          "health"
+        ],
+        "exception": "capital ships, whose Health is a separate figure",
+        "protects_passengers": true,
+        "passengers_use_it_as": "passive defense against attacks from outside the vehicle",
+        "protection_lost_with_feature": "open_cockpit"
+      },
+      "interpretation": null,
+      "description": "One rank does two jobs: it is how hard the machine is to hurt and how much hurting it takes to stop it. It also stands between whoever is inside and anything shooting at them from outside, which is exactly what an open cockpit gives away.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicle_speed",
+      "name": "Speed",
+      "kind": "formula",
+      "printed_under": "SPEED",
+      "speed": {
+        "measures": "how fast the vehicle moves and how long a journey takes",
+        "equivalent_to": "a Travel Power",
+        "separate_rank_per_movement_mode": true
+      },
+      "interpretation": null,
+      "description": "How quickly the machine covers ground, treated for every purpose as though the vehicle were a character with a movement Power at that rank. A machine that flies and also drives is two different sets of figures, not one.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicle_control",
+      "name": "Control",
+      "kind": "formula",
+      "printed_under": "CONTROL",
+      "control": {
+        "is_a": "modifier rather than a rank in its own right",
+        "covers": [
+          "handling",
+          "maneuverability",
+          "targeting systems",
+          "fire controls"
+        ],
+        "control_roll_is": "a Vehicles roll modified by the vehicle's Control",
+        "control_roll_trait": "vehicles",
+        "capital_ship_control_per_thirty_health": -3
+      },
+      "interpretation": null,
+      "description": "The one figure that is added to the driver rather than rolled on its own. Whenever the rules ask for a Control roll the pilot rolls their own Vehicles Talent and shifts it by this number, so a nimble machine flatters a mediocre pilot and a barge punishes a good one. Something enormous is always a barge, at a fixed rate against its size.",
+      "verified_fields": [
+        "rank",
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicle_weapons",
+      "name": "Weapons",
+      "kind": "formula",
+      "printed_under": "WEAPONS",
+      "weapons": {
+        "represents": "the vehicle's weapon systems, from a single gun to whole batteries",
+        "is_an_abstraction": true,
+        "unarmed_value": "n/a"
+      },
+      "interpretation": null,
+      "description": "A single rank standing in for whatever the machine shoots with. The rules never ask how many guns there are; an unarmed vehicle simply has no figure here at all.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicular_gear_limit",
+      "name": "The vehicular Gear Limit",
+      "kind": "table_setting",
+      "printed_under": "CONTROL",
+      "vehicular_gear_limit": {
+        "vehicles_are_mundane_gear": true,
+        "default_applies": "the game's ordinary Gear Limit",
+        "raised_options": [
+          9,
+          12
+        ],
+        "raised_options_are_open_ended": true,
+        "raising_it_lets_characters_use": "their full Vehicles rank"
+      },
+      "interpretation": null,
+      "description": "A vehicle is kit like any other, so the ceiling that stops a superhuman getting full value out of a rifle also stops them getting full value out of a car. A table built around vehicles lifts that ceiling, which is what lets a driver's whole Talent reach the roll.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": "This paragraph is printed inside the Control entry and names a separate vehicular ceiling that may be raised on its own, while p.87 states the Gear Limit as one figure for all mundane gear. Whether a table raising it for vehicles has raised it for weapons too is not addressed."
+    },
+    {
+      "id": "vehicle_piloting",
+      "name": "Piloting",
+      "kind": "formula",
+      "printed_under": "VEHICLE COMBAT",
+      "piloting": {
+        "routine_operation_is_automatic": true,
+        "roll_called_for_when": "the pilot attempts something out of the ordinary",
+        "roll_is_usually": "a Control roll"
+      },
+      "interpretation": null,
+      "description": "Driving competently is not a thing anybody rolls for. The dice come out when the situation stops being ordinary, and what comes out is almost always the vehicle's own handling figure applied to the driver's Talent.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.95",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicle_edge",
+      "name": "Edge",
+      "kind": "formula",
+      "printed_under": "EDGE",
+      "edge": {
+        "formula": "edge = vehicles + control",
+        "trait": "vehicles",
+        "uses_full_rank_regardless_of_gear_limit": true,
+        "capital_ships_act_after_ordinary_vehicles": true,
+        "edge_orders_capital_ships_among_themselves": true
+      },
+      "interpretation": null,
+      "description": "Turn order behind the wheel is the driver's Talent shifted by the machine's handling, and this is the one place the gear ceiling is explicitly set aside - a superb pilot acts like a superb pilot whatever the table's limit says. Anything of capital size waits for the small craft to move first.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.95",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicle_chases",
+      "name": "Chases",
+      "kind": "formula",
+      "printed_under": "CHASES",
+      "chases": {
+        "resolved_as": "an ordinary chase between characters, per Chapter 4",
+        "open_terrain_uses": "the vehicle's Speed as its Travel Power",
+        "winding_terrain_uses": "Control rolls",
+        "transcribed_here": false,
+        "deferred_to_chapter": 4
+      },
+      "interpretation": null,
+      "description": "A pursuit runs on the ordinary chase rules; only the figure fed into them changes. On a clear road it is raw pace, and where the road stops being clear it becomes a question of handling instead.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.95",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicle_attacks_and_defenses",
+      "name": "Attacks and Defenses",
+      "kind": "formula",
+      "printed_under": "ATTACKS AND DEFENSES",
+      "attacks_and_defenses": {
+        "attacker_option_one": "a Control roll against the target's active defense",
+        "attacker_option_two": "a Weapons roll against the target's passive defense",
+        "which_option_is_used": "whichever favours the defender",
+        "control_roll_represents": "accuracy",
+        "weapons_roll_represents": "damage",
+        "attack_power_substitutes_for": "the Weapons rank, when that Power is used",
+        "ram_substitutes_for_weapons": "the vehicle's Body rank",
+        "vehicle_active_defense_roll": "control",
+        "vehicle_passive_defense_roll": "body",
+        "characters_attacking_a_vehicle_use": "an ordinary attack, the vehicle taking the greater of its active or passive defense"
+      },
+      "interpretation": null,
+      "description": "A vehicle shooting at a vehicle is two questions at once - could it hit, and would it matter - and the rules resolve both by handing the choice to whoever is being shot at. Ramming swaps the guns for the hull. A person shooting at a vehicle has no such complication; the machine simply defends with the better of its two figures.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.95",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicle_damage_and_repair",
+      "name": "Damage and Repair",
+      "kind": "formula",
+      "printed_under": "DAMAGE AND REPAIR",
+      "damage_and_repair": {
+        "damage_per_net_success": 1,
+        "disabled_or_destroyed_at": "damage equal to the vehicle's Body",
+        "ram_damage_per_net_success": 1,
+        "rammer_suffers_the_same_damage_when": "the attacker's Body is less than or equal to the target's Body",
+        "character_effective_body_is": "their Armor, or half their Toughness",
+        "vehicles_do_not_heal": true,
+        "repair_talent": "technology",
+        "field_repair_needs": "tools and materials on hand"
+      },
+      "interpretation": null,
+      "description": "Damage lands a point at a time and the machine stops when it has taken as many points as its Body. Ramming hurts the rammer too unless the rammer is the heavier of the two. Nothing here mends itself: a damaged vehicle stays damaged until somebody with the right Talent and the right kit works on it.",
+      "verified_fields": [
+        "effect",
+        "roll",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.95",
+      "ambiguity": "A character's effective Body is given as their Armor or half their Toughness without saying which applies when both are available, so an armoured character being rammed has two figures and no printed rule for choosing between them."
+    },
+    {
+      "id": "vehicle_targeted_systems",
+      "name": "Targeting a system",
+      "kind": "table_setting",
+      "printed_under": "DAMAGE AND REPAIR",
+      "targeted_systems": {
+        "is_a_gm_option": true,
+        "attack_penalty_dice": -2,
+        "inflicts_damage": false,
+        "disables": "one of the target's features, its ability to move, or its weapons",
+        "net_successes_short_min": 1,
+        "net_successes_short_max": 2,
+        "short_duration": "until the end of the attacker's next turn to act",
+        "net_successes_long_min": 3,
+        "long_duration": "the rest of the scene"
+      },
+      "interpretation": null,
+      "description": "An optional trade the GM may offer: aim for something specific, accept a worse chance of connecting, and break a part of the machine instead of denting it. A near miss on that aim shuts the part down briefly; a solid one shuts it down for the whole scene.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.95",
+      "ambiguity": null
+    },
+    {
+      "id": "capital_ships",
+      "name": "Capital Ships",
+      "kind": "formula",
+      "printed_under": "CAPITAL SHIPS",
+      "capital_ships": {
+        "what_they_are": "warship-scale vessels and their science fiction equivalents",
+        "edge_is": "the captain's Intellect",
+        "edge_trait": "intellect",
+        "edge_halved_when": "the captain does not know what they are doing, as the GM judges",
+        "gm_may_require_power": "Expertise, for experience in command",
+        "health_is_separate_from_body": true,
+        "health_multiple_of": 30,
+        "health_has_no_formula": true,
+        "control_per_thirty_health": -3,
+        "standard_weapons_carry_con": "overkill",
+        "overkill_applies_except_against": [
+          "other capital ships",
+          "fixed locations"
+        ],
+        "overkill_effect": "the target doubles its successes when defending actively",
+        "pinpoint_weapon_rank_offset": -6,
+        "pinpoint_weapons_carry_overkill": false,
+        "pinpoint_weapons_usually_enough_to": "attack every ship in range once per page",
+        "never_perform_active_defenses": true,
+        "one_shot_destruction_threshold": "damage equal to or greater than the ship's Body in a single attack"
+      },
+      "interpretation": null,
+      "description": "Something the size of a warship stops behaving like a vehicle. Its staying power is a number of its own rather than its Body, its turn order comes off the bridge rather than the helm, and its main batteries are so badly suited to small targets that anything nimble gets twice the benefit of dodging. That is why such ships carry a second, weaker armament for close work, and why they never dodge anything themselves.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.95",
+      "ambiguity": "Health is stated to come in multiples of thirty with no formula for choosing one, and the Control rate of minus three dice per thirty Health is printed in the Control entry on p.94 rather than here, so the two halves of a capital ship's handling figure are on different pages."
+    },
+    {
+      "id": "capital_ship_ramming",
+      "name": "Capital ship ramming",
+      "kind": "formula",
+      "printed_under": "CAPITAL SHIPS",
+      "capital_ship_ramming": {
+        "may_only_ram": [
+          "other capital ships",
+          "slow-moving or stationary objects"
+        ],
+        "resolved_by": "opposed Edge rolls between the captains",
+        "smaller_ship_bonus": "the difference between the two Control values",
+        "worked_example_small_health": 30,
+        "worked_example_small_control": -3,
+        "worked_example_large_health": 90,
+        "worked_example_large_control": -9,
+        "worked_example_bonus_dice": 6,
+        "damage_on_success": "the smaller ship's full Health, to both vessels",
+        "damage_uses_undamaged_health": true,
+        "half_damage_option_at_net_successes": 3,
+        "double_damage_option_at_net_successes": 5
+      },
+      "interpretation": null,
+      "description": "Two hulls the size of buildings colliding is decided between the captains rather than by the helm, and the smaller ship is the more agile one by exactly the gap between their handling figures. A hit hurts both of them by what the smaller one is worth intact, and a decisive attacker can choose to take less or deal more.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.95",
+      "ambiguity": null
+    },
+    {
+      "id": "foe_and_minion_pilots",
+      "name": "Foe and Minion pilots",
+      "kind": "formula",
+      "printed_under": "FOE AND MINION PILOTS",
+      "foe_and_minion_pilots": {
+        "foe_vehicle_damage_capacity": "half the usual",
+        "foe_worked_example_vehicle": "an ordinary sedan",
+        "foe_worked_example_body": 7,
+        "foe_worked_example_damage_capacity": 4,
+        "minions_use_in_place_of_vehicles": "threat",
+        "minions_attack_in_groups": true,
+        "minion_group_bonus_applies_to": [
+          "the Control roll",
+          "the Weapons roll"
+        ],
+        "minion_vehicles_lost_per_net_success": 1,
+        "applies_to_capital_ships": false
+      },
+      "interpretation": null,
+      "description": "A weaker antagonist does not get stronger by climbing into a car. A Foe's vehicle gives out after half the punishment it would take from anybody else, and Minions in vehicles are still Minions - one rank for all of them, group bonuses on both of the rolls a vehicle attack can use, and one machine wrecked for every net success against them. Halving an odd Body gives a whole number upward, which the Introduction's glossary settles for the whole book and which this page then demonstrates: seven becomes four.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.96",
+      "ambiguity": null
+    },
+    {
+      "id": "mundane_vehicles_air_space",
+      "name": "Air / Space Vehicles",
+      "kind": "table",
+      "printed_under": "AIR / SPACE VEHICLES — VEHICLE BODY",
+      "vehicles": [
+        {
+          "name": "Airplane, Commercial Airliner",
+          "body_printed": "9d",
+          "body": 9,
+          "speed": 8,
+          "control": 0,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Airplane, Jet Fighter",
+          "body_printed": "8d",
+          "body": 8,
+          "speed": 10,
+          "control": 5,
+          "weapons": 12,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Airplane, Lear Jet",
+          "body_printed": "8d",
+          "body": 8,
+          "speed": 8,
+          "control": 1,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Airplane, Prop Plane",
+          "body_printed": "7d",
+          "body": 7,
+          "speed": 7,
+          "control": 2,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Airplane, WWI Biplane",
+          "body_printed": "6d",
+          "body": 6,
+          "speed": 6,
+          "control": 2,
+          "weapons": 8,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Airplane, WWII Bomber",
+          "body_printed": "8d",
+          "body": 8,
+          "speed": 7,
+          "control": 1,
+          "weapons": 9,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Airplane, WWII Fighter",
+          "body_printed": "7d",
+          "body": 7,
+          "speed": 8,
+          "control": 3,
+          "weapons": 9,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Flying Bike",
+          "body_printed": "6d",
+          "body": 6,
+          "speed": 7,
+          "control": 3,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Flying Car",
+          "body_printed": "7d",
+          "body": 7,
+          "speed": 7,
+          "control": 2,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Glider or Hang Glider",
+          "body_printed": "3d or 1d",
+          "body": null,
+          "speed": 6,
+          "control": 2,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Helicopter, Civilian",
+          "body_printed": "7d",
+          "body": 7,
+          "speed": 7,
+          "control": 3,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Helicopter, Military",
+          "body_printed": "8d",
+          "body": 8,
+          "speed": 7,
+          "control": 4,
+          "weapons": 12,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Helicopter, Personal",
+          "body_printed": "6d",
+          "body": 6,
+          "speed": 7,
+          "control": 4,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Jet Pack",
+          "body_printed": "3d",
+          "body": 3,
+          "speed": 7,
+          "control": 4,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Space Shuttle",
+          "body_printed": "11d",
+          "body": 11,
+          "speed": 10,
+          "control": -1,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Starship, Destroyer",
+          "body_printed": "18d",
+          "body": 18,
+          "speed": 10,
+          "control": -9,
+          "weapons": 22,
+          "open_cockpit": false,
+          "capital_ship_health": 90
+        },
+        {
+          "name": "Starship, Dreadnaught",
+          "body_printed": "17d",
+          "body": 17,
+          "speed": 10,
+          "control": -9,
+          "weapons": 21,
+          "open_cockpit": false,
+          "capital_ship_health": 90
+        },
+        {
+          "name": "Starship, Frigate",
+          "body_printed": "16d",
+          "body": 16,
+          "speed": 10,
+          "control": -6,
+          "weapons": 20,
+          "open_cockpit": false,
+          "capital_ship_health": 60
+        },
+        {
+          "name": "Starship, Interdictor",
+          "body_printed": "15d",
+          "body": 15,
+          "speed": 10,
+          "control": -3,
+          "weapons": 18,
+          "open_cockpit": false,
+          "capital_ship_health": 30
+        },
+        {
+          "name": "Starship, Patrol Craft",
+          "body_printed": "14d",
+          "body": 14,
+          "speed": 11,
+          "control": 2,
+          "weapons": 16,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Starship, Scout Ship",
+          "body_printed": "12d",
+          "body": 12,
+          "speed": 11,
+          "control": 4,
+          "weapons": 14,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Starship, Star Fighter",
+          "body_printed": "11d",
+          "body": 11,
+          "speed": 12,
+          "control": 6,
+          "weapons": 14,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Starship, Transport",
+          "body_printed": "12d",
+          "body": 12,
+          "speed": 11,
+          "control": 4,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Zeppelin",
+          "body_printed": "8d",
+          "body": 8,
+          "speed": 5,
+          "control": -3,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's two blocks line up, not a rule the page states.",
+        "row_alignment": "The book sets each mundane vehicle table as four columns and the extractor reads a table of three or more columns across rather than down, so it arrives as two blocks: the names beside their Body, and the Speed, Control and Weapons figures. Pairing them row by row in printed order is this project's reading. Three independent witnesses hold it: every capital-ship row's Control equals minus three dice per thirty Health exactly as p.94 states, all six stock vehicles on p.96 reprint a row of these tables characteristic for characteristic, and p.96's Foe example reprints the sedan's Body.",
+        "printed_cell_kept": "body_printed carries the cell as printed; body is null where the cell prints two values rather than one."
+      },
+      "description": "Twenty-four flying and spacegoing machines, from a hang glider to a dreadnaught, each with what it can take, how fast it goes, how it handles and what it shoots with. Nine of them are capital ships and carry a separate Health figure; four leave their crew exposed.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.97",
+      "ambiguity": null
+    },
+    {
+      "id": "mundane_vehicles_ground",
+      "name": "Ground Vehicles",
+      "kind": "table",
+      "printed_under": "GROUND VEHICLES — VEHICLE BODY",
+      "vehicles": [
+        {
+          "name": "Armored Car",
+          "body_printed": "9d",
+          "body": 9,
+          "speed": 6,
+          "control": 0,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Bus",
+          "body_printed": "9d",
+          "body": 9,
+          "speed": 6,
+          "control": -1,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Car, Limousine/SUV",
+          "body_printed": "8d",
+          "body": 8,
+          "speed": 6,
+          "control": 0,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Car, Sedan",
+          "body_printed": "7d",
+          "body": 7,
+          "speed": 6,
+          "control": 1,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Car, Sports",
+          "body_printed": "6d",
+          "body": 6,
+          "speed": 7,
+          "control": 2,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Chariot",
+          "body_printed": "4d",
+          "body": 4,
+          "speed": 5,
+          "control": -1,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Dune Buggy",
+          "body_printed": "6d",
+          "body": 6,
+          "speed": 5,
+          "control": 1,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Mecha",
+          "body_printed": "14d",
+          "body": 14,
+          "speed": 6,
+          "control": 2,
+          "weapons": 14,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Military, APC",
+          "body_printed": "10d",
+          "body": 10,
+          "speed": 5,
+          "control": 1,
+          "weapons": 9,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Military, Humvee",
+          "body_printed": "8d",
+          "body": 8,
+          "speed": 6,
+          "control": 1,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Military, Tank",
+          "body_printed": "12d",
+          "body": 12,
+          "speed": 5,
+          "control": 1,
+          "weapons": 13,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Motorcycle",
+          "body_printed": "5d",
+          "body": 5,
+          "speed": 7,
+          "control": 3,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Scooter",
+          "body_printed": "4d",
+          "body": 4,
+          "speed": 5,
+          "control": 1,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Truck",
+          "body_printed": "9d",
+          "body": 9,
+          "speed": 6,
+          "control": -1,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Truck, Big Rig",
+          "body_printed": "10d",
+          "body": 10,
+          "speed": 6,
+          "control": -2,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's two blocks line up, not a rule the page states.",
+        "row_alignment": "The book sets each mundane vehicle table as four columns and the extractor reads a table of three or more columns across rather than down, so it arrives as two blocks: the names beside their Body, and the Speed, Control and Weapons figures. Pairing them row by row in printed order is this project's reading. Three independent witnesses hold it: every capital-ship row's Control equals minus three dice per thirty Health exactly as p.94 states, all six stock vehicles on p.96 reprint a row of these tables characteristic for characteristic, and p.96's Foe example reprints the sedan's Body.",
+        "printed_cell_kept": "body_printed carries the cell as printed; body is null where the cell prints two values rather than one."
+      },
+      "description": "Fifteen machines that travel on land, from a scooter to a mecha. Only four of them are armed, and five leave their crew exposed.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.97",
+      "ambiguity": null
+    },
+    {
+      "id": "mundane_vehicles_water",
+      "name": "Water Vehicles",
+      "kind": "table",
+      "printed_under": "WATER — VEHICLE BODY",
+      "vehicles": [
+        {
+          "name": "Ancient, Galley/Ship",
+          "body_printed": "10d",
+          "body": 10,
+          "speed": 3,
+          "control": -3,
+          "weapons": 10,
+          "open_cockpit": false,
+          "capital_ship_health": 30
+        },
+        {
+          "name": "Military, Aircraft Carrier",
+          "body_printed": "14d",
+          "body": 14,
+          "speed": 5,
+          "control": -9,
+          "weapons": 16,
+          "open_cockpit": false,
+          "capital_ship_health": 90
+        },
+        {
+          "name": "Military, Battleship",
+          "body_printed": "14d",
+          "body": 14,
+          "speed": 5,
+          "control": -9,
+          "weapons": 18,
+          "open_cockpit": false,
+          "capital_ship_health": 90
+        },
+        {
+          "name": "Military, Destroyer",
+          "body_printed": "13d",
+          "body": 13,
+          "speed": 5,
+          "control": -6,
+          "weapons": 17,
+          "open_cockpit": false,
+          "capital_ship_health": 60
+        },
+        {
+          "name": "Military, Frigate",
+          "body_printed": "13d",
+          "body": 13,
+          "speed": 5,
+          "control": -3,
+          "weapons": 15,
+          "open_cockpit": false,
+          "capital_ship_health": 30
+        },
+        {
+          "name": "Military, Nuclear Sub",
+          "body_printed": "14d",
+          "body": 14,
+          "speed": 5,
+          "control": -9,
+          "weapons": 16,
+          "open_cockpit": false,
+          "capital_ship_health": 90
+        },
+        {
+          "name": "Military, Patrol Boat",
+          "body_printed": "11d",
+          "body": 11,
+          "speed": 6,
+          "control": 0,
+          "weapons": 10,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Military, Submarine",
+          "body_printed": "13d",
+          "body": 13,
+          "speed": 4,
+          "control": -3,
+          "weapons": 15,
+          "open_cockpit": false,
+          "capital_ship_health": 30
+        },
+        {
+          "name": "Ocean Liner",
+          "body_printed": "12d",
+          "body": 12,
+          "speed": 5,
+          "control": -6,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": 60
+        },
+        {
+          "name": "Sailboat",
+          "body_printed": "7d",
+          "body": 7,
+          "speed": 4,
+          "control": -1,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Speedboat",
+          "body_printed": "6d",
+          "body": 6,
+          "speed": 6,
+          "control": 1,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Submersible",
+          "body_printed": "9d",
+          "body": 9,
+          "speed": 5,
+          "control": -2,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Tanker",
+          "body_printed": "12d",
+          "body": 12,
+          "speed": 4,
+          "control": -6,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": 60
+        },
+        {
+          "name": "Wave Runner",
+          "body_printed": "5d",
+          "body": 5,
+          "speed": 5,
+          "control": 1,
+          "weapons": null,
+          "open_cockpit": true,
+          "capital_ship_health": null
+        },
+        {
+          "name": "Yacht",
+          "body_printed": "9d",
+          "body": 9,
+          "speed": 5,
+          "control": -2,
+          "weapons": null,
+          "open_cockpit": false,
+          "capital_ship_health": null
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's two blocks line up, not a rule the page states.",
+        "row_alignment": "The book sets each mundane vehicle table as four columns and the extractor reads a table of three or more columns across rather than down, so it arrives as two blocks: the names beside their Body, and the Speed, Control and Weapons figures. Pairing them row by row in printed order is this project's reading. Three independent witnesses hold it: every capital-ship row's Control equals minus three dice per thirty Health exactly as p.94 states, all six stock vehicles on p.96 reprint a row of these tables characteristic for characteristic, and p.96's Foe example reprints the sedan's Body.",
+        "printed_cell_kept": "body_printed carries the cell as printed; body is null where the cell prints two values rather than one."
+      },
+      "description": "Fifteen craft that travel on or under water, from a wave runner to an aircraft carrier. Nine are capital ships with a separate Health figure, and the handling figures run heavily negative because most of them are enormous.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.98",
+      "ambiguity": null
+    },
+    {
+      "id": "unique_vehicle_perk",
+      "name": "The Unique Vehicle Perk",
+      "kind": "formula",
+      "printed_under": "UNIQUE VEHICLES",
+      "unique_vehicle_perk": {
+        "perk_id": "unique_vehicle",
+        "vehicle_points_per_hero_point": 25,
+        "spendable_on": [
+          "creating a unique vehicle from scratch",
+          "improving one already owned"
+        ],
+        "heroes_may_pool_points": true
+      },
+      "interpretation": null,
+      "description": "The one place a vehicle costs a character anything. Hero Points spent on the Perk convert into a second currency at a fixed rate, and that currency is what actually buys the machine. A team can put their allowances together and own one good vehicle between them rather than several indifferent ones.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.96",
+      "ambiguity": null
+    },
+    {
+      "id": "unique_vehicle_characteristics",
+      "name": "Buying characteristics",
+      "kind": "formula",
+      "printed_under": "CHARACTERISTICS",
+      "unique_vehicle_characteristics": {
+        "body_cost_per_rank": 1,
+        "speed_cost_per_rank": 1,
+        "weapons_cost_per_rank": 1,
+        "control_cost_per_rank": 2,
+        "control_may_not_exceed": "half the vehicle's Speed",
+        "negative_control_refund_per_rank": 2,
+        "negative_control_minimum": -3,
+        "initial_body": 0,
+        "initial_speed": 0,
+        "initial_control": 0,
+        "initial_weapons": "n/a"
+      },
+      "interpretation": null,
+      "description": "Three of the four characteristics are a point a rank; handling is the expensive one at twice that, and it is capped against the machine's own pace so nothing can be a brick that corners like a bicycle. Accepting bad handling instead pays points back, down to a floor. A vehicle built from nothing starts at nothing, and unarmed until somebody pays for guns.",
+      "verified_fields": [
+        "cost",
+        "rank",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.96",
+      "ambiguity": null
+    },
+    {
+      "id": "stock_vehicles",
+      "name": "Stock Vehicles",
+      "kind": "table",
+      "printed_under": "STOCK VEHICLES",
+      "stock": [
+        {
+          "name": "Helicopter",
+          "vehicle_points": 25,
+          "body": 7,
+          "speed": 7,
+          "control": 3,
+          "weapons": null,
+          "features": [
+            "Com System",
+            "Flight",
+            "Passengers 4"
+          ]
+        },
+        {
+          "name": "Jet Fighter",
+          "vehicle_points": 54,
+          "body": 8,
+          "speed": 10,
+          "control": 5,
+          "weapons": 12,
+          "features": [
+            "Com System",
+            "Flight",
+            "Sensors"
+          ]
+        },
+        {
+          "name": "Motorcycle",
+          "vehicle_points": 18,
+          "body": 5,
+          "speed": 7,
+          "control": 3,
+          "weapons": null,
+          "features": [
+            "Open Cockpit",
+            "Running",
+            "Small"
+          ]
+        },
+        {
+          "name": "Speedboat",
+          "vehicle_points": 10,
+          "body": 6,
+          "speed": 6,
+          "control": 1,
+          "weapons": null,
+          "features": [
+            "Open Cockpit",
+            "Passengers 8",
+            "Swimming"
+          ]
+        },
+        {
+          "name": "Sports Car",
+          "vehicle_points": 17,
+          "body": 6,
+          "speed": 7,
+          "control": 2,
+          "weapons": null,
+          "features": [
+            "Running"
+          ]
+        },
+        {
+          "name": "Submersible",
+          "vehicle_points": 14,
+          "body": 9,
+          "speed": 5,
+          "control": -2,
+          "weapons": null,
+          "features": [
+            "Com System",
+            "Passengers 8",
+            "Rader (Sonar)",
+            "Submersible",
+            "Swimming"
+          ]
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "Two readings this project takes of the printed entries, neither stated on the page.",
+        "passengers_rating": "A feature line reading Passengers 4 or Passengers 8 is read as that many extra passengers, which is what the Passengers feature is priced per. That reading is what makes the Helicopter and the Speedboat come out at their printed totals; reading the figure as a total including the two the vehicle already carries breaks the Speedboat.",
+        "submersible_sonar": "The Submersible's feature list prints Rader (Sonar), read as the Radar Power carrying its own printed Sonar Con, taken through the Unique Systems feature. Ch.2 p.38 prices Radar at three Hero Points and prints CON Sonar (-1): This Power only works underwater - so the Power costs two Hero Points, and two Vehicle Points. The parenthesis names a Con the Power itself offers, which is the reading that makes the Submersible come out at its printed total."
+      },
+      "description": "Six vehicles already built and priced, offered as a starting point for somebody who does not want to spend the points characteristic by characteristic. Each may then be modified.",
+      "verified_fields": [
+        "cost",
+        "rank",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.96",
+      "ambiguity": null
+    },
+    {
+      "id": "stock_vehicle_upgrade_limit",
+      "name": "Limiting stock upgrades",
+      "kind": "table_setting",
+      "printed_under": "STOCK VEHICLES",
+      "stock_upgrade_limit": {
+        "is_optional": true,
+        "suits": "more realistic games",
+        "max_body_ranks_added": 6,
+        "max_speed_ranks_added": 4,
+        "max_control_ranks_added": 2
+      },
+      "interpretation": null,
+      "description": "An optional brake for a table that wants its cars to stay recognisably cars: a bought-off-the-shelf machine may be improved only so far in each direction before it stops being the thing it was.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.96",
+      "ambiguity": null
+    },
+    {
+      "id": "vehicle_features",
+      "name": "Vehicle Features",
+      "kind": "table",
+      "printed_under": "VEHICLE FEATURES",
+      "features": [
+        {
+          "id": "cargo_hold",
+          "name": "Cargo Hold",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "Room for freight, with the ramps and lifts needed to get it in and out. Its space is counted apart from anything the Hidden Compartments feature provides.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 96
+        },
+        {
+          "id": "com_system",
+          "name": "Com System",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "A long-range transmitter of whatever kind the setting considers current. It is kit rather than a Power, so it is less flexible than the Communications Power and needs a network at the far end to reach anywhere distant.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 98
+        },
+        {
+          "id": "disguise",
+          "name": "Disguise",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine can present itself as a different vehicle of the same type, by projection, illusion or actual alteration. On a Transforming vehicle it can instead hide the fact that two shapes are one machine.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 98
+        },
+        {
+          "id": "flight",
+          "name": "Flight",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine travels through air, through space, or both. It needs room to work in and cannot be flown indoors or through anything tight.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 98
+        },
+        {
+          "id": "giant",
+          "name": "Giant",
+          "cost_type": "flat",
+          "cost": -6,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine is far bigger than an ordinary road vehicle: it blocks several lanes, will not pass through most tunnels, and cannot use ordinary streets without wrecking them. Paying for this gives points back.",
+          "requires": [],
+          "restricted_to": "ground vehicles",
+          "constraint": null,
+          "printed_page": 98
+        },
+        {
+          "id": "gunnery_station",
+          "name": "Gunnery Station",
+          "cost_type": "per_unit",
+          "cost": null,
+          "cost_range": null,
+          "cost_per_unit": 2,
+          "unit_label": "gunnery station",
+          "mechanic": "A vehicle's guns fire once a page however many people are aboard, and further attacks take the ordinary multiple-action penalty against the machine rather than against the shooter. Each station bought lets one more character take one extra shot per page free of that penalty.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 98
+        },
+        {
+          "id": "hidden_compartments",
+          "name": "Hidden Compartments",
+          "cost_type": "flat_variable",
+          "cost": null,
+          "cost_range": {
+            "small": 1,
+            "large": 2
+          },
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "Concealed storage. The cheaper grade hides weapons and personal effects; the dearer one hides people or a worthwhile quantity of cargo.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 98
+        },
+        {
+          "id": "integrated_ai",
+          "name": "Integrated AI",
+          "cost_type": "per_unit",
+          "cost": null,
+          "cost_range": null,
+          "cost_per_unit": 1,
+          "unit_label": "rank of the vehicle's own Vehicles Talent",
+          "mechanic": "The machine can drive itself, at a Vehicles rank equal to the points put in. What is actually doing the driving is up to the player - a computer, an enchantment, or something that considers itself a person.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 98
+        },
+        {
+          "id": "mecha",
+          "name": "Mecha",
+          "cost_type": "per_unit",
+          "cost": null,
+          "cost_range": null,
+          "cost_per_unit": 1,
+          "unit_label": "rank of Might",
+          "mechanic": "The machine is built like a person, with arms that end in hands and legs it can move, crouch and peer over things with. The limbs have a Might rank the player buys; fine work with them is a Control roll, and an attack with them uses Might where a vehicle would use Weapons.",
+          "requires": [],
+          "restricted_to": "ground vehicles",
+          "constraint": "The vehicle's Might may not be lower than half its Body, which is a floor on what the limbs cost rather than a cap: a 14d Body Mecha owes at least 7 Vehicle Points of Might before anything else.",
+          "printed_page": 99
+        },
+        {
+          "id": "open_cockpit",
+          "name": "Open Cockpit",
+          "cost_type": "flat",
+          "cost": -2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The crew are out in the open: they can be shot at directly and cannot put the machine's Body between themselves and an attack. Paying for this gives points back.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 99
+        },
+        {
+          "id": "passengers",
+          "name": "Passengers",
+          "cost_type": "per_unit",
+          "cost": null,
+          "cost_range": null,
+          "cost_per_unit": 1,
+          "unit_label": "4 extra passengers",
+          "mechanic": "A vehicle seats a driver and one other by default. Each point bought seats four more.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 99
+        },
+        {
+          "id": "personal",
+          "name": "Personal",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "Only a named person, or a named few, can work the machine at all - by access code, by biology, by being worthy of it, or by whatever else suits.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 99
+        },
+        {
+          "id": "remote_control",
+          "name": "Remote Control",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine can be driven from elsewhere, at the same cost in attention as sitting in it.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 99
+        },
+        {
+          "id": "running",
+          "name": "Running",
+          "cost_type": "flat",
+          "cost": 0,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine travels on land. It costs nothing, and it is one of the three movement features that force a second set of Speed and Control figures when a machine has more than one.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 99
+        },
+        {
+          "id": "security_systems",
+          "name": "Security Systems",
+          "cost_type": "flat",
+          "cost": 1,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "Anti-theft measures well beyond the ordinary: stealing the machine is a challenge roll at the Superhuman threshold of six.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 99
+        },
+        {
+          "id": "sensors",
+          "name": "Sensors",
+          "cost_type": "flat",
+          "cost": 10,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "A full detection suite behaving as Radar together with four of the Super Senses - circular, telescopic, thermal and ultra vision. What it picks up can be recorded, and transmitted if the machine also carries a Com System.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 100
+        },
+        {
+          "id": "small",
+          "name": "Small",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "Anything from surfboard-sized up to motorcycle-sized, able to go where ordinary vehicles cannot. It still has to be a vehicle: something a character could pick up and carry about is a Power with the Item Con instead.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 100
+        },
+        {
+          "id": "spaceflight",
+          "name": "Spaceflight",
+          "cost_type": "flat",
+          "cost": 4,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine works in vacuum, keeps its crew alive there, and crosses interstellar distances faster than light. Flying inside an atmosphere still needs the Flight feature.",
+          "requires": [
+            "flight, to fly in an atmosphere"
+          ],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 100
+        },
+        {
+          "id": "spaceship",
+          "name": "Spaceship",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine works in vacuum and keeps its crew alive there, without the faster-than-light travel Spaceflight buys. Flying inside an atmosphere still needs the Flight feature.",
+          "requires": [
+            "flight, to fly in an atmosphere"
+          ],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 100
+        },
+        {
+          "id": "submersible",
+          "name": "Submersible",
+          "cost_type": "flat",
+          "cost": 2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine works underwater and keeps its crew alive there.",
+          "requires": [
+            "swimming"
+          ],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 100
+        },
+        {
+          "id": "swimming",
+          "name": "Swimming",
+          "cost_type": "flat",
+          "cost": -4,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine travels on water. Paying for this gives points back, and it is one of the three movement features that force a second set of Speed and Control figures when a machine has more than one.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 100
+        },
+        {
+          "id": "transforming",
+          "name": "Transforming",
+          "cost_type": "flat",
+          "cost": -2,
+          "cost_range": null,
+          "cost_per_unit": null,
+          "unit_label": null,
+          "mechanic": "The machine has to stop and change shape for a whole page each time it switches between two of its movement modes, or spend a point of Resolve to do it as an action. Paying for this gives points back.",
+          "requires": [
+            "two or more of flight, running, submersible and swimming"
+          ],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 100
+        },
+        {
+          "id": "unique_systems",
+          "name": "Unique Systems",
+          "cost_type": "per_unit",
+          "cost": null,
+          "cost_range": null,
+          "cost_per_unit": 1,
+          "unit_label": "Hero Point of Abilities, Talents or Powers",
+          "mechanic": "Vehicle Points buy Abilities, Talents and Powers for the machine at the price a character would pay in Hero Points. A Power bought this way opens at zero dice even when it would normally come with a free baseline rank; the single exception is that a Mecha's Might is the baseline for Strike.",
+          "requires": [],
+          "restricted_to": null,
+          "constraint": null,
+          "printed_page": 100
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "One reading, and one thing the entries state about themselves.",
+        "cost_shapes": "Every feature's price is a number, a pair of graded numbers, or a rate per unit; none is left to the GM. Where the printed heading gives a range - Hidden Compartments at one or two points - the two grades are keyed by what the text says each buys.",
+        "negative_costs": "A feature with a negative cost lowers the vehicle's total, which the page states in as many words; nothing here floors that total, and no floor is printed."
+      },
+      "description": "Twenty-three things a vehicle can have, each with what it costs in Vehicle Points and what it does. Four of them are drawbacks and pay points back; one is free. A vehicle may take as many as it likes, and the list is offered as a pattern rather than as a closed set.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.96",
+      "ambiguity": "The chapter invites players to invent features using these as a guide and prints no rule for pricing an invented one."
+    }
+  ]
+}

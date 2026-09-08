@@ -53,24 +53,41 @@ public sealed class RulesSourceTests
 
     /// <summary>
     /// Files in <c>data/rules/</c> that <see cref="RulesRepository"/> deliberately does not load, so
-    /// the check below is a check and not a running total. <b>It is an allowlist of two and every
+    /// the check below is a check and not a running total. <b>It is an allowlist of five and every
     /// entry has to earn its place, because "the list has to match what is shipped" is the whole
     /// point of that check</b> — an exemption is how it stops being one.
     ///
-    /// <para><c>meta.json</c> is provenance rather than rules. <c>gear.json</c> is Chapter 6
-    /// pp.88–93, extracted before anything consumes it: the data is verified first and wired up
-    /// second, which is the order the 141 Powers were done in and the order that made them
-    /// trustworthy. <c>EquipmentDataTests</c> is what reads it meanwhile, and putting it on
-    /// <see cref="RulesRepository.DataFileNames"/> is a deliberate act by the slice that adds a
-    /// collection for it — at which point this entry comes out.</para>
+    /// <para><c>meta.json</c> is provenance rather than rules. The other four are Chapter 6 —
+    /// <c>gear.json</c> pp.88–93, and <c>gadgets.json</c>, <c>vehicles.json</c> and
+    /// <c>headquarters.json</c> pp.94–103 — extracted before anything consumes them: the data is
+    /// verified first and wired up second, which is the order the 141 Powers were done in and the
+    /// order that made them trustworthy. <c>EquipmentDataTests</c> and <c>Chapter6RulesDataTests</c>
+    /// read them meanwhile. Putting one on <see cref="RulesRepository.DataFileNames"/> makes every
+    /// browser fetch it before its first render, so it is a deliberate act by the slice that adds
+    /// a collection for it — at which point its entry comes out, and the guard below fails if only
+    /// one of the two happens.</para>
     /// </summary>
-    private static readonly string[] NotLoadedByTheRepository = ["meta.json", "gear.json"];
+    private static readonly string[] NotLoadedByTheRepository =
+        ["meta.json", "gear.json", "gadgets.json", "vehicles.json", "headquarters.json"];
 
     /// <summary>
     /// DataFileNames is the contract a self-loading host works from. If a rules file is
     /// added and not listed, a browser build silently fetches an incomplete rules set — so
-    /// the list has to match what is actually shipped, bar the two files above.
+    /// the list has to match what is actually shipped, bar the files named above.
     /// </summary>
+    /// <remarks>
+    /// <para><b>Two kinds of file are off the list on purpose, and each one is named rather than
+    /// filtered by a pattern.</b> <c>meta.json</c> is provenance rather than rules. The three
+    /// Chapter 6 files are <em>extracted but not yet consumed</em>: putting one on the contract
+    /// makes the browser fetch it before its first render, which is a decision about the payload
+    /// and belongs to the slice that teaches <c>CostCalculator</c> what a vehicle or a
+    /// headquarters costs — not to the slice that read the pages. <see cref="Chapter6RulesDataTests"/>
+    /// holds them to the rulebook meanwhile, which is what stops them being unread data.</para>
+    ///
+    /// <para><b>Each exclusion has to still exist</b>, or an exemption for something that is no
+    /// longer there sits here permitting a name for nothing — the shape this repository has been
+    /// bitten by in <c>TraitCapReadTests</c>.</para>
+    /// </remarks>
     [Fact]
     public void DataFileNamesListsEveryShippedRulesFile()
     {
