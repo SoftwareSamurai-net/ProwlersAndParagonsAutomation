@@ -8930,6 +8930,127 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>The three rules that read an attack rank read the capped one, and each is driven where it
+    /// would answer differently.</b>
+    ///
+    /// <para>"It is the rank and not the pool" is the argument the whole slice turns on: it is why
+    /// <c>CouldPenetrate</c> takes a rank instead of re-deriving one, and why the item block sits
+    /// <em>above</em> p.75's cover refusal. <b>None of it was guarded.</b> Reverting p.75's cover
+    /// test to the bare Trait rank, reverting p.78's all-out guard to it, and handing
+    /// <see cref="ResolvedAttack.AttackRank"/> the bare rank each left the whole suite green — three
+    /// separate mutations, no red — so the ordering the guide calls load-bearing was carrying
+    /// nothing a check could see.</para>
+    ///
+    /// <para><b>Every figure here is chosen so the two readings disagree</b>, which is the only way
+    /// this fixture is worth running: a 10d Might under a 6d limit swinging a +3d axe brings 9d to
+    /// bear, and every obstacle below is set at exactly 9 — so the capped rank does not get through
+    /// and the bare 10 would. The controls are the same attack with the same weapon against an
+    /// obstacle of 8, and the same attack with no weapon at all.</para>
+    /// </summary>
+    [Fact]
+    public void TheCappedRankIsWhatACoversStructureAndP78sGuardCompare()
+    {
+        var limit = TableRules.Book.GearLimit(_play);
+        var axe = Bonus("ancient_weapons", "Battle Axe");
+        var brought = limit + axe;
+
+        // The controls on the arithmetic: the capped figure really is below the bare Trait, or every
+        // "differs" below would be a comparison of one number with itself.
+        Assert.Equal(9, brought);
+        Assert.True(brought < 10);
+
+        // ── p.75's cover, which compares an attack rank with the obstacle's Structure ──
+        var blocked = Swing(might: 10, item: "a battle axe", structure: brought);
+
+        var refusal = Assert.Single(
+            blocked,
+            l => string.Equals(l.Rule, "modifier_cover", StringComparison.Ordinal)
+                 && l.Text.Contains("Nothing was rolled", StringComparison.Ordinal));
+
+        Assert.Contains($"at rank {brought}d", refusal.Text, StringComparison.Ordinal);
+
+        // The bare Trait would have gone through the same wall, and the same weapon goes through a
+        // wall one lower — so the refusal is the capped figure and not "an item was named".
+        Assert.DoesNotContain(
+            Swing(might: 10, item: null, structure: brought),
+            l => string.Equals(l.Rule, "modifier_cover", StringComparison.Ordinal)
+                 && l.Text.Contains("Nothing was rolled", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            Swing(might: 10, item: "a battle axe", structure: brought - 1),
+            l => string.Equals(l.Rule, "modifier_cover", StringComparison.Ordinal)
+                 && l.Text.Contains("Nothing was rolled", StringComparison.Ordinal));
+
+        // ── ResolvedAttack.AttackRank, which is what p.78's knockback throws a target by ──
+        Assert.Equal(brought, Struck("a battle axe", armour: brought).State.LastAttack!.AttackRank);
+        Assert.Equal(10, Struck(null, armour: brought).State.LastAttack!.AttackRank);
+
+        // ── p.78's guard on going all-out, which compares the same rank with the passive one ──
+        var guard = _play.GetCombat("going_all_out").AllOutAttack!
+            .OpponentsWhoCouldNotPenetrateYourPassiveDefense;
+
+        // 9d against a 9d passive is not greater than it, so the halving does not open it.
+        Assert.Contains(
+            Struck("a battle axe", armour: brought).Added,
+            l => string.Equals(l.Rule, "going_all_out", StringComparison.Ordinal)
+                 && l.Text.Contains(guard, StringComparison.Ordinal));
+
+        // The same swing bare-handed is 10d, which is greater — so the guard does not fire and the
+        // pair above is a statement about the cap rather than about a guard that always fires.
+        Assert.DoesNotContain(
+            Struck(null, armour: brought).Added,
+            l => string.Equals(l.Rule, "going_all_out", StringComparison.Ordinal)
+                 && l.Text.Contains(guard, StringComparison.Ordinal));
+    }
+
+    /// <summary>One swing at a target behind cover of <paramref name="structure"/>.</summary>
+    private IReadOnlyList<LedgerLine> Swing(int might, string? item, int structure)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = might, ["toughness"] = 3
+        };
+
+        var encounter = new Encounter(_play, new SeededDice(15));
+
+        var state = encounter.Begin([
+            Combatant.Hero("armed", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"]),
+            Combatant.Villain("target", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+        ]);
+
+        if (item is not null) state = state.With(state["armed"].Carrying(item));
+
+        return encounter.Step(state, new Attack(
+            "armed", "target", "might", Type: AttackType.MeleeWeapon, Cover: Cover.Light,
+            CoverStructure: structure, Item: item)).Added;
+    }
+
+    /// <summary>
+    /// One swing at somebody who has just gone all-out and whose passive defence is
+    /// <paramref name="armour"/>, so p.78's guard has something to bite on.
+    /// </summary>
+    private StepResult Struck(string? item, int armour)
+    {
+        var exposed = Combatant.Hero("armoured", "the armoured Hero", edge: 9, health: 30, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["armor"] = armour },
+            ["armor"]);
+
+        var attacker = Combatant.Villain("attacker", "the attacker", edge: 8, health: 30,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 10 }, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(12));
+        var state = encounter.Begin([exposed, attacker]);
+
+        if (item is not null) state = state.With(state["attacker"].Carrying(item));
+
+        state = encounter.Step(state, new Attack("armoured", "attacker", "might", AllOut: true)).State;
+        state = encounter.Step(state, new EndTurn("armoured")).State;
+
+        return encounter.Step(state, new Attack(
+            "attacker", "armoured", "might", Type: AttackType.MeleeWeapon, Item: item));
+    }
+
+    /// <summary>
     /// <b>A defender with a weapon in their hands keeps the Trait they had, and the ledger says
     /// that pp.87–88's defending half is what was not applied.</b>
     ///
