@@ -40,6 +40,29 @@ public static class CanonicalChapterSixRules
     public const int LastPageWithText = 103;
 
     /// <summary>
+    /// <b>The pages each file is allowed to cite</b>, which is the range its own header declares:
+    /// "this file is p.94 alone", "this file is pp.94-100", "this file is pp.100-103".
+    ///
+    /// <para>It is per file because the chapter-wide range is not enough. Checking a cited page
+    /// against pp.94-104 catches the two headings the chapter prints twice — WEAPONS on p.88 as
+    /// well as p.94, REINFORCED on p.93 as well as p.102 — because both duplicates are outside it.
+    /// It does not catch anything <em>inside</em> it: a <c>gadgets.json</c> entry moved to p.96 and
+    /// filed under STOCK VEHICLES passed the whole suite, because the heading really is on that
+    /// page and the page really is in the chapter. Each header's range then claims something
+    /// nothing checks, which is the shape of an entry that has drifted into the wrong file.</para>
+    ///
+    /// <para>p.100 is deliberately in two of the three: Vehicles' feature list ends on it and
+    /// HEADQUARTERS opens on it.</para>
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, (int First, int Last)> FilePageRanges =
+        new Dictionary<string, (int, int)>(StringComparer.Ordinal)
+        {
+            ["gadgets.json"]      = (94, 94),
+            ["vehicles.json"]     = (94, 100),
+            ["headquarters.json"] = (100, 103)
+        };
+
+    /// <summary>
     /// Every fact leaf of every scalar entry, keyed <c>entry_id.payload_key.field</c>. The comment
     /// above each group is the printed text it was taken from.
     ///

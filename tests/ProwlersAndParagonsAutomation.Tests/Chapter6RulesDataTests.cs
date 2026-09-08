@@ -361,6 +361,7 @@ public sealed class Chapter6RulesDataTests
         foreach (var (file, _) in Coverage)
         {
             using var document = JsonDocument.Parse(Raw(file));
+            var (first, last) = PageRanges[file];
 
             foreach (var entry in document.RootElement.GetProperty("entries").EnumerateArray())
             {
@@ -372,21 +373,51 @@ public sealed class Chapter6RulesDataTests
                     Regex.Match(sourceRef, @"\bp\.(\d+)\b").Groups[1].Value,
                     CultureInfo.InvariantCulture);
 
-                // Out of the chapter's range is its own fault line rather than an Assert.InRange,
-                // which reports the number and not the entry that cited it. It is also what stops
-                // a page change reaching a heading printed twice in the book: WEAPONS is on p.88
-                // as well as p.94, and p.88 is out of range.
-                if (page < CanonicalChapterSixRules.FirstPage || page > CanonicalChapterSixRules.LastPage)
-                    faults.Add(
-                        $"{file}/{id} cites p.{page}, outside the chapter's "
-                        + $"pp.{CanonicalChapterSixRules.FirstPage}-{CanonicalChapterSixRules.LastPage}");
+                // Out of range is its own fault line rather than an Assert.InRange, which reports
+                // the number and not the entry that cited it. The range is the file's own, not the
+                // chapter's: the chapter's range catches the two headings printed twice — WEAPONS
+                // on p.88 as well as p.94, REINFORCED on p.93 as well as p.102 — but nothing
+                // inside it, and a gadgets.json entry citing p.96 under STOCK VEHICLES passed the
+                // whole suite before this read the file's range instead.
+                if (page < first || page > last)
+                    faults.Add($"{file}/{id} cites p.{page}, outside that file's pp.{first}-{last}");
                 else if (!headings.Contains((page, under)))
                     faults.Add($"{file}/{id}: '{under}' is not a heading on p.{page}");
+
+                // The feature tables carry a page per row, and those are cited the same way — the
+                // entry above them names only the heading the table sits under.
+                if (!entry.TryGetProperty("features", out var features)) continue;
+
+                foreach (var row in features.EnumerateArray())
+                {
+                    var rowPage = row.GetProperty("printed_page").GetInt32();
+                    if (rowPage < first || rowPage > last)
+                        faults.Add(
+                            $"{file}/{id}/{row.GetProperty("id").GetString()} is printed on "
+                            + $"p.{rowPage}, outside that file's pp.{first}-{last}");
+                }
             }
         }
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));
+
+        // Every file is covered, and each range sits inside the chapter — a range that had grown
+        // to the chapter's own would pass every assertion above while checking nothing.
+        Assert.Equal(Coverage.Select(c => c.File).Order(), PageRanges.Keys.Order());
+
+        foreach (var (file, (first, last)) in PageRanges)
+        {
+            Assert.InRange(first, CanonicalChapterSixRules.FirstPage, CanonicalChapterSixRules.LastPageWithText);
+            Assert.InRange(last, first, CanonicalChapterSixRules.LastPageWithText);
+            Assert.True(
+                last - first < CanonicalChapterSixRules.LastPage - CanonicalChapterSixRules.FirstPage,
+                $"{file}'s range is the whole chapter, which is not a narrower check than the one "
+                + "this replaced.");
+        }
     }
+
+    private static IReadOnlyDictionary<string, (int First, int Last)> PageRanges =>
+        CanonicalChapterSixRules.FilePageRanges;
 
     /// <summary>
     /// <b>The chapter's last page carries no text, and the headers say so</b> — the same statement
