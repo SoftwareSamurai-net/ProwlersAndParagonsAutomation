@@ -6,7 +6,7 @@ using ProwlersAndParagonsAutomation.Play.Rules.Models;
 namespace ProwlersAndParagonsAutomation.Play.Rules;
 
 /// <summary>
-/// Loads and caches the five <c>data/rules/play</c> files — the play rules, which resolve an
+/// Loads and caches the six <c>data/rules/play</c> files — the play rules, which resolve an
 /// action, as opposed to the character rules <see cref="RulesRepository"/> answers about cost and
 /// validity.
 ///
@@ -26,7 +26,7 @@ namespace ProwlersAndParagonsAutomation.Play.Rules;
 ///
 /// <para><b>Lenient at runtime, strict in a test.</b> This deserializer ignores a field no model
 /// reads, so a data edit cannot take a host down; <c>PlayRulesFileCoverageTests</c> re-reads the
-/// same five files with <c>JsonUnmappedMemberHandling.Disallow</c> and fails naming the field. That
+/// same six files with <c>JsonUnmappedMemberHandling.Disallow</c> and fails naming the field. That
 /// is the shape <see cref="RulesRepository"/> and <c>RulesFileCoverageTests</c> already use, and it
 /// exists because unread data reads as a source of truth and is not one.</para>
 /// </summary>
@@ -55,6 +55,9 @@ public sealed class PlayRulesRepository
     /// <inheritdoc cref="PlayMetaFile"/>
     public const string ResolveFile = "resolve.json";
 
+    /// <inheritdoc cref="PlayMetaFile"/>
+    public const string EquipmentFile = "equipment.json";
+
     /// <summary>
     /// Every play rules file a self-loading host must supply. <b>Deliberately not
     /// <see cref="RulesRepository.DataFileNames"/> and never merged into it</b>: that list is what a
@@ -62,7 +65,7 @@ public sealed class PlayRulesRepository
     /// for.
     /// </summary>
     public static IReadOnlyList<string> DataFileNames { get; } =
-        [PlayMetaFile, ChallengeFile, CombatFile, GrittyFile, ResolveFile];
+        [PlayMetaFile, ChallengeFile, CombatFile, GrittyFile, ResolveFile, EquipmentFile];
 
     private readonly IRulesSource _source;
 
@@ -71,12 +74,14 @@ public sealed class PlayRulesRepository
     private PlayFile<CombatEntry>? _combat;
     private PlayFile<GrittyEntry>? _gritty;
     private PlayFile<ResolveEntry>? _resolve;
+    private PlayFile<EquipmentEntry>? _equipment;
 
     private Dictionary<string, PlayMetaEntry>? _metaMap;
     private Dictionary<string, ChallengeEntry>? _challengeMap;
     private Dictionary<string, CombatEntry>? _combatMap;
     private Dictionary<string, GrittyEntry>? _grittyMap;
     private Dictionary<string, ResolveEntry>? _resolveMap;
+    private Dictionary<string, EquipmentEntry>? _equipmentMap;
 
     /// <summary>Reads the play rules from an arbitrary source — a directory, memory, anywhere.</summary>
     public PlayRulesRepository(IRulesSource source) => _source = source;
@@ -95,6 +100,17 @@ public sealed class PlayRulesRepository
 
     /// <summary>Chapter 5 Resolve and Adversity, pp.83–85.</summary>
     public PlayFile<ResolveEntry> Resolve => _resolve ??= Load<ResolveEntry>(ResolveFile);
+
+    /// <summary>
+    /// Chapter 6 Equipment, pp.87–90 — the Gear Limit and the three weapons tables.
+    ///
+    /// <para><b>It is the one file here that is not from the play block</b>, and it is here because
+    /// <c>gritty_raised_gear_limit</c> points at Chapter 6 for the detail and transcribes none of
+    /// it. A fight that caps an attack made with a held item needs both halves: the ceiling, and
+    /// the bonus the item adds to it. <c>play/</c> may not read <c>data/rules/*.json</c>, so a
+    /// figure Chapter 6 prints has to be here or nowhere.</para>
+    /// </summary>
+    public PlayFile<EquipmentEntry> Equipment => _equipment ??= Load<EquipmentEntry>(EquipmentFile);
 
     /// <summary>
     /// One entry by id, or a throw naming the file and the id.
@@ -123,6 +139,10 @@ public sealed class PlayRulesRepository
     public ResolveEntry GetResolve(string id) =>
         Get(_resolveMap ??= Resolve.Entries.ToDictionary(e => e.Id, StringComparer.Ordinal), id, ResolveFile);
 
+    /// <inheritdoc cref="GetMeta"/>
+    public EquipmentEntry GetEquipment(string id) =>
+        Get(_equipmentMap ??= Equipment.Entries.ToDictionary(e => e.Id, StringComparer.Ordinal), id, EquipmentFile);
+
     /// <summary>
     /// Every entry id in the store, with the file it is in — what a table-settings check needs to
     /// prove a switch names a rule the book actually prints.
@@ -132,7 +152,8 @@ public sealed class PlayRulesRepository
             .Concat(Challenge.Entries.Select(e => (ChallengeFile, e.Id)))
             .Concat(Combat.Entries.Select(e => (CombatFile, e.Id)))
             .Concat(Gritty.Entries.Select(e => (GrittyFile, e.Id)))
-            .Concat(Resolve.Entries.Select(e => (ResolveFile, e.Id)));
+            .Concat(Resolve.Entries.Select(e => (ResolveFile, e.Id)))
+            .Concat(Equipment.Entries.Select(e => (EquipmentFile, e.Id)));
 
     private static T Get<T>(Dictionary<string, T> map, string id, string fileName) =>
         map.TryGetValue(id, out var entry)

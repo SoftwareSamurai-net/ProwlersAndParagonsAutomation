@@ -63,19 +63,25 @@ public sealed partial class Encounter
     public SuccessCounter Counter => _counter;
 
     /// <summary>
-    /// The switches this slice records but does not yet apply, by their <see cref="TableRules"/>
+    /// The switches this engine records but does not yet apply, by their <see cref="TableRules"/>
     /// name.
     ///
     /// <para><b>They are listed rather than left silent</b>, and <see cref="Begin"/> writes a ledger
     /// line for each one that is on. A table setting that is accepted and quietly ignored is the
     /// worst of the three possible behaviours: the run reports the setting, the numbers do not
     /// carry it, and nothing says so.</para>
+    ///
+    /// <para><b>It is empty, and the field is kept rather than deleted</b>, exactly as
+    /// <see cref="EntriesNotYetApplied"/> is. <c>RaisedGearLimit</c> and <c>GearLimitRank</c> were
+    /// the last two on it: p.80 gave a fight the ceiling and Chapter 6 had never been extracted, so
+    /// there was no Weapon Bonus for it to bite on and no equipment in a fight to bite it. Both
+    /// halves exist now — <c>equipment.json</c> and <see cref="Attack.Item"/> — and
+    /// <c>Encounter.GearLimited</c> applies them. What the field is worth empty is the guard around
+    /// it: <c>PlayEngineStepTests</c> requires this set, <c>docs/guide/play-engine.md</c> and
+    /// <c>mcp-play/PLAY-POLICY.md</c> to agree in all directions, empty included.</para>
     /// </summary>
-    public static IReadOnlySet<string> SwitchesNotYetApplied { get; } = new HashSet<string>(StringComparer.Ordinal)
-    {
-        nameof(TableRules.RaisedGearLimit),
-        nameof(TableRules.GearLimitRank)
-    };
+    public static IReadOnlySet<string> SwitchesNotYetApplied { get; } =
+        new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>
     /// Every entry of <c>data/rules/play</c> this slice knows about and does not apply, by id.

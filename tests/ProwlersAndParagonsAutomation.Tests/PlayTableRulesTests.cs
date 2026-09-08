@@ -116,10 +116,10 @@ public sealed class PlayTableRulesTests
     /// the only check here that two transcriptions cannot both pass by agreeing with each other.
     /// </para>
     ///
-    /// <para>It is worth pinning even though the switch is not applied — see
-    /// <c>docs/guide/play-engine.md</c> for why it cannot be. The figure this fixture drives is the
-    /// one thing about the rule the engine <em>does</em> compute, and a default that had drifted
-    /// would build a sword the page does not print.</para>
+    /// <para>It pins the arithmetic p.80 states; that the fight engine now performs it on a held
+    /// weapon is <c>PlayEngineStepTests.AnAttackWithAHeldWeaponIsCappedAndTheWeaponsBonusIsAdded</c>,
+    /// and that Chapter 6's own tables give the sword the same two dice is
+    /// <c>PlayRulesDataTests.TheTwoChaptersThatPrintTheGearLimitAgreeAboutIt</c>.</para>
     /// </summary>
     [Fact]
     public void TheSwordOnPageEightyReachesTheRankTheExampleWorksThrough()
@@ -135,8 +135,7 @@ public sealed class PlayTableRulesTests
 
         Assert.Equal(entry.WorkedExampleMaximumEffectiveRankAtTheDefaultLimit, reach);
 
-        // And a table that raised the limit reaches further, which is what the switch would buy if
-        // anything here could hold a sword.
+        // And a table that raised the limit reaches further, which is what the switch buys.
         var raised = TableRules.Book with { RaisedGearLimit = true, GearLimitRank = entry.RaisedOptions[0] };
 
         Assert.True(
@@ -145,26 +144,28 @@ public sealed class PlayTableRulesTests
     }
 
     /// <summary>
-    /// <b>A switch that is on but not yet applied says so on the ledger, on the first page.</b>
+    /// <b>Every switch that is on is announced on the first page, and none of them is announced as
+    /// declined.</b>
     ///
     /// <para>A setting accepted and quietly ignored is the worst of the three possible behaviours: a
     /// report would print the setting, the numbers would not carry it, and nothing would say so. So
-    /// every switch is announced when the fight opens, and the ones this slice does not apply are
+    /// every switch is announced when the fight opens, and one this engine does not apply would be
     /// announced differently.</para>
     ///
-    /// <para><b>The unapplied one is the Gear Limit</b>, deliberately: it is the switch this engine
-    /// cannot apply <em>at all</em> — a fight here has no equipment in it, so there is no Trait
-    /// brought to bear through gear for a limit to cap — where every other member of that list is
-    /// one a later slice may take off it and leave this fixture asserting something no longer true.
-    /// </para>
+    /// <para><b>The Gear Limit was the last switch on that list and is applied now</b>, so this
+    /// fixture drives it as an applied setting rather than as a declined one — with
+    /// <see cref="Encounter.SwitchesNotYetApplied"/> asserted empty beside it, because "nothing is
+    /// announced as declined" is a different claim from "nothing is on the list", and the guard is
+    /// worth having only while both are checked.</para>
     /// </summary>
     [Fact]
-    public void ASwitchThatIsOnButNotYetAppliedIsAnnouncedAsSuch()
+    public void EverySwitchThatIsOnIsAnnouncedAndNoneIsDeclined()
     {
         var table = TableRules.Book with
         {
-            ToughMinions = true,     // applied
-            RaisedGearLimit = true   // recorded, not yet applied
+            ToughMinions = true,
+            RaisedGearLimit = true,
+            GearLimitRank = 9
         };
 
         var encounter = new Encounter(_play, new SeededDice(11), table);
@@ -175,15 +176,26 @@ public sealed class PlayTableRulesTests
             Combatant.Minions("minions", "the Minions", threat: 4, groupSize: 3, "threat")
         ]);
 
-        var applied = Assert.Single(state.Ledger.Lines,
-            l => string.Equals(l.Rule, "gritty_tough_minions", StringComparison.Ordinal));
-        Assert.DoesNotContain("not yet implemented", applied.Text, StringComparison.Ordinal);
+        // The control: the fixture really did turn settings on, so the loop below is over something.
+        Assert.Equal(3, table.On().Count);
 
-        var pending = Assert.Single(state.Ledger.Lines,
-            l => string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal));
-        Assert.Contains("not yet implemented", pending.Text, StringComparison.Ordinal);
+        foreach (var name in table.On())
+        {
+            var announcement = Assert.Single(state.Ledger.Lines,
+                l => l.Text.StartsWith($"table setting {name} is on", StringComparison.Ordinal));
 
-        // The list of unapplied switches is a real subset of the settings, not a stale name list.
+            Assert.DoesNotContain("not yet implemented", announcement.Text, StringComparison.Ordinal);
+        }
+
+        // The Gear Limit's own entry is cited by both of its switches, which is the pair that used
+        // to be the one thing on this list.
+        Assert.Equal(2, state.Ledger.Lines.Count(
+            l => string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal)));
+
+        Assert.Empty(Encounter.SwitchesNotYetApplied);
+
+        // And the list, were it not empty, would still be a real subset of the settings rather than
+        // a stale name list.
         Assert.All(Encounter.SwitchesNotYetApplied, name =>
             Assert.Contains(TableRules.Switches, s => string.Equals(s.Name, name, StringComparison.Ordinal)));
     }

@@ -1903,6 +1903,69 @@ public sealed class McpPlayServerTests
                 answer["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
         });
 
+    /// <summary>
+    /// <b>The Gear Limit in force rides back inside <c>table</c>, as a figure.</b>
+    ///
+    /// <para>It is the one table setting that is a number rather than a flag, and the two switches
+    /// beside it say only that a rank was set and what it was — not what an attack made with a held
+    /// item is actually capped at, which is what a reader of a rate needs. p.80 offers the switch
+    /// and p.87 is the ceiling; <c>TableRules.GearLimit</c> is where the two are composed, and this
+    /// is the one place a caller can read the answer without running a fight.</para>
+    ///
+    /// <para>Both sides are driven, and the raised answer is compared with the default one rather
+    /// than with a number written here — so an echo that had stopped reading the campaign's rank
+    /// fails as loudly as one that echoed the wrong figure.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheTableEchoCarriesTheGearLimitInForce() =>
+        await WithClient(async client =>
+        {
+            var book = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides()
+            });
+
+            var byTheBook = book["table"]!["gear_limit"]!.AsObject();
+
+            Assert.Equal(TableRules.Book.GearLimit(_play), byTheBook["rank"]!.GetValue<int>());
+            Assert.False(byTheBook["raised"]!.GetValue<bool>());
+            Assert.Contains("default_rank", byTheBook["source"]!.GetValue<string>(), StringComparison.Ordinal);
+
+            var raised = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject
+                {
+                    ["raised_gear_limit"] = true,
+                    ["gear_limit_rank"] = 9
+                }
+            });
+
+            var lifted = raised["table"]!["gear_limit"]!.AsObject();
+
+            Assert.Equal(9, lifted["rank"]!.GetValue<int>());
+            Assert.True(lifted["raised"]!.GetValue<bool>());
+            Assert.Contains("campaign", lifted["source"]!.GetValue<string>(), StringComparison.Ordinal);
+
+            // The control: the two answers really do differ, so "the rank crossed" is a fact about
+            // this echo rather than about a figure that is the same either way.
+            Assert.NotEqual(byTheBook["rank"]!.GetValue<int>(), lifted["rank"]!.GetValue<int>());
+
+            // And a rank the table has not adopted changes nothing, which is the judgement
+            // TableRules.GearLimit makes and the echo reports rather than repeats.
+            var stored = await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["table"] = new JsonObject { ["gear_limit_rank"] = 9 }
+            });
+
+            Assert.Equal(
+                TableRules.Book.GearLimit(_play),
+                stored["table"]!["gear_limit"]!["rank"]!.GetValue<int>());
+
+            Assert.Equal(9, stored["table"]!["gear_limit_rank"]!.GetValue<int>());
+        });
+
     // ── Measuring ─────────────────────────────────────────────────────────
 
     /// <summary>

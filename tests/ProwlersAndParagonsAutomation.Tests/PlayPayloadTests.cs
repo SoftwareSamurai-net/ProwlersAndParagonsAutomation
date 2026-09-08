@@ -136,8 +136,9 @@ public sealed class PlayPayloadTests
             + string.Join(", ", swept.Select(Path.GetFileName)));
 
         // The other direction: the play files exist, and exist where this test thinks they do.
-        var play = everything.Where(IsUnderPlay).Select(Path.GetFileName).Order().ToList();
-        Assert.Equal(["challenge.json", "combat.json", "gritty.json", "play_meta.json", "resolve.json"], play);
+        var play = everything.Where(IsUnderPlay).Select(Path.GetFileName).OfType<string>()
+            .Order(StringComparer.Ordinal).ToList();
+        Assert.Equal(PlayFileNames.Order(StringComparer.Ordinal).ToList(), play);
 
         // <b>And by name as well as by path, which the path check alone misses.</b> Found by
         // mutation: copying data/rules/play/challenge.json up one level leaves it outside the
@@ -204,7 +205,8 @@ public sealed class PlayPayloadTests
     /// is the whole failure, and which a path check alone misses.
     /// </summary>
     private static readonly string[] PlayFileNames =
-        ["challenge.json", "combat.json", "gritty.json", "play_meta.json", "resolve.json"];
+        ["challenge.json", "combat.json", "equipment.json", "gritty.json", "play_meta.json",
+         "resolve.json"];
 
     private static bool IsUnderPlay(string path) =>
         Path.GetFullPath(path).StartsWith(
