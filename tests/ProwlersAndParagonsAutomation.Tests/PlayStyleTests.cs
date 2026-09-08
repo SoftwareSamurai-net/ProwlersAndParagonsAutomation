@@ -143,6 +143,41 @@ public sealed class PlayStyleTests
         Assert.Equal(0, level);
     }
 
+    /// <summary>
+    /// <b>And <c>standard</c>'s other rule fires too: a point spent against it on the previous page
+    /// is answered with a reroll.</b>
+    ///
+    /// <para><b>This is a second fixture because the two rules cost the same currency and the counts
+    /// alone cannot tell them apart.</b> The seize is what moves first — nobody has spent anything
+    /// on page one — so a report showing Resolve leaving a pool is consistent with the response rule
+    /// never having fired at all, which would make it a branch nothing reaches. Counted by its own
+    /// entry, <c>spend_reroll_challenge_roll</c>, with the level-Edged fight as the control: there
+    /// nobody is out-Edged, so nobody moves first, so nothing is ever answered.</para>
+    /// </summary>
+    [Fact]
+    public void StandardAnswersAPointSpentAgainstItWithOneOfItsOwn()
+    {
+        var answered = 0;
+        var unprovoked = 0;
+
+        foreach (var seed in Hundred)
+        {
+            answered += DiceOrReroll(RunOne(new Standard(_play), OutEdged(), seed));
+            unprovoked += DiceOrReroll(RunOne(new Standard(_play), LevelEdges(), seed));
+        }
+
+        Assert.True(answered > 0,
+            "a hundred fights in which one side seizes on page one produced no reroll in answer, so "
+            + "standard's second rule is a branch nothing reaches.");
+
+        Assert.Equal(0, unprovoked);
+    }
+
+    private static int DiceOrReroll(EncounterState state) =>
+        state.Ledger.Lines.Count(l =>
+            string.Equals(l.Rule, "spend_reroll_challenge_roll", StringComparison.Ordinal)
+            && LedgerReading.IsAPurchase(l, state[l.Actor].Name));
+
     // ── min-max ───────────────────────────────────────────────────────────
 
     /// <summary>
