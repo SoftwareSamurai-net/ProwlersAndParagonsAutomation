@@ -92,7 +92,10 @@ ProwlersAndParagonsAutomation/
 │   ├── cons.json                 # 28 Power Cons
 │   ├── flaws.json                # 53 flaws
 │   ├── perks.json                # 13 perks
-│   ├── gear_features.json        # 12 custom gear features (Ch.6)
+│   ├── gear_features.json        # 12 custom gear features (Ch.6 p.93)
+│   ├── gear.json                 # Ch.6 pp.88–93: armour, shields, the weapon-features
+│   │                             #   glossary, the equipment list, custom gear. Nothing
+│   │                             #   loads it yet — see docs/guide/rules-engine.md
 │   └── sources.json              # 6 Sources and the default rank each supplies
 │
 ├── data/transcripts/             # Four recorded conversations the browser replays — characters, never totals

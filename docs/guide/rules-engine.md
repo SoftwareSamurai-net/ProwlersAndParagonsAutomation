@@ -166,11 +166,92 @@ Abilities can carry them too, not just Powers — `CharacterSheet.AbilityModifie
 
 Ch.6: mundane gear is free and **explicitly not tracked**, so `ChooseGearStep` taking free text with no HP cost is correct — do not "fix" it. A Gear Limit caps the Trait rank usable with mundane gear (6d default); it is not a budget. Signature equipment is a Power with the Item Con.
 
+The rest of Chapter 6 is now extracted beside that as `data/rules/gear.json`, which nothing loads yet — see the section on it below for the armour table, the shields rule, the weapon-features glossary and the copy rule the three weapons tables live under.
+
 Custom *features* on mundane gear do cost HP: twelve of them at 1–2 HP each in `gear_features.json`, ten flat and two graded, plus ordinary Pros and Cons on the item. `CostCalculator.GearCost` prices one item and `TotalGearCost` feeds `TotalCost`. Three things about gear differ from Powers:
 
 - **Gear floors at 0 HP, not 1.** "Regardless of Cons, no piece of gear can cost less than 0 Hero Points." Cons discount an item to free and stop.
 - **The Item Con is not credited.** Ch.6 says every piece of gear has it, which is a statement of what gear *is*, not a discount to claim — and Item is absent from the same page's list of Cons commonly applied to gear. Crediting it would make every 1 HP feature free.
 - **Two-Fisted customises a matched pair for one price.** A pair is one `SelectedGear` with `PairedUnderTwoFisted` set, so it is charged once by construction; the validator checks the Power is actually there.
+
+
+## `data/rules/gear.json` — Chapter 6's equipment, extracted and not yet read
+
+**Nothing in the application loads it, and that is the state on purpose.** It is off
+`RulesRepository.DataFileNames`, so no self-loading host fetches it and `RulesRepository` exposes no
+collection for it; `EquipmentDataTests` is the only thing that reads it. The data is verified first
+and consumed second, which is the order the 141 Powers were done in and the order that made them
+trustworthy. Wiring it up — and deciding what the Gear step does with an armour row — is a later
+slice's decision, and it is one line on that list plus a row in `RulesFileCoverageTests`, at which
+point the file also comes off `RulesSourceTests.NotLoadedByTheRepository`.
+
+**What is in it** is Chapter 6 pp.88–93: the rule that a worn suit grants the Armor Power at
+Toughness plus its bonus, the nine-row armour table, Bulky and Rigid, shields, the eighteen-entry
+Weapon Features glossary, p.91's thirty-six mundane items with the rule that none of them is bought,
+p.92's Custom Gear rule, and p.93's Pros and Cons on gear. **p.93's twelve priced custom features are
+not in it** — they have been `gear_features.json` since the custom-gear slice, and a test now reads
+p.93's own headings out of the corpus and requires each to resolve to one of the twelve, which is the
+check that says the twelve are all of them.
+
+**It is called `gear.json` and not `equipment.json` because that name was taken.** The play store's
+file is `data/rules/play/equipment.json`, and `PlayPayloadTests` refuses any file in `data/rules/`
+whose *basename* matches one under `play/` — by name as well as by path, because a play file copied
+up one level is outside the directory and inside every host's glob. That guard is right and the
+collision was the new file's fault. `gear` is the book's own word for mundane kit, and it puts the
+file beside `gear_features.json`.
+
+### The three weapons tables are stored twice, and a test holds the copies equal
+
+This is the one thing here that looks like a mistake and is not. `data/rules/play/equipment.json`
+carries the sixty-three ancient, modern and advanced rows, derived from the corpus and checked there.
+**Neither store can read the other**: `engine/` may not reach into `data/rules/play/` (no glob
+descends into it, it is off `DataFileNames`, and `PlayPayloadTests` refuses both routes), and
+`play/` may not reach out to `data/rules/`. A fight needs a weapon's dice and so does a character
+sheet, so the rows are **copied byte for byte** into `gear.json` and
+`EquipmentDataTests.TheWeaponTablesAreACopyOfThePlayStoresAndAreHeldEqualToIt` compares them as
+serialized JSON — as serialized JSON rather than field by field, so a field added to one copy and not
+the other fails too.
+
+**Edit both in the same commit or the guard goes red**, and do not reconcile a difference by editing
+whichever copy is easier to reach. This repository already holds two copies of one truth this way —
+`TranscriptLibrary`'s bake into `worker/transcripts-corpus.js`, and `worker/corpus.js` — and the test
+between them is what makes it honest rather than a duplication to tidy away.
+
+### Two disagreements between p.93 and `CostCalculator`, recorded and not repaired
+
+Both are tests in `EquipmentDataTests` asserting what the engine does **today**, so a slice that
+decides either question has to come here and change one. Neither is a bug report with an obvious fix;
+the page is silent on both.
+
+- **Overkill and Weak are named as commonly applied to gear and are worth nothing on it.** Ch.2
+  defines both as a change to a Power's cost *per rank*, gear has no rank, and
+  `CostCalculator.ResolveConCost` returns 0 for either before it looks anything up. So a player who
+  writes one on an item has bought a Con that costs and discounts nothing.
+- **The Item Con is credited when a host records it.** `GearCost`'s own comment says it "is not
+  charged or credited here", and that is true only of what the engine *adds* — nothing puts Item on
+  an item automatically. p.93 says every physical object has it; an item that records the Con is
+  discounted by `cons.json`'s −1 like any other, so a 1 HP feature comes out free. That is precisely
+  the outcome the comment gives as the reason not to credit it, so the comment and the code disagree
+  about what "not credited" means.
+
+### The discipline is the play store's, applied to a creation-side file
+
+`verified_fields` from a closed list declared in the file's own header and always including
+`description`; a `source_ref` naming a page in Chapter 6; a `printed_under` checked against the
+heading the corpus found on that page; `ambiguity` for the book's silence and `interpretation` for
+this project's reading, never a fact field for either. Descriptions are original text — a test fails
+any run of ten consecutive words shared with `data/rulebook/ch06-equipment.json`. And
+`EveryFactFieldOfEveryEntryIsComparedAgainstTheRulebook` walks the models by reflection so a field
+added to the data cannot quietly go unchecked, with a positive control on the walk (159 leaves today)
+and a negative control that feeds an unregistered field to the same classifier and requires it to be
+reported.
+
+**Three tables are derived rather than transcribed**, because a second transcription is a second
+thing to disagree with the first: the nine armour rows and the thirty-six equipment items are parsed
+out of the corpus, and the weapons rows come from the play copy. Each parse has a closed vocabulary,
+has to tile with nothing following the last row, and is driven one row past the end and required to
+throw. What *is* transcribed beside them is each table's row count and one anchor row — a derivation
+cannot notice a table that has lost half of itself when the expectation lost the same half.
 
 
 ## Super Senses is one Power
