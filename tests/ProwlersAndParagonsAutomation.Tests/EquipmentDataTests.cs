@@ -626,8 +626,8 @@ public sealed class EquipmentDataTests
 
         // Positive controls on the split: there are some of each, and no item claims to be both.
         Assert.Equal(2, breaking.Count);
-        Assert.Equal(1, using_.Count);
-        Assert.Empty(items.Where(i => i.BreakThreshold is not null && i.UseThreshold is not null));
+        Assert.Single(using_);
+        Assert.DoesNotContain(items, i => i.BreakThreshold is not null && i.UseThreshold is not null);
 
         var faults = new List<string>();
 
