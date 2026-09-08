@@ -190,4 +190,157 @@ public sealed class GearFormatterTests
 
         Assert.Equal("Silenced pistol (Silenced) — 1 HP", Describe(gear));
     }
+
+    // ── Chapter 6's catalogue ────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>A catalogue row prints the columns the book prints beside its name, and no price.</b>
+    /// p.91 says mundane gear is not bought, so a "— 0 HP" beside a battle axe would be a charge
+    /// the book does not make.
+    /// </summary>
+    [Fact]
+    public void ACatalogueWeaponPrintsItsBonusAndFeaturesAndNoPrice()
+    {
+        var axe = new SelectedGear("Battle Axe")
+        {
+            CatalogueId = GearCatalogue.WeaponPrefix + "battle_axe"
+        };
+
+        Assert.Equal("Battle Axe +3 (Two-Handed)", Describe(axe));
+    }
+
+    /// <summary>
+    /// <b>The printed "(s)" travels with the bonus</b>, because the two are one column: it says
+    /// the weapon knocks down rather than wounds, which is a fact about the three dice.
+    /// </summary>
+    [Fact]
+    public void ASubdualWeaponPrintsTheMarkBesideItsBonus()
+    {
+        var baton = new SelectedGear("Baton") { CatalogueId = GearCatalogue.WeaponPrefix + "baton" };
+
+        Assert.Equal("Baton +1(s) (Thrown)", Describe(baton));
+    }
+
+    /// <summary>
+    /// <b>A shield's line says what the defensive die is for.</b> The weapons table prints only
+    /// the half you get by swinging it; p.88's rule is the half it is mostly carried for, and the
+    /// figure is read off the shield rule rather than written into this formatter.
+    /// </summary>
+    [Fact]
+    public void AShieldPrintsTheDieItAddsToEveryDefence()
+    {
+        var shield = new SelectedGear("Shield") { CatalogueId = GearCatalogue.WeaponPrefix + "shield" };
+
+        Assert.Equal("Shield +1(s) (Shield +1d defence)", Describe(shield));
+    }
+
+    /// <summary>
+    /// <b>A zero bonus is printed and a missing one is not</b>, because the two say different
+    /// things: p.88's Armor table prints 0 for Leather, and one weapons row has no bonus column at
+    /// all. Suppressing the zero would make the two look alike on a sheet.
+    /// </summary>
+    [Fact]
+    public void AZeroBonusIsPrintedWhereTheBookPrintsOne()
+    {
+        var leather = new SelectedGear("Leather")
+        {
+            CatalogueId = GearCatalogue.ArmorPrefix + "ancient_leather"
+        };
+
+        Assert.Equal("Leather +0", Describe(leather));
+
+        // And the row above it, which does carry a figure and a feature.
+        var plate = new SelectedGear("Plate") { CatalogueId = GearCatalogue.ArmorPrefix + "ancient_plate" };
+
+        Assert.Equal("Plate +2 (Rigid)", Describe(plate));
+    }
+
+    /// <summary>
+    /// <b>A catalogue row that is also customised prints both, and then the price.</b> The row's
+    /// own features come first because the book prints them beside the name; what the character
+    /// bought follows.
+    /// </summary>
+    [Fact]
+    public void ACustomisedCatalogueRowPrintsThePrintedFeaturesThenTheBoughtOnes()
+    {
+        var axe = new SelectedGear("Battle Axe")
+        {
+            CatalogueId = GearCatalogue.WeaponPrefix + "battle_axe",
+            Features = [new("upgraded")]
+        };
+
+        Assert.Equal("Battle Axe +3 (Two-Handed, Upgraded) — 2 HP", Describe(axe));
+    }
+
+    /// <summary>
+    /// <b>An id that resolves to nothing prints the bare name.</b> Inventing a bonus for an unknown
+    /// row would be the repair this engine does not make; <c>CharacterValidator</c> reports it as
+    /// <c>UNKNOWN_GEAR_CATALOGUE_ROW</c> instead.
+    /// </summary>
+    [Fact]
+    public void AnUnknownRowPrintsTheNameAndNoFigures()
+    {
+        var axe = new SelectedGear("Battle Axe")
+        {
+            CatalogueId = GearCatalogue.WeaponPrefix + "battel_axe"
+        };
+
+        Assert.Equal("Battle Axe", Describe(axe));
+    }
+
+    // ── And the same line, in the sheet the exports print ────────────────────
+
+    /// <summary>
+    /// <b>The <c>.txt</c> sheet prints the catalogue line, and the worn Armor rank in the derived
+    /// block.</b>
+    ///
+    /// <para><b>Two blocks and not one, deliberately.</b> The bonus and the features are facts about
+    /// the object and belong beside its name; the Armor rank is a fact about the <em>wearer</em> —
+    /// their Toughness under the Gear Limit, plus the suit's bonus — and belongs where the other
+    /// figures computed from the whole character are. This is the guard on that split: the two
+    /// halves are asserted in the two places they are supposed to be.</para>
+    /// </summary>
+    [Fact]
+    public void TheTextSheetPrintsTheRowsColumnsAndTheWornArmorRank()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.AbilityRanks["toughness"] = 10;
+        sheet.Gear.Add(new SelectedGear("Plate") { CatalogueId = GearCatalogue.ArmorPrefix + "ancient_plate" });
+        sheet.Gear.Add(new SelectedGear("Battle Axe") { CatalogueId = GearCatalogue.WeaponPrefix + "battle_axe" });
+
+        var text = CharacterSheetRenderer.RenderText(
+            sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), new DateTime(2026, 9, 9));
+
+        var gear = Section(text, "GEAR");
+        var derived = Section(text, "DERIVED STATS");
+
+        Assert.Contains("Plate +2 (Rigid)", gear, StringComparison.Ordinal);
+        Assert.Contains("Battle Axe +3 (Two-Handed)", gear, StringComparison.Ordinal);
+
+        // Neither block borrows the other's business.
+        Assert.DoesNotContain("Armor", gear, StringComparison.Ordinal);
+        Assert.Contains("Armor:   8d (worn, under the Gear Limit)", derived, StringComparison.Ordinal);
+
+        // And a character in no armour has no such line, rather than one reading zero.
+        var bare = _f.LegalSheet();
+
+        Assert.DoesNotContain("Armor:", Section(
+            CharacterSheetRenderer.RenderText(
+                bare, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(bare), new DateTime(2026, 9, 9)),
+            "DERIVED STATS"),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>One block of the text sheet, from its heading to the next blank-line break.</summary>
+    private static string Section(string text, string heading)
+    {
+        var lines = text.Split('\n');
+        var start = Array.FindIndex(lines, l => l.Contains(heading, StringComparison.Ordinal));
+
+        Assert.True(start >= 0, $"the sheet has no {heading} block at all, so this test reads nothing");
+
+        var length = Array.FindIndex(lines, start + 1, string.IsNullOrWhiteSpace) - start;
+
+        return string.Join('\n', lines.Skip(start).Take(length < 0 ? lines.Length - start : length));
+    }
 }
