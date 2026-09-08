@@ -32,6 +32,7 @@ public sealed class RulesRepository
     private IReadOnlyList<GearFeatureModel>? _gearFeatures;
     private IReadOnlyList<SourceModel>? _sources;
     private CreationRulesModel? _creationRules;
+    private EquipmentDataModel? _equipment;
 
     // Lookup dictionaries (built on first use)
     private Dictionary<string, TierModel>? _tierMap;
@@ -53,7 +54,8 @@ public sealed class RulesRepository
     [
         "tiers.json", "abilities.json", "talents.json", "powers.json",
         "pros.json", "cons.json", "flaws.json", "perks.json",
-        "gear_features.json", "sources.json", "creation_rules.json"
+        "gear_features.json", "sources.json", "creation_rules.json",
+        "gear.json"
     ];
 
     /// <summary>Reads the rules from an arbitrary source — a directory, memory, anywhere.</summary>
@@ -112,6 +114,17 @@ public sealed class RulesRepository
 
     public CreationRulesModel CreationRules =>
         _creationRules ??= Load<CreationRulesModel>("creation_rules.json");
+
+    /// <summary>
+    /// Chapter 6's equipment, pp.88-93: the armour table, shields, the Weapon Features
+    /// glossary, the three weapons tables and p.91's thirty-six mundane items.
+    ///
+    /// <para><b>One object rather than a list</b>, because the file is one — nine named blocks
+    /// under a header, not a catalogue of one kind of thing. <see cref="GearCatalogue"/> is
+    /// what flattens the three pickable tables into rows a host can offer.</para>
+    /// </summary>
+    public EquipmentDataModel Equipment =>
+        _equipment ??= Load<EquipmentDataModel>("gear.json");
 
     // ── Lookups ───────────────────────────────────────────────────────────
 

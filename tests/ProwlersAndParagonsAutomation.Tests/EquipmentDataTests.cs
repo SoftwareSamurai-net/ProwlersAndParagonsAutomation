@@ -12,10 +12,12 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// <c>data/rules/gear.json</c> carries armour, shields, the Weapon Features glossary, the
 /// mundane equipment list, Custom Gear and p.93's Pros and Cons rule, and this is what checks it.
 ///
-/// <para><b>Nothing in the application reads that file yet</b> — it is deliberately absent from
-/// <see cref="RulesRepository.DataFileNames"/>, and wiring it into the Gear step is the consumer
-/// slice's decision. So these tests are the only thing that reads it, which is exactly the order
-/// the 141 Powers were extracted in: verified first, consumed second.</para>
+/// <para><b>The application reads that file now</b> — it is on
+/// <see cref="RulesRepository.DataFileNames"/>, <see cref="RulesRepository.Equipment"/> answers it
+/// and <see cref="GearCatalogue"/> offers its rows. These tests are still what holds it to the
+/// page: the repository is lenient at runtime like it is for every other file, and strictness
+/// lives here. It was verified first and consumed second, which is the order the 141 Powers were
+/// extracted in.</para>
 ///
 /// <para><b>The three weapons tables in that file are a copy</b> of the ones in
 /// <c>data/rules/play/equipment.json</c>. Neither side may read the other's store, so a figure both
@@ -54,9 +56,10 @@ public sealed class EquipmentDataTests
 
     /// <summary>
     /// <b>Every field is read by a model, or it is unread data pretending to be a source of
-    /// truth.</b> Same discipline as <see cref="RulesFileCoverageTests"/>, and it cannot live there:
-    /// that file's coverage list is asserted equal to <see cref="RulesRepository.DataFileNames"/>,
-    /// and this file is deliberately not on it.
+    /// truth.</b> <see cref="RulesFileCoverageTests"/> makes the same check for every loaded file
+    /// and now covers this one too. It is kept here as well because the rest of this file is what a
+    /// reader of <c>gear.json</c> comes to, and a strict-deserialise failure reported beside the
+    /// page checks says which file drifted without a second lookup.
     /// </summary>
     [Fact]
     public void EveryFieldInTheEquipmentFileIsReadByAModel()
@@ -70,25 +73,31 @@ public sealed class EquipmentDataTests
     }
 
     /// <summary>
-    /// <b>The file is in the character rules store and is not fetched by a host.</b> Both halves
-    /// matter and they pull in opposite directions: it sits at the top level of
-    /// <c>data/rules/</c> so every csproj's non-recursive glob copies it, and it is off
-    /// <see cref="RulesRepository.DataFileNames"/> so no self-loading host asks for it at boot and
-    /// no engine collection exposes it.
+    /// <b>The file is in the character rules store and every self-loading host fetches it.</b>
+    /// Both halves matter: it sits at the top level of <c>data/rules/</c> so every csproj's
+    /// non-recursive glob copies it, and it is on
+    /// <see cref="RulesRepository.DataFileNames"/> so the browser has it before its first render —
+    /// the engine is synchronous, so a repository built on a half-loaded set throws on whichever
+    /// collection is touched first.
     ///
-    /// <para>Putting it on that list is the consumer slice's job, and it is one line plus a
-    /// <see cref="RulesFileCoverageTests"/> row. Until then this asserts the state deliberately,
-    /// rather than leaving "nothing loads it" as something a reader has to notice.</para>
+    /// <para><b>This test was the inverse of itself until the Gear step could pick from the
+    /// catalogue.</b> It asserted the file was <em>off</em> the list, beside a
+    /// <see cref="RulesSourceTests"/> exemption naming it — the pair the earlier slice left so that
+    /// removing one without the other would fail. Both moved together.</para>
     /// </summary>
     [Fact]
-    public void TheEquipmentFileIsNotYetOnTheRepositorysLoadList()
+    public void TheEquipmentFileIsOnTheRepositorysLoadListAndReallyLoads()
     {
         Assert.True(File.Exists(Path.Combine(RulesFixture.DataPath, FileName)));
 
-        // Positive control: the list is the real one and holds the files that are loaded.
+        // Positive control: the list is the real one and holds the files that were loaded before.
         Assert.Contains("gear_features.json", RulesRepository.DataFileNames);
 
-        Assert.DoesNotContain(FileName, RulesRepository.DataFileNames);
+        Assert.Contains(FileName, RulesRepository.DataFileNames);
+
+        // And it loads through the repository rather than only through this file's own reader,
+        // which is the half a name on a list does not prove.
+        Assert.Equal(CanonicalArmourRules.ArmorTable.RowCount, _f.Rules.Equipment.ArmorTable.Rows.Count);
     }
 
     /// <summary>
@@ -105,7 +114,7 @@ public sealed class EquipmentDataTests
             new[]
             {
                 header.WhatThisIs, header.WhyHereAndNotInThePlayStore,
-                header.TheWeaponTablesAreACopyAndThatIsDeliberate, header.NotYetLoaded,
+                header.TheWeaponTablesAreACopyAndThatIsDeliberate, header.LoadedBy,
                 header.PlacementNote, header.DescriptionsAreOurs, header.DeliberatelyOmitted,
                 header.SourceRef
             },
