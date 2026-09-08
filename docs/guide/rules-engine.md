@@ -166,24 +166,43 @@ Abilities can carry them too, not just Powers — `CharacterSheet.AbilityModifie
 
 Ch.6: mundane gear is free and **explicitly not tracked**, so `ChooseGearStep` taking free text with no HP cost is correct — do not "fix" it. A Gear Limit caps the Trait rank usable with mundane gear (6d default); it is not a budget. Signature equipment is a Power with the Item Con.
 
-The rest of Chapter 6 is now extracted beside that as `data/rules/gear.json`, which nothing loads yet — see the section on it below for the armour table, the shields rule, the weapon-features glossary and the copy rule the three weapons tables live under.
+The rest of Chapter 6 is beside that as `data/rules/gear.json`, and it is loaded now: `RulesRepository.Equipment` answers the file and `GearCatalogue` flattens its three pickable tables into the 108 rows the Gear step and the command palette offer. See the section on it below for the armour table, the shields rule, the weapon-features glossary and the copy rule the three weapons tables live under.
+
+**A row on a character is an id and never a copy.** `SelectedGear.CatalogueId` is nullable, and null is the ordinary case — p.91's list is "examples, not a catalogue of prices", so a character may carry a letter from their mother. What a Battle Axe is worth stays in `gear.json`, so a corrected figure corrects every sheet that names the row; a sheet that stored the figure would be a second copy to disagree with the first. An id that resolves to nothing is `UNKNOWN_GEAR_CATALOGUE_ROW` — **reported, never repaired**, because dropping it would hand back a plain item where a Battle Axe was sent, which is the misspelled-field-name failure the strict reader exists for. A payload written before the field existed reads back byte-identical.
 
 Custom *features* on mundane gear do cost HP: twelve of them at 1–2 HP each in `gear_features.json`, ten flat and two graded, plus ordinary Pros and Cons on the item. `CostCalculator.GearCost` prices one item and `TotalGearCost` feeds `TotalCost`. Three things about gear differ from Powers:
 
 - **Gear floors at 0 HP, not 1.** "Regardless of Cons, no piece of gear can cost less than 0 Hero Points." Cons discount an item to free and stop.
-- **The Item Con is not credited.** Ch.6 says every piece of gear has it, which is a statement of what gear *is*, not a discount to claim — and Item is absent from the same page's list of Cons commonly applied to gear. Crediting it would make every 1 HP feature free.
+- **The Item Con is not credited, even when a host writes it down.** Ch.6 says every piece of gear has it, which is a statement of what gear *is*, not a discount to claim — and Item is absent from the same page's list of Cons commonly applied to gear. Crediting it would make every 1 HP feature free. **That sentence was true of what the engine *added* and false of the answer it gave** until this was fixed: nothing puts Item on an item automatically, so a submitted character recording the Con the book says every object carries got `cons.json`'s −1 like any other. `GearCost` now skips it, by the id `gear.json`'s own `item_con_id` names. The Con still *prints*, because it is true of the item; the picker no longer offers it, because an option nobody may apply is not one to offer.
 - **Two-Fisted customises a matched pair for one price.** A pair is one `SelectedGear` with `PairedUnderTwoFisted` set, so it is charged once by construction; the validator checks the Power is actually there.
 
 
-## `data/rules/gear.json` — Chapter 6's equipment, extracted and not yet read
+## `data/rules/gear.json` — Chapter 6's equipment, read by the Gear step and the palette
 
-**Nothing in the application loads it, and that is the state on purpose.** It is off
-`RulesRepository.DataFileNames`, so no self-loading host fetches it and `RulesRepository` exposes no
-collection for it; `EquipmentDataTests` is the only thing that reads it. The data is verified first
-and consumed second, which is the order the 141 Powers were done in and the order that made them
-trustworthy. Wiring it up — and deciding what the Gear step does with an armour row — is a later
-slice's decision, and it is one line on that list plus a row in `RulesFileCoverageTests`, at which
-point the file also comes off `RulesSourceTests.NotLoadedByTheRepository`.
+**It is on `RulesRepository.DataFileNames`**, so every self-loading host fetches it before its first
+render, `RulesRepository.Equipment` answers it and `GearCatalogue` flattens it. It was extracted a
+slice before it was consumed, which is the order the 141 Powers were done in and the order that made
+them trustworthy — and the pair the extraction slice left behind (an entry on
+`RulesSourceTests.NotLoadedByTheRepository` and a test asserting the file was *off* the load list)
+moved together, which is what that pair was for. `EquipmentDataTests` still holds the file to the
+page; the repository is lenient at runtime, as it is for every other file.
+
+**The payload cost, since item 5 records payload as a characteristic.** `gear.json` is 73.3 KiB
+uncompressed and 13.2 KiB gzipped, on a rules payload that was 232.1 KiB — so the rules the browser
+fetches at boot grew by 31.6%. Against the 27 MiB first load that is about a quarter of one percent.
+The `data/rules/play/` files stay off the list and `PlayPayloadTests` proves it.
+
+**`GearCatalogue` is the one flattening**, because five surfaces need the same answer — the browser's
+Gear step, the terminal wizard's, the command palette, `GearFormatter` and `CharacterValidator` — and
+a second flattening is a second thing to disagree with the first. It hangs off the repository rather
+than being registered in DI, unlike `ProConApplicability` and `SourceGrouping`: those answer
+questions across several files and are a host's to wire up; this is one file's contents in the shape
+every reader of them wants, so four hosts do not each have to remember to build one. Row ids are
+prefixed by table (`armor:`, `weapon:`, `item:`) — the weapons rows have no id column, because they
+are a byte-for-byte copy of the play store's and that store keys them by name, so their segment is
+derived from the printed name. **The prefix prevents a collision rather than fixing one**: strip it
+and today's 108 segments are still distinct, and `GearCatalogueTests` says so rather than claiming a
+control that is not there.
 
 **What is in it** is Chapter 6 pp.88–93: the rule that a worn suit grants the Armor Power at
 Toughness plus its bonus, the nine-row armour table, Bulky and Rigid, shields, the eighteen-entry
@@ -230,22 +249,69 @@ whichever copy is easier to reach. This repository already holds two copies of o
 `TranscriptLibrary`'s bake into `worker/transcripts-corpus.js`, and `worker/corpus.js` — and the test
 between them is what makes it honest rather than a duplication to tidy away.
 
-### Two disagreements between p.93 and `CostCalculator`, recorded and not repaired
+### p.93 and `CostCalculator`: one disagreement settled, one still recorded
 
-Both are tests in `EquipmentDataTests` asserting what the engine does **today**, so a slice that
-decides either question has to come here and change one. Neither is a bug report with an obvious fix;
-the page is silent on both.
-
-- **Overkill and Weak are named as commonly applied to gear and are worth nothing on it.** Ch.2
+- **The Item Con is settled: not credited.** `GearCost` skips it, by the id `gear.json`'s own
+  `item_con_id` names, and `EquipmentDataTests.TheItemConIsNotCreditedEvenWhenAHostRecordsIt` is the
+  test that used to assert the opposite. The page settles neither reading outright — Item is a
+  description of gear and uncreditable, or a Con like any other with the 0 HP floor stopping it
+  paying out — and the argument for this one is the page's own: **Item is absent from the twenty-four
+  Cons p.93 names as commonly applied to gear**, which is the tell that it says what gear is rather
+  than what it costs. CLAUDE.md's settled list has said so throughout; the engine was the half that
+  disagreed.
+- **Overkill and Weak are named as commonly applied to gear and are still worth nothing on it.** Ch.2
   defines both as a change to a Power's cost *per rank*, gear has no rank, and
-  `CostCalculator.ResolveConCost` returns 0 for either before it looks anything up. So a player who
-  writes one on an item has bought a Con that costs and discounts nothing.
-- **The Item Con is credited when a host records it.** `GearCost`'s own comment says it "is not
-  charged or credited here", and that is true only of what the engine *adds* — nothing puts Item on
-  an item automatically. p.93 says every physical object has it; an item that records the Con is
-  discounted by `cons.json`'s −1 like any other, so a 1 HP feature comes out free. That is precisely
-  the outcome the comment gives as the reason not to credit it, so the comment and the code disagree
-  about what "not credited" means.
+  `CostCalculator.ResolveConCost` returns 0 for either before it looks anything up. The page does not
+  say what either should be worth, so this stays recorded rather than repaired and the test asserting
+  it stands. **What did change is that neither is offered**: an option that provably costs and
+  discounts nothing is a decision with no consequence to put in front of a player.
+
+### Which Pros and Cons a piece of gear may take
+
+`ProConPicker.Target.Gear` used to fall through to *every* option there is, because nothing in the
+data said what gear could take — which is how the Item Con came to be on offer for a sword. p.93
+names twenty-four, and each one now records `"gear"` in its own `applicable_to`, so gear filters like
+the other two targets. That is the same shape the whole `available_pros` argument settled on:
+**applicability is stated inside the option, never curated per subject.**
+
+- **One printed name needs a mapping and it lives in the test, not the data.** The page writes "Area
+  of Effect" where `pros.json` carries `area_burst`, whose printed name is "Area / Burst (Area of
+  Effect)". `zone_nova` is the other half of the same printed Pro and is deliberately **not** marked:
+  the Weapon Features glossary's own Area/Burst entry defers to `area_burst` by id, and that is the
+  only place in the book where this Pro and a piece of gear meet. The rival reading — that the page
+  names the whole Pro and reaches both grades — is refuted by nothing printed, and p.93 calls its
+  list "not exhaustive" under GM approval, so it is a one-line widening if a table wants it.
+- **Overkill and Weak are marked and not offered, and the rule is asked of the price.**
+  `ProConApplicability.AppliesToGear` drops any option whose `cost_type` is `special`, which is
+  exactly those two — rather than naming two ids, so a third option priced that way is caught by the
+  same sentence. The data says what the page names; the engine says what it can price.
+
+### A worn suit's Armor rank is a derived figure, not a Power and not a note
+
+`DerivedStatsCalculator.ArmorFromGear(sheet)` answers `min(base, gear limit) + bonus`, where the base
+is the wearer's Toughness or their own Armor Power's effective rank, whichever is higher (p.88's
+second sentence). `ArmorRankInSuit(sheet, bonus)` answers the same question for a row not yet chosen,
+which is what a picker shows beside an armour row. Both print through hosts: the Gear step beside the
+item, the `.txt` sheet's derived block, and `derived.armor_from_gear` in the JSON export.
+
+**Nothing adds an Armor Power to the sheet, and that is the point.** Mundane gear is free; an Armor
+Power costs Hero Points; the engine does not make design decisions about somebody's character. The
+figure is reported and the character is unchanged — `ArmourRankTests` asserts an armoured character
+costs exactly what the same character costs with the suit taken off. **Only the best suit answers**,
+because a character wearing two is wearing one and carrying the other.
+
+**The 6d default Gear Limit is a C# constant, and that is a trade rather than an oversight.**
+`DerivedStatsCalculator.DefaultGearLimitRank` is 6, p.87. The figure is extracted — in
+`data/rules/play/equipment.json`, the play store, which `engine/` may not read and `play/` cannot do
+without. The alternative was a second transcription of one number into `gear.json`, which is the
+duplication the weapon-table copy rule already carries for sixty-three rows and a poor trade for one.
+So the constant is here and `ArmourRankTests.TheDefaultGearLimitIsThePlayStoresAndTheBooksSameFigure`
+is the seam — it reads both stores, as a test may and neither store may, and checks the entry's own
+`source_ref` so the pin is to p.87 rather than to whatever an entry called `gear_limit` happens to
+say. A table that raised the limit is read through `EffectiveGearLimit(sheet)` and nowhere else, for
+the reason `EffectiveTraitCap` is read through one method: the raised limit is a **pair**, a switch
+and a rank, and a rank left on the table while the switch is off is a figure the table has not
+adopted.
 
 **Two of p.91's granted Powers are bought by naming an option, and the id alone is half an answer.**
 Immunity is priced per unit because each one is "named and paid for separately", and Super Senses —
@@ -428,7 +494,7 @@ joins, and the engine reads the character. Nothing here resolves a campaign id; 
 
 **Keep `IRulesSource` synchronous.** Making it async would push `await` through every lazy collection and from there into `CostCalculator` and `CharacterValidator`, turning a pure instantly-callable engine into an async one for no gain. A host that can only load asynchronously does that once at startup and hands over strings.
 
-`RulesRepository.DataFileNames` lists every file a self-loading host must fetch — it cannot glob a directory that isn't there. **Add a new rules file to that list**, or a browser build silently runs on an incomplete rules set; a test enforces it. The exceptions are named in that test one at a time rather than filtered by a pattern: `meta.json` is provenance, and the three Ch.6 files above are extracted with no consumer — see "Gadgets, vehicles and headquarters" for why that is a payload decision the consumer slice makes.
+`RulesRepository.DataFileNames` lists every file a self-loading host must fetch — it cannot glob a directory that isn't there. **Add a new rules file to that list**, or a browser build silently runs on an incomplete rules set; a test enforces it. The exceptions are named in that test one at a time rather than filtered by a pattern: `meta.json` is provenance, and the three remaining Ch.6 files are extracted with no consumer — see "Gadgets, vehicles and headquarters" for why that is a payload decision the consumer slice makes. **`gear.json` came off that list and is the worked example of the pairing**: the exemption and the collection moved in one commit, and the guard fails if only one happens.
 
 **Both halves of that rule are now enforced rather than asserted, and neither was.** This section
 and `TheEngineHasNoNetwork`'s own doc comment both claimed the engine has no filesystem access, and

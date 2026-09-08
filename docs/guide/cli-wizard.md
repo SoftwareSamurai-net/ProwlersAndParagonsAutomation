@@ -14,7 +14,7 @@ Read before touching `cli/`. The wizard is the oldest front end and the only one
 
 1. `ChooseTierStep` — selects tier and optional package
 2. `BuyCharacteristicsStep` — abilities, talents, powers (via `PowerBrowser` + `ProConSelector`), flaws
-3. `ChooseGearStep` — free-text gear, no HP cost
+3. `ChooseGearStep` — gear: Chapter 6's catalogue or free text, no HP cost either way
 4. `CalculateDerivedStep` — displays computed Edge and Health
 5. `FinishingTouchesStep` — name, appearance, motivation, quote, connections
 6. `GmReviewStep` — full validation, sheet display, `.txt` **and** `.json` export to `output/`
@@ -30,3 +30,25 @@ Steps 1–5 render a Back/Continue prompt (`WizardOrchestrator.PromptNavigation`
 The tier list on step 1 (`ChooseTierStep`) still reads each tier's own cap, and should: those are the six tiers a person is choosing between, and a card printing some character's house cap would be describing the wrong thing.
 
 
+## The Gear step picks from the book, and still takes anything you type
+
+`ChooseGearStep`'s menu opens with **"Pick from the book (Ch.6)"** beside the free-text entry it
+always had. Both are right and neither replaces the other: p.91 calls its own list "examples, not a
+catalogue of prices", so a character may carry a letter from their mother, and mundane gear is free
+whichever way it arrives.
+
+- **The 108 rows are grouped by the book's own headings first**, because one page of a 108-row
+  `SelectionPrompt` is unusable. The groups are the armour and weapons tables by era, plus p.91's
+  equipment — the book's divisions, not a taxonomy invented here.
+- **An armour row is offered with the rank it would grant *this* wearer.** That is the figure
+  neither page prints — p.88 gives Toughness plus the suit's bonus, p.87 caps the Toughness half at
+  the Gear Limit — so which suit is worth taking depends on the character, and a line showing only
+  the printed bonus would leave the choice unmade. A shield says what its die is for, because the
+  weapons table prints only the half you get by swinging it.
+- **Nothing here buys a Power.** The Armor rank is reported; `sheet.SelectedPowers` is untouched.
+
+**`CatalogueLabel` is the one part of this step a test can reach**, and `ChooseGearStepTests` says so
+in as many words rather than implying the step is covered. The wizard has no harness — every step
+drives `AnsiConsole` directly — so the menu and the two prompts are unreachable from a test here,
+exactly as they are for the other five steps. The equivalent surface is driven end to end in the
+browser suite's `GearCataloguePickerTests`.
