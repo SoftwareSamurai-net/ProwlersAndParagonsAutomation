@@ -166,11 +166,137 @@ Abilities can carry them too, not just Powers — `CharacterSheet.AbilityModifie
 
 Ch.6: mundane gear is free and **explicitly not tracked**, so `ChooseGearStep` taking free text with no HP cost is correct — do not "fix" it. A Gear Limit caps the Trait rank usable with mundane gear (6d default); it is not a budget. Signature equipment is a Power with the Item Con.
 
+The rest of Chapter 6 is now extracted beside that as `data/rules/gear.json`, which nothing loads yet — see the section on it below for the armour table, the shields rule, the weapon-features glossary and the copy rule the three weapons tables live under.
+
 Custom *features* on mundane gear do cost HP: twelve of them at 1–2 HP each in `gear_features.json`, ten flat and two graded, plus ordinary Pros and Cons on the item. `CostCalculator.GearCost` prices one item and `TotalGearCost` feeds `TotalCost`. Three things about gear differ from Powers:
 
 - **Gear floors at 0 HP, not 1.** "Regardless of Cons, no piece of gear can cost less than 0 Hero Points." Cons discount an item to free and stop.
 - **The Item Con is not credited.** Ch.6 says every piece of gear has it, which is a statement of what gear *is*, not a discount to claim — and Item is absent from the same page's list of Cons commonly applied to gear. Crediting it would make every 1 HP feature free.
 - **Two-Fisted customises a matched pair for one price.** A pair is one `SelectedGear` with `PairedUnderTwoFisted` set, so it is charged once by construction; the validator checks the Power is actually there.
+
+
+## `data/rules/gear.json` — Chapter 6's equipment, extracted and not yet read
+
+**Nothing in the application loads it, and that is the state on purpose.** It is off
+`RulesRepository.DataFileNames`, so no self-loading host fetches it and `RulesRepository` exposes no
+collection for it; `EquipmentDataTests` is the only thing that reads it. The data is verified first
+and consumed second, which is the order the 141 Powers were done in and the order that made them
+trustworthy. Wiring it up — and deciding what the Gear step does with an armour row — is a later
+slice's decision, and it is one line on that list plus a row in `RulesFileCoverageTests`, at which
+point the file also comes off `RulesSourceTests.NotLoadedByTheRepository`.
+
+**What is in it** is Chapter 6 pp.88–93: the rule that a worn suit grants the Armor Power at
+Toughness plus its bonus, the nine-row armour table, Bulky and Rigid, shields, the eighteen-entry
+Weapon Features glossary, p.91's thirty-six mundane items with the rule that none of them is bought,
+p.92's Custom Gear rule, and p.93's Pros and Cons on gear. **p.93's twelve priced custom features are
+not in it** — they have been `gear_features.json` since the custom-gear slice, and a test now reads
+p.93's own headings out of the corpus and requires each to resolve to one of the twelve, which is the
+check that says the twelve are all of them.
+
+**The Gear Limit caps a worn suit, and p.88 is not where that is written.** p.88 gives the Armor
+rank as Toughness plus the suit's bonus and never restates the limit, so the effective rank is the
+lesser of Toughness and the Gear Limit, *plus* the bonus — 8d in a standard game, whatever the
+wearer's Toughness. **p.87 settles it and the file records it as an `interpretation`, not as an
+`ambiguity`**: the limit is about equipment that boosts a Trait "(usually armor and weapons)", its
+worked example fixes the order of the arithmetic at limit-plus-bonus, it says outright that this
+makes armour less useful to a superhuman, and its one printed exception is for melee weapons alone.
+A Power's rank substituted in for Toughness under the same entry's second sentence is a Trait rank
+and is capped the same way. This was recorded here as the book's silence, which it is not — the
+silence is p.88's, and **a doubt the book has settled is one the consumer slice would resolve by
+guessing.** `ThePageEightySevenGearLimitAnswersWhatPageEightyEightLeavesOut` reads all four
+sentences out of the corpus, so it fails if the page it rests on is not the page that is there.
+
+**It is called `gear.json` and not `equipment.json` because that name was taken.** The play store's
+file is `data/rules/play/equipment.json`, and `PlayPayloadTests` refuses any file in `data/rules/`
+whose *basename* matches one under `play/` — by name as well as by path, because a play file copied
+up one level is outside the directory and inside every host's glob. That guard is right and the
+collision was the new file's fault. `gear` is the book's own word for mundane kit, and it puts the
+file beside `gear_features.json`.
+
+### The three weapons tables are stored twice, and a test holds the copies equal
+
+This is the one thing here that looks like a mistake and is not. `data/rules/play/equipment.json`
+carries the sixty-three ancient, modern and advanced rows, derived from the corpus and checked there.
+**Neither store can read the other**: `engine/` may not reach into `data/rules/play/` (no glob
+descends into it, it is off `DataFileNames`, and `PlayPayloadTests` refuses both routes), and
+`play/` may not reach out to `data/rules/`. A fight needs a weapon's dice and so does a character
+sheet, so the rows are **copied byte for byte** into `gear.json` and
+`EquipmentDataTests.TheWeaponTablesAreACopyOfThePlayStoresAndAreHeldEqualToIt` compares them as
+serialized JSON — as serialized JSON rather than field by field, so a field added to one copy and not
+the other fails too.
+
+**Edit both in the same commit or the guard goes red**, and do not reconcile a difference by editing
+whichever copy is easier to reach. This repository already holds two copies of one truth this way —
+`TranscriptLibrary`'s bake into `worker/transcripts-corpus.js`, and `worker/corpus.js` — and the test
+between them is what makes it honest rather than a duplication to tidy away.
+
+### Two disagreements between p.93 and `CostCalculator`, recorded and not repaired
+
+Both are tests in `EquipmentDataTests` asserting what the engine does **today**, so a slice that
+decides either question has to come here and change one. Neither is a bug report with an obvious fix;
+the page is silent on both.
+
+- **Overkill and Weak are named as commonly applied to gear and are worth nothing on it.** Ch.2
+  defines both as a change to a Power's cost *per rank*, gear has no rank, and
+  `CostCalculator.ResolveConCost` returns 0 for either before it looks anything up. So a player who
+  writes one on an item has bought a Con that costs and discounts nothing.
+- **The Item Con is credited when a host records it.** `GearCost`'s own comment says it "is not
+  charged or credited here", and that is true only of what the engine *adds* — nothing puts Item on
+  an item automatically. p.93 says every physical object has it; an item that records the Con is
+  discounted by `cons.json`'s −1 like any other, so a 1 HP feature comes out free. That is precisely
+  the outcome the comment gives as the reason not to credit it, so the comment and the code disagree
+  about what "not credited" means.
+
+**Two of p.91's granted Powers are bought by naming an option, and the id alone is half an answer.**
+Immunity is priced per unit because each one is "named and paid for separately", and Super Senses —
+Acute is printed "Acute (X)": so the Gas Mask's Toxins, its "limited to" clause, and the Parabolic
+Microphone's Hearing were all missing from a file that said only `immunity` and `super_senses_acute`.
+`granted_power_selection` and `granted_power_limited_to` carry them. **Resolving an id is not
+checking it** — both of those resolve, and an under-specified grant looks exactly like a right one —
+so `EveryGrantedPowerBoughtByNamingAnOptionRecordsTheOptionThePagePrints` reads *which* Powers need an
+option off `powers.json` (a name carrying `(X)`, or a per-unit price) rather than listing them, and
+requires the option to be a word p.91 prints in that item's own sentence.
+
+**Three items on p.91 print a `Label (n)` figure and only two of them are about breaking the item.**
+Handcuffs' Inhuman (5) and Zip Tie's Brutal (4) are thresholds to break; Rappelling Gear's Easy (0)
+is the **Agility roll that uses it**, and it was recorded as a third break threshold — which says the
+gear falls apart on a roll nobody fails, and dropped the Trait the page names. `break_threshold` and
+`use_threshold` are separate fields for that reason. **No check that reads a value and compares it to
+a figure typed beside it can see this**: 0 and "Easy" are both correct figures and the defect is which
+field they sit in, so `EveryThresholdOnAnItemIsTheKindOfRollThePagePrints` slices p.91 into per-item
+sentences and asks what kind of roll each one describes.
+
+### The discipline is the play store's, applied to a creation-side file
+
+`verified_fields` from a closed list declared in the file's own header and always including
+`description`; a `source_ref` naming a page in Chapter 6; a `printed_under` checked against the
+heading the corpus found on that page; `ambiguity` for the book's silence and `interpretation` for
+this project's reading, never a fact field for either. Descriptions are original text — a test fails
+any run of ten consecutive words shared with `data/rulebook/ch06-equipment.json`. And
+`EveryFactFieldOfEveryEntryIsComparedAgainstTheRulebook` walks the models by reflection so a field
+added to the data cannot quietly go unchecked, with a positive control on the walk (161 leaves today)
+and a negative control that feeds an unregistered field to the same classifier and requires it to be
+reported.
+
+**Three tables are derived rather than transcribed**, because a second transcription is a second
+thing to disagree with the first: the nine armour rows and the thirty-six equipment items are parsed
+out of the corpus, and the weapons rows come from the play copy. Each parse has a closed vocabulary,
+has to tile with nothing following the last row, and is driven one row past the end and required to
+throw. What *is* transcribed beside them is each table's row count and one anchor row — a derivation
+cannot notice a table that has lost half of itself when the expectation lost the same half.
+
+## Gadgets, vehicles and headquarters: extracted, and read by nothing
+
+`gadgets.json`, `vehicles.json` and `headquarters.json` are Ch.6 pp.94–103 as data — seven, twenty-two and five entries. **Nothing in the application loads them today**, and that is the state to know before you touch either half: they are held to the book by `Chapter6RulesDataTests` and modelled in `engine/Models/Chapter6RulesModels.cs`, so `JsonUnmappedMemberHandling.Disallow` has something to say about a field, but no host asks for them and `CostCalculator` prices nothing out of them.
+
+- **They are off `RulesRepository.DataFileNames` on purpose**, which is the one exception to the rule at the foot of this file — add a new rules file to that list. The list is what a self-loading host fetches before its first render, so putting a file on it is a decision about the browser's payload, and it belongs to the slice that teaches `CostCalculator` about a vehicle rather than to the slice that read the page. `RulesSourceTests.DataFileNamesListsEveryShippedRulesFile` names the three by hand and requires each to still exist on disk, so the excuse cannot outlive the file. **A consumer slice moves them onto the list and deletes the exemption** — the two go together, and the guard fails if only one happens.
+- **Two currencies, and neither of them is Hero Points.** p.96: "Every Hero Point you put into this Perk grants you 25 Vehicle Points." p.100: "every Hero Point you put into the Headquarters Perk also grants you 3 Base Points". Every price below those lines is in the second currency, and each file's `header.two_currencies` says so, because a consumer that added one of these figures into a Hero Point total would have made a category error rather than an arithmetic one. **The `unique_vehicle` and `headquarters` entries in `perks.json` are already the Hero Point half** — both `per_unit` at 1 HP a unit — so a character can buy the allowance today and has nowhere to spend it.
+- **The two meet again in exactly one place per file, and both are one-way.** Vehicles: Unique Systems is "1 Vehicle Point per Hero Point", so a Power's own HP price is what it costs on a vehicle — the Submersible's sonar is Radar carrying its own Sonar Con, at 2. Headquarters: Mobile costs **0 Base Points** and forces a Unique Vehicle purchase in Hero Points, so the free feature is the expensive one.
+- **A Gadget is the exception in the other direction: it pays out.** p.94: "If you make the roll, you gain a number of Hero Points equal to double the item's Complexity to buy Abilities, Talents, and Powers that represent your new Gadget." The character's own budget is never charged, which is why `gadgets.json` has no second-currency header. **The Item Con is on every Gadget by default and credited nothing** — the same rule as gear, stated again on its own page — so `default_con_is_credited: false` is a fact from the book and not a modelling choice.
+- **What a consumer has to add, and it is more than a cost function.** A vehicle and a headquarters are *objects a character owns*, not purchases on a sheet: each has its own characteristics, its own feature list and its own budget, and a team may pool allowances into one of them. So `CharacterSheet` needs somewhere to carry them, `CostCalculator` needs to total each in its own currency and check it against what the Perk bought, and the validator needs the constraints the data already records — Control at 2 points a rank and capped at half the vehicle's Speed, negative Control refunding 2 a rank down to −3, a Mecha's Might floored at half its Body, an alternate headquarters that "can't cost more Base Points than your primary". None of that is Hero Point arithmetic, so **none of it belongs in `TotalCost`**; what `TotalCost` owes is the Perk, which it already charges.
+- **The three mundane vehicle tables and the four feature tables are derived out of `data/rulebook/`, not typed a second time.** Seventy-eight rows transcribed again would be a second copy to disagree with the first, so `Chapter6RulesDataTests` parses them out of the corpus and checks the shipped data against that. The pairing of names to figures is this project's reading, recorded as an `interpretation` — see [`rulebook-corpus.md`](rulebook-corpus.md) for why a four-column table arrives as two blocks.
+- **p.96's own arithmetic is the strongest check here, and all six reconcile.** Each stock vehicle is priced through the rates on its own page and comes out at the printed total exactly, which checks every rate on the way rather than checking one transcription against another. **The Submersible is the one that had to be read properly to get there**, and it was recorded as a book error first: its feature line prints `Rader (Sonar)`, and taking that as a plain 3 Hero Point Radar gives 15 against a printed 14. The parenthesis names a Con — Ch.2 p.38 prints `CON Sonar (−1)` inside Radar's own entry — so the Power is 2 Hero Points and 2 Vehicle Points, and the total is exact. **A stock total that stops reconciling is a transcription error, not the book's**: the six totals are the only independent check this data has on its own rates.
+- **Every `ambiguity` in the three files is a silence in the book, not an open question for a consumer to settle.** They are things the page does not say — whether an advanced feature's +1d stacks, whether an unspent Teamwork point carries over, which of Armor and half Toughness is a rammed character's Body — and a consumer that needs an answer picks one **in its own code, saying so**, rather than writing it back into the data as though the book had printed it. **A half is not one of them**: p.7's glossary settles every halving in the book upward, "regardless of the context", which is why neither the Gadget per-issue ceiling nor the Foe damage capacity records one, and why `CostCalculator` reaches for `Math.Ceiling` everywhere.
 
 
 ## Super Senses is one Power
@@ -302,7 +428,7 @@ joins, and the engine reads the character. Nothing here resolves a campaign id; 
 
 **Keep `IRulesSource` synchronous.** Making it async would push `await` through every lazy collection and from there into `CostCalculator` and `CharacterValidator`, turning a pure instantly-callable engine into an async one for no gain. A host that can only load asynchronously does that once at startup and hands over strings.
 
-`RulesRepository.DataFileNames` lists every file a self-loading host must fetch — it cannot glob a directory that isn't there. **Add a new rules file to that list**, or a browser build silently runs on an incomplete rules set; a test enforces it.
+`RulesRepository.DataFileNames` lists every file a self-loading host must fetch — it cannot glob a directory that isn't there. **Add a new rules file to that list**, or a browser build silently runs on an incomplete rules set; a test enforces it. The exceptions are named in that test one at a time rather than filtered by a pattern: `meta.json` is provenance, and the three Ch.6 files above are extracted with no consumer — see "Gadgets, vehicles and headquarters" for why that is a payload decision the consumer slice makes.
 
 **Both halves of that rule are now enforced rather than asserted, and neither was.** This section
 and `TheEngineHasNoNetwork`'s own doc comment both claimed the engine has no filesystem access, and

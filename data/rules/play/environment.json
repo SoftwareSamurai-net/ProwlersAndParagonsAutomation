@@ -1,0 +1,1484 @@
+{
+  "header": {
+    "what_this_is": "Chapter 7's environment rules, pp.105-109, as data: what a disaster, a fall, a hostile environment, suffocation, water, a jump, a lift, heat, electricity, a smashed object, cover, improvised scenery, a massive object and a toxin do to a character. It is play rules - every entry here resolves what happens to somebody rather than pricing them - so it sits beside Chapters 3 to 6 in data/rules/play/ and not in the character rules.",
+    "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the character MCP server, or read by engine/. See docs/guide/play-rules.md.",
+    "not_logic": "Data only. Nothing here decides what a character costs, and engine/ never reads this file. Nothing in play/ reads it either, yet: the second engine loads the file and its models cover every key, but no rule applies a figure from it. Chapter 4's modifier_cover, knockback and throwing_range are the three that already name what this file supplies - the cover's Structure, an object tougher than the target, an object's weight rank - and wiring them to it is a slice of its own. Nothing was added to Encounter.EntriesNotYetApplied for this file, because that set is the engine's record of what it has been given to apply and has not.",
+    "deliberately_omitted": "Only pp.105-109 are transcribed, and the chapter's printed range is pp.105-110 - so the pp.105-110 in this header's source_ref is the chapter's range and not a claim that every page of it was read. p.110 carries no chapter text, the same way p.82 and p.86 do not. The chapter opening on p.105 is not here: it says what the chapter is for and states no mechanic. The Energy Types table's description column is not here either - it describes each category in the book's own prose and the names are what the rules turn on, so the names travel and the prose does not. And the three Toxin Pros and Cons printed on pp.108-109 - Caustic, Lethal Disease, Non-Lethal Disease - are referenced rather than transcribed: they are priced in Hero Points on the Powers they modify, in data/rules/powers.json, which is where their cost is verified.",
+    "verified_fields_closed_list": [
+      "trigger",
+      "roll",
+      "threshold",
+      "effect",
+      "duration",
+      "cost",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.7 Environment, pp.105-110"
+  },
+  "entries": [
+    {
+      "id": "disasters",
+      "name": "Disasters",
+      "kind": "formula",
+      "printed_under": "DISASTERS",
+      "disaster": {
+        "minor_goals": 3,
+        "major_goals": 9,
+        "gm_supplies_in_a_minor_disaster": 2,
+        "gm_supplies_in_a_major_disaster": 6,
+        "remaining_goals_come_from": "the players",
+        "a_goal_is": "anything that has to be achieved to make the situation better",
+        "most_goals_need": "a good idea and a successful challenge roll",
+        "a_goal_may_be_worth_its_own_scene": true,
+        "who_decides_a_goal_needs_its_own_scene": "gm",
+        "resolution_read_off": "the Disaster Results table",
+        "read_the_table_when": "every goal has been achieved or failed"
+      },
+      "description": "A catastrophe is scored rather than fought. It is cut into a fixed number of objectives - three for a small one, nine for a large - most of which fall to a single roll behind a plausible plan, though the referee may promote one into a scene of its own. Two thirds of the list is theirs to invent and the table supplies the rest. When none is left undecided, the tally says who gets to tell everyone how it ended.",
+      "verified_fields": [
+        "trigger",
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.105",
+      "ambiguity": "How a goal is failed is never stated. The page gives a roll for achieving one and a table read once every goal has been settled either way, but says nothing about how many attempts a goal allows, whether a failed roll closes it or may be retried, or what a goal promoted to its own scene has to produce to count as achieved. A simulator has to choose, and the choice moves every row of the results table."
+    },
+    {
+      "id": "disaster_results",
+      "name": "Disaster Results",
+      "kind": "table",
+      "printed_under": "DISASTER — MINOR",
+      "disaster_results": [
+        {
+          "minor_goals_achieved_min": 0,
+          "minor_goals_achieved_max": 0,
+          "major_goals_achieved_min": 0,
+          "major_goals_achieved_max": 1,
+          "narrator": "gm",
+          "embellishment": false
+        },
+        {
+          "minor_goals_achieved_min": 1,
+          "minor_goals_achieved_max": 1,
+          "major_goals_achieved_min": 2,
+          "major_goals_achieved_max": 4,
+          "narrator": "gm",
+          "embellishment": true
+        },
+        {
+          "minor_goals_achieved_min": 2,
+          "minor_goals_achieved_max": 2,
+          "major_goals_achieved_min": 5,
+          "major_goals_achieved_max": 7,
+          "narrator": "players",
+          "embellishment": true
+        },
+        {
+          "minor_goals_achieved_min": 3,
+          "minor_goals_achieved_max": 3,
+          "major_goals_achieved_min": 8,
+          "major_goals_achieved_max": 9,
+          "narrator": "players",
+          "embellishment": false
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's three columns line up, not a rule the page states.",
+        "row_alignment": "The extractor reads a table of three or more columns across rather than down, and it splits this one into two blocks whose headings carry half the table's title each - DISASTER — MINOR and RESULTS — MAJOR RESULTS. Laying the first block's cells beside the second's, four rows deep, is this project's reading of the page. What anchors it is the count: three goals in a minor disaster and nine in a major one are printed in the prose above the table, and only one alignment ends the two columns on 3 and on 9."
+      },
+      "description": "Four outcomes, from the referee describing an unrelieved catastrophe to the table describing a clean rescue, with the two shaded middle results handing the narration to one side and a licence to decorate it to nobody. A small emergency counts single objectives and a large one counts them in bands.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.105",
+      "ambiguity": null
+    },
+    {
+      "id": "energy",
+      "name": "Energy",
+      "kind": "narrative",
+      "printed_under": "ENERGY",
+      "energy": {
+        "kinds_are_lumped_into": "a few simple categories",
+        "why": "so that Powers which control or resist energy are not diluted",
+        "gravity_and_magnetism_are_energy": false,
+        "gravity_and_magnetism_are": "forces that act on physical objects directly",
+        "gravity_and_magnetism_represented_with": [
+          "Elemental Control",
+          "Telekinesis"
+        ],
+        "gravity_and_magnetism_if_classified_as_energy": "force"
+      },
+      "description": "The real world's many kinds of energy are collapsed into a short list, because a Power that answers one of them is worth less the longer that list gets. Two forces are kept off it altogether: they push objects about rather than burning them, so they belong to the Powers that move things, and a table that insists on filing them as energy files them under the physical one.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.105",
+      "ambiguity": null
+    },
+    {
+      "id": "energy_types",
+      "name": "Energy Types",
+      "kind": "table",
+      "printed_under": "TYPES — DESCRIPTION",
+      "energy_types": {
+        "types": [
+          "Acid/Corrosive",
+          "Arcane/Otherworldly",
+          "Cold/Frost/Ice",
+          "Electricity/Lightning",
+          "Energy/Laser",
+          "Fire/Heat/Plasma",
+          "Force/Kinetic",
+          "Cosmic Energy/Radiation",
+          "Sound/Thunder/Vibration"
+        ],
+        "force_kinetic_attacks_are": "physical attacks",
+        "sonic_footnote_is_offered_as_optional": true,
+        "sonic_in_a_vacuum": "useless",
+        "sonic_underwater_bonus_dice": 3
+      },
+      "description": "Nine headings cover every energy the game recognises, and only two of them carry a rule. One is not really energy at all: a blow struck with it counts as a physical attack, which decides what resists it. The other has a footnote the book itself calls optional, taking it away where there is no air and sharpening it where there is water.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.105",
+      "ambiguity": "The vacuum and underwater clauses are offered with an explicit \"if you care\", so whether they are a rule or an aside is left to the table, and no other type on the list is given any environmental behaviour at all. Nothing says whether an underwater fight applies the three extra dice to the sonic attack's roll, to its rank, or to the damage it does."
+    },
+    {
+      "id": "falling",
+      "name": "Falling",
+      "kind": "special_case",
+      "printed_under": "FALLING",
+      "falling": {
+        "is_an_attack": true,
+        "resisted_only_with": "passive defenses",
+        "gm_may_allow_a_creative_active_defense": true,
+        "attack_rank_depends_on": "the distance fallen",
+        "read_off": "the Falling table",
+        "hard_landing_examples": [
+          "spikes",
+          "sharp rocks"
+        ],
+        "hard_landing_bonus_dice": 3,
+        "soft_landing_examples": [
+          "cushions",
+          "garbage",
+          "water"
+        ],
+        "soft_landing_penalty_dice": -3,
+        "soft_landing_allows_active_defense": "Agility"
+      },
+      "description": "The ground hits you, and it hits like an attacker whose rank comes off a table of distances. Ordinarily nothing you do in the air helps and only what you are made of answers, though the referee will listen to an inventive claim. What you land on shifts the blow three dice either way, and a forgiving surface also gives you back the chance to twist as you come down.",
+      "verified_fields": [
+        "trigger",
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.105",
+      "ambiguity": null
+    },
+    {
+      "id": "falling_table",
+      "name": "Falling table",
+      "kind": "table",
+      "printed_under": "FALLING — DISTANCE RANK",
+      "falling_table": [
+        {
+          "up_to_feet": 10,
+          "rank": 4
+        },
+        {
+          "up_to_feet": 25,
+          "rank": 6
+        },
+        {
+          "up_to_feet": 50,
+          "rank": 8
+        },
+        {
+          "up_to_feet": 100,
+          "rank": 10
+        },
+        {
+          "up_to_feet": 250,
+          "rank": 11
+        },
+        {
+          "up_to_feet": null,
+          "rank": 12
+        }
+      ],
+      "description": "Six bands of height, opening at four dice for a drop shorter than a room and closing at twelve for anything past a quarter of a mile, with the last band left open at the top because there is nothing worse than terminal velocity.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
+      "ambiguity": null
+    },
+    {
+      "id": "hostile_environments",
+      "name": "Hostile Environments",
+      "kind": "formula",
+      "printed_under": "HOSTILE ENVIRONMENTS",
+      "hostile_environment": {
+        "hazard_grades": [
+          "minor",
+          "major"
+        ],
+        "minor_examples": [
+          "a smoke-filled room",
+          "low-level radiation",
+          "extreme temperatures"
+        ],
+        "major_examples": [
+          "crushing undersea pressure",
+          "high-level radiation",
+          "the vacuum of outer space"
+        ],
+        "minor_withstood_for_minutes_equal_to": "Toughness",
+        "minor_damage_per_minute_after_that": 1,
+        "major_withstood_for_pages_equal_to": "Toughness",
+        "major_damage_per_page_after_that": 1,
+        "track_time_in_pages_for_a_major_hazard_even_out_of_combat": true,
+        "maximum_hazard_damage_per_page": 1,
+        "maximum_applies_across_simultaneous_hazards": true,
+        "powers_that_protect": [
+          "Adaptation",
+          "Immunity"
+        ]
+      },
+      "description": "A bad place is graded twice over. The milder grade gives you as many minutes as you are tough before it starts costing you a point a minute; the worse grade gives you the same count in pages and then charges by the page, which is why a scene in one is clocked like a fight even when nobody is fighting. However many of them are working on you at once, they cannot between them take more than a point a page, and two Powers turn the whole thing off.",
+      "verified_fields": [
+        "trigger",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
+      "ambiguity": "The ceiling is stated per page and a minor hazard's rate is stated per minute, and no page in the book gives a number that converts one unit into the other. What the book does settle is the direction, and it prints it twice - Ch.4 p.73 and the Glossary p.7 both say a page is a few seconds - so a minute is many pages and the per-page ceiling is the larger allowance of the two. It is therefore slack against a minor hazard rather than clamping it: ten minutes in a smoke-filled room costs ten points at the minor rate, where a point a page over the same stretch would permit far more. What is left open is the arithmetic and the overlap - nothing says how many pages a minute is, so a simulator tracking pages has to invent the conversion for the minor rate, and nothing says what the ceiling means when a minor hazard and a major one are suffered together, since the major already spends the whole of it on its own."
+    },
+    {
+      "id": "suffocation",
+      "name": "Suffocation",
+      "kind": "formula",
+      "printed_under": "SUFFOCATION",
+      "suffocation": {
+        "hold_breath_minutes_equal_to": "Toughness",
+        "damage_per_page_after_that": 1,
+        "all_suffocation_damage_removed_when": "you can breathe normally again",
+        "removal_is_immediate": true,
+        "defeated_rather_than_killed_unless": "the game is one in which Heroes can die",
+        "surviving_is_explained_by": "the player and the GM together"
+      },
+      "description": "Breath lasts as many minutes as you are tough, and after that the drowning costs a point a page. None of it is permanent: air undoes the whole of it at once. Running out does not kill you unless the table has agreed that it can, and where it has not, how you came round is a story the two sides of the table make up afterwards.",
+      "verified_fields": [
+        "trigger",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
+      "ambiguity": "Whether a character already put out of the scene by suffocation damage gets up when the damage is removed is not stated. The damage goes away the instant breathing resumes, but being defeated is a separate state in Chapter 4 and nothing here says the two are undone together."
+    },
+    {
+      "id": "swimming",
+      "name": "Swimming",
+      "kind": "formula",
+      "printed_under": "SWIMMING",
+      "swimming": {
+        "travel_speed": "half",
+        "agility_used_for_movement_challenge_rolls": "half",
+        "perception_penalty_dice_underwater": -3,
+        "scuba_mask_reduces_visual_perception_penalty_to": -1,
+        "underwater_combat_edge": "half",
+        "underwater_physical_attack_penalty_dice": -3,
+        "underwater_active_defense_penalty_dice": -3,
+        "ignored_by": "Swimming",
+        "deep_water_complexities_left_to": "gm"
+      },
+      "description": "Water halves you twice over - what you cover in a page and what you bring to a roll about covering it - and takes three dice off noticing anything. A mask gives most of that back for the eyes alone. A fight down there halves the figure that decides who acts first and costs three more dice on every physical swing and every attempt to avoid one. The Power named for it pays none of this. Cold, dark and the bends are handed to the referee.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
+      "ambiguity": "The penalty is stated for Perception and the mask is stated for visual Perception, so whether a diver wearing one still takes the full penalty on hearing, smell or a Power-driven sense is unaddressed. Nothing says whether the halved Edge and the halved movement stack with a character who is underwater and also swimming against a current."
+    },
+    {
+      "id": "leaping",
+      "name": "Leaping",
+      "kind": "formula",
+      "printed_under": "LEAPING",
+      "leaping": {
+        "every_character_effectively_has": "Leaping",
+        "at_rank": "half your Might",
+        "for_the_purpose_of": "working out how far you can jump",
+        "the_power_must_be_bought_to_use_it_for": "long-distance travel",
+        "distances_are_deliberately_abstract": true
+      },
+      "description": "Nobody has to buy the ability to jump. Everyone gets it free at half their strength, purely so that a question about how far somebody clears has an answer; paying for the Power is what turns jumping into a way of getting across a city.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
+      "ambiguity": "The free rank is granted for one purpose - measuring a jump - and the page does not say whether it counts as having the Power anywhere else: as a prerequisite, as the Movement-category Power Chapter 5 exempts from Resolve, or as something a Power that copies or drains one could reach."
+    },
+    {
+      "id": "lifting",
+      "name": "Lifting",
+      "kind": "formula",
+      "printed_under": "LIFTING",
+      "lifting": {
+        "maximum_weight_normally": "a static value that depends on your Might",
+        "static_value_assumes": "optimal conditions",
+        "roll_asked_for_when": "lifting a heavy object in combat or another fast-paced action scene",
+        "roll_is_asked_for_by": "gm",
+        "roll_trait": "Might",
+        "roll_against": "the threshold for the object's weight",
+        "threshold_depends_on": "the object's weight",
+        "read_off": "the Lifting table"
+      },
+      "description": "What you can pick up unhurried is simply a function of how strong you are. Doing it while being shot at is not: the referee may make you roll for it, against a difficulty set by what the thing weighs, because being rushed and unable to get a proper grip is the whole of what makes a lift uncertain.",
+      "verified_fields": [
+        "trigger",
+        "roll",
+        "threshold",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
+      "corroborated_by": [
+        "Ultimate Edition, Ch.2 Characters, p.17"
+      ],
+      "ambiguity": "The static maximum is named here and printed elsewhere: Ch.2 p.17's Weight table gives the most a Might rank can lift, 1d at fifty pounds up to 24d at a megaton, and p.17 is where the phrase weight rank is defined. So what this page leaves open is narrower than it looks. Every band on the table beside this rule closes on a weight that table ranks, and the printed threshold is exactly half that rank in all twelve rows - a hundred pounds is 2d and threshold 1, a megaton is 24d and threshold 12 - but the page never says the two are related, so reading a threshold back as half a weight rank is a derivation and not a rule. Nor does anything say what happens when a Might rank already exceeds the threshold: whether the roll is skipped, or made anyway."
+    },
+    {
+      "id": "lifting_table",
+      "name": "Lifting table",
+      "kind": "table",
+      "printed_under": "LIFTING — WEIGHT EXAMPLES THRESHOLD",
+      "lifting_table": [
+        {
+          "weight": "Under 100 Pounds",
+          "examples": [
+            "Scooter",
+            "Wolf"
+          ],
+          "threshold": 1
+        },
+        {
+          "weight": "100 Pounds to 500 Pounds",
+          "examples": [
+            "Motorcycle",
+            "Lion"
+          ],
+          "threshold": 2
+        },
+        {
+          "weight": "500 Pounds to 1 Ton",
+          "examples": [
+            "Car",
+            "Bear"
+          ],
+          "threshold": 3
+        },
+        {
+          "weight": "1 Ton to 5 Tons",
+          "examples": [
+            "Truck",
+            "Hippo"
+          ],
+          "threshold": 4
+        },
+        {
+          "weight": "5 Tons to 25 Tons",
+          "examples": [
+            "Lear Jet",
+            "Elephant"
+          ],
+          "threshold": 5
+        },
+        {
+          "weight": "25 Tons to 100 Tons",
+          "examples": [
+            "Commercial Jet",
+            "Blue Whale"
+          ],
+          "threshold": 6
+        },
+        {
+          "weight": "100 Tons to 500 Tons",
+          "examples": [
+            "Jumbo Jet"
+          ],
+          "threshold": 7
+        },
+        {
+          "weight": "500 Tons to 2 Kilotons",
+          "examples": [
+            "Small Freighter"
+          ],
+          "threshold": 8
+        },
+        {
+          "weight": "2 Kilotons to 10 Kilotons",
+          "examples": [
+            "Frigate"
+          ],
+          "threshold": 9
+        },
+        {
+          "weight": "10 Kilotons to 50 Kilotons",
+          "examples": [
+            "Battleship",
+            "Small Building"
+          ],
+          "threshold": 10
+        },
+        {
+          "weight": "50 Kilotons to 250 Kilotons",
+          "examples": [
+            "Aircraft Carrier",
+            "Tall Building"
+          ],
+          "threshold": 11
+        },
+        {
+          "weight": "250 Kilotons to 1 Megaton",
+          "examples": [
+            "Skyscraper"
+          ],
+          "threshold": 12
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's three columns line up, not a rule the page states.",
+        "row_alignment": "The extractor reads a table of three or more columns across rather than down, and this one's weight cells run onto a second line, so a row arrives as two lines with the examples and the threshold sitting on whichever of them the printed cell is centred against. Reassembling each band from its two lines is this project's reading. What anchors it is the ladder itself: every band's floor is the band below it's ceiling, and only one reassembly produces an unbroken sequence of thresholds from one to twelve."
+      },
+      "description": "Twelve weight bands, each with a thing that weighs about that much and a difficulty for getting it off the ground in a hurry. The scale climbs roughly fivefold a step, so the difficulty is very nearly the logarithm of the load, and the top of it is a building.",
+      "verified_fields": [
+        "threshold",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.106",
+      "ambiguity": null
+    },
+    {
+      "id": "scorching",
+      "name": "Scorching",
+      "kind": "special_case",
+      "printed_under": "SCORCHING",
+      "scorching": {
+        "sources": [
+          "heat",
+          "electricity"
+        ],
+        "is_an_attack": true,
+        "resisted_only_with": "passive defenses",
+        "gm_may_allow_a_creative_active_defense": true,
+        "works_like": "falling",
+        "table_is_a_guide": true
+      },
+      "description": "Being burned or shocked is handled exactly as being dropped is: an attack you can only soak, unless you talk the referee into something clever, whose rank is looked up rather than rolled for. The table is offered as guidance rather than as a fixed scale.",
+      "verified_fields": [
+        "trigger",
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.107",
+      "ambiguity": "No duration is attached to the attack. A fall happens once and is over; standing in a chemical fire is a situation, and nothing on the page says whether the listed rank is one attack, one attack per page, or a hazard to be run through the Hostile Environments rules instead."
+    },
+    {
+      "id": "scorching_table",
+      "name": "Scorching table",
+      "kind": "table",
+      "printed_under": "SCORCHING — HEAT ELECTRICITY",
+      "scorching_table": [
+        {
+          "heat": "Campfire",
+          "electricity": "Wall Socket",
+          "rank": 4
+        },
+        {
+          "heat": "Building Fire",
+          "electricity": "Car Battery",
+          "rank": 6
+        },
+        {
+          "heat": "Chemical Fire",
+          "electricity": "Power Line",
+          "rank": 8
+        },
+        {
+          "heat": "Incinerator",
+          "electricity": "Power Main",
+          "rank": 10
+        },
+        {
+          "heat": "Lava",
+          "electricity": "Generator",
+          "rank": 11
+        },
+        {
+          "heat": "Blast Furnace",
+          "electricity": "Lightning",
+          "rank": 12
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's three columns line up, not a rule the page states.",
+        "row_alignment": "The extractor reads a table of three or more columns across rather than down, and it splits this one into two blocks: the heat and electricity examples in one, the ranks in the other. Pairing the two blocks row by row, six deep, is this project's reading. What anchors it is that the block of examples alternates strictly between a heat source and an electrical one, so an alignment off by a single cell would put two fires or two currents in one row."
+      },
+      "description": "Six paired examples, a fire beside a current of roughly equal menace, running from a campfire and a plug socket up to a furnace and a lightning strike. The ranks are the same six the Falling table uses.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.107",
+      "ambiguity": null
+    },
+    {
+      "id": "smashing",
+      "name": "Smashing",
+      "kind": "formula",
+      "printed_under": "SMASHING",
+      "smashing": {
+        "vehicles_and_complex_machines_have": "Body",
+        "simple_objects_have": "Structure",
+        "structure_determines": "durability",
+        "gm_may_adjust_structure_by_min": 1,
+        "gm_may_adjust_structure_by_max": 4,
+        "adjustment_factors": [
+          "condition",
+          "thickness"
+        ],
+        "adjustment_factors_are_open_ended": true,
+        "roll_traits": [
+          "Might",
+          "a Power"
+        ],
+        "roll_against": "the object's Structure",
+        "bend_or_small_hole_min_net_successes": 1,
+        "bend_or_small_hole_max_net_successes": 2,
+        "big_hole_min_net_successes": 3,
+        "net_successes_may_be_combined_over_attempts": false,
+        "an_especially_thick_object_may_need_several_attempts": true
+      },
+      "description": "Machinery has a body; a door has a rating for how hard it is to get through, and the referee may move that rating up or down by as much as four dice for how thick or how rotten the thing is. Breaking it is one roll of strength or a Power against that rating: a couple of net successes buckle it or punch a fist-sized gap, three or more open a real hole, and you have to do it in one go - a wall too thick for that simply has to be done again.",
+      "verified_fields": [
+        "roll",
+        "threshold",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.107",
+      "ambiguity": "The roll is stated against Structure and nothing on the page says how an object with a Body is smashed. The opening sentence draws exactly that distinction - vehicles and complex machines have a Body, simple objects have a Structure - and then every rule under it, the table included, is about Structure alone. Chapter 7 uses both figures interchangeably two pages later, when it caps an improvised weapon at Body or Structure plus six."
+    },
+    {
+      "id": "smashing_table",
+      "name": "Smashing table",
+      "kind": "table",
+      "printed_under": "SMASHING — MATERIAL",
+      "smashing_table": {
+        "rows": [
+          {
+            "materials": [
+              "Cloth",
+              "Drywall",
+              "Glass",
+              "Ice",
+              "Rope"
+            ],
+            "structure": 2
+          },
+          {
+            "materials": [
+              "Plastic",
+              "Rubber",
+              "Wood"
+            ],
+            "structure": 4
+          },
+          {
+            "materials": [
+              "Brick",
+              "Bulletproof Glass",
+              "Hardwood"
+            ],
+            "structure": 6
+          },
+          {
+            "materials": [
+              "Asphalt",
+              "Concrete",
+              "Machinery"
+            ],
+            "structure": 8
+          },
+          {
+            "materials": [
+              "Iron",
+              "Stone"
+            ],
+            "structure": 10
+          },
+          {
+            "materials": [
+              "Steel"
+            ],
+            "structure": 12
+          },
+          {
+            "materials": [
+              "Diamond",
+              "Titanium"
+            ],
+            "structure": 14
+          },
+          {
+            "materials": [
+              "Advanced Alloy",
+              "Magical Metal"
+            ],
+            "structure": 18
+          },
+          {
+            "materials": [
+              "Ozymandium Alloy"
+            ],
+            "structure": 24
+          }
+        ],
+        "footnoted_row_materials": [
+          "Ozymandium Alloy"
+        ],
+        "ozymandium_note": "The last row carries an asterisk. The setting's indestructible metal is proof against physical harm only when it is pure; what the table rates is an alloy of it, which is merely the strongest thing on the list. The footnote is a note about the setting rather than a rule, and the row's rank is the mechanic."
+      },
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's two blocks line up, not a rule the page states.",
+        "row_alignment": "The extractor splits this table into a block of materials and a block of ranks, so pairing them row by row, nine deep, is this project's reading. What anchors it is the footnote: the asterisk is printed on the last material and the paragraph explaining it is appended to the block of ranks, so the two blocks are known to end together."
+      },
+      "description": "Nine materials from rag to the setting's own wonder-metal, doubling every step at the bottom and widening out at the top, where the gaps between the last three rows are what separate a bank vault from a god.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.107",
+      "ambiguity": null
+    },
+    {
+      "id": "damaging_cover",
+      "name": "Damaging Cover",
+      "kind": "special_case",
+      "printed_under": "DAMAGING COVER",
+      "damaging_cover": {
+        "applies_when": "attacking a target by smashing or shooting through an object",
+        "attack_penetrates_when": "the attack rank exceeds the object's Structure",
+        "target_may_use_the_objects_structure_as": "a passive defense",
+        "options_given": [
+          "shoot straight through the cover, where the attack rank exceeds its Structure",
+          "smash a hole in the cover first, leaving the target more exposed"
+        ]
+      },
+      "description": "Something in the way is not a wall between two rules but a third participant in the exchange. If you can hit harder than it can hold, the shot arrives and the obstacle answers the roll on the target's behalf; if you cannot, the honest move is to spend a turn ruining it and shoot at what is left standing behind it.",
+      "verified_fields": [
+        "trigger",
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
+      "corroborated_by": [
+        "Ultimate Edition, Ch.4 Combat, p.75"
+      ],
+      "ambiguity": null
+    },
+    {
+      "id": "scenery_as_weapons",
+      "name": "Scenery as Weapons",
+      "kind": "special_case",
+      "printed_under": "SCENERY AS WEAPONS",
+      "scenery_as_weapons": {
+        "applies_to": "a heavy object or a vehicle",
+        "close_combat_bonus_dice": 1,
+        "thrown_attack_trait": "Might",
+        "thrown_attack_bonus_dice": 1,
+        "thrown_attack_is": "a ranged attack",
+        "attack_rank_caps_at": "the object's Body or Structure plus the cap bonus",
+        "cap_bonus_dice": 6,
+        "worked_example_object": "a motorcycle",
+        "worked_example_object_body": 5,
+        "worked_example_maximum_attack_rank": 11,
+        "second_worked_example_object": "a wooden telephone pole",
+        "second_worked_example_structure_from_the_table": 6,
+        "second_worked_example_thickness_adjustment": 1,
+        "second_worked_example_object_structure": 7,
+        "second_worked_example_maximum_attack_rank": 13,
+        "degradation_dice_per_page": 2,
+        "degradation_applies_to": "an everyday object used as a weapon by a super strong character",
+        "degradation_is_only_for_these_purposes": true,
+        "ordinary_human_strength_degrades_nothing": true,
+        "edge_cases_left_to": "gm"
+      },
+      "description": "Picking up a car is a real option and it is priced. Swung, it is worth an extra die; thrown, it turns strength into a ranged attack at the same premium. What it is not is a licence to roll your whole rank: the thing itself is the ceiling, six dice above whatever it is made of, so a motorcycle stops at eleven however strong you are. And it wears out under you at two dice a page - but only under somebody strong enough for that to mean anything, which is why an ordinary person's crowbar lasts forever.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
+      "ambiguity": "\"Super strong\" is never given a rank. Both halves of this rule are scoped to it - the improvised weapon bonuses are offered to super strong characters and the two dice a page of wear is explicitly only for them - and the page draws the line by contrast with normal human strength rather than with a number. It also leaves the interaction with the Gear Limit unaddressed: a car is mundane equipment boosting a Trait for a specific purpose, and whether the six-dice cap replaces Chapter 6's ceiling or sits beside it is not stated."
+    },
+    {
+      "id": "scenery_table",
+      "name": "Scenery table",
+      "kind": "table",
+      "printed_under": "SCENERY — SCENERY STRUCTURE RANK",
+      "scenery_table": [
+        {
+          "scenery": [
+            "Post Office Mailbox"
+          ],
+          "structure": 4,
+          "maximum_attack_rank": 10
+        },
+        {
+          "scenery": [
+            "Heavy Door",
+            "Motorcycle"
+          ],
+          "structure": 5,
+          "maximum_attack_rank": 11
+        },
+        {
+          "scenery": [
+            "Brick Wall",
+            "Telephone Pole"
+          ],
+          "structure": 6,
+          "maximum_attack_rank": 12
+        },
+        {
+          "scenery": [
+            "Metal Dumpster",
+            "Sedan",
+            "Statue"
+          ],
+          "structure": 7,
+          "maximum_attack_rank": 13
+        },
+        {
+          "scenery": [
+            "Big Statue",
+            "Fighter Jet",
+            "Humvee"
+          ],
+          "structure": 8,
+          "maximum_attack_rank": 14
+        },
+        {
+          "scenery": [
+            "747 Airliner",
+            "Bus",
+            "Huge Tree",
+            "Yacht"
+          ],
+          "structure": 9,
+          "maximum_attack_rank": 15
+        },
+        {
+          "scenery": [
+            "18-Wheeler",
+            "Giant Statue"
+          ],
+          "structure": 10,
+          "maximum_attack_rank": 16
+        },
+        {
+          "scenery": [
+            "Ferris Wheel",
+            "Tank"
+          ],
+          "structure": 11,
+          "maximum_attack_rank": 17
+        },
+        {
+          "scenery": [
+            "Vault Door"
+          ],
+          "structure": 12,
+          "maximum_attack_rank": 18
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's three columns line up, not a rule the page states.",
+        "row_alignment": "The extractor reads a table of three or more columns across rather than down, so this one arrives as a single run of name, rating, ceiling, name, rating, ceiling. Cutting it into rows at each pair of ranks is this project's reading. What anchors it is the prose above the table: a motorcycle is given five dice of Body and an eleven-dice ceiling, and a telephone pole six plus one for thickness and a thirteen-dice ceiling, so a misalignment of one row moves both."
+      },
+      "description": "Nine things lying around a city, from a letterbox to a bank vault door, each with the rating that decides both how hard it is to break and how hard it hits when swung. The second figure is the first plus the six dice the rule above allows, printed out so nobody has to add.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
+      "ambiguity": null
+    },
+    {
+      "id": "massive_objects",
+      "name": "Massive Objects",
+      "kind": "special_case",
+      "printed_under": "MASSIVE OBJECTS",
+      "massive_objects": {
+        "works_like": "scenery as weapons",
+        "uses_instead_of_body_or_structure": "the object's weight rank",
+        "requires": "hefting it and somehow keeping it from collapsing under its own weight",
+        "always_breaks_apart_after": "the first shot"
+      },
+      "description": "Above a certain size the thing you are holding is no longer rated by what it is made of but by what it weighs, and the same ceiling arithmetic runs off that figure instead. The trade is that there is no second swing: whatever you hit with a mountain, you hit once.",
+      "verified_fields": [
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
+      "corroborated_by": [
+        "Ultimate Edition, Ch.2 Characters, p.17"
+      ],
+      "ambiguity": "\"Weight rank\" is defined, in another chapter: Ch.2 p.17 prints the Weight table against Might and says that \"when not referring to Might, the rank that corresponds to an object's weight on this table is sometimes called its weight rank\". That settles which of this page's two columns it is. The first column of the table beside this rule is on that scale - the Eiffel Tower's 18d is the table's ten kilotons, an aircraft carrier's 21d its hundred, the Great Pyramid's 26d two ranks past its top - while the Lifting table's threshold column is half a weight rank and so cannot be one. What is genuinely open is the top of the scale: Ch.2 prints ranks 1d to 24d and stops at a megaton, and this table runs to 69d, so the four rows above 24d name a weight the book never gives. Chapter 4's throwing formula subtracts an object's weight rank from Might, and for those four rows there is no printed weight to subtract from anything."
+    },
+    {
+      "id": "massive_objects_table",
+      "name": "Massive Objects table",
+      "kind": "table",
+      "printed_under": "MASSIVE OBJECTS — OBJECT RANK RANK",
+      "massive_objects_table": [
+        {
+          "objects": [
+            "Statue of Liberty"
+          ],
+          "weight_rank": 14,
+          "maximum_attack_rank": 20
+        },
+        {
+          "objects": [
+            "Freight Train"
+          ],
+          "weight_rank": 16,
+          "maximum_attack_rank": 22
+        },
+        {
+          "objects": [
+            "Destroyer",
+            "Eiffel Tower",
+            "Freighter"
+          ],
+          "weight_rank": 18,
+          "maximum_attack_rank": 24
+        },
+        {
+          "objects": [
+            "The London Eye"
+          ],
+          "weight_rank": 19,
+          "maximum_attack_rank": 25
+        },
+        {
+          "objects": [
+            "Aircraft Carrier",
+            "Ocean Liner"
+          ],
+          "weight_rank": 21,
+          "maximum_attack_rank": 27
+        },
+        {
+          "objects": [
+            "Skyscraper"
+          ],
+          "weight_rank": 22,
+          "maximum_attack_rank": 28
+        },
+        {
+          "objects": [
+            "Empire State Building"
+          ],
+          "weight_rank": 23,
+          "maximum_attack_rank": 29
+        },
+        {
+          "objects": [
+            "Burj Khalifa",
+            "Golden Gate Bridge"
+          ],
+          "weight_rank": 24,
+          "maximum_attack_rank": 30
+        },
+        {
+          "objects": [
+            "The Great Pyramid"
+          ],
+          "weight_rank": 26,
+          "maximum_attack_rank": 32
+        },
+        {
+          "objects": [
+            "Mount Everest"
+          ],
+          "weight_rank": 40,
+          "maximum_attack_rank": 46
+        },
+        {
+          "objects": [
+            "Moon"
+          ],
+          "weight_rank": 63,
+          "maximum_attack_rank": 69
+        },
+        {
+          "objects": [
+            "Earth"
+          ],
+          "weight_rank": 69,
+          "maximum_attack_rank": 75
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's three columns line up, not a rule the page states.",
+        "row_alignment": "The extractor reads a table of three or more columns across rather than down, so this one arrives as a single run of name, rank, ceiling. Cutting it into rows at each pair of ranks is this project's reading, the same one the Scenery table needs. What anchors it is the rule the table serves: every ceiling is its own row's rank plus the six dice p.108 allows, which no misalignment preserves."
+      },
+      "description": "Twelve things nobody should be able to pick up, ranked by weight from a statue to the planet, each with the same six dice added to give the ceiling on hitting somebody with it. The last three rows are the ones that tell you what kind of comic this is.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
+      "ambiguity": null
+    },
+    {
+      "id": "toxins",
+      "name": "Toxins",
+      "kind": "formula",
+      "printed_under": "TOXINS",
+      "toxins": {
+        "toxins_are": [
+          "diseases",
+          "drugs",
+          "poisons"
+        ],
+        "toxins_are_described_as": "biological and chemical agents",
+        "work_like": "Powers with an Innate Source",
+        "resisted_only_with": "passive defenses",
+        "passive_defenses_named": [
+          "Toughness",
+          "Resistance"
+        ],
+        "resistance_is_a_power": true,
+        "the_pros_and_cons_apply_only_to": "mundane diseases, drugs and poisons",
+        "unless": "the GM rules otherwise"
+      },
+      "description": "A germ is a Power that nobody bought. Once it is in you, nothing you do about it helps - only what you are made of, or a Power specifically for shrugging such things off. The three options printed under this heading are scoped to the ordinary kind, which the referee may widen.",
+      "verified_fields": [
+        "trigger",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
+      "ambiguity": "\"Mundane\" is never defined, and it is the whole of the scope. The three options are restricted to mundane diseases, drugs and poisons, so an alien venom or a magical plague is outside a set the page never bounds - and the sentence hands the decision to the GM without saying what they are deciding between. Nothing says what exposure is, either: the rule begins once a character has been exposed and no page here says what exposes them."
+    },
+    {
+      "id": "toxin_con_caustic",
+      "name": "Caustic",
+      "kind": "narrative",
+      "printed_under": "CAUSTIC",
+      "toxin_option": {
+        "transcribed_here": false,
+        "printed_name": "Caustic",
+        "option_kind": "con",
+        "detail_store": "data/rules/powers.json",
+        "power_id": "stun",
+        "option_id": "caustic"
+      },
+      "description": "One of the three options this section prints for a toxin, and the only one that makes the Power cheaper. It is not transcribed here: the character rules already carry it, priced, on the Power it belongs to, and a second copy in this store would be a second thing to disagree with the first. This entry is the pointer.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
+      "ambiguity": null
+    },
+    {
+      "id": "toxin_pro_lethal_disease",
+      "name": "Lethal Disease",
+      "kind": "narrative",
+      "printed_under": "LETHAL DISEASE",
+      "toxin_option": {
+        "transcribed_here": false,
+        "printed_name": "Lethal Disease",
+        "option_kind": "pro",
+        "detail_store": "data/rules/powers.json",
+        "power_id": "slay",
+        "option_id": "lethal_disease"
+      },
+      "description": "The expensive one, and the reason this section exists at all: an illness kills at the end of the story rather than at the end of the roll. Recorded here as a reference, because the character rules price it on the Power it modifies and that is where its cost is verified.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.108",
+      "ambiguity": null
+    },
+    {
+      "id": "toxin_pro_non_lethal_disease",
+      "name": "Non-Lethal Disease",
+      "kind": "narrative",
+      "printed_under": "NON-LETHAL DISEASE",
+      "toxin_option": {
+        "transcribed_here": false,
+        "printed_name": "Non-Lethal Disease",
+        "option_kind": "pro",
+        "detail_store": "data/rules/powers.json",
+        "power_id": "stun",
+        "option_id": "non_lethal_disease"
+      },
+      "description": "The survivable illness: not out of the fight, just worse at everything until the story ends. Recorded here as a reference for the same reason its two neighbours are - the price belongs to the Power, and the Power is in the character rules.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.109",
+      "ambiguity": null
+    },
+    {
+      "id": "diseases_table",
+      "name": "Diseases",
+      "kind": "table",
+      "printed_under": "DISEASES — TOXIN POWER",
+      "diseases_table": {
+        "rows": [
+          {
+            "name": "Anthrax",
+            "power": "Slay",
+            "rank": 5,
+            "options": [
+              "lethal_disease",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Bubonic Plague",
+            "power": "Slay",
+            "rank": 6,
+            "options": [
+              "lethal_disease",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Common Cold",
+            "power": "Stun",
+            "rank": 3,
+            "options": [
+              "non_lethal_disease",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Ebola",
+            "power": "Slay",
+            "rank": 7,
+            "options": [
+              "lethal_disease",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Influenza",
+            "power": "Stun",
+            "rank": 5,
+            "options": [
+              "non_lethal_disease",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Malaria",
+            "power": "Stun",
+            "rank": 6,
+            "options": [
+              "non_lethal_disease",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Malaria, Severe",
+            "power": "Slay",
+            "rank": 2,
+            "options": [
+              "lethal_disease",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Smallpox",
+            "power": "Slay",
+            "rank": 3,
+            "options": [
+              "lethal_disease",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Staph Infection",
+            "power": "Slay",
+            "rank": 4,
+            "options": [
+              "lethal_disease",
+              "toxin"
+            ],
+            "footnoted": true
+          }
+        ],
+        "footnoted_row_names": [
+          "Staph Infection"
+        ],
+        "options_are_referenced_not_transcribed": true,
+        "staph_infection_note": "The last row carries an asterisk widening it from one organism to a class of them: bacterial infections generally, of the sort an untreated wound produces. It is a note about what the row stands for and not a mechanic; the row's Power and rank are the mechanic."
+      },
+      "description": "Nine illnesses written up as Powers, split between the ones that finish you and the ones that merely ruin your week. Severe malaria is the pair that shows how the split works: the ordinary case is six dice of the survivable kind, and the same disease gone wrong is two dice of the lethal one - fewer dice, worse outcome.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.109",
+      "ambiguity": null
+    },
+    {
+      "id": "drugs_and_poisons_table",
+      "name": "Drugs and Poisons",
+      "kind": "table",
+      "printed_under": "DRUGS AND POISONS — TOXIN POWER",
+      "drugs_and_poisons_table": {
+        "rows": [
+          {
+            "name": "Alcohol, Too Much",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 6,
+                "rank_max": 6
+              }
+            ],
+            "options": [
+              "caustic",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Alcohol, Way Too Much",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 6,
+                "rank_max": 6
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Ancient Poison",
+            "effects": [
+              {
+                "power": "Slay",
+                "traits": [],
+                "rank_min": 5,
+                "rank_max": 5
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": true
+          },
+          {
+            "name": "Anesthesia",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 10,
+                "rank_max": 10
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Blowfish Toxin",
+            "effects": [
+              {
+                "power": "Slay",
+                "traits": [],
+                "rank_min": 7,
+                "rank_max": 7
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Cyanide",
+            "effects": [
+              {
+                "power": "Slay",
+                "traits": [],
+                "rank_min": 9,
+                "rank_max": 9
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Knockout Drops",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 6,
+                "rank_max": 6
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Knockout Gas",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 8,
+                "rank_max": 8
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Laughing Gas",
+            "effects": [
+              {
+                "power": "Drain",
+                "traits": [
+                  "Intellect",
+                  "Willpower"
+                ],
+                "rank_min": 6,
+                "rank_max": 6
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Mustard Gas",
+            "effects": [
+              {
+                "power": "Slay",
+                "traits": [],
+                "rank_min": 4,
+                "rank_max": 4
+              },
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 8,
+                "rank_max": 8
+              }
+            ],
+            "options": [
+              "caustic",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Nerve Gas",
+            "effects": [
+              {
+                "power": "Slay",
+                "traits": [],
+                "rank_min": 11,
+                "rank_max": 11
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Pepper Spray",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 6,
+                "rank_max": 6
+              }
+            ],
+            "options": [
+              "caustic",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Strychnine",
+            "effects": [
+              {
+                "power": "Slay",
+                "traits": [],
+                "rank_min": 5,
+                "rank_max": 5
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Tear Gas",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 6,
+                "rank_max": 6
+              }
+            ],
+            "options": [
+              "caustic",
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Tranquilizer",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 6,
+                "rank_max": 6
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Truth Serum",
+            "effects": [
+              {
+                "power": "Drain",
+                "traits": [
+                  "Intellect",
+                  "Willpower"
+                ],
+                "rank_min": 8,
+                "rank_max": 8
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Venom, Lethal",
+            "effects": [
+              {
+                "power": "Slay",
+                "traits": [],
+                "rank_min": 3,
+                "rank_max": 7
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          },
+          {
+            "name": "Venom, Paralytic",
+            "effects": [
+              {
+                "power": "Stun",
+                "traits": [],
+                "rank_min": 4,
+                "rank_max": 8
+              }
+            ],
+            "options": [
+              "toxin"
+            ],
+            "footnoted": false
+          }
+        ],
+        "footnoted_row_names": [
+          "Ancient Poison"
+        ],
+        "options_are_referenced_not_transcribed": true,
+        "ancient_poison_note": "The asterisked row stands for a family rather than a substance: the naturally derived poisons of the classical world, arsenic and hemlock and their like. A note about what the row covers, not a mechanic."
+      },
+      "description": "Eighteen substances, most of them a single Power at a single rank. Four rows break that shape and each break is worth noticing: two are drains on the mind rather than the body, one row inflicts two Powers at once, and the two venoms are printed as a span rather than a figure, which is the table admitting that a snake is not a dose.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.7 Environment, p.109",
+      "ambiguity": "Two rows print a Drain against a pair of named Traits, and Chapter 2's Drain is defined over a chosen Source rather than over named Traits - so the parenthesis is neither one of this section's three options nor a shape the Power's own entry offers, and nothing says whether the toxin drains both, either, or a Source that happens to hold them. The two venom rows print a range of ranks with no rule for picking one out of it."
+    }
+  ]
+}

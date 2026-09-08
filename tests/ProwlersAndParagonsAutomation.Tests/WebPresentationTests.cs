@@ -2086,6 +2086,364 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// Every icon <c>index.html</c> points at is a file that is actually there, the manifest
+    /// names this app rather than the icon generator's placeholder, and the two agree about
+    /// where the pack lives.
+    ///
+    /// <para><b>A <c>&lt;link rel="icon"&gt;</c> to a missing file is the silent kind of
+    /// broken.</b> Nothing errors and no test that reads the markup can tell: the attribute is
+    /// present, the <c>rel</c> is right, and the browser quietly falls back to its own default
+    /// glyph. That is exactly the failure mode the font guard above exists for, in the one
+    /// other place this app names files it does not compile — and the tab icon is the first
+    /// thing anybody sees of the owner's mark.</para>
+    ///
+    /// <para><b>The manifest's name is pinned to the front door's heading, not to a literal.</b>
+    /// The heading is what the end-to-end BOOT check reads and what an installed shortcut is
+    /// labelled with; two spellings is how a home-screen icon comes to be called something the
+    /// site never says. The generator ships <c>MyWebSite</c> and unhashed colours, all of which
+    /// are refused here — a placeholder that survives is a manifest nobody edited.</para>
+    ///
+    /// <para><b>"A file is there" was the whole of this check once, and it was not enough.</b>
+    /// Repointing <c>&lt;link rel="icon" type="image/png" sizes="96x96"&gt;</c> at
+    /// <c>/join.html</c> — a real file, twelve kilobytes of it — left this test green, and a
+    /// browser asking for that gets an HTML document where a PNG should be and draws its own
+    /// glyph, which is the exact failure the paragraph above says this exists to prevent. So the
+    /// bytes are opened: the first four of them have to be the signature of the format the
+    /// <c>href</c>'s extension claims, and a PNG's <c>IHDR</c> — width and height, big-endian, at
+    /// a fixed offset, needing no decoder — has to be the size the markup or the manifest says it
+    /// is. That is the difference between "something is served here" and "the icon is here".</para>
+    /// </summary>
+    [Fact]
+    public void EveryIconTheAppNamesIsServedAndTheManifestNamesTheApp()
+    {
+        var root = Path.Combine(WebRoot, "wwwroot");
+
+        // rel is matched as a token list: `shortcut icon` is two of them, and a substring test
+        // over the whole tag would take `apple-touch-icon` for an `icon`.
+        var links = Rx("<link\\s[^>]*>", RegexOptions.IgnoreCase)
+            .Matches(IndexHtml)
+            .Select(m => m.Value)
+            .Select(tag => (
+                Rel: Rx("rel\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value,
+                Href: Rx("href\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value,
+                // Carried along so the byte check below can hold the file to the size the markup
+                // promised a browser it would find there. Empty for a link that declares none.
+                Sizes: Rx("sizes\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value))
+            .Select(l => (Rel: l.Rel.Split(' ', StringSplitOptions.RemoveEmptyEntries), l.Href, l.Sizes))
+            .Where(l => l.Rel.Any(r => r is "icon" or "shortcut" or "apple-touch-icon" or "manifest"))
+            .ToList();
+
+        // The positive control. Without it a scan that matched nothing — the attribute spelled
+        // differently, the links written another way — would report a page carrying no icon at
+        // all as compliant, which is the shape most of this repository's guard faults had.
+        foreach (var rel in new[] { "icon", "shortcut", "apple-touch-icon", "manifest" })
+        {
+            Assert.True(links.Any(l => l.Rel.Contains(rel, StringComparer.Ordinal)),
+                $"index.html declares no <link rel=\"{rel}\">.");
+        }
+
+        var manifestHref = links.Single(l => l.Rel.Contains("manifest", StringComparer.Ordinal)).Href;
+
+        foreach (var (rel, href, sizes) in links)
+        {
+            // Root-relative on purpose, and asserted so the two files cannot drift into
+            // addressing one pack two ways: site.webmanifest names its own icons absolutely,
+            // and the browser asks for it from whatever route the reader is standing on.
+            Assert.StartsWith("/", href, StringComparison.Ordinal);
+
+            var file = Path.Combine(root, href.TrimStart('/'));
+
+            Assert.True(File.Exists(file),
+                $"index.html points <link rel=\"{string.Join(' ', rel)}\"> at {href}, which is "
+                + "not in wwwroot. The browser falls back to its own glyph and nothing notices.");
+            Assert.True(new FileInfo(file).Length > 128, $"{href} is empty.");
+
+            // The manifest is in this list because it is linked beside the pack and has to exist
+            // too; it is JSON rather than an image and is parsed in full a few lines below.
+            if (!rel.Contains("manifest", StringComparer.Ordinal))
+            {
+                AssertServedFileIsTheImageItClaimsToBe(file, $"index.html's <link> to {href}", sizes);
+            }
+        }
+
+        var manifestText = File.ReadAllText(Path.Combine(root, manifestHref.TrimStart('/')));
+
+        using var doc = System.Text.Json.JsonDocument.Parse(manifestText);
+        var app = doc.RootElement;
+
+        // The heading the front door renders, read out of the page rather than restated here.
+        // The markup carries the entity; the manifest is JSON and carries the character.
+        var heading = Rx("<h1>(.*?)</h1>", RegexOptions.Singleline)
+            .Match(File.ReadAllText(Path.Combine(WebRoot, "Pages", "Home.razor")))
+            .Groups[1].Value.Replace("&amp;", "&", StringComparison.Ordinal).Trim();
+
+        Assert.False(string.IsNullOrWhiteSpace(heading),
+            "Home.razor renders no <h1>, so there is no name for the manifest to agree with.");
+        Assert.Equal(heading, app.GetProperty("name").GetString());
+
+        var shortName = app.GetProperty("short_name").GetString() ?? "";
+
+        Assert.NotEmpty(shortName);
+        Assert.StartsWith(shortName, heading, StringComparison.Ordinal);
+
+        // The generator's own colours are unhashed — `"theme_color": "E63536"` is not a colour
+        // any browser will parse, and it is dropped in silence rather than reported.
+        foreach (var key in new[] { "theme_color", "background_color" })
+        {
+            Assert.Matches("^#[0-9A-Fa-f]{6}$", app.GetProperty(key).GetString() ?? "");
+        }
+
+        Assert.DoesNotContain("MyWebSite", manifestText, StringComparison.OrdinalIgnoreCase);
+
+        var icons = app.GetProperty("icons").EnumerateArray().ToList();
+
+        Assert.NotEmpty(icons);
+
+        // At least one icon a platform may draw unmasked, which is what an omitted `purpose`
+        // means and what every context except an Android adaptive icon asks for — the install
+        // prompt, the task switcher, the desktop window. The generator shipped both of these
+        // marked `maskable` and nothing else, which leaves those contexts with no icon to pick
+        // and is a claim about the artwork that the artwork does not support: a maskable icon
+        // must keep its content inside a circle of 80% of its width, and this one is the full
+        // lockup bled to the edges. Measured over the 192px file with `scripts/visual/png.mjs`,
+        // 13% of its non-background pixels fall outside that circle and the furthest reach 111%
+        // of the half-width; under a round mask the wordmark reads `wareSamur` and the tagline
+        // is gone. Adding `maskable` back means adding padded artwork with it, not a keyword.
+        Assert.True(
+            icons.Any(icon =>
+                !icon.TryGetProperty("purpose", out var purpose)
+                || (purpose.GetString() ?? "")
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Contains("any", StringComparer.Ordinal)),
+            "site.webmanifest lists no icon a platform may draw unmasked — every entry names a "
+            + "`purpose` and none of them includes `any`. An install prompt and a task switcher "
+            + "have nothing to pick, and `maskable` on this pack's full-bleed lockup crops the "
+            + "wordmark. See the comment above.");
+
+        foreach (var icon in icons)
+        {
+            var src = icon.GetProperty("src").GetString() ?? "";
+
+            Assert.StartsWith("/", src, StringComparison.Ordinal);
+
+            var file = Path.Combine(root, src.TrimStart('/'));
+
+            Assert.True(File.Exists(file),
+                $"site.webmanifest lists {src}, which is not in wwwroot. An installed shortcut "
+                + "gets whatever the platform draws for an icon that would not load.");
+            Assert.True(new FileInfo(file).Length > 128, $"{src} is empty.");
+
+            AssertServedFileIsTheImageItClaimsToBe(
+                file,
+                $"site.webmanifest's icon {src}",
+                icon.TryGetProperty("sizes", out var declared) ? declared.GetString() ?? "" : "");
+        }
+    }
+
+    /// <summary>
+    /// Opens the first bytes of a file an icon declaration points at and holds them to what that
+    /// declaration promised — the format its extension names, and, for a PNG, the pixel size the
+    /// <c>sizes</c> attribute or field claims.
+    ///
+    /// <para><b>Why the bytes rather than the path.</b> <c>File.Exists</c> plus a length floor
+    /// says a file is served there; it does not say an <em>icon</em> is. Pointed at
+    /// <c>/join.html</c> — twelve kilobytes, and a file this repository certainly has — the
+    /// caller's assertions above all held, while a browser asking for that PNG would get an HTML
+    /// document and quietly draw its own default glyph. That is the silent failure the caller's
+    /// doc comment names, reached by the one route it could not see.</para>
+    ///
+    /// <para><b>No image library is needed for either half.</b> The signature is the first four
+    /// bytes, and a PNG's dimensions are two big-endian 32-bit integers at a fixed offset in the
+    /// <c>IHDR</c> chunk, which the format requires to come first. An SVG is text, so it is
+    /// enough that it opens as one — its size is a viewBox rather than a pixel count, and
+    /// declaring <c>sizes="any"</c> for it is what the markup already does.</para>
+    /// </summary>
+    private static void AssertServedFileIsTheImageItClaimsToBe(string file, string what, string sizes)
+    {
+        var head = new byte[24];
+
+        using (var stream = File.OpenRead(file))
+        {
+            _ = stream.ReadAtLeast(head, head.Length, throwOnEndOfStream: false);
+        }
+
+        var extension = Path.GetExtension(file).ToUpperInvariant();
+
+        switch (extension)
+        {
+            case ".PNG":
+                Assert.True(
+                    head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47,
+                    $"{what} is not a PNG — its first bytes are not the PNG signature. A browser "
+                    + "asked for an image and got something else, and draws its own glyph.");
+
+                // IHDR is mandated to be the first chunk, so width and height are big-endian at
+                // 16 and 20. Read here rather than decoded: nothing else about the pixels matters.
+                var width = (head[16] << 24) | (head[17] << 16) | (head[18] << 8) | head[19];
+                var height = (head[20] << 24) | (head[21] << 16) | (head[22] << 8) | head[23];
+
+                if (!string.IsNullOrEmpty(sizes) && !sizes.Equals("any", StringComparison.OrdinalIgnoreCase))
+                {
+                    Assert.True(sizes.Equals($"{width}x{height}", StringComparison.Ordinal),
+                        $"{what} declares sizes=\"{sizes}\" and the file is {width}x{height}. A "
+                        + "platform picking an icon by the size it was told about gets the wrong "
+                        + "one scaled, which is a blurry mark rather than a missing one.");
+                }
+
+                break;
+
+            case ".ICO":
+                // The ICONDIR header: two reserved zero bytes, then type 1 for an icon.
+                Assert.True(head[0] == 0 && head[1] == 0 && head[2] == 1 && head[3] == 0,
+                    $"{what} is not a Windows icon file.");
+                break;
+
+            case ".SVG":
+                var text = File.ReadAllText(file);
+
+                Assert.True(
+                    text.TrimStart().StartsWith("<svg", StringComparison.OrdinalIgnoreCase)
+                    || text.TrimStart().StartsWith("<?xml", StringComparison.OrdinalIgnoreCase),
+                    $"{what} does not open as SVG.");
+                Assert.Contains("<svg", text, StringComparison.OrdinalIgnoreCase);
+                break;
+
+            default:
+                Assert.Fail(
+                    $"{what} has the extension {extension}, which this guard does not know how to "
+                    + "open. Teach it the format or stop naming that file as an icon — an "
+                    + "unchecked one is how the last hole here got in.");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The mark in the banner is the owner's own artwork, cropped rather than redrawn, and it
+    /// never reaches paper.
+    ///
+    /// <para><b>How <c>logo.svg</c> was made, so it can be made again.</b> <c>favicon.svg</c> —
+    /// the file the owner's generator produced, and the whole lockup — draws a full-bleed ground
+    /// and then 130 paths: the first 81 are the eye, the 25 after them spell
+    /// <c>SoftwareSamurai.net</c>, and the last 24 are the tagline under it. Those two runs sit
+    /// in a clean horizontal band below the eye and are dropped, because at the size the banner
+    /// draws this mark they are a grey smudge rather than words. The 81 that are kept are moved
+    /// into a square tile of their own by one <c>translate</c>, with their coordinates untouched
+    /// — which is what this test checks, and it is the only claim worth making mechanically: an
+    /// SVG that has been re-traced, re-coloured or re-exported by a different tool is a
+    /// different drawing wearing the same name, and nothing else here would notice.</para>
+    ///
+    /// <para><b>The ground stays, and that is the crop decision.</b> The banner's fill is
+    /// <c>--primary</c>, which is navy for a Hero and crimson for a Villain; the mark's red on
+    /// that crimson is a mark nobody can see. Lifted off its ground it would also stop being the
+    /// same drawing — 45 of the 81 paths kept here are the <em>same dark</em> as the ground and
+    /// are the counters inside the eye, so a transparent version paints them as shapes where the
+    /// artwork has holes. That number is asserted below rather than only written down: it read
+    /// 56 here and in <c>docs/guide/browser.md</c> until it was counted, which is 57 dark paths
+    /// in the whole lockup less its ground — the figure for the file that was <em>not</em>
+    /// cropped. See <c>docs/guide/browser.md</c>.</para>
+    ///
+    /// <para><b>Which 81, and not merely that they are the owner's.</b> Rebuilding
+    /// <c>logo.svg</c> from the <em>last</em> 81 paths of the pack — the wordmark and the tagline
+    /// rather than the eye — left every assertion here green, because each of them is still a
+    /// path the pack contains. The banner would draw the grey smudge this crop exists to avoid
+    /// and the guard would call it the owner's artwork correctly cropped. So the kept paths are
+    /// held to being <c>favicon.svg</c>'s first run <em>in order</em>, which is what the
+    /// paragraph above claims and what makes it reproducible.</para>
+    ///
+    /// <para><b>And it does not print.</b> <c>.banner</c> is in the print block's hide list and
+    /// covers this element already — but a selector that is only correct because of another
+    /// selector is one rearrangement away from being wrong, which is the reason the two palette
+    /// switches and the settings menu are all named there beside it. This one is an image on a
+    /// coloured tile: getting it onto paper costs ink, and the printed sheet is the deliverable.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheBannersMarkIsTheOwnersArtworkCroppedAndNeverPrints()
+    {
+        var root = Path.Combine(WebRoot, "wwwroot");
+        var layout = File.ReadAllText(Path.Combine(WebRoot, "Layout", "MainLayout.razor"));
+
+        var img = Rx("<img\\s[^>]*class=\"banner-mark\"[^>]*>").Match(layout);
+
+        // The positive control for the scan. Without it a markup change that dropped the mark,
+        // or spelled its class differently, would leave every assertion below with nothing to
+        // be false about — the shape most of this repository's guard faults have had.
+        Assert.True(img.Success,
+            "MainLayout renders no <img class=\"banner-mark\">, so the banner carries no mark.");
+
+        var src = Rx("src=\"([^\"]*)\"").Match(img.Value).Groups[1].Value;
+        var alt = Rx("alt=\"([^\"]*)\"").Match(img.Value).Groups[1].Value;
+
+        // Relative, not root-relative, unlike the icons in index.html — and for the opposite
+        // reason. This markup is rendered by the app under `<base href="/">`, which resolves it
+        // to the same place; the proof pages are written into wwwroot and have no <base>, so a
+        // leading slash would send Chrome to the filesystem root and the pixel goldens would
+        // record a banner with a broken image in it.
+        Assert.Equal("logo.svg", src);
+        Assert.False(string.IsNullOrWhiteSpace(alt),
+            "The banner's mark has no alt text. axe requires one, and an empty alt would say "
+            + "this image is decoration — it is the only thing on the page naming its author.");
+
+        var mark = File.ReadAllText(Path.Combine(root, src));
+        var pack = File.ReadAllText(Path.Combine(root, "favicon.svg"));
+
+        static List<string> Drawings(string svg) =>
+            Rx("<path\\s[^>]*d=\"([^\"]+)\"").Matches(svg).Select(m => m.Groups[1].Value).ToList();
+
+        var kept = Drawings(mark);
+        var whole = Drawings(pack);
+
+        Assert.True(kept.Count > 50,
+            $"logo.svg draws {kept.Count} paths. It is meant to be the eye out of the owner's "
+            + "lockup, which is 81 of them — this is an empty or truncated file.");
+        Assert.True(kept.Count < whole.Count,
+            "logo.svg draws as many paths as favicon.svg, so nothing was cropped off. The "
+            + "wordmark and tagline are what make it unreadable at the size the banner uses.");
+
+        // The tile's own ground is the one path that is not in the pack: it is cut to the
+        // cropped square rather than to the original 2048. Everything else has to be the
+        // owner's, verbatim — a coordinate re-exported by another tool would fail here, which
+        // is the point.
+        var foreign = kept.Where(d => !whole.Contains(d, StringComparer.Ordinal)).ToList();
+
+        Assert.True(foreign.Count == 1,
+            $"logo.svg draws {foreign.Count} paths that are not in favicon.svg, and exactly one "
+            + "— its own tile ground — is expected. The mark must be the owner's artwork moved, "
+            + "not redrawn.");
+        Assert.Matches(Rx(@"^M0 0L\d+ 0L\d+ \d+L0 \d+L0 0Z$"), foreign[0]);
+
+        // The eye is the pack's first run after its own ground, in order — see the doc comment
+        // for the mutation that walked through everything above. Compared as a sequence rather
+        // than as a set, because "these are all paths the pack has somewhere" was the claim that
+        // let the wordmark through wearing the mark's name.
+        Assert.Equal(whole.Skip(1).Take(kept.Count - 1), kept.Skip(1));
+
+        // The dark counters, counted rather than remembered. The tile ground is `kept[0]` and is
+        // excluded; what is left is the ink of the eye, and this is the figure the "a transparent
+        // version paints holes as shapes" argument rests on.
+        var ground = Rx("<path\\s+fill=\"([^\"]+)\"").Match(mark).Groups[1].Value;
+        var counters = Rx("<path\\s+fill=\"([^\"]+)\"").Matches(mark)
+            .Skip(1)
+            .Count(m => m.Groups[1].Value.Equals(ground, StringComparison.OrdinalIgnoreCase));
+
+        Assert.True(counters == 45,
+            $"{counters} of the {kept.Count - 1} paths in the crop are the tile's own {ground}, "
+            + "and 45 is the figure browser.md and the comment above argue from. If the artwork "
+            + "changed, count again and move both — the number is the whole of why this mark "
+            + "cannot simply be lifted off its ground.");
+
+        // Named on paper as well as covered by `.banner`, for the reason the doc comment gives.
+        var hidden = Rx(@"([^{}]+)\{([^{}]*)\}")
+            .Matches(OnlyPrintBlockOf(AppCss))
+            .Where(r => Normalise(r.Groups[2].Value).Contains("display:none", StringComparison.Ordinal))
+            .SelectMany(r => r.Groups[1].Value.Split(',').Select(s => s.Trim()))
+            .ToList();
+
+        Assert.Contains(".banner", hidden, StringComparer.Ordinal);
+        Assert.Contains(".banner-mark", hidden, StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// A family may only be served the file that carries it.
     ///
     /// <para><b>Nothing else correlates the two, and without this the redesign's headline item

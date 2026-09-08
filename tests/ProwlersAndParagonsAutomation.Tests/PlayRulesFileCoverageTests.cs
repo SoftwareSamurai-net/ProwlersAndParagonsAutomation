@@ -17,7 +17,7 @@ namespace ProwlersAndParagonsAutomation.Tests;
 ///
 /// <para><b>The strictness lives here and not in <see cref="PlayRulesRepository"/>.</b> That
 /// repository ignores an unmapped field at runtime, so a data edit is a failing test rather than a
-/// broken host; this re-reads the same six files with
+/// broken host; this re-reads the same seven files with
 /// <see cref="JsonUnmappedMemberHandling.Disallow"/> and fails naming the field.</para>
 ///
 /// <para><b>It is a second reader of these files and that is deliberate.</b>
@@ -48,7 +48,8 @@ public sealed class PlayRulesFileCoverageTests
         (PlayRulesRepository.CombatFile,    typeof(PlayFile<CombatEntry>)),
         (PlayRulesRepository.GrittyFile,    typeof(PlayFile<GrittyEntry>)),
         (PlayRulesRepository.ResolveFile,   typeof(PlayFile<ResolveEntry>)),
-        (PlayRulesRepository.EquipmentFile, typeof(PlayFile<EquipmentEntry>))
+        (PlayRulesRepository.EquipmentFile, typeof(PlayFile<EquipmentEntry>)),
+        (PlayRulesRepository.EnvironmentFile, typeof(PlayFile<EnvironmentEntry>))
     ];
 
     public static TheoryData<string, Type> FilesAndModels()
@@ -91,7 +92,7 @@ public sealed class PlayRulesFileCoverageTests
     /// data, and requires each file to yield a header and entries.
     /// </summary>
     [Fact]
-    public void TheRepositoryReadsAllSixFilesThroughIRulesSource()
+    public void TheRepositoryReadsAllSevenFilesThroughIRulesSource()
     {
         var play = new PlayRulesRepository(new FileSystemRulesSource(PlayDataPath));
 
@@ -101,11 +102,13 @@ public sealed class PlayRulesFileCoverageTests
         Assert.Equal(11, play.Gritty.Entries.Count);
         Assert.Equal(28, play.Resolve.Entries.Count);
         Assert.Equal(7, play.Equipment.Entries.Count);
+        Assert.Equal(27, play.Environment.Entries.Count);
 
         foreach (var header in new[]
                  {
                      play.Meta.Header, play.Challenge.Header, play.Combat.Header,
-                     play.Gritty.Header, play.Resolve.Header, play.Equipment.Header
+                     play.Gritty.Header, play.Resolve.Header, play.Equipment.Header,
+                     play.Environment.Header
                  })
         {
             Assert.False(string.IsNullOrWhiteSpace(header.WhatThisIs));
@@ -129,7 +132,7 @@ public sealed class PlayRulesFileCoverageTests
     public void NeitherFileListHoldsTheOthersFiles()
     {
         Assert.True(RulesRepository.DataFileNames.Count >= 11);
-        Assert.Equal(6, PlayRulesRepository.DataFileNames.Count);
+        Assert.Equal(7, PlayRulesRepository.DataFileNames.Count);
 
         Assert.Empty(PlayRulesRepository.DataFileNames.Intersect(RulesRepository.DataFileNames, StringComparer.Ordinal));
     }

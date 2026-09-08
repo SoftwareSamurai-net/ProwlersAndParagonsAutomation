@@ -1,0 +1,181 @@
+{
+  "header": {
+    "what_this_is": "Chapter 6's Gadget rules, printed p.94, as data: what a character needs before they can build one, how a Gadget's Complexity is chosen, the roll that builds it, the pool of Hero Points a successful build hands you, how long it takes, how a Gadget fails, and which Talents can make one. A Gadget is the one thing in this chapter that pays Hero Points out rather than charging them.",
+    "not_logic": "Data only. Nothing here decides what a character costs today: RulesRepository.DataFileNames deliberately does not list this file, because the consumer slice - the one that teaches CostCalculator and the sheet about Gadgets, vehicles and headquarters - is the slice that gets to decide how it is loaded. The csproj globs copy it to every host's output directory regardless, which is where the consumer will find it.",
+    "deliberately_omitted": "p.94's Vehicles material is in vehicles.json and p.100's is in headquarters.json, so that each file answers one question. The chapter's printed range is pp.87-104; this file is p.94 alone, and the source_ref on every entry says so.",
+    "verified_fields_closed_list": [
+      "cost",
+      "rank",
+      "roll",
+      "threshold",
+      "effect",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94"
+  },
+  "entries": [
+    {
+      "id": "gadget_prerequisites",
+      "name": "Building a Gadget",
+      "kind": "prerequisite",
+      "printed_under": "GADGETS",
+      "prerequisites": {
+        "minimum_technology_rank": 6,
+        "also_needs": [
+          "tools",
+          "materials",
+          "facilities"
+        ],
+        "maximum_per_issue_formula": "half the builder's Intellect",
+        "maximum_per_issue_trait": "intellect",
+        "maximum_per_issue_divisor": 2
+      },
+      "description": "Not every character can improvise hardware mid-story. The builder needs six dice of Technology before the rules open to them at all, plus somewhere to work and something to work with, and the number they can turn out inside one issue is tied to how clever they are rather than to how skilled. An odd Intellect gives a whole number: the Introduction's glossary (p.7) settles every halving in the book in one direction, upward, and says so in as many words.",
+      "verified_fields": [
+        "prerequisite",
+        "rank",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    },
+    {
+      "id": "gadget_complexity",
+      "name": "Step 1: Assign Complexity",
+      "kind": "formula",
+      "printed_under": "GADGETS",
+      "complexity": {
+        "minimum": 3,
+        "maximum_formula": "the builder's Technology rank",
+        "maximum_trait": "technology",
+        "governs": [
+          "how powerful the Gadget will be",
+          "how hard it will be to create"
+        ]
+      },
+      "description": "One number decides everything about the item. The builder picks it, from three up to as far as their own Technology reaches, and it sets both the difficulty of the attempt and the size of the budget a success pays out.",
+      "verified_fields": [
+        "rank",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    },
+    {
+      "id": "gadget_challenge_roll",
+      "name": "Step 2: The Challenge Roll",
+      "kind": "formula",
+      "printed_under": "GADGETS",
+      "challenge_roll": {
+        "trait_rolled": "technology",
+        "threshold_is": "the Gadget's Complexity",
+        "on_success": "the Gadget is built",
+        "marginal_success_minimum": 1,
+        "marginal_success_maximum": 2,
+        "marginal_success_effect": "the Gadget carries a flaw, quirk or side-effect chosen by the GM",
+        "marginal_success_decided_by": "gm",
+        "scene_minutes_per_complexity": 10,
+        "time_is_spent_whether_or_not_it_succeeds": true
+      },
+      "description": "The builder rolls the same Talent that set the ceiling, against the number they chose as the threshold. Scraping in by a point or two still produces the item, with something wrong with it that the GM names. Either way the attempt eats a scene, and a longer one the more ambitious the item was.",
+      "verified_fields": [
+        "roll",
+        "threshold",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    },
+    {
+      "id": "gadget_build",
+      "name": "Step 3: Build the Gadget",
+      "kind": "formula",
+      "printed_under": "GADGETS",
+      "build": {
+        "hero_points_granted_multiplier": 2,
+        "hero_points_granted_formula": "double the Gadget's Complexity",
+        "spendable_on": [
+          "abilities",
+          "talents",
+          "powers"
+        ],
+        "default_con": "item",
+        "default_con_is_credited": false,
+        "other_pros_and_cons_allowed": true,
+        "may_instead_modify_mundane_gear": true
+      },
+      "description": "A successful build hands over a pool of Hero Points worth twice the Complexity, and the item is then written up out of that pool exactly as a character would be. Every Gadget is held rather than innate, which the Item Con records and which buys back nothing; anything else the builder wants to say about the item is priced normally.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": "The granted pool is not the character's own Hero Point budget and the page never says whether an unspent point survives the scene, whether the pool can be topped up later, or what happens to it when the Gadget stops working."
+    },
+    {
+      "id": "gadget_instability",
+      "name": "Instability",
+      "kind": "formula",
+      "printed_under": "GADGETS",
+      "instability": {
+        "dice_rolled_per_use": 1,
+        "fails_when": "the die rolls lower than the number of times the Gadget has been used",
+        "on_failure": "the Gadget stops working",
+        "roll_is_made": "each time the Gadget is used"
+      },
+      "description": "A hastily built item is not built to last. One die is thrown whenever it is used, and it survives only while that die keeps up with the tally of uses behind it, so an item's chances get worse every time it is relied on.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": "The comparison is against the number of times the Gadget has been used and the page does not say whether the current use is counted before or after the roll, so the first use is either safe on any face or already exposed on a 1."
+    },
+    {
+      "id": "gadget_talents",
+      "name": "Other Talents",
+      "kind": "formula",
+      "printed_under": "GADGETS",
+      "talents": {
+        "technology_makes": "devices and machines",
+        "science_makes": "compounds and materials",
+        "medicine_makes": "drugs and medicines",
+        "gm_may_allow_magical_or_techno_magical": true,
+        "gm_chooses_the_talent_for_those": true,
+        "per_issue_ceiling_is_unchanged": "half the builder's Intellect"
+      },
+      "description": "Three Talents build three kinds of thing, and the rules are otherwise identical - a chemist improvising a compound follows the same four steps as an engineer improvising a device. A table that wants enchanted improvisation gets it at the GM's discretion, and whichever route is taken the same per-issue ceiling applies.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    },
+    {
+      "id": "gadget_scope",
+      "name": "What these rules are for",
+      "kind": "table_setting",
+      "printed_under": "GADGETS",
+      "scope": {
+        "intended_for": "improvised building in the middle of a story",
+        "standing_supply_is_a_power": "Omni-Power (Gadgets)",
+        "gm_may_allow_building_before_an_adventure": true,
+        "pre_built_still_counts_against_the_per_issue_ceiling": true
+      },
+      "description": "The four steps describe an emergency, not a workshop habit. A character who is meant to have a drawer of ready devices buys a Power for that instead, and a table that lets the drawer be filled in advance still counts everything in it against the same issue ceiling.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.94",
+      "ambiguity": null
+    }
+  ]
+}

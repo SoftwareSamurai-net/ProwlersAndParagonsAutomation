@@ -1,0 +1,2166 @@
+{
+  "header": {
+    "what_this_is": "Chapter 6's creation-side equipment, pp.88-93: how worn armour ranks, the nine-suit armour table and its two encumbrance features, shields, the Weapon Features glossary the weapons tables cite, the mundane equipment list on p.91 with the rule that none of it is bought, the Custom Gear rule on p.92, and p.93's Pros and Cons on gear. The twelve priced custom features of p.93 are not here: they are already gear_features.json, which the engine loads and CostCalculator.GearCost prices.",
+    "why_here_and_not_in_the_play_store": "data/rules/play/equipment.json holds pp.87-90 for the fight engine, and play files are deliberately unreachable from engine/ - they are not on RulesRepository.DataFileNames, no csproj glob descends into the subdirectory, and PlayPayloadTests refuses both. The Gear step of character creation needs armour and weapons too, so the creation side needs its own file at the top level of data/rules/.",
+    "the_weapon_tables_are_a_copy_and_that_is_deliberate": "The three weapons tables are verified data in data/rules/play/equipment.json already, and neither side may read the other: engine/ may not reach into data/rules/play/, and play/ may not reach out to data/rules/. The options were to copy the sixty-three rows here and guard the copy, or to move them here and leave a fight unable to add a weapon's dice - which is not an option, because the fight is what the play file exists to answer. So the rows are copied byte-for-byte and EquipmentDataTests holds the two copies equal, which is the same shape as TranscriptLibrary's baked copy in worker/transcripts-corpus.js and worker/corpus.js: two copies of one truth, with a test between them. Edit data/rules/play/equipment.json and this file in the same commit or the guard goes red; do not reconcile a difference by editing whichever copy is easier to reach.",
+    "not_yet_loaded": "This file is deliberately NOT on RulesRepository.DataFileNames. Nothing in engine/ reads it yet - wiring it up, and deciding what the Gear step does with an armour row, is the consumer slice's decision and not this one's. It is extracted first and consumed second, which is the order the 141 Powers were done in and the order that made them trustworthy.",
+    "why_it_is_called_gear_and_not_equipment": "The play store's file is already called equipment.json, and PlayPayloadTests refuses any file in data/rules/ whose BASENAME matches one under data/rules/play/ - by name as well as by path, because a play file copied up one level is outside the directory and inside every host's glob. That guard is right and the collision was this file's fault, so it takes the book's own word for mundane kit instead: 'These everyday items are gear.' It also puts the file beside gear_features.json, which is the twelve priced features of the same chapter.",
+    "placement_note": "It sits at the top level of data/rules/, so every csproj's non-recursive data\\rules\\*.json glob copies it - to the CLI's output, to the published MCP server, and into web/wwwroot, where it becomes a public URL. That is correct for creation-side rules data: it is the same store the browser already serves. It is not fetched at boot, because a self-loading host fetches DataFileNames and this file is not on it.",
+    "verified_fields_closed_list": [
+      "name",
+      "category",
+      "bonus",
+      "features",
+      "cost",
+      "effect",
+      "description"
+    ],
+    "descriptions_are_ours": "Every description here is original text written from the page, never the book's own prose. The printed words live in data/rulebook/ch06-equipment.json, and a test fails any run of ten consecutive words shared with it.",
+    "deliberately_omitted": "p.87 (Resources, the Gear Limit, its close-combat exception and the options for raising it) is the play file's, and its Gear Limit rule is the one figure from that page this file leans on without restating - a second transcription would be a second thing to disagree with the first. pp.94-104 (Gadgets, Vehicles, Headquarters) are not here. The twelve custom features of p.93 are gear_features.json. The chapter's printed range is pp.87-104, so the range in this header's source_ref is the chapter's and not a claim that every page of it was read.",
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, pp.87-104"
+  },
+  "armor_rule": {
+    "id": "armor_rank",
+    "name": "Wearing Armor",
+    "printed_under": "ARMOR",
+    "armor": {
+      "grants_power_id": "armor",
+      "rank_is": "the wearer's Toughness plus the suit's Armor Bonus",
+      "rank_base_trait": "Toughness",
+      "rank_base_may_be_the_armor_power_instead": true,
+      "rank_base_substitution_applies_while": "wearing artificial armor",
+      "built_in_extras_are_powers": true,
+      "built_in_extras_examples": [
+        "built-in weaponry",
+        "communications",
+        "life support",
+        "sensor systems",
+        "servos that enhance Abilities"
+      ]
+    },
+    "description": "Putting on a suit hands you the Armor Power outright, ranked at your own resistance plus whatever the suit is worth. Somebody who already has that Power measures from it instead of from raw Toughness, so an armoured hero in a borrowed shell is not reduced to an ordinary person's baseline. Anything the suit does beyond stopping damage - a gun in the forearm, a radio, strength servos - is bought as a Power and is not part of this.",
+    "verified_fields": [
+      "effect",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+    "corroborated_by": [
+      "Ultimate Edition, Ch.6 Equipment, p.87"
+    ],
+    "ambiguity": null,
+    "interpretation": {
+      "what_this_is": "This project's reading of a rule p.88 does not restate, taken from the page before it. It is not a fact p.88 states.",
+      "gear_limit_note": "The Gear Limit caps a worn suit, so a wearer's effective Armor rank is the lesser of their Toughness and the game's Gear Limit, plus the suit's Armor Bonus - not their whole Toughness plus the bonus. p.88 states the rank and never restates the limit, but p.87 settles it four times over: the limit is the maximum Trait rank you can apply when using mundane equipment that boosts your Traits 'for a specific purpose (usually armor and weapons)'; its worked example gives the maximum effective rank as the limit plus the bonus rather than the whole trait capped afterwards, which fixes the order of the arithmetic; it says in as many words that this makes mundane gear, especially armor and weapons, less useful to a superhuman; and its one printed exception is stated for melee weapons alone, so armour is not exempt. p.93's Deflecting agrees, being the one armour rule that says 'subject to the game's Gear Limit' outright. A Power's rank substituted in for Toughness under the second sentence of this entry is a Trait rank like any other and is capped the same way. This was recorded as the book's silence and is not one: the silence is p.88's, and the page before it answers, so a consumer of this file inherits no doubt."
+    }
+  },
+  "armor_table": {
+    "id": "armor_table",
+    "name": "Armor",
+    "printed_under": "ARMOR — armor ARMOR BONUS FEATURES",
+    "rows": [
+      {
+        "id": "ancient_leather",
+        "name": "Leather",
+        "category": "Ancient",
+        "armor_bonus_dice": 0,
+        "features": [],
+        "description": "Hide and padding. It is armour a wearer can move in freely, and it adds no die at all to what Toughness already gives them.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      },
+      {
+        "id": "ancient_mail",
+        "name": "Mail",
+        "category": "Ancient",
+        "armor_bonus_dice": 1,
+        "features": [
+          "Bulky"
+        ],
+        "description": "Linked rings over a padded coat. One die better than skin, at the price of weight a strong wearer can shrug off.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      },
+      {
+        "id": "ancient_plate",
+        "name": "Plate",
+        "category": "Ancient",
+        "armor_bonus_dice": 2,
+        "features": [
+          "Rigid"
+        ],
+        "description": "Shaped metal over the whole body. Two dice better, and stiff enough that nobody escapes what it does to tumbling, sneaking or swimming.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      },
+      {
+        "id": "modern_armored_uniform",
+        "name": "Armored Uniform",
+        "category": "Modern",
+        "armor_bonus_dice": 1,
+        "features": [],
+        "description": "A woven vest under ordinary clothing. It buys a die without announcing itself or slowing anyone down.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      },
+      {
+        "id": "modern_tactical_gear",
+        "name": "Tactical Gear",
+        "category": "Modern",
+        "armor_bonus_dice": 2,
+        "features": [
+          "Bulky"
+        ],
+        "description": "Plate carrier, helmet and pads, as a soldier or a raid team wears them. Two dice, and heavy enough to matter to a weak wearer.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      },
+      {
+        "id": "modern_military_riot_gear",
+        "name": "Military/Riot Gear",
+        "category": "Modern",
+        "armor_bonus_dice": 3,
+        "features": [
+          "Rigid"
+        ],
+        "description": "Full hard-shell protection built for standing in front of things. Three dice, and it makes every athletic roll worse for everyone.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      },
+      {
+        "id": "advanced_light",
+        "name": "Light",
+        "category": "Advanced",
+        "armor_bonus_dice": 2,
+        "features": [],
+        "description": "Future materials in a suit that hangs like clothing: two dice for no encumbrance whatsoever.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      },
+      {
+        "id": "advanced_medium",
+        "name": "Medium",
+        "category": "Advanced",
+        "armor_bonus_dice": 3,
+        "features": [
+          "Bulky"
+        ],
+        "description": "A sealed powered-looking suit. Three dice, with bulk a strong wearer carries without noticing.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      },
+      {
+        "id": "advanced_heavy",
+        "name": "Heavy",
+        "category": "Advanced",
+        "armor_bonus_dice": 4,
+        "features": [
+          "Rigid"
+        ],
+        "description": "The heaviest thing on the table: four dice of protection, and nobody moves well in it.",
+        "verified_fields": [
+          "name",
+          "category",
+          "bonus",
+          "features",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+      }
+    ],
+    "row_count": 9,
+    "description": "Nine suits in three eras, each with the dice it adds and whichever of the two encumbrance features it carries. Every era runs from an unencumbered suit up to a stiff one, and the dice climb with the weight.",
+    "verified_fields": [
+      "name",
+      "category",
+      "bonus",
+      "features",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+    "interpretation": {
+      "what_this_is": "This project's reading of how the printed table's columns line up, not a rule the page states.",
+      "row_alignment": "The book prints three columns - armour, Armor Bonus, features - and unlike the three weapons tables this one arrives from the extractor in row order, name beside bonus beside feature. So the rows are read straight down rather than paired out of two blocks, and the test derives all nine from the corpus section rather than trusting the transcription. What the reading rests on is that the block tiles exactly nine times and nothing follows the last row."
+    },
+    "ambiguity": null
+  },
+  "armor_features": [
+    {
+      "id": "bulky",
+      "name": "Bulky",
+      "printed_under": "BULKY",
+      "penalty_dice": -1,
+      "penalised_rolls": [
+        "acrobatics",
+        "speed",
+        "stealth",
+        "swimming"
+      ],
+      "exempt_if_might_at_least": 4,
+      "removable_by_gear_feature_id": "fitted",
+      "description": "Weight a strong wearer simply carries. It takes a die off the four kinds of athletic roll, and a wearer whose Might reaches the stated rank never feels it at all.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+      "ambiguity": null
+    },
+    {
+      "id": "rigid",
+      "name": "Rigid",
+      "printed_under": "RIGID",
+      "penalty_dice": -1,
+      "penalised_rolls": [
+        "acrobatics",
+        "speed",
+        "stealth",
+        "swimming"
+      ],
+      "exempt_if_might_at_least": null,
+      "removable_by_gear_feature_id": "fitted",
+      "description": "Stiffness nobody's strength gets around. The same die comes off the same four kinds of roll, and there is no rank of Might that excuses a wearer from it.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+      "ambiguity": null
+    }
+  ],
+  "shields": {
+    "id": "shields",
+    "name": "Shields",
+    "printed_under": "SHIELDS",
+    "shield": {
+      "bonus_dice": 1,
+      "bonus_name": "Shield Bonus",
+      "carried_in": "the off-hand",
+      "applies_to_defenses": [
+        "active",
+        "passive"
+      ],
+      "applies_against_attack_kinds": [
+        "physical",
+        "energy"
+      ],
+      "may_be_used_as_an_off_hand_weapon": true,
+      "striking_with_it_costs": "the defensive bonus, until your next turn to act",
+      "no_benefit_when": [
+        "surprised",
+        "unable to defend yourself"
+      ],
+      "also_a_weapon_row": true,
+      "weapon_rows": [
+        "Shield",
+        "Shield, Spiked",
+        "Riot Shield"
+      ],
+      "weapon_feature_id": "shield"
+    },
+    "description": "A shield is two things at once and the page prices neither. Held in the spare hand it adds a die to every defence, rolled or unrolled, against blows and blasts alike. Swing it and that die is gone until your turn comes round again - and it buys you nothing at all in the moment you never saw the attack coming. The weapons tables carry it a second time, as three rows with a Weapon Bonus of their own.",
+    "verified_fields": [
+      "name",
+      "bonus",
+      "effect",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+    "ambiguity": "The die is granted for a mundane shield in the off-hand and the page never says what happens to a wielder who has no off-hand free for other reasons, nor whether the Shield weapon feature's identical +1d is the same die or a second one when a shield is both carried and swung.",
+    "interpretation": null
+  },
+  "weapon_features_rule": {
+    "id": "weapon_features_glossary",
+    "name": "Weapon Features",
+    "printed_under": "WEAPON FEATURES",
+    "glossary": {
+      "describes": "the features printed in the weapons tables' fourth column",
+      "further_features_come_from_customizing": true,
+      "customization_is_on_page": 93,
+      "entry_count": 18,
+      "name_count": 19,
+      "printed_across_pages": [
+        88,
+        90
+      ]
+    },
+    "description": "The vocabulary the three tables cite. It is printed in two runs - three entries beside the first table and the remaining fifteen after the last one - and every name any row carries is defined in one of them. Six of the eighteen do nothing new: they hand the reader back to a Pro or a Con that is already priced elsewhere.",
+    "verified_fields": [
+      "name",
+      "effect",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+    "ambiguity": "One printed entry covers two names - Area and Burst share a definition - so eighteen entries define nineteen names, and the page never says whether a row carrying only one of the pair takes only half of what the entry describes.",
+    "interpretation": null
+  },
+  "weapon_features": [
+    {
+      "id": "area_burst",
+      "name": "Area/Burst",
+      "covers_names": [
+        "Area",
+        "Burst"
+      ],
+      "printed_under": "WEAPON FEATURES",
+      "works_like": {
+        "kind": "pro",
+        "id": "area_burst"
+      },
+      "burst_diameter_feet": 30,
+      "burst_diameter_exceptions": [
+        {
+          "weapon": "Grenade, Stun",
+          "diameter_feet": 15
+        },
+        {
+          "weapon": "Entangler Grenade",
+          "diameter_feet": 15
+        }
+      ],
+      "ambiguity": "The diameters are offered for ease of reference rather than stated as a rule, and the two named exceptions are printed under the names Stun Grenades and Entangler Grenades, which are the modern and advanced tables' rows Grenade, Stun and Entangler Grenade.",
+      "description": "Two of the generic options, printed on a weapon rather than bought for a Power. The page also fixes a diameter so nobody has to negotiate one at the table, and names the two grenades that throw a smaller cloud than the rest.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88"
+    },
+    {
+      "id": "armor_piercing",
+      "name": "Armor Piercing",
+      "covers_names": [
+        "Armor Piercing"
+      ],
+      "printed_under": "WEAPON FEATURES",
+      "works_like": {
+        "kind": "pro",
+        "id": "armor_piercing"
+      },
+      "description": "The generic Pro of that name, printed on the weapon instead of bought for it.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+      "ambiguity": null
+    },
+    {
+      "id": "binding",
+      "name": "Binding",
+      "covers_names": [
+        "Binding"
+      ],
+      "printed_under": "WEAPON FEATURES",
+      "works_like": null,
+      "inflicts_damage": false,
+      "may_still_be_used_for": [
+        "grabs",
+        "holds",
+        "combat stunts"
+      ],
+      "description": "A weapon for catching somebody rather than hurting them. It rolls no damage, and it is still a weapon for the purposes of taking hold of a target and of anything improvised in a fight.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+      "ambiguity": null
+    },
+    {
+      "id": "braced",
+      "name": "Braced",
+      "covers_names": [
+        "Braced"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": null,
+      "requires": "bracing or a mount",
+      "two_handed_instead_if_might_at_least": 6,
+      "description": "Too heavy to fire from the shoulder unless it is resting on something - or unless the wielder is strong enough, at which point two hands are enough.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "dazzle",
+      "name": "Dazzle",
+      "covers_names": [
+        "Dazzle"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "power",
+        "id": "dazzle"
+      },
+      "power_rank_is": "the attack rank: the wielder's Trait plus the item's Weapon Bonus",
+      "description": "The weapon blinds rather than wounds, at the strength of the roll that landed it - the wielder's own Trait with the weapon's dice added.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "ensnare",
+      "name": "Ensnare",
+      "covers_names": [
+        "Ensnare"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "power",
+        "id": "ensnare"
+      },
+      "power_rank_is": "the attack rank: the wielder's Trait plus the item's Weapon Bonus",
+      "description": "The weapon delivers a hold at the strength of the roll that landed it.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "flexible",
+      "name": "Flexible",
+      "covers_names": [
+        "Flexible"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": null,
+      "may_also_be_used_for": [
+        "grabs",
+        "holds",
+        "combat stunts"
+      ],
+      "description": "A chain, a whip or a rope: it wounds like any other weapon and can also be used to take hold of somebody or to do something clever with the scenery.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "irritant",
+      "name": "Irritant",
+      "covers_names": [
+        "Irritant"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "power",
+        "id": "irritant"
+      },
+      "power_rank_base_dice": 3,
+      "power_rank_adds": "net successes on the attack roll",
+      "attack_threshold": 0,
+      "attack_threshold_label": "Easy",
+      "attack_trait": "Agility",
+      "description": "Gas or spray. Its strength is not the whole attack roll but a fixed floor raised by however well the throw went, against a threshold anybody clears on an ordinary day.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "launcher",
+      "name": "Launcher",
+      "covers_names": [
+        "Launcher"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": null,
+      "grenades_selected_separately": true,
+      "identical_statistics_to_thrown_grenades": true,
+      "but_not_the_same_items": true,
+      "description": "The weapon is empty until it is loaded. Grenades are bought as their own rows and, though they read identically, the page insists they are not the ones thrown by hand.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "line_of_sight",
+      "name": "Line of Sight",
+      "covers_names": [
+        "Line of Sight"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "pro",
+        "id": "line_of_sight"
+      },
+      "description": "The generic Pro of that name, printed on the weapon instead of bought for it.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "penetrating",
+      "name": "Penetrating",
+      "covers_names": [
+        "Penetrating"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "pro",
+        "id": "penetrating"
+      },
+      "description": "The generic Pro of that name, printed on the weapon instead of bought for it.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "readied",
+      "name": "Readied",
+      "covers_names": [
+        "Readied"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "con",
+        "id": "readied"
+      },
+      "description": "The generic Con of that name, printed on the weapon instead of bought for it - so it is a drawback the row carries rather than a discount anybody claims.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "shield",
+      "name": "Shield",
+      "covers_names": [
+        "Shield"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": null,
+      "shield_bonus_dice": 1,
+      "description": "The weapon is also a shield, and grants the same single die of defence a carried one does.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "shock",
+      "name": "Shock",
+      "covers_names": [
+        "Shock"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "power",
+        "id": "stun"
+      },
+      "inflicts_damage": true,
+      "carrier_attack": true,
+      "power_rank_is": "the attack rank: the wielder's Trait plus the item's Weapon Bonus",
+      "description": "It wounds and stuns in the same blow: damage first, and a second effect riding along at the strength of the roll.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "stun",
+      "name": "Stun",
+      "covers_names": [
+        "Stun"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "power",
+        "id": "stun"
+      },
+      "inflicts_damage": false,
+      "power_rank_is": "the attack rank: the wielder's Trait plus the item's Weapon Bonus",
+      "description": "It only stuns. No damage is rolled, and the effect lands at the strength of the roll that delivered it.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "thrown",
+      "name": "Thrown",
+      "covers_names": [
+        "Thrown"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": null,
+      "base_range": "Close Range",
+      "farther_with_strength": true,
+      "range_detail_chapter": "Ch.4 Combat",
+      "ammunition_is_not_tracked": true,
+      "description": "It can be thrown, as far as a close-quarters exchange reaches and further for somebody strong enough - the fighting chapter has the distances. Small ones come in enough quantity that nobody counts them during a scene.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "two_handed",
+      "name": "Two-Handed",
+      "covers_names": [
+        "Two-Handed"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": {
+        "kind": "con",
+        "id": "two_handed"
+      },
+      "description": "The generic Con of that name, printed on the weapon instead of bought for it.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    },
+    {
+      "id": "versatile",
+      "name": "Versatile",
+      "covers_names": [
+        "Versatile"
+      ],
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "works_like": null,
+      "two_handed_bonus_dice": 1,
+      "description": "It can be held either way. Committing the second hand is worth a die, which is the one place on these tables where a wielder's own choice changes the printed bonus.",
+      "verified_fields": [
+        "name",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    }
+  ],
+  "weapon_tables": [
+    {
+      "id": "ancient_weapons",
+      "name": "Ancient Weapons",
+      "printed_under": "ANCIENT WEAPONS — WEAPON BONUS FEATURES",
+      "copied_from": "data/rules/play/equipment.json",
+      "weapons": [
+        {
+          "name": "Axe",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Baton",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Battle Axe",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Bolas",
+          "class": "Ranged",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Flexible",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Bow",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Cestus",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Club",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": true,
+          "features": []
+        },
+        {
+          "name": "Crossbow",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Readied",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Dagger",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": [
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Flail",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Flexible"
+          ]
+        },
+        {
+          "name": "Great Sword",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Hand Axe",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Katar",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Lasso or Net",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Binding",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Mace",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Morningstar",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Nunchucks",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": true,
+          "features": [
+            "Flexible"
+          ]
+        },
+        {
+          "name": "Polearm",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Shield",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Shield"
+          ]
+        },
+        {
+          "name": "Shield, Spiked",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": [
+            "Shield"
+          ]
+        },
+        {
+          "name": "Sling",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": true,
+          "features": []
+        },
+        {
+          "name": "Spear",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Thrown",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Staff",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": true,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Sword",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Three Section Staff",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": true,
+          "features": [
+            "Flexible",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Throwing Star",
+          "class": "Ranged",
+          "bonus_dice": 0,
+          "subdual": false,
+          "features": [
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Whip",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Flexible"
+          ]
+        }
+      ],
+      "row_count": 27,
+      "description": "Twenty-seven hand weapons and bows, from a fist-load of metal up to a two-handed blade. Most wound; a marked few only knock a target down.",
+      "verified_fields": [
+        "name",
+        "category",
+        "bonus",
+        "features",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.89",
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's columns line up, not a rule the page states, and it is the play file's reading rather than a second one taken here.",
+        "row_alignment": "The rulebook prints each weapons table as four columns - type, class, Weapon Bonus, features - and the extractor reads it as two blocks: the names beside their class, and the bonuses beside their features. Pairing the two blocks row by row is this project's reading of the page, not something the page states. Three rows are printed a second time in prose and anchor it: p.87 gives the pistol two dice, p.87 gives the battle axe three, and Ch.4 p.80 gives the basic sword two.",
+        "copy_rule_note": "These rows are a byte-equal copy of the play file's, held equal by a test. The creation side may not read data/rules/play/ and the play side may not read data/rules/, so a figure both need is stored twice and guarded, the way the recorded conversations already are."
+      },
+      "ambiguity": null
+    },
+    {
+      "id": "modern_weapons",
+      "name": "Modern Weapons",
+      "printed_under": "MODERN WEAPONS — WEAPON BONUS FEATURES",
+      "copied_from": "data/rules/play/equipment.json",
+      "weapons": [
+        {
+          "name": "Assault Rifle",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Area",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Baseball Bat",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Brass Knuckles",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": []
+        },
+        {
+          "name": "Combat Knife",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Grenade, Explosive",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Grenade, Stun",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Dazzle",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Grenade, Tear Gas",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Irritant",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Grenade Launcher",
+          "class": "Ranged",
+          "bonus_dice": null,
+          "subdual": false,
+          "features": [
+            "Launcher",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Heavy Machinegun",
+          "class": "Ranged",
+          "bonus_dice": 6,
+          "subdual": false,
+          "features": [
+            "Braced",
+            "Burst"
+          ]
+        },
+        {
+          "name": "Pistol",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Pistol, Snub",
+          "class": "Ranged",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Rifle",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Rifle, Sniper",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Line of Sight",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Riot Shield",
+          "class": "Melee",
+          "bonus_dice": 0,
+          "subdual": true,
+          "features": [
+            "Shield"
+          ]
+        },
+        {
+          "name": "Rocket Launcher",
+          "class": "Ranged",
+          "bonus_dice": 7,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Readied",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Shotgun",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Shotgun, Automatic",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Area",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Slingshot",
+          "class": "Ranged",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Submachine Gun",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Area",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Taser Pistol",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Stun"
+          ]
+        },
+        {
+          "name": "Throwing Knife",
+          "class": "Ranged",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": [
+            "Thrown"
+          ]
+        }
+      ],
+      "row_count": 21,
+      "description": "Twenty-one weapons a present-day scene can hold: firearms, grenades, and the improvised end of a bar fight.",
+      "verified_fields": [
+        "name",
+        "category",
+        "bonus",
+        "features",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.89",
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's columns line up, not a rule the page states, and it is the play file's reading rather than a second one taken here.",
+        "row_alignment": "The rulebook prints each weapons table as four columns - type, class, Weapon Bonus, features - and the extractor reads it as two blocks: the names beside their class, and the bonuses beside their features. Pairing the two blocks row by row is this project's reading of the page, not something the page states. Three rows are printed a second time in prose and anchor it: p.87 gives the pistol two dice, p.87 gives the battle axe three, and Ch.4 p.80 gives the basic sword two.",
+        "copy_rule_note": "These rows are a byte-equal copy of the play file's, held equal by a test. The creation side may not read data/rules/play/ and the play side may not read data/rules/, so a figure both need is stored twice and guarded, the way the recorded conversations already are."
+      },
+      "ambiguity": null
+    },
+    {
+      "id": "advanced_weapons",
+      "name": "Advanced Weapons",
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "copied_from": "data/rules/play/equipment.json",
+      "weapons": [
+        {
+          "name": "Blast Cannon",
+          "class": "Ranged",
+          "bonus_dice": 7,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Blast Grenade",
+          "class": "Ranged",
+          "bonus_dice": 5,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Blast Pistol",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Blast Rifle",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Blast Rifle, Military",
+          "class": "Ranged",
+          "bonus_dice": 5,
+          "subdual": false,
+          "features": [
+            "Area",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Entangler Grenade",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Ensnare",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Monomolecular Blade",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Armor Piercing",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Monomolecular Knife",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": [
+            "Armor Piercing"
+          ]
+        },
+        {
+          "name": "Monomolecular Whip",
+          "class": "Melee",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Armor Piercing",
+            "Flexible"
+          ]
+        },
+        {
+          "name": "Plasma Sword",
+          "class": "Melee",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Penetrating",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Stun Baton",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Shock"
+          ]
+        },
+        {
+          "name": "Stun Staff",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": true,
+          "features": [
+            "Shock",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Vibro Axe",
+          "class": "Melee",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Armor Piercing",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Vibro Blade",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Armor Piercing",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Vibro Knife",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Armor Piercing"
+          ]
+        }
+      ],
+      "row_count": 15,
+      "description": "Fifteen weapons for a setting with better physics. Most burn rather than cut, and the ones that cut go through armour.",
+      "verified_fields": [
+        "name",
+        "category",
+        "bonus",
+        "features",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's columns line up, not a rule the page states, and it is the play file's reading rather than a second one taken here.",
+        "row_alignment": "The rulebook prints each weapons table as four columns - type, class, Weapon Bonus, features - and the extractor reads it as two blocks: the names beside their class, and the bonuses beside their features. Pairing the two blocks row by row is this project's reading of the page, not something the page states. Three rows are printed a second time in prose and anchor it: p.87 gives the pistol two dice, p.87 gives the battle axe three, and Ch.4 p.80 gives the basic sword two.",
+        "copy_rule_note": "These rows are a byte-equal copy of the play file's, held equal by a test. The creation side may not read data/rules/play/ and the play side may not read data/rules/, so a figure both need is stored twice and guarded, the way the recorded conversations already are."
+      },
+      "ambiguity": null
+    }
+  ],
+  "equipment_catalogue": {
+    "id": "equipment_catalogue",
+    "name": "Equipment",
+    "printed_under": "EQUIPMENT",
+    "mundane_gear": {
+      "is_free": true,
+      "is_tracked": false,
+      "costs_hero_points": false,
+      "assumed_carried_for_talents_at_rank": 4,
+      "assumed_carried_examples": [
+        "lock picks for a Covert specialist"
+      ],
+      "perks_the_gm_weighs": [
+        "contacts",
+        "patron",
+        "resources",
+        "wealth"
+      ],
+      "even_a_broke_hero_has_what_they_need": true,
+      "ordinary_possessions_are_not_tracked_either": true,
+      "gm_uses_common_sense": true,
+      "npcs_have_whatever_the_gm_wants": true,
+      "minions_do_not_use_gear": true,
+      "minion_gear_is_detail_not_mechanics": true,
+      "list_is_examples_not_a_catalogue_of_prices": true,
+      "item_count": 36,
+      "printed_price_count": 0,
+      "printed_availability_count": 0
+    },
+    "items": [
+      {
+        "id": "binoculars",
+        "name": "Binoculars",
+        "grants_powers": [
+          "super_senses_telescopic_vision",
+          "super_senses_thermal_vision",
+          "super_senses_ultra_vision"
+        ],
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Ordinary ones lend the user distance vision; a powered pair adds sight through heat or through the dark as well.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "bug_detector",
+        "name": "Bug Detector",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Finds a live transmitter anywhere within arm's reach and a little beyond.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "caltrops",
+        "name": "Caltrops",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Spikes scattered behind you to slow or stop whoever is following. Sometimes they are poisoned.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "camera",
+        "name": "Camera",
+        "grants_powers": [
+          "super_senses_telescopic_vision",
+          "super_senses_thermal_vision",
+          "super_senses_ultra_vision"
+        ],
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "A good digital camera; many of them double as the powered binoculars above.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "cell_phone",
+        "name": "Cell Phone",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "The ordinary way of reaching anybody, and of wasting an afternoon.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "climbing_claws",
+        "name": "Climbing Claws",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": 2,
+        "bonus_applies_to": "challenge rolls made to climb natural surfaces",
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Hooks for hand and boot that make a rock face two dice easier.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "climbing_gear_ice",
+        "name": "Climbing Gear, Ice",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Puts a sheer face of ice within reach of somebody with no Powers at all.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "climbing_gear_urban",
+        "name": "Climbing Gear, Urban",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "The same for glass and crystal, and for sheer metal where the set runs to magnets.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "computer",
+        "name": "Computer",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "A small, wireless, heavily encrypted portable of the best sort available.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "communicator",
+        "name": "Communicator",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "What a science-fiction setting carries instead of a phone.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "crowbar",
+        "name": "Crowbar",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": 4,
+        "bonus_applies_to": "Might rolls made to force things open or apart",
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Four dice of leverage, for anything that has to come open or apart.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "explosives",
+        "name": "Explosives",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Charges and the means to set them off, for demolition done deliberately.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "flashlight",
+        "name": "Flashlight",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Small, bright, and adjustable from a flood to a beam.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "gas_mask",
+        "name": "Gas Mask",
+        "grants_powers": [
+          "immunity"
+        ],
+        "granted_power_rank": null,
+        "granted_power_selection": "Toxins",
+        "granted_power_limited_to": "toxins that affect the eyes or are inhaled",
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "A sealed mask. It hands the wearer the Immunity Power against toxins, and only against the ones that reach a person through their eyes or their breath - anything absorbed or injected gets through it.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "geiger_counter",
+        "name": "Geiger Counter",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Reads out how much radiation is falling on it.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "handcuffs",
+        "name": "Handcuffs",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": 5,
+        "break_threshold_label": "Inhuman",
+        "duration": null,
+        "description": "Metal or plastic. Breaking a pair takes strength well past anything human; cutting the plastic ones does not.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "lantern",
+        "name": "Lantern",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Light for a whole space. The old ones burn oil for a few hours and the modern ones run far longer on batteries.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "light_stick",
+        "name": "Light Stick",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Snap it and it glows for a few hours.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "lockpick_gun",
+        "name": "Lockpick Gun",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Opens most mechanical locks quickly, and gets anybody without a badge arrested about as quickly.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "night_vision_goggles",
+        "name": "Night Vision Goggles",
+        "grants_powers": [
+          "super_senses_thermal_vision",
+          "super_senses_ultra_vision"
+        ],
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Sight in the dark, by heat or by amplified light.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "parabolic_microphone",
+        "name": "Parabolic Microphone",
+        "grants_powers": [
+          "super_senses_acute"
+        ],
+        "granted_power_rank": 9,
+        "granted_power_selection": "Hearing",
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Hearing at a rank the page states outright, which is the only figure of its kind on this list.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "parachute",
+        "name": "Parachute",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Survives a fall from anywhere, and steers a little on the way down.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "police_scanner",
+        "name": "Police Scanner",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Listens to the local emergency traffic. Owning one without a badge is itself an offence.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "polyhedral_dice",
+        "name": "Polyhedral Dice",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "The authors' joke, printed in the list like any other item.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "radio",
+        "name": "Radio",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "A multi-channel handset, usually hands-free; the earbud version is hidden as well as hands-free.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "rappelling_gear",
+        "name": "Rappelling Gear",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "use_threshold": 0,
+        "use_threshold_label": "Easy",
+        "use_trait": "Agility",
+        "duration": null,
+        "description": "Gets you down a height fast, for the price of an Agility roll at the lowest threshold the game prints. The figure is what it takes to use the gear, not what it takes to break it.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "scanner",
+        "name": "Scanner",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "A hand-held analyser for matter and energy, in a setting that has them.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "scuba_gear",
+        "name": "Scuba Gear",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": "up to 1 hour",
+        "description": "An hour underwater.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "scope",
+        "name": "Scope",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Mounted on a firearm; the modern ones do what the powered binoculars do.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "silencer",
+        "name": "Silencer",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Muffles the report and the flash of a firearm. The custom feature of the same effect is explicitly better than this.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "space_suit",
+        "name": "Space Suit",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": "hours",
+        "description": "Hours outside a hull, usually with boots that hold you to it, and sometimes with gas jets that take practice to use.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "telescope",
+        "name": "Telescope",
+        "grants_powers": [
+          "super_senses_telescopic_vision"
+        ],
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "The primitive version of distance vision.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "tracer_bug",
+        "name": "Tracer Bug",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "A small transmitter that pings on a schedule.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "transmitter",
+        "name": "Transmitter",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Sends what it hears to a receiver chosen beforehand.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "wiretap",
+        "name": "Wiretap",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": null,
+        "break_threshold_label": null,
+        "duration": null,
+        "description": "Fixed to a line or a cable, it takes the calls off it.",
+        "verified_fields": [
+          "name",
+          "description"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      },
+      {
+        "id": "zip_tie",
+        "name": "Zip Tie",
+        "grants_powers": null,
+        "granted_power_rank": null,
+        "bonus_dice": null,
+        "bonus_applies_to": null,
+        "break_threshold": 4,
+        "break_threshold_label": "Brutal",
+        "duration": null,
+        "description": "Handcuffs when there are no handcuffs. Brute strength breaks a pair, and a blade does it easily.",
+        "verified_fields": [
+          "name",
+          "description",
+          "effect"
+        ],
+        "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91"
+      }
+    ],
+    "description": "The rule first and the list second, because the rule is what a character sheet needs: nobody buys mundane kit. A Hero is taken to be carrying whatever their trained skills imply, from the rank the page names upwards, and the GM weighs the character's money and connections when somebody asks for something out of the ordinary. Thirty-six items follow it as examples, and not one of them prints a price or a rarity - a dozen or so carry a real mechanical effect, and the rest are props. Whatever a player wants that is genuinely better than this is a Power with the Item Con.",
+    "verified_fields": [
+      "cost",
+      "effect",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.91",
+    "corroborated_by": [
+      "Ultimate Edition, Ch.6 Equipment, p.87"
+    ],
+    "ambiguity": "The list prints no cost and no availability for any of the thirty-six, so 'free' is read off the surrounding rule rather than off the list itself; and the page gives a Talent rank above which tools are assumed without saying what a character below it carries. Two neighbouring pairs are printed out of alphabetical order - Computer before Communicator, Scuba Gear before Scope - which is recorded as printed rather than tidied.",
+    "interpretation": {
+      "what_this_is": "This project's reading of which rules entry a printed parenthetical names, not a rule the page states.",
+      "granted_powers_resolved_to_ids_note": "The list names Powers in prose - Super Senses (Telescopic Vision), Immunity (Toxins), Super Senses (Acute Hearing 9d) - and grants_powers holds the powers.json ids those resolve to. Acute Hearing is super_senses_acute, whose printed name is Acute (X); the sense is the X. Where the page offers a choice of two senses, both ids are listed and the item grants one of them."
+    }
+  },
+  "custom_gear": {
+    "id": "custom_gear",
+    "name": "Custom Gear",
+    "printed_under": "CUSTOM GEAR",
+    "customization": {
+      "sits_between": [
+        "mundane gear",
+        "a Power with the Item Con"
+      ],
+      "costs_hero_points": true,
+      "what_may_be_added": [
+        "pros",
+        "cons",
+        "custom features"
+      ],
+      "custom_features_are_on_page": 93,
+      "custom_feature_count": 12,
+      "paired_weapons_cost_once": true,
+      "paired_weapons_require_power_id": "two_fisted",
+      "paired_weapons_must_be_identical": true,
+      "subject_to_gm_approval": true,
+      "players_may_invent_features": true,
+      "gm_may_gate_features_behind_perks": [
+        "patron",
+        "resources",
+        "wealth"
+      ],
+      "gm_may_prohibit_features_entirely": true
+    },
+    "description": "The one place gear costs anything. An ordinary item becomes yours by having things bolted onto it - a Pro, a Con, or one of the twelve priced features on the next page - and those are what the Hero Points buy; the item underneath stays free. A matched pair wielded by somebody with the two-weapon Power is customised once and paid for once. Everything here is offered subject to the GM, who may put the dearer features behind a Perk or refuse them outright, and who may equally let a player invent a new one.",
+    "verified_fields": [
+      "cost",
+      "effect",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92",
+    "corroborated_by": [
+      "Ultimate Edition, Ch.6 Equipment, p.93"
+    ],
+    "ambiguity": "The pair rule is stated for identical weapons under the Two-Fisted Power and the page never says whether the pair has to stay together afterwards, nor what happens to the second item if the Power is lost.",
+    "interpretation": null
+  },
+  "gear_pros_and_cons": {
+    "id": "gear_pros_and_cons",
+    "name": "Pros and Cons",
+    "printed_under": "PROS AND CONS",
+    "gear_pros_and_cons": {
+      "every_piece_of_gear_has_the_item_con": true,
+      "item_con_id": "item",
+      "item_con_is_a_statement_not_a_discount": true,
+      "cost_is_the_same_as_on_a_power": true,
+      "minimum_cost_hero_points": 0,
+      "gear_never_pays_out": true,
+      "commonly_applied": [
+        "Area of Effect",
+        "Armor Piercing",
+        "Build-Up",
+        "Burnout",
+        "Carrier Attack",
+        "Charges",
+        "Delay",
+        "Fuse",
+        "Independent",
+        "Line of Sight",
+        "Ongoing",
+        "Overkill",
+        "Overload",
+        "Penetrating",
+        "Phase Shift",
+        "Readied",
+        "Recharge",
+        "Selective",
+        "Subtle",
+        "Toxin",
+        "Trap",
+        "Two-Handed",
+        "Unreliable",
+        "Weak"
+      ],
+      "commonly_applied_count": 24,
+      "list_is_not_exhaustive": true,
+      "item_is_absent_from_the_common_list": true
+    },
+    "description": "Gear is priced by the same table Powers are: a Pro costs on a sword what it costs on a blast. Two things are different and both are floors rather than rates. Every object is an object, so the Con that says it can be taken away is on all of them by definition and is not a discount anybody claims; and an item discounted below nothing is simply free, where a Power would still cost something. Twenty-four options are named as the ones that come up, and the one every item already has is not among them.",
+    "verified_fields": [
+      "cost",
+      "effect",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93",
+    "ambiguity": "Two of the twenty-four are the rate reductions Overkill and Weak, which the rulebook defines as a change to a Power's cost per rank. A piece of gear has no rank, and the page does not say what either one takes off an item's price - the engine charges nothing for either. And the Item Con is a second silence of the same kind: the page says every object has it and prices it nowhere, so whether an item that records the Con it necessarily carries should be discounted for it is not settled here. The engine credits it when a host writes it down, which takes a one-point feature to free.",
+    "interpretation": null
+  }
+}

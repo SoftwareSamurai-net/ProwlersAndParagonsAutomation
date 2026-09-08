@@ -75,7 +75,7 @@ as in scope. **Nothing here is a defect.**
 
 **Waiting on the owner — not work an agent can pick up**
 
-- [ ] **[13](#13-the-owners-branding-and-the-sign-in-email)** — branding; the kit is awaited on [issue #161](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/issues/161)
+- [x] **[13](#13-the-owners-branding-and-the-sign-in-email)** — the owner's favicons and manifest are served and the mark sits in the banner beside the wordmark, on all four palettes; the four shell goldens were regenerated on the runner. Verified by the orchestrator 2026-09-09: the manifest's colour format and its need for an unmasked icon each went red under mutation. Two choices are recorded in the entry for the owner
 - [ ] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — whether character variants deserve a mechanism; its own entry recommends deferring
 
 **Ready to build, specified enough to start**
@@ -92,7 +92,7 @@ as in scope. **Nothing here is a defect.**
 
 - [ ] **[1b](#1b-semantic-procon-constraints-are-still-unenforced)** — semantic Pro/Con constraints, no consumer
 - [ ] **[2](#2-what-the-sheet-still-cannot-say)** — a mid-sheet page is anonymous, with no portable CSS answer
-- [ ] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — the play chapters, in scope in principle since item 11 was answered
+- [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
 - [ ] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — a test-platform migration, blocked on MTP v2 versus the .NET 10 SDK
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
@@ -107,6 +107,8 @@ as in scope. **Nothing here is a defect.**
 - [x] **[30](#30-a-member-sees-the-copy-their-character-carries-not-the-campaigns-live-table)** — a member reads their game's live table through a route scoped to their own membership row, sees it beside the copy their character carries with a row per difference and a read-at age, and a character that joined before the GM decided anything is told so under its own finding. Verified by the orchestrator 2026-09-07: the campaign-owner join clause, and the finding's switches arm, each went red under mutation — the second only after a fixture the orchestrator's mutation showed was missing
 
 - [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
+
+- [ ] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment become mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle and a headquarters in their own currencies, the sheet prints them, the palette offers them, and the fight reads scenery Structure. Five design questions the reviews raised are in the entry
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -428,7 +430,7 @@ questions and the ledger is the one that can be resumed.
 | 8, Friends and Foes (p.111) | **Three things, not one**: NPC and animal stat blocks (p.111), Extras (p.120), and the twenty pre-built Heroes and Villains (p.126) | Only the last is transcribed, in the test suite where they verify the engine. The other two are GM material — characters the GM fields, not ones a player builds — so they are out of scope rather than missing. Recorded because "Ch.8 is the pre-built characters" was wrong about 15 of its 56 pages |
 | 9, Superhero Gaming (p.167) | Villain guidance, GM tips | No mechanics to extract — Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only |
 
-**The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
+**Closed on 2026-09-08 by extraction, on the owner's instruction that every remaining chapter be surfaced as JSON, mechanically — see the pull request that carried it.** Three slices, each a verified file with a canonical transcription, a reflection walk, strict deserialisation coverage, the corpus as a second witness for every table, and an adversarial review that found real transcription defects in each: `data/rules/gear.json` (Ch.6 pp.88–93 — armour and its two features, shields, the eighteen-entry Weapon Features glossary, thirty-six mundane items under the rule that none is bought, Custom Gear, Pros and Cons on gear, and a copy of the three weapon tables held byte-equal to the play store's); `data/rules/gadgets.json`, `vehicles.json` and `headquarters.json` (Ch.6 pp.94–103 — a gadget *pays out* twice its Complexity in Hero Points; a vehicle is bought in Vehicle Points at 25 per Hero Point of the Perk, a headquarters in Base Points at 3, with six stock vehicles, fifty-four mundane rows, twenty-three vehicle features and twenty-two base features priced); and `data/rules/play/environment.json` (Ch.7 pp.105–109 — twenty-seven entries, ten tables, ninety-four rows, thirteen ambiguities recorded in the page's words, two of them later refuted by Chapter 2's own definition of a weight rank). None of the four creation-side files is on `RulesRepository.DataFileNames` yet — `RulesSourceTests` names each exemption and requires the file to exist and to be unloaded — because putting one there is a payload decision that belongs to the consumer slice, item 32. The reviews' findings worth keeping: the Submersible's printed 14 Vehicle Points is right once Radar's Sonar Con is read; Rappelling Gear's Easy (0) is the roll that uses it, not a break threshold; the armour Gear Limit is settled by p.87; p.7's "always round up" refutes every rounding ambiguity; and the credential scanner's token pattern matches a three-segment C# member path whose first segment is 24 characters or more, which `CanonicalEnvironmentRules` is.
 
 ### 4. `search_powers` had no vocabulary for the effects players actually describe — **the 33/33 slice is closed; the benchmark it closed against is widened**
 
@@ -1077,6 +1079,8 @@ competitor's and the competitor's is better. It is built by `signInMessage` in `
 which `scripts/probe-mail.mjs` imports rather than reassembling — see item 8's account of why that
 matters. Any change here is **outward-facing and costs the hourly allowance to test**, so it is
 proofed against the probe and not against a real inbox.
+
+**Built 2026-09-08 from the kit the owner attached to issue #161 — see the pull request that carried it.** The HTML5 favicon pack (`favicon.svg`, `.ico`, 96px, the Apple touch icon, two manifest icons) is served from `web/wwwroot/` with `<link>`s in `index.html`, and `site.webmanifest` names the app, with `theme_color` the Hero palette's primary and `background_color` its surface. The mark in the banner is the eye cropped out of the kit's own `favicon.svg` — the first 81 of its paths on their own tile, derived from the shipped file so a clean checkout rebuilds it — placed inside `.banner-title` as an `<img>` with the vendor's name as its alt, so no component names a colour. The dark tile stays under the eye because 45 of those 81 paths are the eye's counters in that dark, and the brand red is invisible on the Villain banner's crimson without it. The review found both manifest icons declared maskable when the lockup bleeds to its edges (13% of the pixels fall outside the safe circle, and nothing was left for an unmasked draw), the publish-side image scan skipping a leading slash, the crop guard unable to tell the first 81 paths from the last, and a 320px measurement claimed for a harness that never takes one; each is fixed with a guard. Two choices are the owner's and stay open here rather than decided by an agent: whether the tile keeps its own dark or takes each banner's colour (the latter needs a second file — an inline SVG would be a component naming the brand's red); and which identity the installed app's chrome wears, since `theme_color` cannot follow the palette and a Villain player who installs the site gets a navy band above a crimson banner.
 
 **Asked on 2026-09-06, the owner did not recognise the email comparison** ("I dont know what this means"), so that half is dropped until they raise it again. The kit is on their work PC; [issue #161](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/issues/161) is where they will attach it, and nothing here starts until it is there.
 
@@ -2075,6 +2079,41 @@ sheet and the store resolving the pointer could in principle write one character
 another's id; it predates this fix, is unreachable under bUnit's synchronous storage, and closing it
 means carrying the captured id through `ICharacterStore` — a design change nobody should land
 without a harness that can watch it fail.
+
+### 32. Fold Chapter 6 into the sheet and the fight
+
+**The owner's ask, 2026-09-08**: "I want the game mechanically." Item 3 put the data in; this item
+makes it do something. In order of what unblocks the most:
+
+1. **Load and offer.** `gear.json`, `gadgets.json`, `vehicles.json` and `headquarters.json` go on
+   `RulesRepository.DataFileNames` with a collection each and a `RulesFileCoverageTests` row, and
+   come off `RulesSourceTests`' exemption list — the guard fails if only one happens. The payload
+   grows by roughly the four files; item 5 records that as a characteristic. The palette then
+   offers the new entries the way it offers Powers — armour, weapons, vehicle and base features,
+   environment tables — filtered in the browser, not over the network.
+2. **The Gear step picks from the catalogue.** A weapon row brings its bonus and features, an
+   armour row grants the Armor Power at Toughness plus its bonus under the Gear Limit (p.87 settles
+   that), a shield its +1d; mundane gear stays free and untracked, and `SelectedGear` keeps its
+   shape for that. The Item Con question has to be answered first: `GearCost`'s comment says it is
+   not credited, `cons.json` prices it at −1 so a host that records it gets the discount, and no
+   Pro or Con in the data is marked applicable to gear at all though p.93 names twenty-four.
+3. **Vehicles and headquarters on the sheet.** Two new collections beside `Gear`, each holding the
+   Perk's Hero Points, the derived second-currency budget, the characteristics (a vehicle's four
+   ranks, all bought from zero — `SelectedGear`'s free baseline is the wrong precedent) and the
+   selected features with a count or a grade; `CostCalculator` gains four totals, three of them not
+   in Hero Points and none folded into `TotalCost()`; the validator reports a budget or a constraint
+   (Mecha's Might at least half its Body) and never repairs; the `.txt` and `.json` exports print
+   them. **Two questions to settle before code**: both pages let Heroes *pool* points into one
+   object and a `CharacterSheet` is one character — pooling is either unrepresentable or
+   double-counted across sheets; and Training Facilities' Teamwork behaves like Resolve, which only
+   Heroes hold, while p.100 gives headquarters to Villains too — a presentation decision of the
+   same kind as Resolve on a Villain.
+4. **Gadgets** are a pool that pays out, spent through the ordinary cost rules with the Item Con
+   applied and not credited — a fifth calculation that runs the other way.
+5. **The fight reads Chapter 7.** `modifier_cover`'s Structure from `smashing_table` or
+   `scenery_table`; knockback's solid object likewise; throwing's weight rank from
+   `massive_objects_table` now that Ch.2 p.17 settles which column it is. A vehicle is mundane gear
+   under the Gear Limit (`vehicular_gear_limit`), so the fight reuses the cap it has.
 
 ## Completed work
 

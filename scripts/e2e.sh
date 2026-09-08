@@ -435,6 +435,106 @@ for required in index.html _headers _redirects; do
   }
 done
 
+# Every icon the published page and its manifest name, checked against what was actually
+# published rather than against a list written down here — a list would drift from index.html
+# the first time somebody moved one, and a `<link rel="icon">` at a path that is not served is
+# the silent kind of broken: nothing errors, no console message, and the browser draws its own
+# default glyph where the owner's mark should be. `WebPresentationTests` holds the same set
+# against `web/wwwroot`; this is the other half, and it is a different claim — a file on disk
+# is only an icon if the publish carried it into the output the deploy uploads.
+icon_paths=$(
+  {
+    grep -o '<link[^>]*rel="[^"]*\(icon\|manifest\)[^"]*"[^>]*>' "$root/publish/wwwroot/index.html" \
+      | grep -o 'href="[^"]*"' | sed 's/href="//; s/"$//'
+    grep -o '"src"[[:space:]]*:[[:space:]]*"[^"]*"' "$root/publish/wwwroot/site.webmanifest" \
+      | sed 's/.*"\(.*\)"$/\1/'
+  } | sort -u
+)
+
+# The positive control, and it is two of them because there are two scans. A scan that matched
+# nothing reports a page carrying no icon at all as compliant, which is the shape most of this
+# repository's guard faults have had — so each extraction has to have found the one thing it
+# cannot honestly come back without.
+case "$icon_paths" in
+  *"/site.webmanifest"*) ;;
+  *) echo "::error::found no <link rel=\"manifest\"> in the published index.html, so the icon" \
+          "scan below is looking at nothing."; exit 2 ;;
+esac
+case "$icon_paths" in
+  *"web-app-manifest-"*) ;;
+  *) echo "::error::found no icon src in the published site.webmanifest, so the icon scan" \
+          "below is looking at nothing."; exit 2 ;;
+esac
+
+for icon in $icon_paths; do
+  [ -s "$root/publish/wwwroot/${icon#/}" ] || {
+    echo "::error::the published site names $icon and publish/wwwroot${icon} is missing or empty."
+    echo "A browser asking for it gets the SPA fallback and silently draws its own glyph."
+    exit 2
+  }
+done
+echo "Every icon the published page and its manifest name is served: $(echo "$icon_paths" | tr '\n' ' ')"
+
+# The same claim for the images a *component* names, which the scan above cannot see: they are
+# compiled into the WebAssembly payload rather than written in index.html, so the list is derived
+# from the razor sources instead of from the published page. The failure is the same shape and
+# quieter still — a missing `<img>` draws its alt text on a coloured band and nothing errors.
+#
+# **The pattern matches every spelling and rejects the ones it cannot check, rather than only
+# matching the one spelling in the tree today.** The first version began `src="[^":/]`, which was
+# meant to exclude an absolute URL and instead excluded a *leading slash* — so `src="/logo.svg"`,
+# which is exactly how index.html spells its own icons four lines up, matched nothing and was
+# skipped. So did `src="logo.svg?v=2"`. With one image in the repository the control below turns
+# either of those into a loud failure with the wrong diagnosis; with two it is a silent pass on
+# the unmatched one, which is the failure this whole check exists to prevent. Meanwhile an
+# absolute `https://…/x.svg` *did* match and was looked for under publish/wwwroot, because `:` is
+# never a URL's first character. A filter that quietly drops what it does not recognise is the
+# same shape as a denylist of spellings; this one takes everything and says out loud what it
+# cannot answer for.
+component_images=$(
+  grep -rhoE 'src="[^"]+\.(svg|png|webp|avif|jpg|jpeg|gif)([?#][^"]*)?"' "$root/web" --include='*.razor' \
+    | sed -E 's/^src="//; s/"$//' | sort -u
+)
+
+# The positive control: this repository has exactly one such image today, and a scan that stopped
+# matching would otherwise report every component as compliant by finding nothing to check.
+case "$component_images" in
+  *logo.svg*) ;;
+  *) echo "::error::found no component-drawn image under web/, so the scan below is looking at" \
+          "nothing. If the banner's mark was deliberately removed, delete this check with it."
+     exit 2 ;;
+esac
+
+for image in $component_images; do
+  case "$image" in
+    # Nothing on disk to check, and nothing this script can honestly say about it. Both are
+    # refused rather than skipped: `img-src 'self' data:` permits a data URI and forbids the
+    # remote one, so a component naming an external host is a defect whoever added it should
+    # hear about here rather than as a blank image in a browser.
+    data:*)
+      echo "::error::a component draws an inline data: URI. Put the artwork in wwwroot and name"
+      echo "the file, so this check and the CSP can both see what is being drawn."
+      exit 2 ;;
+    *://*|//*)
+      echo "::error::a component draws $image from another origin, which img-src 'self' data:"
+      echo "forbids: the browser blocks it and paints the alt text. Serve it from wwwroot."
+      exit 2 ;;
+  esac
+
+  # A leading slash resolves against `<base href="/">` and a query or fragment is not part of
+  # the filename, so both are taken off before the file is looked for. The `src` is reported as
+  # the component actually spells it.
+  on_disk=${image%%[?#]*}
+  on_disk=${on_disk#/}
+
+  [ -s "$root/publish/wwwroot/$on_disk" ] || {
+    echo "::error::a component draws $image and publish/wwwroot/$on_disk is missing or empty."
+    echo "The browser gets the SPA fallback for it and paints the alt text instead."
+    exit 2
+  }
+done
+echo "Every image a component draws is served: $(echo "$component_images" | tr '\n' ' ')"
+
 rm -rf "$site"
 cp -r "$root/publish/wwwroot" "$site"
 echo "Serving $(find "$site" -type f | wc -l | tr -d ' ') published files."
