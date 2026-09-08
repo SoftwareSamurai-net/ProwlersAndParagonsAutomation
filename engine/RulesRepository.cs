@@ -33,6 +33,7 @@ public sealed class RulesRepository
     private IReadOnlyList<SourceModel>? _sources;
     private CreationRulesModel? _creationRules;
     private EquipmentDataModel? _equipment;
+    private GearCatalogue? _catalogue;
 
     // Lookup dictionaries (built on first use)
     private Dictionary<string, TierModel>? _tierMap;
@@ -125,6 +126,17 @@ public sealed class RulesRepository
     /// </summary>
     public EquipmentDataModel Equipment =>
         _equipment ??= Load<EquipmentDataModel>("gear.json");
+
+    /// <summary>
+    /// <see cref="Equipment"/>'s three pickable tables as one flat list of rows.
+    ///
+    /// <para><b>It hangs off the repository rather than being registered separately</b>, unlike
+    /// <c>ProConApplicability</c> and <c>SourceGrouping</c>. Those answer questions across several
+    /// files and are a host's to wire up; this is one file's own contents in the shape every
+    /// reader of them wants, so it belongs beside the collection it flattens — and four hosts do
+    /// not each have to remember to build one.</para>
+    /// </summary>
+    public GearCatalogue Catalogue => _catalogue ??= new GearCatalogue(this);
 
     // ── Lookups ───────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@
     "name": "Build-Up",
     "cost_modifier": -2,
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "The Power must build up over 2 pages before use. Cannot be used on pages 1 or 2 of an action; usable from page 3 onward.",
     "narrative_constraint": null,
     "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
@@ -14,7 +14,7 @@
     "name": "Burnout",
     "cost_modifier": -4,
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "Always at risk of burning out. Roll 2 dice every time you try to use it; a result of 6 or less means the Power burns out and cannot be used for the rest of the scene.",
     "narrative_constraint": null,
     "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
@@ -25,7 +25,7 @@
     "cost_modifier": null,
     "cost_modifier_range": { "6_per_scene": -1, "3_per_scene": -2, "1_per_scene": -4 },
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "The Power can only be used a limited number of times per scene: -1 if 6 uses/scene, -2 if 3 uses/scene, -4 if 1 use/scene. Sustained-effect Powers like Invisibility or Phasing expend 1 use per page. Power recharges between scenes.",
     "narrative_constraint": "Player must define the fictional premise for the limited uses (e.g. ammo, energy cells).",
     "needs_review": false,
@@ -102,7 +102,7 @@
     "name": "Delay",
     "cost_modifier": -4,
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "The Power does not take effect immediately. The delay is specified when the Power is purchased and must be too long for the Power to be used in combat.",
     "narrative_constraint": "Player must define the delay when purchasing.",
     "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
@@ -169,7 +169,7 @@
     "name": "Overkill",
     "cost_modifier": null,
     "cost_type": "special",
-    "applicable_to": ["powers", "abilities"],
+    "applicable_to": ["powers", "abilities", "gear"],
     "description": "The Power (or Might, per the Brute Option) is more damaging than accurate. Targets double their active defense successes when resisting the Power in combat. Reduces base cost by 1 HP per rank (or changes 1 HP/rank to 1 HP per 2 ranks). Can allow Traits to exceed the Trait Cap by up to 3 ranks (if Trait Cap >= 9d) or 6 ranks (if Trait Cap >= 18d) as optional rule.",
     "narrative_constraint": null,
     "needs_review": false,
@@ -181,7 +181,7 @@
     "name": "Readied",
     "cost_modifier": -2,
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "The Power must be readied between each use. Takes 1 page to ready (or 1 action if you spend 1 Resolve). You can move and take free actions while readying.",
     "narrative_constraint": null,
     "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
@@ -191,7 +191,7 @@
     "name": "Recharge",
     "cost_modifier": -4,
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "The Power must recharge between uses. Can only be used once every 3 pages (unused for the next 2 pages after each use).",
     "narrative_constraint": null,
     "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
@@ -259,7 +259,7 @@
     "name": "Toxin",
     "cost_modifier": -2,
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "The Power represents a disease, drug, or poison. Cannot affect characters who are immune to toxins. Targets can use the Resistance Power as a passive defense.",
     "narrative_constraint": null,
     "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
@@ -269,7 +269,7 @@
     "name": "Two-Handed",
     "cost_modifier": -1,
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "Both hands must be free to use the Power (e.g. must gesture with both hands, or the Power comes from a two-handed weapon or object).",
     "narrative_constraint": null,
     "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
@@ -290,7 +290,7 @@
     "name": "Unreliable",
     "cost_modifier": -2,
     "cost_type": "flat",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "The Power sometimes fails. Roll 2 dice every time you try to use it; a result of 6 or less means the Power does not work and your action is wasted. You may try again next page.",
     "narrative_constraint": null,
     "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
@@ -300,7 +300,7 @@
     "name": "Weak",
     "cost_modifier": null,
     "cost_type": "special",
-    "applicable_to": ["powers"],
+    "applicable_to": ["powers", "gear"],
     "description": "The Power is more accurate than damaging/potent. Targets double their passive defense successes when resisting the Power in combat. Reduces base cost by 1 HP per rank (or changes 1 HP/rank to 1 HP per 2 ranks). Incompatible with Armor Piercing and Penetrating Pros.",
     "narrative_constraint": null,
     "needs_review": false,

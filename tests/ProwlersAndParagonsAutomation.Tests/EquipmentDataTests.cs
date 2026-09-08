@@ -948,24 +948,30 @@ public sealed class EquipmentDataTests
     }
 
     /// <summary>
-    /// <b>A second divergence between the page and the engine, recorded rather than repaired — and
-    /// this one contradicts a doc comment.</b>
+    /// <b>The Item Con is not credited, and this test used to say the opposite.</b>
     ///
     /// <para>p.93: "As physical objects, every piece of gear has the Item Con."
-    /// <c>CostCalculator.GearCost</c>'s own comment says "The Item Con is not charged or credited
-    /// here", and that is true only of what the engine <em>adds</em>: nothing puts Item on an item
-    /// automatically. A host that records the Con the book says every item carries gets it credited
-    /// like any other, at the −1 <c>cons.json</c> prices it — so a 1 HP feature comes out free,
-    /// which is precisely the outcome the comment gives as the reason not to credit it.</para>
+    /// <c>CostCalculator.GearCost</c>'s own comment said "The Item Con is not charged or credited
+    /// here", and that was true only of what the engine <em>adds</em>: nothing puts Item on an item
+    /// automatically, so a host that recorded the Con the book says every item carries got it
+    /// credited like any other at the −1 <c>cons.json</c> prices — and a 1 HP feature came out free,
+    /// which is precisely the outcome the comment gave as the reason not to credit it. The data
+    /// slice recorded that divergence rather than repairing it, on the grounds that a data slice
+    /// does not decide an engine question.</para>
     ///
-    /// <para>Nothing here changes that. This is a data slice, the engine's behaviour is what ships,
-    /// and the honest thing is a test that says what it actually does so the next slice decides on
-    /// purpose. Two readings are open and the page settles neither: Item is a description of gear
-    /// and should be uncreditable, or it is a Con like any other and the floor at 0 is what stops it
-    /// paying out.</para>
+    /// <para><b>This is the decision, and it follows the settled list rather than the page.</b>
+    /// CLAUDE.md has said "the Item Con is not credited against a piece of gear" throughout; the
+    /// engine was the half that disagreed. The page settles neither reading outright, and the
+    /// argument for this one is the page's own: Item is absent from the twenty-four Cons p.93 names
+    /// as commonly applied to gear, which is the tell that it is a description of what gear is
+    /// rather than a discount to claim.</para>
+    ///
+    /// <para>The Con still <em>prints</em> — it is true of the item — and the picker no longer
+    /// offers it, because an option nobody may apply is not one to offer. See
+    /// <c>ProConApplicability.ProsForGear</c>.</para>
     /// </summary>
     [Fact]
-    public void TheItemConIsCreditedWhenAHostRecordsItEvenThoughGearAlwaysHasIt()
+    public void TheItemConIsNotCreditedEvenWhenAHostRecordsIt()
     {
         var block = Equipment().GearProsAndCons.GearProsAndCons!;
 
@@ -979,18 +985,28 @@ public sealed class EquipmentDataTests
             Cons = [new(CanonicalEquipmentCatalogue.GearProsAndCons.ItemConId)]
         };
 
-        // The engine's answer today, asserted so a change to it is a change to this test.
         Assert.Equal(2, _f.Costs.GearCost(without));
-        Assert.Equal(1, _f.Costs.GearCost(withItem));
+        Assert.Equal(_f.Costs.GearCost(without), _f.Costs.GearCost(withItem));
 
-        // And a 1 HP feature really does come out free, which is the case the doc comment names.
+        // And the 1 HP feature the doc comment names stays 1 HP, which is the case the old
+        // behaviour took to zero.
         var cheap = new SelectedGear("Knife")
         {
             Features = [new("bonded")],
             Cons = [new(CanonicalEquipmentCatalogue.GearProsAndCons.ItemConId)]
         };
 
-        Assert.Equal(0, _f.Costs.GearCost(cheap));
+        Assert.Equal(1, _f.Costs.GearCost(cheap));
+
+        // **The control, and it is the whole instrument.** A GearCost that ignored every Con would
+        // satisfy all three assertions above. A Con that is on p.93's list still discounts.
+        var discounted = new SelectedGear("Knife") { Features = [new("bonded")], Cons = [new("burnout")] };
+
+        Assert.True(_f.Costs.GearCost(discounted) < _f.Costs.GearCost(new SelectedGear("Knife") { Features = [new("bonded")] }));
+
+        // And the Con the engine ignores is the one the data names, not a spelling written here.
+        Assert.Equal("item", CanonicalEquipmentCatalogue.GearProsAndCons.ItemConId);
+        Assert.NotNull(_f.Rules.GetCon(CanonicalEquipmentCatalogue.GearProsAndCons.ItemConId));
     }
 
     /// <summary>
@@ -1001,10 +1017,12 @@ public sealed class EquipmentDataTests
     /// <c>CostCalculator.ResolveConCost</c> returns 0 for either of them and the Con the player
     /// wrote on the item is worth nothing. The page does not say what it should be worth.</para>
     ///
-    /// <para>This asserts the current behaviour on purpose, so that a slice which decides what those
-    /// two mean on gear has to come here and change it, rather than discovering the question by
-    /// accident. The entry's <c>ambiguity</c> carries the same finding for a reader of the
-    /// data.</para>
+    /// <para>This still asserts the current behaviour on purpose: the page does not say what either
+    /// one should be worth, so a slice that decides has to come here and change it. What <em>has</em>
+    /// been decided is that they are no longer offered — an option that provably costs and discounts
+    /// nothing is a decision with no consequence to put in front of a player. That is
+    /// <c>ProConApplicability</c>'s answer, asked of the price rather than of two ids, and the
+    /// entry's <c>ambiguity</c> carries the same finding for a reader of the data.</para>
     /// </summary>
     [Fact]
     public void OverkillAndWeakAreNamedForGearAndTheEngineChargesNothingForEither()

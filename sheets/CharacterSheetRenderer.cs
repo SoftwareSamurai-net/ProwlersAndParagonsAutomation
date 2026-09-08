@@ -304,6 +304,13 @@ public static class CharacterSheetRenderer
         sb.AppendLine($"  Edge:    {derived.CalculateEdge(sheet)}");
         sb.AppendLine($"  Health:  {derived.CalculateHealth(sheet)}");
         sb.AppendLine($"  Resolve: {derived.CalculateResolve(sheet)}");
+
+        // **Only when a suit is being worn**, because a line reading "Armor: —" on every sheet in
+        // the game would be a stat nobody has. It is derived and not bought: p.88 hands the Power
+        // over for free, capped by p.87's Gear Limit, and nothing was spent on it.
+        if (derived.ArmorFromGear(sheet) is { } armor)
+            sb.AppendLine($"  Armor:   {armor}d (worn, under the Gear Limit)");
+
         sb.AppendLine();
     }
 
@@ -528,6 +535,17 @@ public static class CharacterSheetRenderer
             ["gear"] = new JsonArray(sheet.Gear.Select(g => (JsonNode)new JsonObject
             {
                 ["name"]     = g.Name,
+
+                // The row it was chosen from, and the two figures printed beside that row. **The
+                // id is the fact and the rest is a convenience**: a reader with gear.json can
+                // resolve it, and a reader without it can still see what the thing is worth.
+                // Null on anything a player simply wrote down, which is most gear.
+                ["catalogue_id"]  = g.CatalogueId,
+                ["bonus_dice"]    = CatalogueRow(g, rules)?.BonusDice,
+                ["catalogue_features"] = CatalogueRow(g, rules) is { } row
+                    ? new JsonArray(row.Features.Select(f => (JsonNode)JsonValue.Create(f)!).ToArray())
+                    : null,
+
                 ["cost"]     = costs.GearCost(g),
                 ["paired_under_two_fisted"] = g.PairedUnderTwoFisted,
                 ["features"] = new JsonArray(g.Features.Select(f => (JsonNode)new JsonObject
@@ -543,7 +561,11 @@ public static class CharacterSheetRenderer
             {
                 ["edge"]    = derived.CalculateEdge(sheet),
                 ["health"]  = derived.CalculateHealth(sheet),
-                ["resolve"] = derived.CalculateResolve(sheet)
+                ["resolve"] = derived.CalculateResolve(sheet),
+
+                // Null unless a suit is being worn. See WriteDerived: it is a figure p.88 grants
+                // and p.87 caps, and nothing was spent on it.
+                ["armor_from_gear"] = derived.ArmorFromGear(sheet)
             },
             ["narrative"] = new JsonObject
             {
@@ -616,4 +638,11 @@ public static class CharacterSheetRenderer
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// The catalogue row a piece of gear names, or null. A row that does not resolve is the
+    /// validator's to report; this prints nothing rather than inventing a figure for it.
+    /// </summary>
+    private static GearCatalogueRow? CatalogueRow(SelectedGear gear, RulesRepository rules) =>
+        gear.CatalogueId is null ? null : rules.Catalogue.Find(gear.CatalogueId);
 }

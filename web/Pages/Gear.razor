@@ -5,8 +5,8 @@
 
 <h1>Gear</h1>
 <p class="muted">
-    Mundane gear is free and untracked (Ch.6). Signature equipment is a Power with the Item
-    Con, on the Powers tab.
+    Mundane gear is free and untracked (Ch.6) — armour and weapons included. Signature
+    equipment is a Power with the Item Con, on the Powers tab.
 </p>
 
 <Panel Title="Carried" Cost="@($"{Session.Costs.TotalGearCost(Session.Sheet)} HP")">
@@ -20,7 +20,17 @@
             @foreach (var item in Session.Sheet.Gear.ToList())
             {
                 <ChosenRow Findings="SheetFindings.ForGear(Validation, item.Name)">
-                    <Body>@GearFormatter.Describe(item, Session.Rules, Session.Costs)</Body>
+                    <Body>
+                        @GearFormatter.Describe(item, Session.Rules, Session.Costs)
+                        @if (WornArmorRank(item) is { } rank)
+                        {
+                            @* The one figure on this page that is about the character rather than
+                               about the object, so it is printed apart from the item's own line
+                               rather than folded into it — and by the page rather than by
+                               GearFormatter, which is handed one item and not a whole sheet. *@
+                            <span class="muted small"> — grants Armor @(rank)d</span>
+                        }
+                    </Body>
                     <Actions>
                         <button type="button" class="btn small" @onclick="() => BeginEdit(item)">Customise</button>
                         <button type="button" class="btn small danger" @onclick="() => Remove(item)">Remove</button>
@@ -37,9 +47,31 @@
     </div>
 </Panel>
 
+@* Chapter 6's own catalogue. The box above stays, and is not second best: p.91 calls its list
+   "examples, not a catalogue of prices", so a character may carry a letter from their mother —
+   and typing one is still how that is done. What the list adds is the printed bonus and the
+   printed features, which somebody typing "Battle Axe" has to look up in the book. *@
+<Panel Class="catalogue" Title="From the book">
+    @* Ch.6 pp.88-91. The citation is in this comment and not in the heading above it, because
+       the heading is set in capitals and "CH.6" is not how the rulebook cites itself. *@
+    <p class="small muted">
+        Armour, weapons and equipment as the book prints them, all free. An armour row shows
+        the Armor rank it grants you.
+    </p>
+
+    <OptionList Placeholder="Filter armour, weapons and equipment">
+        @foreach (var row in Session.Catalogue.Rows)
+        {
+            <OptionRow Name="@row.Name" Caveat="@RowCaveat(row)" Cost="@RowCost(row)"
+                       Keywords="@RowKeywords(row)"
+                       OnSelect="() => AddFromCatalogue(row)" />
+        }
+    </OptionList>
+</Panel>
+
 @if (_editing is { } target)
 {
-    <Panel Title="@target.Name" Cost="@($"{Session.Costs.GearCost(target)} HP")">
+    <Panel Class="customising" Title="@target.Name" Cost="@($"{Session.Costs.GearCost(target)} HP")">
         <p class="small muted">
             Gear floors at <b>0</b>, not 1. The Item Con is not credited.
         </p>
@@ -126,6 +158,75 @@
         _newItem = "";
         Session.NotifyChanged();
     }
+
+    /// <summary>
+    /// The Armor rank this item grants its wearer, or null if it is not a suit of armour.
+    ///
+    /// <para>Asked of the row rather than of <c>ArmorFromGear</c>, which answers for the whole
+    /// character and would print the best suit's rank beside every one of them.</para>
+    /// </summary>
+    private int? WornArmorRank(SelectedGear item) =>
+        item.CatalogueId is { } id && Session.Catalogue.Find(id) is { Kind: GearCatalogueKind.Armor } row
+            ? Session.Derived.ArmorRankInSuit(Session.Sheet, row.BonusDice ?? 0)
+            : null;
+
+    // ── The catalogue ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The row goes on as an ordinary piece of gear that <em>names</em> the row.
+    ///
+    /// <para><b>The bonus and the features are not copied onto the character.</b> What a Battle
+    /// Axe is worth is the rulebook's answer; a sheet that stored the figure would be a second
+    /// copy of it, and the two would disagree the first time the data was corrected. The item
+    /// carries the id and the line is rendered from the row.</para>
+    ///
+    /// <para>It costs nothing, like every other piece of mundane gear, so nothing here touches a
+    /// Hero Point — and nothing here adds a Power either. An armour row grants Armor for free;
+    /// putting one on the Powers tab would charge for it.</para>
+    /// </summary>
+    private void AddFromCatalogue(GearCatalogueRow row)
+    {
+        Session.Sheet.Gear.Add(new SelectedGear(row.Name) { CatalogueId = row.Id });
+        Session.NotifyChanged();
+    }
+
+    /// <summary>
+    /// The quiet second line. <b>An armour row says what it is worth to <em>this</em> character</b>,
+    /// which is the figure that is not on the page: p.88 gives the rank as Toughness plus the
+    /// suit's bonus and p.87 caps the Toughness half at the Gear Limit, so a 10d Hero in Plate is
+    /// 8d in a standard game. The engine answers it; this prints the answer.
+    /// </summary>
+    private string? RowCaveat(GearCatalogueRow row) => row.Kind switch
+    {
+        GearCatalogueKind.Armor =>
+            $"Grants Armor {Session.Derived.ArmorRankInSuit(Session.Sheet, row.BonusDice ?? 0)}d "
+            + $"— your Toughness capped at the {DerivedStatsCalculator.EffectiveGearLimit(Session.Sheet)}d "
+            + "Gear Limit, plus the suit's bonus.",
+
+        GearCatalogueKind.Weapon when row.IsShield =>
+            $"Also a shield: +{Session.Catalogue.ShieldBonusDice}d to every defence while it is in "
+            + "your off hand, lost until your next turn if you swing it.",
+
+        GearCatalogueKind.Item => row.Description,
+
+        _ => null
+    };
+
+    /// <summary>
+    /// The right-hand column. <b>Never a price</b> — none of this is bought — so it carries what
+    /// the page prints in the column beside the name instead.
+    /// </summary>
+    private static string RowCost(GearCatalogueRow row) =>
+        row.BonusDice is { } dice
+            ? $"+{dice}{(row.Subdual ? " (s)" : "")}"
+            : row.Category ?? "";
+
+    /// <summary>
+    /// Words a row can be found by and does not print: its era, and its printed features. Somebody
+    /// looking for a two-handed weapon should not have to know which ones are.
+    /// </summary>
+    private static IEnumerable<string> RowKeywords(GearCatalogueRow row) =>
+        row.Category is null ? row.Features : [row.Category, .. row.Features];
 
     private void Remove(SelectedGear item)
     {

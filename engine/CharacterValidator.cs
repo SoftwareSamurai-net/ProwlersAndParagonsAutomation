@@ -1118,6 +1118,29 @@ public sealed class CharacterValidator
                 continue;
             }
 
+            // A catalogue row that resolves to nothing. **Reported, never repaired**: the id is
+            // what makes an item a Battle Axe rather than a name somebody typed, and dropping it
+            // would silently turn one into the other — a legal, cheaper, differently-armed
+            // character nobody was told about, which is the same failure as a misspelled field
+            // name in a submitted payload. Null is not an error: p.91's list is "examples, not a
+            // catalogue of prices", so most gear names no row at all.
+            if (gear.CatalogueId is { } rowId && _rules.Catalogue.Find(rowId) is null)
+            {
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GEAR_CATALOGUE_ROW",
+                    $"'{gear.Name}' names a Chapter 6 catalogue row, '{rowId}', that is not one "
+                    + "the rulebook has. Its bonus and features cannot be read.")
+                {
+                    SubjectKind = ValidationSubject.Gear,
+                    SubjectId   = gear.Name,
+
+                    // Deliberately no Options. There are 108 rows and the right one is a question
+                    // about what the character carries, not a value to pick off a list — and an
+                    // option list a screen would offer to choose from is a repair this engine does
+                    // not make.
+                });
+                resolvable = false;
+            }
+
             var itemResolvable = true;
 
             foreach (var f in gear.Features)
