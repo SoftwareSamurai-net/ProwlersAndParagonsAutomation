@@ -3596,6 +3596,17 @@ public sealed class PlayRulesDataTests
     /// typed here: the two files state the rule in different words, so what is compared is the two
     /// clauses' content — that both name the cover's Structure as the threshold an attack rank has
     /// to beat, and that both grant the target that Structure as a passive defence.</para>
+    ///
+    /// <para><b>What this pair cannot do, stated rather than claimed.</b> The two chapters share no
+    /// <em>figure</em>: Chapter 4's cover entry prints dice bands Chapter 7 does not, and Chapter 7's
+    /// penetration clause prints no number at all. So the comparison is over two words in a prose
+    /// clause, and a clause reworded to "the attack rank exceeds half the object's Structure" — or to
+    /// require the Structure to exceed the attack rank — still carries both words and still passes.
+    /// Broken and watched in the direction it does cover, from each side in turn: Chapter 4's
+    /// threshold moved onto Body, then Chapter 7's, and each fails naming its own clause. There is
+    /// no shared figure to compare instead, and inventing a parser over English is the heuristic
+    /// this repository has twice been warned off tuning until the examples in front of it look
+    /// right.</para>
     /// </summary>
     [Fact]
     public void TheTwoChaptersThatPrintDamagingCoverAgreeAboutIt()
