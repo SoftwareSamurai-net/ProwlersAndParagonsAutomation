@@ -953,6 +953,13 @@ public sealed class PlayEngineStepTests
     ///
     /// <para>The expected list is assembled from the entry rather than restated, so a corrected table
     /// moves this fixture with it.</para>
+    ///
+    /// <para><b>And the correction of that defect had overshot the other way, which is the second
+    /// half of this fixture.</b> "Every Trait the table does not name" is the complement of five
+    /// rows taken over a dictionary that holds the Talents as well, so <c>academics</c> was an
+    /// attack form — visible in a real report of the Pinnacle City Heroes, two of whom swung it.
+    /// The exotic Hero here carries a Talent at a rank <em>above</em> their Ability's, so a
+    /// derivation that let one through would both list it and choose it.</para>
     /// </summary>
     [Fact]
     public void ThePolicyAttacksWithWhatTheTableAndTheCharacterOffer()
@@ -976,18 +983,29 @@ public sealed class PlayEngineStepTests
         var exotic = Combatant.Hero("exotic", "the exotic Hero", edge: 7, health: 10, resolve: 0,
             new Dictionary<string, int>(StringComparer.Ordinal)
             {
-                ["might"] = 3, ["agility"] = 2, ["toughness"] = 4, ["energy_blast"] = 12
+                ["might"] = 3, ["agility"] = 2, ["toughness"] = 4,
+                ["energy_blast"] = 12,
+
+                // A Talent, at a rank above every Ability on this sheet — so a derivation that let
+                // one through would not merely list it, it would pick it.
+                ["academics"] = 9
             },
-            ["toughness"]);
+            ["toughness"],
+            attackPowers: new HashSet<string>(StringComparer.Ordinal) { "energy_blast" });
 
         var available = policy.TraitsAvailableTo(exotic);
 
-        // A Power the table does not name is one of theirs, and the Abilities it names are there too.
+        // The Power whose Ch.2 entry is an attack is one of theirs, and the Abilities the table
+        // names are there too.
         Assert.Contains("energy_blast", available, StringComparer.Ordinal);
         foreach (var trait in attacking) Assert.Contains(trait, available, StringComparer.Ordinal);
 
         // The Traits the table names only as defences are not attacking Traits.
         Assert.DoesNotContain("toughness", available, StringComparer.Ordinal);
+
+        // And neither is a Talent, which is the half that shipped: Academics is not an attack, and
+        // "every Trait the table does not name" said it was.
+        Assert.DoesNotContain("academics", available, StringComparer.Ordinal);
 
         // And the choice follows the rank: the 12d Power, not the 3d Ability.
         var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 10,
@@ -1003,6 +1021,87 @@ public sealed class PlayEngineStepTests
         // makes the derivation worth having rather than tidier.
         var typed = new AttackTheWeakest(_play) { AttackTraits = ["blast", "strike", "might", "agility"] };
         Assert.Equal("might", Assert.IsType<Attack>(typed.Choose(state, state["exotic"])).TraitId);
+    }
+
+    /// <summary>
+    /// <b>An attack form is an Ability p.75's table names or a Power whose Ch.2 entry is an attack,
+    /// driven end to end off a real sheet.</b>
+    ///
+    /// <para><b>This is the defect that reached a published measurement.</b> The derivation read
+    /// "p.75's named attacking Traits plus every Trait the table does not name", and
+    /// <c>Combatant.TraitRanks</c> holds the six Abilities, the twelve Talents and every Power on
+    /// one dictionary — so the complement of a five-row table was most of a character sheet. A real
+    /// report of the four Low Level Pinnacle City Heroes against Schism has two of them attacking
+    /// with <c>academics</c>, one with <c>covert</c> and the Villain with <c>armor</c>: a Talent is
+    /// not an attack and a passive defence is not one either.</para>
+    ///
+    /// <para><b>Every fact this turns on is read out of the character rules before it is used</b>,
+    /// so a corrected Chapter 2 moves the fixture with it: the Blast's category, the Armor's, and
+    /// that Academics is one of the Talents the factory puts on a combatant at all. The Talent is
+    /// given the greatest rank on the sheet, so a derivation that let one through would not merely
+    /// list it — <see cref="AttackOptions.BestFor"/> would choose it.</para>
+    /// </summary>
+    [Fact]
+    public void AnAttackFormIsAnAbilityTheTableNamesOrAPowerChapterTwoCallsAnAttack()
+    {
+        var rules = new RulesFixture();
+
+        // The controls, off the character rules: the two Powers are the two categories this turns
+        // on, and Academics is really a Talent the factory carries onto a combatant.
+        Assert.Equal("Attack", rules.Rules.GetPower("blast")!.Category, StringComparer.OrdinalIgnoreCase);
+        Assert.NotEqual("Attack", rules.Rules.GetPower("armor")!.Category, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains(rules.Rules.Talents, t => string.Equals(t.Id, "academics", StringComparison.Ordinal));
+
+        var sheet = rules.LegalSheet();
+        sheet.Name = "the Hero";
+
+        sheet.AbilityRanks["might"] = 4;
+        sheet.AbilityRanks["agility"] = 3;
+
+        // The Talent outranks every Ability and every Power on the sheet.
+        sheet.TalentRanks["academics"] = 11;
+
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 8));
+        sheet.SelectedPowers.Add(new SelectedPower("armor", 9));
+
+        var hero = CombatantFactory.From(
+            sheet, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
+
+        // The other control: all three really are on this combatant at a rank, so what follows is a
+        // derivation refusing them rather than a sheet that never carried them.
+        Assert.True(hero.Rank("academics") > 0, "the Talent came off the sheet at 0d");
+        Assert.True(hero.Rank("armor") > 0, "the Armor came off the sheet at 0d");
+        Assert.True(hero.Rank("blast") > 0, "the Blast came off the sheet at 0d");
+
+        var forms = AttackOptions.AvailableTo(_play, hero);
+
+        Assert.Contains("blast", forms, StringComparer.Ordinal);
+        Assert.Contains("might", forms, StringComparer.Ordinal);
+        Assert.Contains("agility", forms, StringComparer.Ordinal);
+
+        Assert.DoesNotContain("academics", forms, StringComparer.Ordinal);
+        Assert.DoesNotContain("armor", forms, StringComparer.Ordinal);
+
+        // And the choice: the Blast, not the higher-ranked Talent the old derivation would have
+        // swung and not the Armor it would have swung on the Villain's side of the same report.
+        Assert.Equal("blast", AttackOptions.BestFor(_play, hero));
+    }
+
+    /// <summary>
+    /// <b>A group of Minions still attacks, and with the one characteristic p.77 gives them.</b>
+    ///
+    /// <para>They are the one combatant whose whole Trait list is an attack form: no Ability, no
+    /// Power and no sheet, so a derivation built out of p.75's Abilities and Chapter 2's attack
+    /// Powers would leave a mob holding its action for the whole fight. p.77 prints them rolling
+    /// their Threat, so that is what they roll.</para>
+    /// </summary>
+    [Fact]
+    public void AGroupOfMinionsAttacksWithTheOneCharacteristicPageSeventySevenGivesThem()
+    {
+        var mob = Combatant.Minions("mob", "the mob", threat: 6, groupSize: 4, threatTraitId: "threat");
+
+        Assert.Equal(["threat"], AttackOptions.AvailableTo(_play, mob));
+        Assert.Equal("threat", AttackOptions.BestFor(_play, mob));
     }
 
     // ── The branches no printed example reaches ──────────────────────────────

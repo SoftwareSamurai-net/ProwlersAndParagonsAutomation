@@ -104,21 +104,23 @@ public static class CombatantFactory
         var defences = DefencesAvailableTo(traits, play);
         var powers = PowersOn(sheet);
         var rangedPowers = RangedPowersOn(sheet, rules);
+        var attackPowers = AttackPowersOn(sheet, rules);
 
         return kind switch
         {
             CombatantKind.Hero => Combatant.Hero(
                 id ?? name, name, edge, health, derived.CalculateResolve(sheet), traits, defences,
-                side ?? Combatant.HeroSide, size, invisible, powers, hardTarget, rangedPowers, ready),
+                side ?? Combatant.HeroSide, size, invisible, powers, hardTarget, rangedPowers, ready,
+                attackPowers),
             CombatantKind.Villain => Combatant.Villain(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers, hardTarget, rangedPowers, ready),
+                size, invisible, powers, hardTarget, rangedPowers, ready, attackPowers),
             CombatantKind.Foe => Combatant.Foe(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers, hardTarget, rangedPowers, ready),
+                size, invisible, powers, hardTarget, rangedPowers, ready, attackPowers),
             CombatantKind.Extra => Combatant.Extra(
                 id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide,
-                size, invisible, powers, hardTarget, rangedPowers, ready),
+                size, invisible, powers, hardTarget, rangedPowers, ready, attackPowers),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown kind of combatant.")
         };
     }
@@ -159,6 +161,41 @@ public static class CombatantFactory
                 .Select(power => power.PowerId)
                 .Where(id => string.Equals(
                     rules.GetPower(id)?.Range, RangedPowerRange, StringComparison.OrdinalIgnoreCase)),
+            StringComparer.Ordinal);
+
+    /// <summary>
+    /// Ch.2's own category for a Power whose entry is an attack.
+    ///
+    /// <para><b>It is a value of the character rules' vocabulary and this is the one place
+    /// <c>play/</c> spells it</b>, exactly as <see cref="RangedPowerRange"/> is.</para>
+    /// </summary>
+    private const string AttackPowerCategory = "Attack";
+
+    /// <summary>
+    /// Every Power on the sheet whose own Ch.2 entry is an attack — what p.75's two bare
+    /// <c>Power</c> attack rows mean for this character.
+    ///
+    /// <para><b>Read here for the reason <see cref="RangedPowersOn"/> is: it is a question about a
+    /// Power and only a Chapter 2 entry can answer it.</b> A rank cannot, and neither can
+    /// membership of the sheet: an Armor and an Academics are a rank on the same dictionary as a
+    /// Blast, and a policy deriving its attack forms as "every Trait p.75's table does not name"
+    /// swung all three.</para>
+    ///
+    /// <para><b><c>category</c> and deliberately not <c>tags</c>.</b> The category is a field the
+    /// character engine already reads mechanically — it decides a Power's default
+    /// <c>AffectsResolve</c> — while <c>PowerModel.Tags</c>'s own doc comment says in as many words
+    /// that no mechanic reads it and that it is not verified against a page. Three Powers carry a
+    /// descriptive <c>attack</c> tag without the category and are therefore not here; the reading,
+    /// its direction and what it costs are recorded in <c>docs/guide/play-engine.md</c>.</para>
+    ///
+    /// <para>A Power id the character rules do not have contributes nothing rather than throwing,
+    /// for the reason <see cref="RangedPowersOn"/> gives.</para>
+    /// </summary>
+    private static HashSet<string> AttackPowersOn(CharacterSheet sheet, RulesRepository rules) =>
+        new(sheet.SelectedPowers
+                .Select(power => power.PowerId)
+                .Where(id => string.Equals(
+                    rules.GetPower(id)?.Category, AttackPowerCategory, StringComparison.OrdinalIgnoreCase)),
             StringComparer.Ordinal);
 
     /// <summary>

@@ -118,6 +118,7 @@ public sealed class Combatant
         bool consciousAtZeroOrLess,
         IReadOnlySet<string> powers,
         IReadOnlySet<string> rangedPowers,
+        IReadOnlySet<string> attackPowers,
         HeldItem? holding)
     {
         Id = id;
@@ -142,6 +143,7 @@ public sealed class Combatant
         ConsciousAtZeroOrLess = consciousAtZeroOrLess;
         Powers = powers;
         RangedPowers = rangedPowers;
+        AttackPowers = attackPowers;
         Holding = holding;
     }
 
@@ -397,6 +399,29 @@ public sealed class Combatant
     public IReadOnlySet<string> RangedPowers { get; }
 
     /// <summary>
+    /// The ids of the Powers on this combatant's sheet whose <b>own Ch.2 entry is an attack</b> —
+    /// the Powers p.75's two bare <c>Power</c> attack rows mean.
+    ///
+    /// <para><b>It exists because neither <see cref="TraitRanks"/> nor <see cref="Powers"/> can tell
+    /// an attack from anything else, and a policy that assumed they could shipped a measurement of
+    /// characters swinging their Armor and their Academics at each other.</b> <c>TraitRanks</c>
+    /// carries the six Abilities, the twelve Talents and every Power alike, so "a Trait p.75's table
+    /// does not name" is most of a character sheet; <c>Powers</c> is every Power whatever its rank
+    /// and says nothing about what one does.</para>
+    ///
+    /// <para><b>Ch.2's own <c>category</c> is what answers it, and the narrowness is stated rather
+    /// than hidden.</b> <c>docs/guide/play-engine.md</c> carries the reading: <c>category</c> is a
+    /// field the character engine already reads mechanically, and the descriptive <c>tags</c> beside
+    /// it are documented there as not one — so three Powers whose printed text describes attacking
+    /// are deliberately not in this set, and a character built out of one of them attacks with the
+    /// Ability p.75's table gives everybody instead.</para>
+    ///
+    /// <para>Empty for a combatant built by hand and for a group of Minions, who have no sheet —
+    /// for whom p.77's one characteristic is the whole of what they roll.</para>
+    /// </summary>
+    public IReadOnlySet<string> AttackPowers { get; }
+
+    /// <summary>
     /// The item p.76's full grab put in this combatant's hands, or null.
     ///
     /// <para><b>It is the whole of what a full grab leaves behind, and it is read rather than kept
@@ -436,9 +461,10 @@ public sealed class Combatant
         IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
         string side = HeroSide, double size = SameSize, bool invisible = false,
         IReadOnlySet<string>? powers = null, bool hardTarget = false,
-        IReadOnlySet<string>? rangedPowers = null, bool ready = false) =>
+        IReadOnlySet<string>? rangedPowers = null, bool ready = false,
+        IReadOnlySet<string>? attackPowers = null) =>
         Build(id, name, CombatantKind.Hero, side, edge, health, resolve, 0, traitRanks, defences,
-            size, invisible, powers, hardTarget, rangedPowers, ready);
+            size, invisible, powers, hardTarget, rangedPowers, ready, attackPowers);
 
     /// <summary>A Villain: the Hero rules, the same Health formula, and no Resolve.</summary>
     public static Combatant Villain(
@@ -446,9 +472,10 @@ public sealed class Combatant
         IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
         string side = OpposingSide, double size = SameSize, bool invisible = false,
         IReadOnlySet<string>? powers = null, bool hardTarget = false,
-        IReadOnlySet<string>? rangedPowers = null, bool ready = false) =>
+        IReadOnlySet<string>? rangedPowers = null, bool ready = false,
+        IReadOnlySet<string>? attackPowers = null) =>
         Build(id, name, CombatantKind.Villain, side, edge, health, 0, 0, traitRanks, defences,
-            size, invisible, powers, hardTarget, rangedPowers, ready);
+            size, invisible, powers, hardTarget, rangedPowers, ready, attackPowers);
 
     /// <summary>A Foe, whose Health has already been halved by <see cref="CombatantFactory"/>.</summary>
     public static Combatant Foe(
@@ -456,9 +483,10 @@ public sealed class Combatant
         IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
         string side = OpposingSide, double size = SameSize, bool invisible = false,
         IReadOnlySet<string>? powers = null, bool hardTarget = false,
-        IReadOnlySet<string>? rangedPowers = null, bool ready = false) =>
+        IReadOnlySet<string>? rangedPowers = null, bool ready = false,
+        IReadOnlySet<string>? attackPowers = null) =>
         Build(id, name, CombatantKind.Foe, side, edge, health, 0, 0, traitRanks, defences,
-            size, invisible, powers, hardTarget, rangedPowers, ready);
+            size, invisible, powers, hardTarget, rangedPowers, ready, attackPowers);
 
     /// <summary>An Extra.</summary>
     public static Combatant Extra(
@@ -466,9 +494,10 @@ public sealed class Combatant
         IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
         string side = OpposingSide, double size = SameSize, bool invisible = false,
         IReadOnlySet<string>? powers = null, bool hardTarget = false,
-        IReadOnlySet<string>? rangedPowers = null, bool ready = false) =>
+        IReadOnlySet<string>? rangedPowers = null, bool ready = false,
+        IReadOnlySet<string>? attackPowers = null) =>
         Build(id, name, CombatantKind.Extra, side, edge, health, 0, 0, traitRanks, defences,
-            size, invisible, powers, hardTarget, rangedPowers, ready);
+            size, invisible, powers, hardTarget, rangedPowers, ready, attackPowers);
 
     /// <summary>
     /// A group of Minions: one Threat rank, no Health, no Edge, and a body count.
@@ -486,19 +515,19 @@ public sealed class Combatant
             id, name, CombatantKind.MinionGroup, side, edge: 0, health: 0, resolve: 0, groupSize: groupSize,
             traitRanks: new Dictionary<string, int>(StringComparer.Ordinal) { [threatTraitId] = threat },
             defences: [threatTraitId], size: size, invisible: invisible, powers: null,
-            hardTarget: hardTarget, rangedPowers: null, ready: ready);
+            hardTarget: hardTarget, rangedPowers: null, ready: ready, attackPowers: null);
 
     /// <summary>This combatant with a different Health. Nothing else moves.</summary>
     public Combatant WithHealth(int health) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
             DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers, Holding);
 
     /// <summary>This combatant bleeding out, or steadied. p.79's clock, started and stopped.</summary>
     public Combatant Bleeding(bool dying) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers, Holding);
 
     /// <summary>
     /// This combatant brought round by p.76's instant recovery: on their feet at
@@ -512,7 +541,7 @@ public sealed class Combatant
     public Combatant Recovered(int health, bool consciousAtZeroOrLess = false) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
             defeatedByEffect: null, Dying, InstantRecoveriesUsed + 1, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, consciousAtZeroOrLess, Powers, RangedPowers, Holding);
+            Size, Invisible, HardTarget, Ready, consciousAtZeroOrLess, Powers, RangedPowers, AttackPowers, Holding);
 
     /// <summary>
     /// p.80's other half of the same sentence: a character standing at or below the defeat figure
@@ -525,7 +554,7 @@ public sealed class Combatant
     public Combatant Overcome() =>
         new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, consciousAtZeroOrLess: false, Powers, RangedPowers, Holding);
+            Size, Invisible, HardTarget, Ready, consciousAtZeroOrLess: false, Powers, RangedPowers, AttackPowers, Holding);
 
     /// <summary>
     /// This combatant put out of the fight by <paramref name="effect"/> — p.76's defeat by special
@@ -538,7 +567,7 @@ public sealed class Combatant
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, effect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers, Holding);
     }
 
     /// <summary>
@@ -564,7 +593,7 @@ public sealed class Combatant
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, flaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers, Holding);
     }
 
     /// <summary>
@@ -609,7 +638,7 @@ public sealed class Combatant
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding);
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers, Holding);
     }
 
     /// <summary>
@@ -627,7 +656,7 @@ public sealed class Combatant
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers,
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers,
             new HeldItem(item, wonOnPage));
     }
 
@@ -666,7 +695,7 @@ public sealed class Combatant
             ? new Combatant(
                 Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
                 Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-                Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers,
+                Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers,
                 held with { Used = true })
             : throw new InvalidOperationException(
                 $"{Name} is holding nothing, so there is nothing for them to have used. An attack "
@@ -683,7 +712,7 @@ public sealed class Combatant
     public Combatant Dropped() =>
         new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
             Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers,
+            Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers,
             holding: null);
 
     /// <summary>This Minion group with fewer bodies in it.</summary>
@@ -692,14 +721,15 @@ public sealed class Combatant
             ? new Combatant(
                 Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, Math.Max(0, groupSize),
                 TraitRanks, Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed, SuppressedFlaw,
-                Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, Holding)
+                Size, Invisible, HardTarget, Ready, ConsciousAtZeroOrLess, Powers, RangedPowers, AttackPowers, Holding)
             : throw new InvalidOperationException($"{Name} is a {Kind}, not a group of Minions.");
 
     private static Combatant Build(
         string id, string name, CombatantKind kind, string side, int edge, int health, int resolve,
         int groupSize, IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
         double size = SameSize, bool invisible = false, IReadOnlySet<string>? powers = null,
-        bool hardTarget = false, IReadOnlySet<string>? rangedPowers = null, bool ready = false)
+        bool hardTarget = false, IReadOnlySet<string>? rangedPowers = null, bool ready = false,
+        IReadOnlySet<string>? attackPowers = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -725,6 +755,7 @@ public sealed class Combatant
             [.. defences],
             defeatedByEffect: null, dying: false, instantRecoveriesUsed: 0, suppressedFlaw: null,
             size, invisible, hardTarget, ready, consciousAtZeroOrLess: false,
-            powers ?? EmptyPowers, rangedPowers ?? EmptyPowers, holding: null);
+            powers ?? EmptyPowers, rangedPowers ?? EmptyPowers, attackPowers ?? EmptyPowers,
+            holding: null);
     }
 }
