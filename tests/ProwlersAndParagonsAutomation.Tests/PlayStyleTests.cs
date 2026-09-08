@@ -349,6 +349,140 @@ public sealed class PlayStyleTests
             + "not being read off the success map at all.");
     }
 
+    /// <summary>
+    /// <b><c>min_max</c> goes all-out only where the worst one opponent could do still leaves it
+    /// standing, and never where it does not.</b>
+    ///
+    /// <para><b>Nothing was holding the guard at all.</b> Replacing
+    /// <c>TheCounterattackCannotReachThem</c> with a bare <c>true</c> — so this style goes all-out
+    /// on every page, which is what <see cref="Reckless"/> is for and is the difference between the
+    /// two — left every style fixture and every wire fixture green. The rule is one of the five
+    /// this style's own doc comment publishes, and a rate measured under it is a rate about those
+    /// five.</para>
+    ///
+    /// <para><b>The two fights differ only in Health, and the figure that separates them is read
+    /// out of the store.</b> The guard is the greatest attack rank on the other side at
+    /// <c>damage.damage_per_net_success</c>, against <c>damage.defeated_at_health</c> — so the
+    /// fixture computes both sides' worst case, asserts that one fight is over the line and the
+    /// other under it, and only then counts p.78's lines. A frail fight produces none at all,
+    /// because Health only falls.</para>
+    /// </summary>
+    [Fact]
+    public void MinMaxGoesAllOutOnlyWhereTheCounterattackCouldNotPutItDown()
+    {
+        var damage = _play.GetCombat("damage").Damage!;
+
+        // The controls on the arithmetic, off the store: what the worst blow is worth, and where a
+        // character is out of the fight.
+        var worstOnTheHero = 9 * damage.DamagePerNetSuccess;   // the Villain's Might
+        var worstOnTheVillain = 8 * damage.DamagePerNetSuccess; // the Hero's
+
+        Assert.True(SturdyHealth - worstOnTheHero > damage.DefeatedAtHealth,
+            "the sturdy fight no longer leaves the Hero standing under the worst blow, so it is not "
+            + "the side of the line this fixture needs it on.");
+
+        Assert.True(FragileHealth - worstOnTheHero <= damage.DefeatedAtHealth);
+        Assert.True(FragileHealth - worstOnTheVillain <= damage.DefeatedAtHealth);
+
+        var reckless = 0;
+        var careful = 0;
+        var exchanges = 0;
+
+        foreach (var seed in Hundred.Take(30))
+        {
+            var sturdy = Observe(new MinMax(_play), Sturdy(), seed);
+
+            reckless += AllOutLines(sturdy.State);
+            exchanges += sturdy.Observed.Attacks.Count;
+
+            careful += AllOutLines(RunOne(new MinMax(_play), Fragile(), seed));
+        }
+
+        Assert.True(exchanges > 0, "the sturdy fight produced no exchange to be all-out.");
+
+        Assert.True(reckless > 0,
+            "min_max never went all-out in thirty fights where the worst counterattack could not "
+            + "put anybody down, so the guard is refusing everything rather than deciding.");
+
+        Assert.Equal(0, careful);
+    }
+
+    /// <summary>
+    /// <b><c>min_max</c> leads a team attack only where an ally is standing beside it, and p.79's
+    /// once-a-battle limit is what stops the second.</b>
+    ///
+    /// <para><b>Also unheld.</b> Inverting <c>AnAllyIsAdjacentTo</c> — so every attack is a team
+    /// attack, including a duel where there is nobody to team up with — left every fixture green.
+    /// p.79's two dice are worth something, so a policy claiming them where nobody could join in is
+    /// a rate measured on a bonus the fight never earned.</para>
+    ///
+    /// <para>The control is the duel: the same style, the same seeds, one Hero and one Villain, and
+    /// not a team attack in it. The limit is asserted as the page prints it — at most one team
+    /// attack against a given target in a battle.</para>
+    /// </summary>
+    [Fact]
+    public void MinMaxLeadsATeamAttackOnlyWithAnAllyBesideItAndOnlyOnceATarget()
+    {
+        var together = 0;
+        var alone = 0;
+
+        foreach (var seed in Hundred.Take(30))
+        {
+            var pair = RunOne(new MinMax(_play), LevelEdges(), seed);
+
+            together += TeamLines(pair);
+
+            // p.79's limit is per target per battle, and the only target the two Heroes have is the
+            // Villain — so one fight can carry at most one of these.
+            Assert.InRange(TeamLines(pair), 0, 1);
+
+            alone += TeamLines(RunOne(new MinMax(_play), Duel(), seed));
+        }
+
+        Assert.True(together > 0,
+            "thirty fights with two Heroes at Close Range produced no team attack, so the rule is "
+            + "refusing everything rather than deciding.");
+
+        Assert.Equal(0, alone);
+    }
+
+    // ── reckless ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b><c>reckless</c> buys a reroll whenever the roll fell short at all, and that is its second
+    /// rule.</b>
+    ///
+    /// <para>The style's own doc comment publishes three rules and only the first — all-out on every
+    /// page — was driven. Switching the reroll off entirely left every fixture green, so a rate
+    /// quoted as reckless was a rate about a style that might never have touched a pool.</para>
+    ///
+    /// <para>Its control is <see cref="ManoAMano"/> on the same seeds and the same sheets, which
+    /// buys nothing — the same shape as the mano-a-mano fixture's, and what tells a real count from
+    /// a scan that has stopped finding purchases.</para>
+    /// </summary>
+    [Fact]
+    public void RecklessBuysARerollWheneverTheRollFellShort()
+    {
+        var bought = 0;
+        var quiet = 0;
+
+        foreach (var seed in Hundred.Take(30))
+        {
+            bought += DiceOrReroll(RunOne(new Reckless(_play), OutEdged(), seed));
+            quiet += DiceOrReroll(RunOne(new ManoAMano(_play), OutEdged(), seed));
+        }
+
+        Assert.True(bought > 0,
+            "thirty reckless fights bought no reroll at all, so the second of this style's three "
+            + "rules is a branch nothing reaches.");
+
+        Assert.Equal(0, quiet);
+    }
+
+    private static int TeamLines(EncounterState state) =>
+        state.Ledger.Lines.Count(l => string.Equals(l.Rule, "team_attacks", StringComparison.Ordinal)
+                                      && l.Text.Contains("as part of a team attack", StringComparison.Ordinal));
+
     // ── the target-selection axis ─────────────────────────────────────────
 
     /// <summary>
@@ -872,6 +1006,33 @@ public sealed class PlayStyleTests
 
         Villain("hurt", "the hurt one", edge: 5, health: 2),
         Combatant.Minions("mob", "the mob", threat: 4, groupSize: 3, threatTraitId: "threat")
+    ];
+
+    /// <summary>The Health of the fight min-max is allowed to go all-out in.</summary>
+    private const int SturdyHealth = 40;
+
+    /// <summary>And of the one it is not: the worst blow on the table would end anybody in it.</summary>
+    private const int FragileHealth = 5;
+
+    /// <summary>Two who can each take the worst the other has, so min-max's all-out guard opens.</summary>
+    private static IReadOnlyList<Combatant> Sturdy() =>
+    [
+        Hero("hero", "the Hero", edge: 6, health: SturdyHealth),
+        Villain("villain", "the Villain", edge: 5, health: SturdyHealth)
+    ];
+
+    /// <summary>The same two, thin enough that one blow could end either — so the guard never opens.</summary>
+    private static IReadOnlyList<Combatant> Fragile() =>
+    [
+        Hero("hero", "the Hero", edge: 6, health: FragileHealth),
+        Villain("villain", "the Villain", edge: 5, health: FragileHealth)
+    ];
+
+    /// <summary>One Hero and one Villain: nobody has an ally to team up with.</summary>
+    private static IReadOnlyList<Combatant> Duel() =>
+    [
+        Hero("cho", "Cho", edge: 6),
+        Villain("schism", "Schism", edge: 6)
     ];
 
     private static Combatant Hero(string id, string name, int edge, int health = 12) =>
