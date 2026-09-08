@@ -173,6 +173,84 @@ public sealed class PlayStyleTests
         Assert.Equal(0, unprovoked);
     }
 
+    /// <summary>
+    /// <b>The spend <c>standard</c> answers is the <em>other</em> side's, and that is asserted on
+    /// the side rather than on the count.</b>
+    ///
+    /// <para><b>Nothing was checking the direction.</b> Dropping the negation in
+    /// <see cref="LedgerReading.OtherSideBoughtOn"/> — so the policy answers a point <em>its own
+    /// side</em> spent on the previous page, which is the opposite of the rule it publishes — left
+    /// all 170 of <c>PlayStyleTests</c> and <c>McpPlayServerTests</c> green. It would: in the
+    /// out-Edged fight the Heroes seize on page one, so a policy answering its own side and a
+    /// policy answering the other one both produce rerolls, and only the count was being read.
+    /// </para>
+    ///
+    /// <para>Asked of the reading directly, on a state with exactly one purchase in it: a Hero has
+    /// bought, so the Villain's side has been spent against and the Heroes' side has not.</para>
+    /// </summary>
+    [Fact]
+    public void ASpendIsOnlyAnAnswerWhenTheOtherSideMadeIt()
+    {
+        var encounter = new Encounter(_play, new SeededDice(5));
+        var state = encounter.Begin(OutEdged());
+
+        state = encounter.Step(state, new SpendResolve("cho", ResolveSpend.SeizeInitiative)).State;
+
+        // The control: exactly one purchase, it is the Hero's, and it is on page one.
+        var purchase = Assert.Single(LedgerReading.Purchases(state));
+        Assert.Equal("cho", purchase.Actor);
+        Assert.Equal(1, purchase.Page);
+        Assert.Equal(Combatant.HeroSide, state["cho"].Side);
+
+        // A Villain has been spent against; a Hero has not, however much their own side spent.
+        Assert.True(LedgerReading.OtherSideBoughtOn(state, state["schism"].Side, 1));
+        Assert.False(LedgerReading.OtherSideBoughtOn(state, Combatant.HeroSide, 1));
+
+        // And it is a fact about the page as well as about the side: nothing was bought on page two.
+        Assert.False(LedgerReading.OtherSideBoughtOn(state, state["schism"].Side, 2));
+    }
+
+    /// <summary>
+    /// <b>Both readings throw when the sentence they are anchored on moves, and the throw is driven
+    /// rather than promised.</b>
+    ///
+    /// <para><see cref="LedgerReading"/>'s own doc comment and the guide both say a parse that
+    /// quietly found nothing "would report a fight in which no defence was ever rolled and nobody
+    /// ever hit anybody" — a plausible-looking answer with nothing behind it. Nothing was making
+    /// either throw happen, so the promise was the only evidence for it. Each is driven with a line
+    /// this engine could write if <c>Encounter.Step</c>'s sentence were rewritten, and each has a
+    /// real line of the same fight beside it as the control that the reading works at all.</para>
+    /// </summary>
+    [Fact]
+    public void EachReadingThrowsWhenTheSentenceItIsAnchoredOnMoves()
+    {
+        var run = Observe(new Standard(_play), OutEdged(), seed: 606);
+
+        // The controls: on a real fight, both readings read.
+        var real = run.State.Ledger.Lines.First(LedgerReading.IsAnAttack);
+        Assert.False(string.IsNullOrWhiteSpace(LedgerReading.DefenceTraitIn(real)));
+        Assert.NotEmpty(LedgerReading.DamageDealtSoFar(run.State.Ledger));
+
+        // The defending half gone altogether.
+        var halved = real with { Text = "Cho attacks Schism with might 8d for 3 successes" };
+        var noHalf = Assert.Throws<InvalidOperationException>(() => LedgerReading.DefenceTraitIn(halved));
+        Assert.Contains("defends with", noHalf.Message, StringComparison.Ordinal);
+
+        // The phrase there and the Trait and pool no longer two words.
+        var jammed = real with { Text = "Cho attacks Schism with might 8d for 3; Schism defends with toughnessd for 2" };
+        var noPool = Assert.Throws<InvalidOperationException>(() => LedgerReading.DefenceTraitIn(jammed));
+        Assert.Contains("Trait and a pool", noPool.Message, StringComparison.Ordinal);
+
+        // And a damage line whose figure has stopped being a figure.
+        var vague = new Ledger([
+            new LedgerLine(1, "schism", LedgerReading.DamageRule, "p.75",
+                "3 net successes is a lot of damage; Cho is on 2 Health")
+        ]);
+
+        var unreadable = Assert.Throws<InvalidOperationException>(() => LedgerReading.DamageDealtSoFar(vague));
+        Assert.Contains("a lot of", unreadable.Message, StringComparison.Ordinal);
+    }
+
     private static int DiceOrReroll(EncounterState state) =>
         state.Ledger.Lines.Count(l =>
             string.Equals(l.Rule, "spend_reroll_challenge_roll", StringComparison.Ordinal)
