@@ -252,6 +252,123 @@ public sealed class PlayStyleTests
     }
 
     /// <summary>
+    /// <b>The threat selector goes after whoever has actually landed damage, and drops the attack
+    /// rank the moment somebody has.</b>
+    ///
+    /// <para><b>This is the half of <c>highest_threat</c> nothing reached.</b> Inverting
+    /// <c>Threatening</c>'s ordering — <c>OrderByDescending</c> to <c>OrderBy</c>, so the selector
+    /// goes after whoever has done the <em>least</em> damage — left every style fixture and every
+    /// wire fixture green, because the only assertion about this selector was made on an opening
+    /// state where nobody had landed anything and the fallback did all the work. A selector that
+    /// picked the quietest opponent in the room would have shipped saying it picked the loudest.
+    /// </para>
+    ///
+    /// <para><b>The two answers are made to disagree by construction.</b> The frail one has the
+    /// <em>least</em> attack rank of the three, so it is the opponent the rank fallback would never
+    /// choose; the sniper has the greatest and is what the opening state picks. Once the frail one
+    /// has actually put damage on the Hero — landed by the engine, written on the ledger by
+    /// <c>InflictDamage</c> and read back by <see cref="LedgerReading.DamageDealtSoFar"/> — the
+    /// answer has to move to them. The opening pick is the positive control: without it, "the
+    /// selector answers frail" could be a selector that had stopped reading anything at all.</para>
+    /// </summary>
+    [Fact]
+    public void TheThreatSelectorDropsTheAttackRankOnceSomebodyHasLandedDamage()
+    {
+        var encounter = new Encounter(_play, new SeededDice(4_242));
+        var state = encounter.Begin(ThreeOpponents());
+        var policy = Policy(Targeting.HighestThreat);
+
+        // The control, and the reason the fixture proves anything: before a blow is struck the
+        // selector answers off the sheets, and the sheets say the sniper.
+        Assert.Equal("sniper", Chosen(policy, state, state["hero"]));
+        Assert.True(Attacking(state["frail"]) < Attacking(state["sniper"]),
+            "the frail one is supposed to be the opponent the rank fallback would never pick, so "
+            + "this fight no longer makes the two halves of the selector disagree.");
+
+        // The least dangerous opponent on the sheets lands something. <b>Everybody else takes their
+        // turn and does nothing with it</b>, so the damage the ledger carries belongs to exactly one
+        // of the three — and it is taken through the ordinary turn order rather than by stepping an
+        // attack out of turn, which p.73's own gate refuses.
+        var turns = 0;
+
+        while (LedgerReading.DamageDealtSoFar(state.Ledger).GetValueOrDefault("frail") == 0)
+        {
+            Assert.True(turns++ < 200,
+                "two hundred turns and the frail one never landed a blow, so there is no damage for "
+                + "the threat selector to have followed or ignored.");
+
+            if (state.Current is not { } acting)
+            {
+                state = encounter.Step(state, new EndPage("")).State;
+                continue;
+            }
+
+            if (string.Equals(acting.Id, "frail", StringComparison.Ordinal))
+                state = encounter.Step(state, new Attack("frail", "hero", "might")).State;
+
+            state = encounter.Step(state, new EndTurn(acting.Id)).State;
+        }
+
+        var dealt = LedgerReading.DamageDealtSoFar(state.Ledger);
+
+        Assert.Equal(0, dealt.GetValueOrDefault("sniper"));
+        Assert.Equal(0, dealt.GetValueOrDefault("tank"));
+
+        Assert.Equal("frail", Chosen(policy, state, state["hero"]));
+    }
+
+    /// <summary>
+    /// <b>Two opponents on the same figure are separated by their id and by nothing else, in both
+    /// directions.</b>
+    ///
+    /// <para>Both selectors sort on <c>Standing</c> and then on the id, ascending, so a tie goes to
+    /// the <em>same</em> opponent whichever end of the ladder is being asked for — which is what
+    /// makes a seeded run the same run twice. The fight has exactly two opponents and they are on
+    /// the same figure, so both ends are a choice between them and nothing else.</para>
+    /// </summary>
+    [Fact]
+    public void ATieBetweenTwoOpponentsIsBrokenOnTheIdAndTheSameWayAtBothEnds()
+    {
+        var state = new Encounter(_play, new SeededDice(1)).Begin(Tied());
+        var hero = state["hero"];
+
+        Assert.Equal(
+            state["abel"].CurrentHealth,
+            state["zora"].CurrentHealth);
+
+        Assert.Equal("abel", Chosen(Policy(Targeting.Weakest), state, hero));
+        Assert.Equal("abel", Chosen(Policy(Targeting.Strongest), state, hero));
+    }
+
+    /// <summary>
+    /// <b>A group of Minions is compared on bodies and a character on Health, and the reading is
+    /// that the two figures are ranked against each other unconverted.</b>
+    ///
+    /// <para><b>It is a reading and not an arithmetic fact, so it is driven and written down.</b>
+    /// p.77 gives a group one characteristic and no Health at all, so there is no exchange rate
+    /// between a body and a point of Health anywhere in the book — a policy still has to answer,
+    /// and this one answers that three bodies is <em>more</em> left standing than two points of
+    /// Health. The consequence is the one worth stating: a Villain on 2 Health is "weaker" than a
+    /// group of three, and a group of three is "stronger" than that Villain, so a party focusing
+    /// fire finishes the character before it starts thinning the mob.</para>
+    ///
+    /// <para>Recorded on <c>StylePolicy.Standing</c> and in <c>docs/guide/play-engine.md</c>'s
+    /// readings table.</para>
+    /// </summary>
+    [Fact]
+    public void BodiesAndHealthAreRankedAgainstEachOtherUnconverted()
+    {
+        var state = new Encounter(_play, new SeededDice(1)).Begin(BodiesAgainstHealth());
+        var hero = state["hero"];
+
+        Assert.Equal(2, state["hurt"].CurrentHealth);
+        Assert.Equal(3, state["mob"].GroupSize);
+
+        Assert.Equal("hurt", Chosen(Policy(Targeting.Weakest), state, hero));
+        Assert.Equal("mob", Chosen(Policy(Targeting.Strongest), state, hero));
+    }
+
+    /// <summary>
     /// <b>Once somebody has actually landed something, the threat selector follows the damage — and
     /// the damage it follows reconciles with the Health that came off.</b>
     ///
@@ -522,6 +639,27 @@ public sealed class PlayStyleTests
         Villain("sniper", "the sniper", edge: 5, health: 12, might: 11)
     ];
 
+    /// <summary>Two opponents on exactly the same Health, so both ends of the ladder are a tie.</summary>
+    private static IReadOnlyList<Combatant> Tied() =>
+    [
+        Hero("hero", "the Hero", edge: 6, health: 30),
+
+        Villain("abel", "Abel", edge: 5, health: 16),
+        Villain("zora", "Zora", edge: 5, health: 16)
+    ];
+
+    /// <summary>
+    /// A group of three Minions against a Villain beaten down to two Health, which is where bodies
+    /// and Health have to be ranked against each other.
+    /// </summary>
+    private static IReadOnlyList<Combatant> BodiesAgainstHealth() =>
+    [
+        Hero("hero", "the Hero", edge: 6, health: 30),
+
+        Villain("hurt", "the hurt one", edge: 5, health: 2),
+        Combatant.Minions("mob", "the mob", threat: 4, groupSize: 3, threatTraitId: "threat")
+    ];
+
     private static Combatant Hero(string id, string name, int edge, int health = 12) =>
         Combatant.Hero(
             id, name, edge, health, resolve: 5,
@@ -556,6 +694,10 @@ public sealed class PlayStyleTests
 
     private StylePolicy Policy(Targeting targeting) =>
         StylePolicy.For(PlayStyle.ManoAMano, targeting, _play);
+
+    /// <summary>The rank a combatant would attack at, which is what the threat fallback compares.</summary>
+    private int Attacking(Combatant combatant) =>
+        AttackOptions.BestFor(_play, combatant) is { } trait ? combatant.Rank(trait) : 0;
 
     private static string Chosen(StylePolicy policy, EncounterState state, Combatant actor) =>
         policy.Choose(state, actor) is Attack attack

@@ -228,6 +228,16 @@ public abstract class StylePolicy : IPolicy
     ///
     /// <para>p.77 gives a group one characteristic and no Health, so the count is what "weakest"
     /// can mean for them — the same reading <see cref="AttackTheWeakest"/> already makes.</para>
+    ///
+    /// <para><b>The two figures are then ranked against each other unconverted, and that is a
+    /// reading rather than arithmetic.</b> There is no exchange rate between a body and a point of
+    /// Health anywhere in Chapters 3–5 — p.77 gives a group no Health at all, which is exactly why
+    /// there is nothing to convert — and a selector still has to answer. This one answers that a
+    /// group of three bodies has more left standing than a character on two Health, so
+    /// <see cref="Targeting.Weakest"/> finishes the character before it starts thinning the mob and
+    /// <see cref="Targeting.Strongest"/> goes at the mob first. Driven by a fixture that puts
+    /// exactly those two in one fight, and recorded in <c>docs/guide/play-engine.md</c>'s readings
+    /// table beside the rest of this engine's.</para>
     /// </summary>
     protected static int Standing(Combatant combatant)
     {
