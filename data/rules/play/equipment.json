@@ -1,0 +1,782 @@
+{
+  "header": {
+    "what_this_is": "Chapter 6's Gear Limit and the three weapons tables, pp.87-90, as data: the ceiling ordinary kit puts on a Trait, the close-combat exception to it, the options for raising it, how a Weapon Bonus is added to a roll, and the sixty-three ancient, modern and advanced weapons with their bonus dice and features. It is here rather than in gritty.json because Chapter 4's gritty_raised_gear_limit points at this chapter for the detail and transcribes none of it; the two agree on the figures and each cites its own page.",
+    "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
+    "not_logic": "Data only. play/ reads these figures to cap an attack made with a held item and to add the item's bonus dice; nothing here decides what a character costs, and engine/ never reads this file.",
+    "deliberately_omitted": "Only pp.87-90 are transcribed, and the chapter's printed range is pp.87-104 - so the pp.87-104 in this header's source_ref is the chapter's range and not a claim that every page of it was read. The Weapon Features glossary (pp.88, 90) is not here: it describes each feature in the book's own prose, and the two figures inside it - Versatile's extra die in two hands and Shield's defensive die - belong to rules nothing in play/ applies; the feature names themselves are carried on every weapon row. Armor and its bonus table, Shields, the equipment list (p.91), Custom Gear and its features, Gadgets, Vehicles and Headquarters (pp.91-104) are not here either: none of them is read by an attack, which is the one thing this file exists to answer. Chapter 6's own Weapon Type columns are printed as three-column tables the extractor reads across rather than down, which is why each table entry carries an interpretation saying how its two blocks were paired.",
+    "verified_fields_closed_list": [
+      "trigger",
+      "roll",
+      "threshold",
+      "effect",
+      "duration",
+      "cost",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, pp.87-104"
+  },
+  "entries": [
+    {
+      "id": "gear_limit",
+      "name": "Gear Limit",
+      "kind": "scalar",
+      "printed_under": "GEAR LIMITS",
+      "gear_limit": {
+        "what_it_is": "the maximum Trait rank you can apply when using mundane equipment that boosts your Traits for a specific purpose",
+        "default_rank": 6,
+        "usually": "armor and weapons",
+        "maximum_effective_rank_is": "the Gear Limit plus the item's bonus",
+        "worked_example_weapon": "a pistol",
+        "worked_example_weapon_bonus_dice": 2,
+        "worked_example_trait": "Agility",
+        "worked_example_trait_rank": 12,
+        "worked_example_maximum_effective_rank": 8,
+        "trait_cap_is_a_different_thing": true,
+        "standard_power_level_trait_cap": 12,
+        "makes_mundane_gear_less_useful_for": "characters with superhuman Ability ranks"
+      },
+      "description": "A ceiling on how much of your own figure ordinary kit will carry. Whatever your Trait, only six dice of it reach the roll in most games, and the item's own bonus is added to that six rather than to the whole of you. It is not the Trait Cap: the Cap says how high a rank may be bought, this says how much of one a piece of gear will bear.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.87",
+      "ambiguity": null
+    },
+    {
+      "id": "gear_limit_close_combat_exception",
+      "name": "Exception: Close Combat",
+      "kind": "special_case",
+      "printed_under": "EXCEPTION: CLOSE COMBAT",
+      "close_combat_exception": {
+        "applies_to": "melee weapons",
+        "condition": "your unarmed attack or defense rank exceeds your effective rank while armed",
+        "you_may_use_instead": "your unarmed attack or defense rank",
+        "at_the_wielders_option": true,
+        "worked_example_weapon": "a battle axe",
+        "worked_example_weapon_bonus_dice": 3,
+        "worked_example_gear_limit": 6,
+        "worked_example_armed_maximum_effective_rank": 9,
+        "worked_example_unarmed_rank": 12,
+        "what_the_weapon_still_buys": "lethal damage rather than subdual damage"
+      },
+      "description": "Swinging a melee weapon must never leave you worse off than swinging a fist, so where your bare-handed figure beats what the ceiling lets the weapon carry, you may roll the bare-handed one. The weapon still changes what the blow does even when it adds nothing to the roll.",
+      "verified_fields": [
+        "trigger",
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.87",
+      "ambiguity": "The page offers the swap without saying who takes it or when it is declared, and it is written as a permission rather than as an automatic substitution - so a wielder who wants the weapon's damage kind and the higher figure has a choice the page never resolves."
+    },
+    {
+      "id": "raising_the_gear_limit",
+      "name": "Raising the Limit",
+      "kind": "table_setting",
+      "printed_under": "RAISING THE LIMIT",
+      "raised_limit": {
+        "raised_options": [
+          9,
+          12
+        ],
+        "raised_options_are_open_ended": true,
+        "may_be_disregarded_entirely": true,
+        "suits": "grittier settings, and science fiction or fantasy worlds",
+        "powers_are_overshadowed_unless_the_trait_cap_exceeds_the_gear_limit_by": 3,
+        "balance_options_given": [
+          "give a bonus when a Power inflicts or resists physical damage",
+          "let Powers be bought above the Trait Cap, usable only against physical damage",
+          "invent equipment that grants the same sort of bonus to a Power"
+        ],
+        "balance_option_bonus_dice": 3,
+        "balance_options_exclude": "mental or psychic damage"
+      },
+      "description": "The default ceiling imitates comics in which ordinary kit belongs to civilians. A table that wants axes and rifles to matter to superhuman characters lifts it, or throws it away; the page warns that doing so lets gear outshine Powers unless the Cap stays three ranks clear of it, and offers three ways of putting that right.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.87",
+      "corroborated_by": [
+        "Ultimate Edition, Ch.4 Combat, p.80"
+      ],
+      "ambiguity": null
+    },
+    {
+      "id": "weapon_bonus",
+      "name": "Weapon Bonus",
+      "kind": "formula",
+      "printed_under": "WEAPONS",
+      "weapon_bonus": {
+        "every_weapon_has_one": true,
+        "melee_attack_traits": [
+          "Might",
+          "Martial Arts"
+        ],
+        "melee_defense_traits": [
+          "Agility",
+          "Martial Arts"
+        ],
+        "ranged_attack_traits": [
+          "Agility"
+        ],
+        "added_to": "the wielder's rank in that Trait",
+        "subdual_marker": "(s)",
+        "default_damage": "lethal",
+        "ancient_and_modern_damage": "physical",
+        "advanced_damage": "energy",
+        "advanced_physical_exceptions": [
+          "Stun",
+          "Vibro"
+        ],
+        "ranged_weapons_reach": "Distant Range",
+        "ranged_reach_exceptions": [
+          "Line of Sight",
+          "Thrown"
+        ]
+      },
+      "description": "What an item is worth in dice, and which of your own figures it is added to. A hand weapon rides on strength or training, whether you are swinging it or turning a blow aside with it; a gun rides on quickness, and only when shooting. Most weapons wound; a marked few only knock down.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.88",
+      "ambiguity": null
+    },
+    {
+      "id": "ancient_weapons",
+      "name": "Ancient Weapons",
+      "kind": "table",
+      "printed_under": "ANCIENT WEAPONS — WEAPON BONUS FEATURES",
+      "weapons": [
+        {
+          "name": "Axe",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Baton",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Battle Axe",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Bolas",
+          "class": "Ranged",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Flexible",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Bow",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Cestus",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Club",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": true,
+          "features": []
+        },
+        {
+          "name": "Crossbow",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Readied",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Dagger",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": [
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Flail",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Flexible"
+          ]
+        },
+        {
+          "name": "Great Sword",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Hand Axe",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Katar",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Lasso or Net",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Binding",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Mace",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Morningstar",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Nunchucks",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": true,
+          "features": [
+            "Flexible"
+          ]
+        },
+        {
+          "name": "Polearm",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Shield",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Shield"
+          ]
+        },
+        {
+          "name": "Shield, Spiked",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": [
+            "Shield"
+          ]
+        },
+        {
+          "name": "Sling",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": true,
+          "features": []
+        },
+        {
+          "name": "Spear",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Thrown",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Staff",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": true,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Sword",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Three Section Staff",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": true,
+          "features": [
+            "Flexible",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Throwing Star",
+          "class": "Ranged",
+          "bonus_dice": 0,
+          "subdual": false,
+          "features": [
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Whip",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Flexible"
+          ]
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's columns line up, not a rule the page states.",
+        "row_alignment": "The rulebook prints each weapons table as four columns - type, class, Weapon Bonus, features - and the extractor reads it as two blocks: the names beside their class, and the bonuses beside their features. Pairing the two blocks row by row is this project's reading of the page, not something the page states. Three rows are printed a second time in prose and anchor it: p.87 gives the pistol two dice, p.87 gives the battle axe three, and Ch.4 p.80 gives the basic sword two."
+      },
+      "description": "Twenty-seven pieces of pre-industrial armament, each with what it adds in dice, whether it wounds or merely stuns, and the handful of handling notes the tables mark it with. A basic blade is worth two dice; the two-handed pieces are worth three.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.89",
+      "ambiguity": null
+    },
+    {
+      "id": "modern_weapons",
+      "name": "Modern Weapons",
+      "kind": "table",
+      "printed_under": "MODERN WEAPONS — WEAPON BONUS FEATURES",
+      "weapons": [
+        {
+          "name": "Assault Rifle",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Area",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Baseball Bat",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Brass Knuckles",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": []
+        },
+        {
+          "name": "Combat Knife",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Grenade, Explosive",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Grenade, Stun",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Dazzle",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Grenade, Tear Gas",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Irritant",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Grenade Launcher",
+          "class": "Ranged",
+          "bonus_dice": null,
+          "subdual": false,
+          "features": [
+            "Launcher",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Heavy Machinegun",
+          "class": "Ranged",
+          "bonus_dice": 6,
+          "subdual": false,
+          "features": [
+            "Braced",
+            "Burst"
+          ]
+        },
+        {
+          "name": "Pistol",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Pistol, Snub",
+          "class": "Ranged",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Rifle",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Rifle, Sniper",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Line of Sight",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Riot Shield",
+          "class": "Melee",
+          "bonus_dice": 0,
+          "subdual": true,
+          "features": [
+            "Shield"
+          ]
+        },
+        {
+          "name": "Rocket Launcher",
+          "class": "Ranged",
+          "bonus_dice": 7,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Readied",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Shotgun",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Shotgun, Automatic",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Area",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Slingshot",
+          "class": "Ranged",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Submachine Gun",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Area",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Taser Pistol",
+          "class": "Ranged",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Stun"
+          ]
+        },
+        {
+          "name": "Throwing Knife",
+          "class": "Ranged",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": [
+            "Thrown"
+          ]
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's columns line up, not a rule the page states.",
+        "row_alignment": "The rulebook prints each weapons table as four columns - type, class, Weapon Bonus, features - and the extractor reads it as two blocks: the names beside their class, and the bonuses beside their features. Pairing the two blocks row by row is this project's reading of the page, not something the page states. Three rows are printed a second time in prose and anchor it: p.87 gives the pistol two dice, p.87 gives the battle axe three, and Ch.4 p.80 gives the basic sword two."
+      },
+      "description": "Twenty-one contemporary arms, from a knuckleduster to a rocket. A sidearm is worth two dice and a long arm three or four; one entry adds nothing of its own because what it throws is bought separately.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.89",
+      "ambiguity": null
+    },
+    {
+      "id": "advanced_weapons",
+      "name": "Advanced Weapons",
+      "kind": "table",
+      "printed_under": "ADVANCED WEAPONS — BONUS FEATURES",
+      "weapons": [
+        {
+          "name": "Blast Cannon",
+          "class": "Ranged",
+          "bonus_dice": 7,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Blast Grenade",
+          "class": "Ranged",
+          "bonus_dice": 5,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Blast Pistol",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": []
+        },
+        {
+          "name": "Blast Rifle",
+          "class": "Ranged",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Blast Rifle, Military",
+          "class": "Ranged",
+          "bonus_dice": 5,
+          "subdual": false,
+          "features": [
+            "Area",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Entangler Grenade",
+          "class": "Ranged",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Burst",
+            "Ensnare",
+            "Thrown"
+          ]
+        },
+        {
+          "name": "Monomolecular Blade",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Armor Piercing",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Monomolecular Knife",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": false,
+          "features": [
+            "Armor Piercing"
+          ]
+        },
+        {
+          "name": "Monomolecular Whip",
+          "class": "Melee",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Armor Piercing",
+            "Flexible"
+          ]
+        },
+        {
+          "name": "Plasma Sword",
+          "class": "Melee",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Penetrating",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Stun Baton",
+          "class": "Melee",
+          "bonus_dice": 1,
+          "subdual": true,
+          "features": [
+            "Shock"
+          ]
+        },
+        {
+          "name": "Stun Staff",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": true,
+          "features": [
+            "Shock",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Vibro Axe",
+          "class": "Melee",
+          "bonus_dice": 4,
+          "subdual": false,
+          "features": [
+            "Armor Piercing",
+            "Two-Handed"
+          ]
+        },
+        {
+          "name": "Vibro Blade",
+          "class": "Melee",
+          "bonus_dice": 3,
+          "subdual": false,
+          "features": [
+            "Armor Piercing",
+            "Versatile"
+          ]
+        },
+        {
+          "name": "Vibro Knife",
+          "class": "Melee",
+          "bonus_dice": 2,
+          "subdual": false,
+          "features": [
+            "Armor Piercing"
+          ]
+        }
+      ],
+      "interpretation": {
+        "what_this_is": "This project's reading of how the printed table's columns line up, not a rule the page states.",
+        "row_alignment": "The rulebook prints each weapons table as four columns - type, class, Weapon Bonus, features - and the extractor reads it as two blocks: the names beside their class, and the bonuses beside their features. Pairing the two blocks row by row is this project's reading of the page, not something the page states. Three rows are printed a second time in prose and anchor it: p.87 gives the pistol two dice, p.87 gives the battle axe three, and Ch.4 p.80 gives the basic sword two."
+      },
+      "description": "Fifteen science-fiction arms. They run from one die to seven, most of them burn rather than cut, and the ones whose names begin Stun or Vibro are the exceptions that strike as ordinary matter does.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.6 Equipment, p.90",
+      "ambiguity": null
+    }
+  ]
+}

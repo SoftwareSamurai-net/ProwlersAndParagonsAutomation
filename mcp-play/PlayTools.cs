@@ -267,9 +267,13 @@ public sealed class PlayTools
             + "an object and a hold at a person, so a grab naming nothing is refused with nothing "
             + "rolled, and so is a grab for an item the target is not holding. A full grab puts "
             + "that item in the winner's hands for the page: an attack may name it as \"item\" "
-            + "(which changes no figure and keeps it past the page turn), \"toss\" throws it "
-            + "away, and neither spends the turn. Anything else a grab won and nobody swung is "
-            + "tossed aside when the page ends.")]
+            + "(which keeps it past the page turn), \"toss\" throws it away, and neither spends "
+            + "the turn. Anything else a grab won and nobody swung is tossed aside when the page "
+            + "ends. An attack that names an \"item\" on the \"melee_weapon\" or "
+            + "\"ranged_weapon\" row is capped at the Gear Limit (6d unless the table raised it) "
+            + "and then collects the weapon's own bonus dice, so a 10d Might swinging a sword "
+            + "rolls 8d; a Power row and \"unarmed\" are never capped, and \"unarmed\" with the "
+            + "weapon still in hand is how p.87's close-combat exception is taken.")]
         JsonElement intent)
     {
         if (string.IsNullOrWhiteSpace(encounterId) || !_encounters.TryGetValue(encounterId, out var held))
@@ -1686,6 +1690,10 @@ public sealed class PlayTools
                     // reaches their hands here, so an item this engine does not know about is one a
                     // caller would otherwise conjure into the fight by naming it. Refused too while
                     // a partial grab is being fought over it, which is p.76's "neither can use it".
+                    //
+                    // <b>And it is what p.87's Gear Limit bites on</b>, on the two weapon rows of
+                    // p.75's table: the Trait is capped and the item's Weapon Bonus added to what
+                    // is left. See Encounter.GearLimited.
                     Text(entry, "item") is { Length: > 0 } wielded ? wielded : null);
                 return true;
 
@@ -1974,7 +1982,7 @@ public sealed class PlayTools
     /// </summary>
     /// <param name="source">Where the table came from — see <see cref="TableSource"/>.</param>
     /// <param name="note">The same in a sentence, naming the sheets.</param>
-    private static JsonObject TableEcho(
+    private JsonObject TableEcho(
         TableRules table, Visibility visibility, TableSource source, string note)
     {
         var echo = new JsonObject();
@@ -2001,6 +2009,27 @@ public sealed class PlayTools
                 ? table.GearLimitRank
                 : table.IsOn(name);
         }
+
+        // <b>The Gear Limit in force, as a figure, for the reason the light is echoed here.</b>
+        // It is the one table setting that is a number rather than a flag, and the two switches
+        // above say only that a rank was set and what it was — not what an attack made with a held
+        // item is actually capped at, which is what a reader of a rate needs. p.80 offers the
+        // switch, p.87 is the ceiling itself, and TableRules.GearLimit is the one place the two
+        // are composed.
+        echo["gear_limit"] = new JsonObject
+        {
+            ["rank"] = table.GearLimit(_play),
+            ["raised"] = table.RaisedGearLimit && table.GearLimitRank is not null,
+            ["source"] = table.RaisedGearLimit && table.GearLimitRank is not null
+                ? "the campaign's table"
+                : "gritty_raised_gear_limit.default_rank",
+            ["applies_to"] =
+                "an attack naming an item the actor holds, on p.75's melee_weapon or ranged_weapon "
+                + "row — the item's Weapon Bonus is then added to what is left of the Trait",
+            ["note"] =
+                "Ch.4 p.80 offers the switch and Ch.6 pp.87-90 is the ceiling and the weapons "
+                + "tables. A Power-backed attack and a fist are never capped; see PLAY-POLICY.md."
+        };
 
         echo["on"] = Strings(table.On().Select(Wire));
 

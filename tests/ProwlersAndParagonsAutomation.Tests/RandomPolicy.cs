@@ -71,7 +71,7 @@ internal sealed class RandomPolicy : IPolicy
                 // not, so the refusal and the attack that names nothing are both inside the
                 // property. Naming one the actor is holding is reached whenever the grapple branch
                 // below has just won a full grab.
-                Item: Swung()),
+                Item: Swung(actor)),
             1 => new Attack(
                 actor.Id, target, rolled, Damage(), Row(),
                 Effect: "Ensnare", Cover: Behind(), CoverStructure: Pick(9)),
@@ -145,11 +145,22 @@ internal sealed class RandomPolicy : IPolicy
     public HashSet<bool> GrabbedWhatTheyHeld { get; } = [];
 
 
-    private string? Swung()
+    /// <summary>
+    /// p.76's "use it … on that same page", on half the attacks — and <b>what the actor is actually
+    /// holding, where they are holding anything</b>.
+    ///
+    /// <para>It used to name <see cref="TheItem"/> whoever was swinging, and
+    /// <c>PlayEnginePropertyTests.TheGearLimitIsReachedSomewhereInTheSeedRange</c> is what found
+    /// that: one combatant in the party opens the fight with the sword, so every other swing was
+    /// refused for empty hands and <b>not one attack in twenty-five seeds ever reached the branch
+    /// p.87's Gear Limit runs on</b>. Reading the actor's own hand fixes it without losing the
+    /// refusal, which is still reached by every actor holding nothing.</para>
+    /// </summary>
+    private string? Swung(Combatant actor)
     {
         var named = _nextSwung++ % 2 == 0;
         SwungItems.Add(named);
-        return named ? TheItem : null;
+        return named ? actor.Holding?.Name ?? TheItem : null;
     }
 
     /// <summary>The one object this generator ever fights over, so a grab and a use can meet.</summary>

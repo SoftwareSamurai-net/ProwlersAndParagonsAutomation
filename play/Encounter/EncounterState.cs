@@ -123,12 +123,19 @@ public sealed record DefencePenalty(int UntilPage, bool ActiveOnly);
 /// from a target who stood there and soaked the blow.
 /// </param>
 /// <param name="AttackRank">
-/// The rank of the Trait that was rolled, before any bonus dice.
+/// The rank this attack brought to bear: the Trait that was rolled, capped by p.87's Gear Limit and
+/// with the held item's Weapon Bonus added, where an item was named on one of p.75's two weapon
+/// rows. Otherwise the Trait's own rank.
 ///
 /// <para><b>It is the rank and not the pool, because p.78's knockback is priced off the rank</b> —
 /// "as if they were thrown by someone with a Might rank equal to your attack rank" — and the pool
 /// carries the two dice going all-out lends, the Minions' size bonus and the wound penalty, none of
 /// which is anybody's rank.</para>
+///
+/// <para><b>The Weapon Bonus is part of it because Chapter 6 says it is.</b> p.90's feature
+/// glossary calls "your Trait plus the item's Weapon Bonus" the attack rank three times over, and
+/// p.87 calls the sum the maximum effective rank — so this is what answers a cover's Structure and
+/// what p.78's knockback throws a target by. See <c>Encounter.GearLimited</c>.</para>
 /// </param>
 public sealed record ResolvedAttack(
     string Actor,

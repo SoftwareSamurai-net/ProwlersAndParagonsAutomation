@@ -10,7 +10,7 @@ Read before touching `data/rules/play/`. This is the rules for *resolving an act
 
 ## What is in here, and what reads it
 
-`data/rules/play/` holds the play rules as verified data: the whole of the book's play block, Chapters 3 to 5, printed pp.67–86. Five files.
+`data/rules/play/` holds the play rules as verified data: the whole of the book's play block, Chapters 3 to 5, printed pp.67–86 — and one file that is not from the play block at all. Six files.
 
 | File | Holds |
 |---|---|
@@ -19,6 +19,9 @@ Read before touching `data/rules/play/`. This is the rules for *resolving an act
 | `combat.json` | Every mechanic printed in Ch.4 Combat, pp.73–79 — fifty‑one entries |
 | `gritty.json` | Ch.4's ten optional Gritty Combat Rules, pp.79–81, plus the paragraph introducing them. The ten are each a `table_setting`; the paragraph is `narrative` |
 | `resolve.json` | Every mechanic printed in Ch.5 Resolve and Adversity, pp.83–86 |
+| `equipment.json` | Ch.6 Equipment, **pp.87–90 only**: the Gear Limit, its close‑combat exception, the options for raising it, how a Weapon Bonus is added to a roll, and the three weapons tables — sixty‑three rows |
+
+**`equipment.json` is here because a fight needs it and cannot reach it any other way.** `gritty_raised_gear_limit` states p.80's rule and points at Chapter 6 for the detail, transcribing none of it — so a fight that caps an attack made with a held item has the ceiling and not the bonus. `play/` may not read `data/rules/*.json`, and Ch.6's catalogue was never extracted into it anyway, so a figure Chapter 6 prints has to be here or nowhere. **What is transcribed is pp.87–90 and the header says so**: the chapter runs to p.104, and Armor, Shields, the equipment list, Custom Gear, Gadgets, Vehicles and Headquarters are all left out, because none of them is read by an attack. `EverySourceRefNamesAPageInItsOwnChapterOrTheGlossary` reads 87–104 as this file's bound, the same way it reads each other file's chapter.
 
 **Exactly one project reads them, and `PlayPayloadTests` is why that is a fact rather than a sentence.** That project is `play/`, the second engine — see [`play-engine.md`](play-engine.md) — and it arrived in `PROGRESS.md` item 14's slice (d), after these files were verified rather than before. **The data was verified before anything trusted it**, which is the order the 141 Powers were done in and the order that made them trustworthy.
 
@@ -76,7 +79,7 @@ Two properties are load-bearing. The walk carries a **positive control** on itse
 
 **What the walk cannot see is a field whose value is null**, since a null leaf and an optional shape an entry does not use are the same thing to reflection. `arduous_exchanges_max` is the only one, and it is asserted by name.
 
-Every entry also carries a `source_ref` in the existing spelling (`"Ultimate Edition, Ch.3 Action, p.67"`) naming a page in its **own** chapter — 67–72 for the two Chapter 3 files, 73–82 for `combat.json` and `gritty.json`, 83–86 for `resolve.json` — or p.7 for the Glossary's rounding rule. `EverySourceRefNamesAPageInItsOwnChapterOrTheGlossary` reads the bound per file rather than per directory, because one 67–86 window across the store would accept a Chapter 4 page in either chapter's file and a Chapter 3 page in Chapter 5's.
+Every entry also carries a `source_ref` in the existing spelling (`"Ultimate Edition, Ch.3 Action, p.67"`) naming a page in its **own** chapter — 67–72 for the two Chapter 3 files, 73–82 for `combat.json` and `gritty.json`, 83–86 for `resolve.json`, 87–104 for `equipment.json` — or p.7 for the Glossary's rounding rule. `EverySourceRefNamesAPageInItsOwnChapterOrTheGlossary` reads the bound per file rather than per directory, because one 67–86 window across the store would accept a Chapter 4 page in either chapter's file and a Chapter 3 page in Chapter 5's.
 
 **Chapter 4's and Chapter 5's entries carry a `printed_under` as well, and it is checked against the corpus rather than against a constant.** A page in a six‑page chapter is a wide target; the heading the mechanic was transcribed from is a narrow one. `EveryEntryNamesAHeadingPrintedOnThePageItCites` requires the value to be a heading the extractor found *on that page* of `ch05-resolve-and-adversity.json`, so a wrong page and a wrong heading both fail, and the field is exempt from the canonical walk only because that check is the stronger of the two.
 
@@ -235,9 +238,28 @@ From Chapter 4:
 - **The Example of Combat (p.81)** — a worked fight rather than a mechanic, and exercised as a fixture against the entries instead, which is the stronger use for it.
 - **Two more worked examples in `gritty.json`**: p.80's sword, which shows Gear Limit arithmetic the entry already states as numbers, and p.79's Clint Castle, likewise a fixture rather than a second transcription.
 
+From Chapter 6, and the list is long because only four pages of a nineteen‑page chapter are here:
+
+- **The Weapon Features glossary (pp.88, 90).** It describes each feature in the book's own prose, and the two figures inside it — Versatile's extra die in two hands, Shield's defensive die — belong to rules nothing in `play/` applies. The feature *names* travel on every weapon row.
+- **Armor and its bonus table, Shields, the equipment list (p.91), Custom Gear and its features, Gadgets, Vehicles and Headquarters (pp.91–104).** None is read by an attack, which is the one question this file exists to answer. `data/rules/gear_features.json` already carries the custom features for the *character* engine, where they are priced.
+
 From Chapter 5:
 
 - **The chapter opening (p.83)** — an essay on what makes a character a Hero, with no number and no procedure in it.
 - **"Track it with poker chips or glass beads" (pp.83, 85)** — printed twice, and advice about the table rather than a rule of the game.
 
 Each file's header names its own omissions, and a test requires the header to keep saying so.
+
+## Chapter 6: the three weapons tables are paired out of the corpus, not typed out again
+
+The book prints each weapons table as four columns — type, class, Weapon Bonus, features — and [`rulebook-corpus.md`](rulebook-corpus.md) records that a table of three or more columns is read **across** rather than down. So each table arrives as two blocks: the names beside their class, and the bonuses beside their features. **Pairing the two blocks row by row is this project's reading**, and it is an `interpretation` on each of the three entries for the reason the Thresholds table's is one — a fact field is a claim that the page states the thing, and the page states a table, not a pairing.
+
+**The rows are therefore on `DerivedPaths` and are in no canonical file at all.** Sixty-three rows typed into `CanonicalEquipmentRules` would be a second transcription to disagree with the first, where the corpus is already the book; `TheThreeWeaponsTablesArePairedOutOfTheCorpusColumns` derives every row from `data/rulebook/ch06-equipment.json` and compares it with the shipped JSON. What the canonical file carries instead is the three **row counts** — 27, 21 and 15 — because a derivation cannot notice a table that has lost half of itself when the expectation lost the same half.
+
+**Three rows are printed a second time, in prose, and they are what anchor the alignment.** p.87's Gear Limit paragraph gives the pistol two dice, p.87's close-combat exception gives the battle axe three, and Ch.4 p.80's own worked example gives a basic sword two — three sentences, in two chapters, none of them in a table. A misalignment of one row moves all three, so this is the same kind of witness `corroborated_by` is elsewhere in this store.
+
+**Two controls on the parse.** Each block has to **tile**: rows are matched end to end from the first character, and what is left over must not begin another row — which matters, because the advanced table is followed on the same page by its feature glossary, so "there is nothing else here" is a claim worth making. And the parser is driven one row past the end of a block and required to throw, because a parser that quietly returned a short list would let a truncated block agree with a truncated expectation. The feature vocabulary the row regex accepts is closed for the same reason: a parse that accepted any word at all would tile any text and prove nothing.
+
+**Two chapters print the Gear Limit and both transcriptions are here.** `gritty_raised_gear_limit` is p.80's summary and `gear_limit` is p.87's detail; `TheTwoChaptersThatPrintTheGearLimitAgreeAboutIt` requires the default rank and the raised options to match, and replays **each chapter's own worked example through the shipped JSON** — p.80's sword and p.87's pistol both looked up in Chapter 6's tables and added to the default rank the file carries. `raising_the_gear_limit` carries the `corroborated_by` pointing back at p.80, which is a page outside its own chapter and so a genuine second printing.
+
+**One thing p.87 states that this store does not settle**, and it is on `gear_limit_close_combat_exception`'s `ambiguity`: the swap to a bare-handed figure is printed as a permission — "you can use your unarmed attack or defense rank instead" — and the page never says who takes it or when it is declared. What the fight engine does with that is in [`play-engine.md`](play-engine.md); the file records the silence.

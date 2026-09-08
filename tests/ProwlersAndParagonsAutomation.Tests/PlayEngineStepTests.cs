@@ -1,3 +1,4 @@
+using System.Globalization;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Play.Dice;
 using ProwlersAndParagonsAutomation.Play.Encounter;
@@ -2693,17 +2694,19 @@ public sealed class PlayEngineStepTests
     /// The first column of the markdown table under <paramref name="heading"/>, as the backticked
     /// names in it.
     /// </summary>
-    private static HashSet<string> ListedUnder(string heading)
+    private static HashSet<string> ListedUnder(string heading) => ListedIn(Guide(), heading);
+
+    /// <inheritdoc cref="ListedUnder"/>
+    private static HashSet<string> ListedIn(string document, string heading)
     {
-        var guide = Guide();
-        var at = guide.IndexOf(heading, StringComparison.Ordinal);
+        var at = document.IndexOf(heading, StringComparison.Ordinal);
 
-        Assert.True(at >= 0, $"docs/guide/play-engine.md no longer contains \"{heading}\".");
+        Assert.True(at >= 0, $"the document no longer contains \"{heading}\".");
 
-        var rest = guide[at..];
+        var rest = document[at..];
         var table = rest.IndexOf("|---|", StringComparison.Ordinal);
 
-        Assert.True(table >= 0, $"no table follows \"{heading}\" in the guide.");
+        Assert.True(table >= 0, $"no table follows \"{heading}\" in the document.");
 
         var names = new HashSet<string>(StringComparer.Ordinal);
 
@@ -2716,6 +2719,42 @@ public sealed class PlayEngineStepTests
         }
 
         return names;
+    }
+
+    /// <summary>
+    /// <b>The parse the two agreement tests rest on can find rows, and can tell a row from
+    /// something that is not one.</b>
+    ///
+    /// <para>Both not-applied lists are empty today, so both halves of
+    /// <see cref="TheGuidesNotAppliedListsAreTheEnginesNotAppliedLists"/> take the
+    /// no-table-and-a-sentence branch and <see cref="ListedIn"/> is never called against the real
+    /// documents. A parse that had stopped finding rows would agree with two empty sets perfectly —
+    /// which is the shape of guard fault this repository has shipped four times — so the instrument
+    /// is driven here over a document written for it, in both directions.</para>
+    /// </summary>
+    [Fact]
+    public void TheGuideTableParseCanFindRowsAndTellThemApart()
+    {
+        const string document = """
+            **`Something.NotYetApplied`** — the settings this pretend engine declines:
+
+            | Setting | Entry |
+            |---|---|
+            | `FirstSwitch` | `some_entry` |
+            | not backticked | `another_entry` |
+            | `SecondSwitch` | `third_entry` |
+
+            Prose after the table, which is not a row.
+            """;
+
+        Assert.Equal(
+            ["FirstSwitch", "SecondSwitch"],
+            ListedIn(document, "**`Something.NotYetApplied`**").Order(StringComparer.Ordinal));
+
+        // And a heading the document does not carry fails rather than returning nothing, or a
+        // renamed section would read as an empty list.
+        Assert.Throws<Xunit.Sdk.TrueException>(
+            () => ListedIn(document, "**`Something.Else`**"));
     }
 
     /// <summary>
@@ -2736,24 +2775,40 @@ public sealed class PlayEngineStepTests
     /// <see cref="Assert.Empty{T}(System.Collections.Generic.IEnumerable{T})"/> above them moved,
     /// which is a fact about the code and not the two-way agreement this test is named for.</para>
     ///
-    /// <para>Now the guide's obligation depends on the list: empty means the sentence and no table,
-    /// and non-empty means a table naming exactly the ids — so the id the mutation adds is one the
-    /// parse cannot find, and both directions of the disagreement are red. The switches table stays
-    /// non-empty and is what keeps the parse itself honest: a <see cref="ListedUnder"/> that had
-    /// stopped finding rows would fail on it rather than pass in silence on both.</para>
+    /// <para>Now each half's obligation depends on its list: empty means the sentence and no table,
+    /// and non-empty means a table naming exactly the ids — so the id a mutation adds is one the
+    /// parse cannot find, and both directions of the disagreement are red.</para>
+    ///
+    /// <para><b>Both lists are empty today, so the parse has no live table to keep it honest and
+    /// gets its own control instead.</b> <see cref="TheGuideTableParseCanFindRowsAndTellThemApart"/>
+    /// drives <see cref="ListedIn"/> over a document written here: a
+    /// <see cref="ListedUnder"/> that had quietly stopped finding rows would otherwise agree with
+    /// two empty sets perfectly, which is the shape of guard fault this repository has shipped four
+    /// times.</para>
     /// </summary>
     [Fact]
     public void TheGuidesNotAppliedListsAreTheEnginesNotAppliedLists()
     {
-        // The control: the parse found a table with rows in it. Both halves below lean on this one
-        // working, and the entries half cannot supply its own while the set is empty.
-        var switches = ListedUnder("**`Encounter.SwitchesNotYetApplied`**");
+        if (Encounter.SwitchesNotYetApplied.Count == 0)
+        {
+            // Every switch is applied, so the guide carries no table of unapplied ones — and it
+            // still has to name the field, or a reader has no way to tell "empty" from "this
+            // document has stopped tracking it".
+            Assert.Contains(
+                "`Encounter.SwitchesNotYetApplied` is empty", Guide(), StringComparison.Ordinal);
 
-        Assert.NotEmpty(switches);
+            Assert.DoesNotContain(
+                "**`Encounter.SwitchesNotYetApplied`**", Guide(), StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain(
+                "`Encounter.SwitchesNotYetApplied` is empty", Guide(), StringComparison.Ordinal);
 
-        Assert.Equal(
-            Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
-            switches.Order(StringComparer.Ordinal));
+            Assert.Equal(
+                Encounter.SwitchesNotYetApplied.Order(StringComparer.Ordinal),
+                ListedUnder("**`Encounter.SwitchesNotYetApplied`**").Order(StringComparer.Ordinal));
+        }
 
         if (Encounter.EntriesNotYetApplied.Count == 0)
         {
@@ -2815,15 +2870,15 @@ public sealed class PlayEngineStepTests
     /// starts refusing goes red here with a message saying it has to be added to the list and to the
     /// two documents that publish it.</para>
     ///
-    /// <para><b>The classifier's positive control has moved to the Gear Limit switches, and the
-    /// move is the whole point of writing it down.</b> It used to be p.85's first purchase naming
-    /// one of the four Chapter 4 spends that still charged the buyer's own pool — and those four go
-    /// through the GM's pool now, so <em>no spend of either enum can produce that phrase any more</em>
-    /// and the sort below would be measuring an instrument nobody had checked. The two-valued case
-    /// that is left is <see cref="Encounter.SwitchesNotYetApplied"/>: a run with
-    /// <c>RaisedGearLimit</c> on says <c>not yet implemented</c> on page one and a run with an
-    /// applied setting on does not, so the same substring test is watched answering both ways in the
-    /// same file. Delete that and this test goes green whatever the engine does.</para>
+    /// <para><b>The classifier's positive control is not a spend and is no longer a switch
+    /// either, and each move is the whole point of writing it down.</b> It used to be p.85's first
+    /// purchase naming one of the four Chapter 4 spends that still charged the buyer's own pool —
+    /// and those four go through the GM's pool now, so <em>no spend of either enum can produce that
+    /// phrase</em>. It then moved to <see cref="Encounter.SwitchesNotYetApplied"/>, which is empty
+    /// now that p.80's Gear Limit is applied. What is left is <see cref="NotYetImplemented"/>: a
+    /// clause inside a rule that is otherwise applied, written by <see cref="Encounter.Step"/>
+    /// resolving an attack, so the same substring test is watched answering both ways. Delete that
+    /// and this test goes green whatever the engine does.</para>
     /// </summary>
     [Fact]
     public void EveryPurchaseEitherRefusesByNameOrResolves()
@@ -2898,26 +2953,23 @@ public sealed class PlayEngineStepTests
             + ". No spend does any more, so a new one has to be added to Encounter.EntriesNotYetApplied, "
             + "to docs/guide/play-engine.md and to mcp-play/PLAY-POLICY.md before this can pass.");
 
-        // <b>The classifier's own control, and it is no longer a spend.</b> Every purchase the GM's
-        // pool may name is bought, so nothing either enum can produce carries that phrase any more —
-        // and a substring test that can only ever answer one way is an instrument nobody has
-        // checked. The two-valued case left in this engine is the Gear Limit switch, announced on
-        // page one, so the same test is driven over both answers here.
-        var unapplied = new Encounter(_play, new SeededDice(21), TableRules.Book with { RaisedGearLimit = true })
-            .Begin([hero, villain]);
+        // <b>The classifier's own control, and it is neither a spend nor a switch.</b> Every
+        // purchase the GM's pool may name is bought and every table setting is applied, so a
+        // substring test that can only ever answer one way would be an instrument nobody has
+        // checked. The two-valued case left in this engine is p.77's unapplied clause — see
+        // <see cref="NotYetImplemented"/> — so the same test is driven over both answers here.
+        Assert.Contains(
+            NotYetImplemented.ARunThatSaysIt(_play),
+            l => l.Text.Contains(NotYetImplemented.Phrase, StringComparison.Ordinal));
 
-        var applied = new Encounter(_play, new SeededDice(21), TableRules.Book with { FatalDamage = true })
-            .Begin([hero, villain]);
+        Assert.DoesNotContain(
+            NotYetImplemented.ARunThatDoesNot(_play),
+            l => l.Text.Contains(NotYetImplemented.Phrase, StringComparison.Ordinal));
 
-        Assert.Contains(unapplied.Ledger.Lines, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
-
-        Assert.DoesNotContain(applied.Ledger.Lines, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
-
-        // And the settings really did both go on, or the pair above is two silent runs agreeing.
-        Assert.Contains(applied.Ledger.Lines, l =>
-            l.Text.Contains("table setting FatalDamage is on", StringComparison.Ordinal));
+        // And the run that does not say it did something, or the pair above is one silent run.
+        Assert.Contains(
+            NotYetImplemented.ARunThatDoesNot(_play),
+            l => l.Text.Contains("attacks", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -2979,7 +3031,7 @@ public sealed class PlayEngineStepTests
 
             return int.Parse(
                 sentence.Text.Split("with threat ")[1].Split('d')[0],
-                System.Globalization.CultureInfo.InvariantCulture);
+                CultureInfo.InvariantCulture);
         }
     }
 
@@ -5325,13 +5377,8 @@ public sealed class PlayEngineStepTests
             },
             ["toughness", "agility"]);
 
-        // <b>The Gear Limit is on so that page one carries the one `not yet implemented` line this
-        // engine can still produce.</b> It used to come off p.85's first purchase naming one of the
-        // four that charged the buyer's own pool; those are bought now, so the switch is where that
-        // control has moved — and the assertions below check the entry it cites is real and cited to
-        // its own page, which is the whole subject of this test.
         var encounter = new Encounter(
-            _play, new SeededDice(6), TableRules.Book with { FatalDamage = true, RaisedGearLimit = true });
+            _play, new SeededDice(6), TableRules.Book with { FatalDamage = true });
 
         var state = encounter.Begin([hero, villain]);
 
@@ -5366,9 +5413,17 @@ public sealed class PlayEngineStepTests
         // exist. A run that produced only ordinary lines would satisfy them trivially.
         Assert.Contains(state.Ledger.Lines, l =>
             l.Text.Contains("holds no Resolve", StringComparison.Ordinal));
-        Assert.Contains(state.Ledger.Lines, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal)
-            && string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal));
+        // <b>The one `not yet implemented` line this engine can still produce, and it is the class
+        // of line most worth checking here.</b> It used to come off the Gear Limit switch, announced
+        // on page one, and before that off p.85's first purchase; both are applied now. What is left
+        // is a clause inside a rule that is otherwise applied, written by <c>Step</c> — see
+        // <see cref="NotYetImplemented"/> — so the line is collected from its own run and checked
+        // against the store by the loop below like any other.
+        var unapplied = NotYetImplemented.ARunThatSaysIt(_play);
+
+        Assert.Contains(unapplied, l =>
+            l.Text.Contains(NotYetImplemented.Phrase, StringComparison.Ordinal)
+            && string.Equals(l.Rule, NotYetImplemented.Entry, StringComparison.Ordinal));
         Assert.Contains(state.Ledger.Lines, l =>
             l.Text.Contains("is not the Villain's turn", StringComparison.Ordinal));
         Assert.Contains(state.Ledger.Lines, l =>
@@ -5379,10 +5434,10 @@ public sealed class PlayEngineStepTests
             .Distinct(StringComparer.Ordinal)
             .ToDictionary(id => id, SourceRefOf, StringComparer.Ordinal);
 
-        foreach (var line in state.Ledger.Lines)
+        foreach (var line in state.Ledger.Lines.Concat(unapplied))
         {
             Assert.True(pages.ContainsKey(line.Rule),
-                $"the ledger names a rule '{line.Rule}' that is in none of the five play files: {line.Text}");
+                $"the ledger names a rule '{line.Rule}' that is in none of the six play files: {line.Text}");
 
             Assert.True(string.Equals(pages[line.Rule], line.SourceRef, StringComparison.Ordinal),
                 $"the ledger cites '{line.SourceRef}' for {line.Rule}, whose own source_ref is "
@@ -5418,7 +5473,7 @@ public sealed class PlayEngineStepTests
         ];
     }
 
-    /// <summary>One entry's <c>source_ref</c>, whichever of the five files it is in.</summary>
+    /// <summary>One entry's <c>source_ref</c>, whichever of the six files it is in.</summary>
     private string SourceRefOf(string id)
     {
         foreach (var (file, entryId) in _play.EntryIds())
@@ -5432,6 +5487,7 @@ public sealed class PlayEngineStepTests
                 PlayRulesRepository.CombatFile => _play.GetCombat(id).SourceRef,
                 PlayRulesRepository.GrittyFile => _play.GetGritty(id).SourceRef,
                 PlayRulesRepository.ResolveFile => _play.GetResolve(id).SourceRef,
+                PlayRulesRepository.EquipmentFile => _play.GetEquipment(id).SourceRef,
                 var other => throw new InvalidOperationException($"Unknown play rules file {other}.")
             };
         }
@@ -6971,6 +7027,86 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
+    /// <b>A shot made with a weapon Chapter 6 prints as Thrown costs the dodger nothing, and the
+    /// same shot with a pistol costs them the printed dice.</b>
+    ///
+    /// <para><b>This is the junction of two slices that disagreed.</b> <c>CloseRangeOnly</c> was
+    /// written when nothing in a fight could tell a pistol from a throwing knife but the person
+    /// running it. An attack names an item now and Chapter 6 prints <c>Thrown</c> against the very
+    /// weapons p.79 says to ignore the rule for — so a caller who named a throwing knife and did not
+    /// also remember the flag had their target docked two dice for a weapon the page exempts by
+    /// name.</para>
+    ///
+    /// <para><b>The feature is looked up in the two entries rather than typed here</b>, and the
+    /// controls are what make that worth anything: the exemption is a fact about
+    /// <em>this row's</em> features, so the pistol — a printed ranged weapon with no Thrown on it —
+    /// still pays, and the sniper's rifle pays too, which is the case that would break a reading
+    /// keyed on "has one of the reach exceptions" rather than on Thrown itself.</para>
+    /// </summary>
+    [Fact]
+    public void AThrownWeaponsOwnPrintedRowExemptsItFromTheCloseRangePenalty()
+    {
+        var penalty = _play.GetGritty("gritty_close_range").CloseRangePenalty!.PenaltyDiceToActiveDefense;
+
+        Assert.NotEqual(0, penalty);
+
+        // The controls on the data this turns on: one row carries the feature and the other two do
+        // not, and the sniper's rifle carries the *other* reach exception.
+        Assert.Contains(
+            "Thrown",
+            _play.GetEquipment("modern_weapons").Weapons!
+                .Single(w => string.Equals(w.Name, "Throwing Knife", StringComparison.Ordinal))
+                .Features,
+            StringComparer.Ordinal);
+
+        Assert.DoesNotContain(
+            "Thrown",
+            _play.GetEquipment("modern_weapons").Weapons!
+                .Single(w => string.Equals(w.Name, "Pistol", StringComparison.Ordinal))
+                .Features,
+            StringComparer.Ordinal);
+
+        Assert.Contains(
+            "Line of Sight",
+            _play.GetEquipment("modern_weapons").Weapons!
+                .Single(w => string.Equals(w.Name, "Rifle, Sniper", StringComparison.Ordinal))
+                .Features,
+            StringComparer.Ordinal);
+
+        // The knife is exempt: the switch on and the switch off throw the same dice, and the line
+        // names the feature that decided it.
+        var thrownOn = Shot("a throwing knife", CloseRangeOn);
+
+        Assert.Equal(Shot("a throwing knife", null).Thrown, thrownOn.Thrown);
+
+        var said = Assert.Single(
+            thrownOn.Lines,
+            l => string.Equals(l.Rule, "gritty_close_range", StringComparison.Ordinal)).Text;
+
+        Assert.Contains("Throwing Knife", said, StringComparison.Ordinal);
+        Assert.Contains("keeps its dice", said, StringComparison.Ordinal);
+
+        // The pistol is not, and neither is the sniper's rifle — so the exemption is this row's
+        // feature rather than "the caller named an item" or "the row has a reach exception".
+        Assert.Equal(Shot("a pistol", null).Thrown + penalty, Shot("a pistol", CloseRangeOn).Thrown);
+
+        Assert.Equal(
+            Shot("a sniper rifle", null).Thrown + penalty,
+            Shot("a sniper rifle", CloseRangeOn).Thrown);
+    }
+
+    /// <summary>One ranged exchange at Close Range, made with <paramref name="item"/> in hand.</summary>
+    private (int Thrown, IReadOnlyList<LedgerLine> Lines) Shot(string item, TableRules? table)
+    {
+        var (attacker, dodger) = Pair("agility", 6);
+
+        return Exchange(
+            attacker.Carrying(item), dodger,
+            new Attack("hero", "villain", "might", Type: AttackType.RangedWeapon, Item: item),
+            table: table);
+    }
+
+    /// <summary>
     /// <b>It costs the dodging kind of defence and nothing else.</b>
     ///
     /// <para>The entry's field is <c>penalty_dice_to_active_defense</c> in as many words: a soak is
@@ -7672,7 +7808,7 @@ public sealed class PlayEngineStepTests
         Assert.Contains(shot.Lines, l =>
             string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal)
             && l.Text.Contains("went wide", StringComparison.Ordinal)
-            && l.Text.Contains(rule.SecondAttackPenaltyDice.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            && l.Text.Contains(rule.SecondAttackPenaltyDice.ToString(CultureInfo.InvariantCulture),
                 StringComparison.Ordinal));
     }
 
@@ -8477,17 +8613,23 @@ public sealed class PlayEngineStepTests
     }
 
     /// <summary>
-    /// <b>Page one no longer says "not yet implemented" for the five this slice applied, and still
-    /// says it for the two it did not.</b>
+    /// <b>Page one announces every setting that is on, and says "not yet implemented" about none of
+    /// them.</b>
     ///
     /// <para>That sentence is the whole of what a reader has to tell an applied setting from an
     /// accepted one, and it is generated off <see cref="Encounter.SwitchesNotYetApplied"/> rather
     /// than written per rule — so a switch removed from the code's list and left in the sentence,
     /// or the other way round, is the exact drift this fixture exists to catch. Driven on the
-    /// printed text of a run with all twelve of them on at once.</para>
+    /// printed text of a run with all of them on at once.</para>
+    ///
+    /// <para><b>The set is empty now, so "none of them" is the whole claim and it needs a control
+    /// that the phrase can still be produced at all.</b> The Gear Limit's two switches were the
+    /// last members of that set and are applied; the phrase's one remaining source is
+    /// <see cref="NotYetImplemented"/>, driven beside this so a page that had stopped saying it
+    /// about anything cannot pass for a page with nothing to say it about.</para>
     /// </summary>
     [Fact]
-    public void PageOneNamesTheFiveAsAppliedAndTheGearLimitAsNot()
+    public void PageOneNamesEverySettingThatIsOnAndDeclinesNone()
     {
         var everything = TableRules.Book with
         {
@@ -8507,201 +8649,526 @@ public sealed class PlayEngineStepTests
             state.Ledger.Lines,
             l => l.Text.StartsWith($"table setting {name} is on", StringComparison.Ordinal)).Text;
 
-        foreach (var applied in new[]
-        {
-            nameof(TableRules.CloseRangePenalty), nameof(TableRules.TheDrop),
-            nameof(TableRules.FriendlyFire), nameof(TableRules.HardTargets),
-            nameof(TableRules.SlowHealing)
-        })
-        {
-            Assert.DoesNotContain("not yet implemented", Announcement(applied), StringComparison.Ordinal);
-        }
+        foreach (var name in everything.On())
+            Assert.DoesNotContain("not yet implemented", Announcement(name), StringComparison.Ordinal);
 
-        // And the two the engine still declines, which is what keeps the assertions above from
-        // being satisfied by a page that had stopped saying "not yet implemented" about anything.
-        foreach (var listed in new[]
-        {
-            nameof(TableRules.RaisedGearLimit), nameof(TableRules.GearLimitRank)
-        })
-        {
-            Assert.Contains("not yet implemented", Announcement(listed), StringComparison.Ordinal);
-        }
+        // The control: the settings really did go on, and both Gear Limit switches are among them —
+        // an all-false table would satisfy the loop above by announcing nothing.
+        Assert.Contains(nameof(TableRules.RaisedGearLimit), everything.On());
+        Assert.Contains(nameof(TableRules.GearLimitRank), everything.On());
+        Assert.True(everything.On().Count >= 7);
+
+        // And the phrase is still producible, or "no setting says it" would be true of an engine
+        // that had lost the words altogether.
+        Assert.Contains(
+            NotYetImplemented.ARunThatSaysIt(_play),
+            l => l.Text.Contains(NotYetImplemented.Phrase, StringComparison.Ordinal));
     }
 
 
-    // ── p.80's Gear Limit, and why both its switches are still listed ────────
+    // ── p.87's Gear Limit, and the item it bites on ──────────────────────────
 
     /// <summary>
-    /// <b>Nothing in a fight here is held to a Gear Limit, and the raised one cannot honestly be
-    /// applied before the default one is.</b>
+    /// <b>An attack made with a held weapon is capped at the Gear Limit, and the weapon's bonus is
+    /// added to what is left.</b>
     ///
-    /// <para>p.80 defines the limit as "the maximum effective Trait rank you can bring to bear
-    /// <em>when using mundane equipment</em>", and its worked example is a Might roll plus a sword's
-    /// +2d Weapon Bonus. Both halves of that are missing here, and this fixture drives both rather
-    /// than asserting them.</para>
+    /// <para>p.87: the limit is "the maximum Trait rank you can apply when using mundane
+    /// equipment", the default is 6d, and the effective rank is that plus the item's Weapon Bonus.
+    /// <b>Both halves are read out of the data</b> — the ceiling from
+    /// <see cref="TableRules.GearLimit"/>, which is <c>gritty_raised_gear_limit</c>'s figure, and
+    /// the bonus from Chapter 6's own ancient weapons table — so a fixture that agreed with a
+    /// hard-coded 8 would not be agreeing with the book.</para>
     ///
-    /// <para><b>There is no equipment in a fight.</b> An <see cref="Attack"/> names a Trait id and
-    /// no item, and a <see cref="Combatant"/> carries no gear — so a character built from a sheet
-    /// carrying a sword is byte-for-byte the character built from the same sheet without one, and
-    /// nothing downstream could tell an attack made with it from a bare-handed one.</para>
-    ///
-    /// <para><b>And there is no Weapon Bonus to cap.</b> <c>data/rules/</c> has no such figure at
-    /// all: Ch.6's catalogue is not extracted, and a <c>SelectedGear</c> is a name with optional
-    /// custom features on it. So a limit would have nothing to bite on even if an attack could name
-    /// a weapon.</para>
-    ///
-    /// <para><b>The consequence is the reason both switches stay listed</b>, and it is checked
-    /// rather than written down: <see cref="TableRules.GearLimit"/> computes the figure and no rule
-    /// in <c>play/</c> reads it. A run that turns <c>RaisedGearLimit</c> on is a run whose numbers
-    /// do not carry it, and page one says so.</para>
-    ///
-    /// <para><b>This test is written to fail when the gap closes.</b> A divergence recorded as a
-    /// check that still passes after the fix is one nobody notices was closed — the same shape as
-    /// the Expertise carve-out this repository already went through.</para>
+    /// <para><b>Both sides of the threshold are driven.</b> A 10d Trait comes to bear as 6d and a
+    /// 4d one comes to bear whole, because a cap that fired on every rank would be indistinguishable
+    /// from a cap that fired on none — and the pool is read off the attack's own ledger line rather
+    /// than inferred.</para>
     /// </summary>
     [Fact]
-    public void NothingInAFightIsHeldToAGearLimitSoBothSwitchesStayListed()
+    public void AnAttackWithAHeldWeaponIsCappedAndTheWeaponsBonusIsAdded()
     {
-        var rules = new RulesFixture();
+        var limit = TableRules.Book.GearLimit(_play);
+        var sword = SwordBonus();
 
-        var bare = rules.LegalSheet();
-        bare.Name = "the Hero";
-        bare.AbilityRanks["might"] = 8;
+        // The controls: the figures this fixture turns on are the file's, and the sword really adds
+        // something — a bonus of nothing would make the sum below a sum of one figure and a zero.
+        Assert.Equal(6, limit);
+        Assert.True(sword > 0);
 
-        var armed = rules.LegalSheet();
-        armed.Name = "the Hero";
-        armed.AbilityRanks["might"] = 8;
-        armed.Gear.Add(new SelectedGear("a basic sword"));
+        // Over the limit: 10d comes to bear as 6d, and the sword takes it to 8d.
+        Assert.Equal(limit + sword, PoolOf(might: 10, item: "a basic sword", AttackType.MeleeWeapon));
 
-        // The control: the sword really is on the second sheet, so the equality below is between
-        // two different characters rather than between two copies of one.
-        Assert.Empty(bare.Gear);
-        Assert.Single(armed.Gear);
+        // Under it: 4d is under the ceiling and comes to bear whole, so the same weapon takes it to
+        // 6d rather than to 8d. A cap that fired on every rank would give 8 here too.
+        Assert.Equal(4 + sword, PoolOf(might: 4, item: "a basic sword", AttackType.MeleeWeapon));
 
-        var without = CombatantFactory.From(bare, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
-        var with = CombatantFactory.From(armed, rules.Rules, rules.Derived, _play, CombatantKind.Hero, "hero");
+        // Exactly at it, which is the boundary the two above straddle.
+        Assert.Equal(limit + sword, PoolOf(might: limit, item: "a basic sword", AttackType.MeleeWeapon));
 
-        // A piece of gear reaches nothing an encounter can see.
-        Assert.Equal(without.TraitRanks.OrderBy(t => t.Key, StringComparer.Ordinal), with.TraitRanks.OrderBy(t => t.Key, StringComparer.Ordinal));
-        Assert.Equal(without.Rank("might"), with.Rank("might"));
+        // And p.87's own worked example, replayed: 6 + 2 = 8 with a 12d Trait behind it.
+        Assert.Equal(8, PoolOf(might: 12, item: "a basic sword", AttackType.MeleeWeapon));
+    }
 
-        // And an attack has no piece of equipment to name, so the limit could not be applied per
-        // attack either: every field of p.75's attack is a Trait, a row, or a modifier.
-        Assert.DoesNotContain(
-            typeof(Attack).GetProperties().Select(p => p.Name),
-            name => name.Contains("Gear", StringComparison.OrdinalIgnoreCase)
-                    || name.Contains("Weapon", StringComparison.OrdinalIgnoreCase));
-
-        Assert.DoesNotContain(
-            typeof(Combatant).GetProperties().Select(p => p.Name),
-            name => name.Contains("Gear", StringComparison.OrdinalIgnoreCase));
-
-        // <b><see cref="Attack.Item"/> is the one thing on an attack that names an object, and it is
-        // not equipment this limit could bite on.</b> It carries what p.76's full grab put in the
-        // actor's hands, and the claim above survives it only because naming it moves no figure —
-        // which is driven rather than argued, because a field that had quietly started adding a
-        // Weapon Bonus is exactly what would make the paragraph above stop being true.
-        Assert.Equal(RollOf(Item: null), RollOf(Item: "a basic sword"));
-
-        string RollOf(string? Item)
-        {
-            var encounter = new Encounter(_play, new SeededDice(15));
-
-            var state = encounter.Begin(Wrestlers());
-            state = state.With(state["holder"].Holds("a basic sword", state.Page));
-
-            return encounter
-                .Step(state, new Attack("holder", "held", "might", Item: Item))
-                .Added
-                .Single(l => l.Text.Contains("attacks", StringComparison.Ordinal)
-                             && l.Text.Contains("defends with", StringComparison.Ordinal))
-                .Text;
-        }
-
-        // The figure exists and is the entry's; nothing reads it. That is the whole reason the two
-        // switches are still on Encounter.SwitchesNotYetApplied.
+    /// <summary>
+    /// <b>A table that raised the limit brings more of the Trait to bear, and the figure crosses
+    /// from the campaign.</b>
+    ///
+    /// <para>p.80 offers 9d, 12d "or more", and <see cref="CampaignTable"/> is where a campaign
+    /// stores which. This drives the whole seam: the campaign's block through
+    /// <see cref="TableRules.From"/>, into the encounter, into the cap — and it compares the raised
+    /// answer with the default one rather than with a number written here, so a raise that did
+    /// nothing fails as loudly as a wrong figure.</para>
+    /// </summary>
+    [Fact]
+    public void ARaisedGearLimitCrossesFromTheCampaignAndLetsMoreOfTheTraitThrough()
+    {
         var entry = _play.GetGritty("gritty_raised_gear_limit").GearLimit!;
+        var nine = entry.RaisedOptions[0];
+        var sword = SwordBonus();
 
-        Assert.Equal(entry.DefaultRank, TableRules.Book.GearLimit(_play));
+        var raised = TableRules.From(new CampaignTable
+        {
+            RaisedGearLimit = true,
+            GearLimitRank = nine
+        });
 
-        var readers = Directory
-            .EnumerateFiles(Path.Combine(RulesFixture.RepoRoot, "play"), "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-                        && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
-            .Where(f => File.ReadAllText(f).Contains("GearLimit(", StringComparison.Ordinal))
-            .Select(f => Path.GetFileName(f))
-            .Order(StringComparer.Ordinal)
-            .ToList();
+        // The control: the figure survived the crossing as a figure, not as "set".
+        Assert.Equal(nine, raised.GearLimitRank);
+        Assert.Equal(nine, raised.GearLimit(_play));
+        Assert.NotEqual(TableRules.Book.GearLimit(_play), raised.GearLimit(_play));
 
-        // The control on the scan: it really can find a name, and the one it finds is the
-        // definition rather than a use.
-        Assert.Equal(["TableRules.cs"], readers);
+        Assert.Equal(
+            nine + sword,
+            PoolOf(might: 10, item: "a basic sword", AttackType.MeleeWeapon, table: raised));
 
-        Assert.Contains(nameof(TableRules.RaisedGearLimit), Encounter.SwitchesNotYetApplied);
-        Assert.Contains(nameof(TableRules.GearLimitRank), Encounter.SwitchesNotYetApplied);
+        // And the same attack under the book's table is the smaller figure, or "raised" would be
+        // true of every run.
+        Assert.True(
+            PoolOf(might: 10, item: "a basic sword", AttackType.MeleeWeapon, table: raised)
+            > PoolOf(might: 10, item: "a basic sword", AttackType.MeleeWeapon));
+
+        // The rank a table has not adopted changes nothing: p.80's switch is what adopts it, and
+        // TableRules.GearLimit is the one place that question is asked.
+        var stored = TableRules.From(new CampaignTable { GearLimitRank = nine });
+
+        Assert.Equal(
+            TableRules.Book.GearLimit(_play),
+            PoolOf(might: 10, item: "a basic sword", AttackType.MeleeWeapon, table: stored) - sword);
     }
 
     /// <summary>
-    /// <b>Three tests sort ledger lines by whether they say "not yet implemented", and the Gear
-    /// Limit switch is the only thing left in this engine that says it.</b>
+    /// <b>A Power-backed attack is never capped, and a fist is not either.</b>
     ///
-    /// <para>They used to key on p.85's first purchase naming one of the four Chapter 4 spends that
-    /// charged the buyer's own pool. Those four are bought out of the GM's pool now, so no spend of
-    /// either enum can produce the phrase, and each of the three moved its control to
-    /// <see cref="Encounter.SwitchesNotYetApplied"/> instead. <b>That leaves all three resting on one
-    /// set, and nothing said so.</b> A substring test whose subject can only ever answer one way is
-    /// an instrument nobody has checked — it passes against a classifier that has stopped
-    /// recognising the phrase at all, which is the shape of guard fault this repository has shipped
-    /// four times.</para>
+    /// <para>p.87 caps what mundane equipment carries; p.88 adds a Weapon Bonus to Might, Martial
+    /// Arts or Agility and to nothing else. So p.75's two Power rows roll a Power's own rank
+    /// whatever the character happens to be holding, and the <c>Unarmed</c> row is a fist by the
+    /// table's own word — which is also p.87's own exception, and the caller's to take. Each writes
+    /// a line saying which silence it is, because a setting that is on and did not reach an attack
+    /// is exactly what this engine's ledger exists to make visible.</para>
     ///
-    /// <para><b>So this is the guard that fires when the last two-valued case goes.</b> The day
-    /// p.80's Gear Limit is applied for real, that set empties, three controls die in the same
-    /// commit and nothing else here would say a word about it. The message names them, because a
-    /// failure that says "the set is empty" sends a reader to delete the assertion rather than to
-    /// the three tests that then have nothing behind them.</para>
-    ///
-    /// <para>The pair below is the instrument itself, driven once in the place that owns it: a run
-    /// with a listed switch on says the phrase on page one and a run with an applied one does not.
-    /// A switch removed from the list and left unapplied fails here rather than in three tests at
-    /// once, each of them saying something else.</para>
+    /// <para>Driven on the same 10d Trait and the same weapon as the capped case above, so the only
+    /// difference between the two answers is the row.</para>
     /// </summary>
     [Fact]
-    public void TheThreeClassifierTestsRestOnASwitchThisEngineStillDeclines()
+    public void APowerBackedAttackIsNeverCappedAndNeitherIsAFist()
     {
-        Assert.True(
-            Encounter.SwitchesNotYetApplied.Count > 0,
-            "Encounter.SwitchesNotYetApplied is empty, so nothing in this engine writes a `not yet "
-            + "implemented` ledger line any more — and three tests sort on that phrase and have "
-            + "nothing left to prove they can still see it: "
-            + $"{nameof(EveryPurchaseEitherRefusesByNameOrResolves)} and "
-            + $"{nameof(EveryLedgerLineCitesAnEntryThatExistsAndThatEntrysPage)} in this file, and "
-            + "McpPlayPolicyTests.EveryPurchaseTheGmsPoolMayNameAnswersTheWayThePolicySaysItDoes. "
-            + "Each needs a new two-valued control, or the classifier is measuring nothing and "
-            + "should be retired with them.");
+        var limit = TableRules.Book.GearLimit(_play);
 
-        var traits = new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 };
+        // The control: the same Trait, the same weapon and a weapon row is capped, so the three
+        // answers below differ because of the row and nothing else.
+        Assert.Equal(
+            limit + SwordBonus(),
+            PoolOf(might: 10, item: "a basic sword", AttackType.MeleeWeapon));
 
-        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"]);
-        var villain = Combatant.Villain("villain", "the Villain", edge: 5, health: 10, traits, ["toughness"]);
+        foreach (var uncapped in new[]
+                 {
+                     AttackType.PhysicalPower, AttackType.MentalPower, AttackType.Unarmed
+                 })
+        {
+            Assert.Equal(10, PoolOf(might: 10, item: "a basic sword", uncapped));
+        }
 
-        // The listed switch, which page one announces as carried by nothing.
-        var unapplied = new Encounter(_play, new SeededDice(21), TableRules.Book with { RaisedGearLimit = true })
-            .Begin([hero, villain]);
+        // And each says on the ledger which silence it is, naming the entry that decided it.
+        var power = LinesOf(might: 10, item: "a basic sword", type: AttackType.PhysicalPower);
 
-        Assert.Contains(unapplied.Ledger.Lines, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal)
-            && string.Equals(l.Rule, "gritty_raised_gear_limit", StringComparison.Ordinal));
+        var powerLine = Assert.Single(power, l =>
+            string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal));
 
-        // And an applied one, which does not — or "says the phrase" would be true of every run and
-        // the three tests would be sorting a pile with one thing in it.
-        var applied = new Encounter(_play, new SeededDice(21), TableRules.Book with { FatalDamage = true })
-            .Begin([hero, villain]);
+        Assert.Contains("a Power is not that", powerLine.Text, StringComparison.Ordinal);
 
-        Assert.DoesNotContain(applied.Ledger.Lines, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+        var fist = LinesOf(might: 10, item: "a basic sword", type: AttackType.Unarmed);
 
-        Assert.Contains(applied.Ledger.Lines, l =>
-            l.Text.Contains("table setting FatalDamage is on", StringComparison.Ordinal));
+        var fistLine = Assert.Single(fist, l =>
+            string.Equals(l.Rule, "gear_limit_close_combat_exception", StringComparison.Ordinal));
+
+        Assert.Contains("the wielder's to take", fistLine.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>An item Chapter 6 does not print gets no bonus, and the line says the figure is the
+    /// GM's.</b>
+    ///
+    /// <para>The object a fight is opened with is a phrase somebody typed —
+    /// <see cref="Combatant.Carrying"/> is the caller's word — so an attack may name something no
+    /// weapons table carries. Inventing a bonus for it is exactly what this store was verified to
+    /// prevent, and applying the cap without one is what p.87 says: the ceiling is on the Trait,
+    /// and the bonus is the item's.</para>
+    /// </summary>
+    [Fact]
+    public void AHeldItemWithNoPrintedBonusIsStillCappedAndSaysTheBonusIsTheGms()
+    {
+        var limit = TableRules.Book.GearLimit(_play);
+
+        Assert.Equal(limit, PoolOf(might: 10, item: "a rolled-up newspaper", AttackType.MeleeWeapon));
+
+        var line = Assert.Single(
+            LinesOf(might: 10, item: "a rolled-up newspaper", type: AttackType.MeleeWeapon),
+            l => string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal));
+
+        Assert.Contains("prints no weapon called", line.Text, StringComparison.Ordinal);
+        Assert.Contains("is the GM's", line.Text, StringComparison.Ordinal);
+
+        // The control: a weapon the tables do print is matched, so "no weapon called" is a fact
+        // about this item rather than about a lookup that has stopped finding anything.
+        var matched = Assert.Single(
+            LinesOf(might: 10, item: "a battle axe", type: AttackType.MeleeWeapon),
+            l => string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal));
+
+        Assert.Contains("Battle Axe", matched.Text, StringComparison.Ordinal);
+
+        // And the longer printed name wins: a battle axe is p.89's Battle Axe and not its Axe, which
+        // are different figures.
+        Assert.Equal(
+            limit + 3, PoolOf(might: 10, item: "a battle axe", AttackType.MeleeWeapon));
+
+        Assert.Equal(
+            limit + 2, PoolOf(might: 10, item: "a hand axe", AttackType.MeleeWeapon));
+    }
+
+    /// <summary>
+    /// <b>A printed name the table inverted is matched the way somebody says it, and two printed
+    /// weapons of equal standing are refused rather than one of them picked.</b>
+    ///
+    /// <para>The three tables are alphabetical, so eight of the sixty-three rows are filed under
+    /// their head noun — <c>Rifle, Sniper</c>, <c>Pistol, Snub</c>, <c>Shield, Spiked</c>. Nobody
+    /// types those, so matching the printed string alone reached none of the eight, and five of them
+    /// silently collected <em>another row's</em> figure: a sniper rifle was priced as a rifle. <b>A
+    /// wrong match is worse than no match</b>, because the ledger then names a printed weapon that
+    /// is not the one in the caller's hands — so both spellings are matched and the longer one
+    /// wins.</para>
+    ///
+    /// <para><b>Both directions are driven</b>, which is what makes this a fixture about the
+    /// spelling rather than about bigger numbers: the sniper's rifle is worth <em>more</em> than the
+    /// rifle it used to be priced as and the snub pistol is worth <em>less</em> than the pistol, so
+    /// a matcher that had simply started preferring the larger figure fails on the second.</para>
+    ///
+    /// <para>A hyphen is the same shape in one character, and a phrase naming two printed weapons of
+    /// the same length is a question for the GM rather than a race between two rows.</para>
+    /// </summary>
+    [Fact]
+    public void AnInvertedPrintedNameIsMatchedAsSpokenAndATieIsRefused()
+    {
+        var limit = TableRules.Book.GearLimit(_play);
+
+        // The controls: these are the book's figures, read out of the shipped tables, and each
+        // inverted row differs from the row it used to be mistaken for.
+        var rifle = Bonus("modern_weapons", "Rifle");
+        var sniper = Bonus("modern_weapons", "Rifle, Sniper");
+        var pistol = Bonus("modern_weapons", "Pistol");
+        var snub = Bonus("modern_weapons", "Pistol, Snub");
+
+        Assert.NotEqual(rifle, sniper);
+        Assert.NotEqual(pistol, snub);
+
+        // The inverted name is reached, in both directions: more dice than the head noun for the
+        // sniper's rifle, fewer for the snub-nosed pistol.
+        Assert.Equal(limit + sniper, PoolOf(might: 10, item: "a sniper rifle", AttackType.RangedWeapon));
+        Assert.Equal(limit + snub, PoolOf(might: 10, item: "a snub pistol", AttackType.RangedWeapon));
+
+        // And the head noun on its own still matches its own row, so the two above are a fact about
+        // the longer spelling rather than about a lookup that has started answering something else.
+        Assert.Equal(limit + rifle, PoolOf(might: 10, item: "a rifle", AttackType.RangedWeapon));
+        Assert.Equal(limit + pistol, PoolOf(might: 10, item: "a pistol", AttackType.RangedWeapon));
+
+        Assert.Contains(
+            "Rifle, Sniper",
+            Assert.Single(
+                LinesOf(might: 10, item: "a sniper rifle", type: AttackType.RangedWeapon),
+                l => string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal)).Text,
+            StringComparison.Ordinal);
+
+        // A hyphen is the space it stands in for: a battle-axe is the Battle Axe and not the Axe,
+        // which are different figures.
+        var axe = Bonus("ancient_weapons", "Axe");
+        var battle = Bonus("ancient_weapons", "Battle Axe");
+
+        Assert.NotEqual(axe, battle);
+        Assert.Equal(limit + battle, PoolOf(might: 10, item: "a battle-axe", AttackType.MeleeWeapon));
+        Assert.Equal(limit + axe, PoolOf(might: 10, item: "an axe", AttackType.MeleeWeapon));
+
+        // A phrase naming two printed weapons of equal length adds nothing at all, and the line
+        // names both rather than the engine picking whichever the loop reached first.
+        Assert.Equal(limit, PoolOf(might: 10, item: "his shield and dagger", AttackType.MeleeWeapon));
+
+        var tied = Assert.Single(
+            LinesOf(might: 10, item: "his shield and dagger", type: AttackType.MeleeWeapon),
+            l => string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal)).Text;
+
+        Assert.Contains("Shield", tied, StringComparison.Ordinal);
+        Assert.Contains("Dagger", tied, StringComparison.Ordinal);
+        Assert.Contains("is the GM's", tied, StringComparison.Ordinal);
+
+        // The control on the refusal: either name on its own is priced, so the tie is a fact about a
+        // phrase naming two weapons and not about the lookup having stopped finding them.
+        Assert.Equal(
+            limit + Bonus("ancient_weapons", "Dagger"),
+            PoolOf(might: 10, item: "a dagger", AttackType.MeleeWeapon));
+
+        Assert.Equal(
+            limit + Bonus("ancient_weapons", "Shield"),
+            PoolOf(might: 10, item: "a shield", AttackType.MeleeWeapon));
+    }
+
+    /// <summary>
+    /// <b>The three rules that read an attack rank read the capped one, and each is driven where it
+    /// would answer differently.</b>
+    ///
+    /// <para>"It is the rank and not the pool" is the argument the whole slice turns on: it is why
+    /// <c>CouldPenetrate</c> takes a rank instead of re-deriving one, and why the item block sits
+    /// <em>above</em> p.75's cover refusal. <b>None of it was guarded.</b> Reverting p.75's cover
+    /// test to the bare Trait rank, reverting p.78's all-out guard to it, and handing
+    /// <see cref="ResolvedAttack.AttackRank"/> the bare rank each left the whole suite green — three
+    /// separate mutations, no red — so the ordering the guide calls load-bearing was carrying
+    /// nothing a check could see.</para>
+    ///
+    /// <para><b>Every figure here is chosen so the two readings disagree</b>, which is the only way
+    /// this fixture is worth running: a 10d Might under a 6d limit swinging a +3d axe brings 9d to
+    /// bear, and every obstacle below is set at exactly 9 — so the capped rank does not get through
+    /// and the bare 10 would. The controls are the same attack with the same weapon against an
+    /// obstacle of 8, and the same attack with no weapon at all.</para>
+    /// </summary>
+    [Fact]
+    public void TheCappedRankIsWhatACoversStructureAndP78sGuardCompare()
+    {
+        var limit = TableRules.Book.GearLimit(_play);
+        var axe = Bonus("ancient_weapons", "Battle Axe");
+        var brought = limit + axe;
+
+        // The controls on the arithmetic: the capped figure really is below the bare Trait, or every
+        // "differs" below would be a comparison of one number with itself.
+        Assert.Equal(9, brought);
+        Assert.True(brought < 10);
+
+        // ── p.75's cover, which compares an attack rank with the obstacle's Structure ──
+        var blocked = Swing(might: 10, item: "a battle axe", structure: brought);
+
+        var refusal = Assert.Single(
+            blocked,
+            l => string.Equals(l.Rule, "modifier_cover", StringComparison.Ordinal)
+                 && l.Text.Contains("Nothing was rolled", StringComparison.Ordinal));
+
+        Assert.Contains($"at rank {brought}d", refusal.Text, StringComparison.Ordinal);
+
+        // The bare Trait would have gone through the same wall, and the same weapon goes through a
+        // wall one lower — so the refusal is the capped figure and not "an item was named".
+        Assert.DoesNotContain(
+            Swing(might: 10, item: null, structure: brought),
+            l => string.Equals(l.Rule, "modifier_cover", StringComparison.Ordinal)
+                 && l.Text.Contains("Nothing was rolled", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            Swing(might: 10, item: "a battle axe", structure: brought - 1),
+            l => string.Equals(l.Rule, "modifier_cover", StringComparison.Ordinal)
+                 && l.Text.Contains("Nothing was rolled", StringComparison.Ordinal));
+
+        // ── ResolvedAttack.AttackRank, which is what p.78's knockback throws a target by ──
+        Assert.Equal(brought, Struck("a battle axe", armour: brought).State.LastAttack!.AttackRank);
+        Assert.Equal(10, Struck(null, armour: brought).State.LastAttack!.AttackRank);
+
+        // ── p.78's guard on going all-out, which compares the same rank with the passive one ──
+        var guard = _play.GetCombat("going_all_out").AllOutAttack!
+            .OpponentsWhoCouldNotPenetrateYourPassiveDefense;
+
+        // 9d against a 9d passive is not greater than it, so the halving does not open it.
+        Assert.Contains(
+            Struck("a battle axe", armour: brought).Added,
+            l => string.Equals(l.Rule, "going_all_out", StringComparison.Ordinal)
+                 && l.Text.Contains(guard, StringComparison.Ordinal));
+
+        // The same swing bare-handed is 10d, which is greater — so the guard does not fire and the
+        // pair above is a statement about the cap rather than about a guard that always fires.
+        Assert.DoesNotContain(
+            Struck(null, armour: brought).Added,
+            l => string.Equals(l.Rule, "going_all_out", StringComparison.Ordinal)
+                 && l.Text.Contains(guard, StringComparison.Ordinal));
+    }
+
+    /// <summary>One swing at a target behind cover of <paramref name="structure"/>.</summary>
+    private IReadOnlyList<LedgerLine> Swing(int might, string? item, int structure)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = might, ["toughness"] = 3
+        };
+
+        var encounter = new Encounter(_play, new SeededDice(15));
+
+        var state = encounter.Begin([
+            Combatant.Hero("armed", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"]),
+            Combatant.Villain("target", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+        ]);
+
+        if (item is not null) state = state.With(state["armed"].Carrying(item));
+
+        return encounter.Step(state, new Attack(
+            "armed", "target", "might", Type: AttackType.MeleeWeapon, Cover: Cover.Light,
+            CoverStructure: structure, Item: item)).Added;
+    }
+
+    /// <summary>
+    /// One swing at somebody who has just gone all-out and whose passive defence is
+    /// <paramref name="armour"/>, so p.78's guard has something to bite on.
+    /// </summary>
+    private StepResult Struck(string? item, int armour)
+    {
+        var exposed = Combatant.Hero("armoured", "the armoured Hero", edge: 9, health: 30, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["armor"] = armour },
+            ["armor"]);
+
+        var attacker = Combatant.Villain("attacker", "the attacker", edge: 8, health: 30,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 10 }, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(12));
+        var state = encounter.Begin([exposed, attacker]);
+
+        if (item is not null) state = state.With(state["attacker"].Carrying(item));
+
+        state = encounter.Step(state, new Attack("armoured", "attacker", "might", AllOut: true)).State;
+        state = encounter.Step(state, new EndTurn("armoured")).State;
+
+        return encounter.Step(state, new Attack(
+            "attacker", "armoured", "might", Type: AttackType.MeleeWeapon, Item: item));
+    }
+
+    /// <summary>
+    /// <b>A defender with a weapon in their hands keeps the Trait they had, and the ledger says
+    /// that pp.87–88's defending half is what was not applied.</b>
+    ///
+    /// <para>Chapter 6 prices a weapon in both directions: p.88 adds its bonus to "your Agility or
+    /// Martial Arts rank when defending yourself against close combat attacks", and p.87's ceiling
+    /// is on "the maximum Trait rank you can apply", which is a sentence about applying a Trait
+    /// rather than about attacking with one. This engine reads the attacking half only, and an
+    /// unapplied rule nothing writes down is the one shape of silence this ledger exists to
+    /// prevent — so the line names the entry, the row the item matched, and the reason: p.87's
+    /// exception is printed for a defense rank exactly as it is for an attack rank, and whether it
+    /// is taken is the wielder's.</para>
+    ///
+    /// <para><b>Both sides of the condition are driven.</b> The same fight with the defender's hands
+    /// empty writes no such line, and neither does one where the defender is holding something no
+    /// weapons table prints — so the line is a fact about a printed melee weapon in somebody's hands
+    /// and not about every defence roll in the engine.</para>
+    /// </summary>
+    [Fact]
+    public void ADefenderHoldingAWeaponIsNotCappedAndNotGivenItsBonusAndTheLedgerSaysSo()
+    {
+        var armed = Defence(defenderHolds: "a basic sword");
+
+        var line = Assert.Single(
+            armed.Lines, l => string.Equals(l.Rule, "weapon_bonus", StringComparison.Ordinal));
+
+        Assert.Contains("Sword", line.Text, StringComparison.Ordinal);
+        Assert.Contains("applies neither", line.Text, StringComparison.Ordinal);
+
+        // The Trait is what it was: neither the bonus nor the cap moved the defence pool.
+        Assert.Equal(Defence(defenderHolds: null).Pool, armed.Pool);
+
+        // The controls, both directions of the condition.
+        Assert.DoesNotContain(
+            Defence(defenderHolds: null).Lines,
+            l => string.Equals(l.Rule, "weapon_bonus", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(
+            Defence(defenderHolds: "a rolled-up newspaper").Lines,
+            l => string.Equals(l.Rule, "weapon_bonus", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// One melee exchange in which the defender is holding <paramref name="defenderHolds"/>, as its
+    /// lines and the dice their defence actually threw.
+    /// </summary>
+    private (int Pool, IReadOnlyList<LedgerLine> Lines) Defence(string? defenderHolds)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = 5, ["agility"] = 10, ["toughness"] = 3
+        };
+
+        var encounter = new Encounter(_play, new SeededDice(15));
+
+        var state = encounter.Begin([
+            Combatant.Hero("armed", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"]),
+            Combatant.Villain("target", "the Villain", edge: 5, health: 10, traits, ["agility", "toughness"])
+        ]);
+
+        if (defenderHolds is not null) state = state.With(state["target"].Carrying(defenderHolds));
+
+        var lines = encounter
+            .Step(state, new Attack("armed", "target", "might", Type: AttackType.MeleeWeapon)).Added;
+
+        var exchange = lines.Single(l => l.Text.Contains("defends with", StringComparison.Ordinal)).Text;
+
+        var at = exchange.IndexOf("defends with agility ", StringComparison.Ordinal)
+                 + "defends with agility ".Length;
+
+        var end = exchange.IndexOf("d for ", at, StringComparison.Ordinal);
+
+        return (int.Parse(exchange[at..end], CultureInfo.InvariantCulture), lines);
+    }
+
+    /// <summary>Chapter 6's printed Weapon Bonus for one row, read out of the shipped table.</summary>
+    private int Bonus(string table, string name) =>
+        _play.GetEquipment(table).Weapons!
+            .Single(w => string.Equals(w.Name, name, StringComparison.Ordinal))
+            .BonusDice!.Value;
+
+    /// <summary>Chapter 6's own figure for a basic sword, read out of the ancient weapons table.</summary>
+    private int SwordBonus() => Bonus("ancient_weapons", "Sword");
+
+    /// <summary>
+    /// The dice an attack with <paramref name="item"/> actually threw, read off the exchange's own
+    /// ledger line rather than recomputed here.
+    /// </summary>
+    private int PoolOf(int might, string item, AttackType type, TableRules? table = null)
+    {
+        var line = LinesOf(might, item, type, table)
+            .Single(l => l.Text.Contains("attacks", StringComparison.Ordinal)
+                         && l.Text.Contains("defends with", StringComparison.Ordinal));
+
+        var at = line.Text.IndexOf(" might ", StringComparison.Ordinal) + " might ".Length;
+        var end = line.Text.IndexOf("d for ", at, StringComparison.Ordinal);
+
+        return int.Parse(line.Text[at..end], CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>One exchange in which the actor swings <paramref name="item"/>, as its lines.</summary>
+    private IReadOnlyList<LedgerLine> LinesOf(
+        int might, string item, AttackType type, TableRules? table = null)
+    {
+        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["might"] = might, ["toughness"] = 3
+        };
+
+        var encounter = new Encounter(_play, new SeededDice(15), table);
+
+        var state = encounter.Begin([
+            Combatant.Hero("armed", "the Hero", edge: 9, health: 10, resolve: 2, traits, ["toughness"]),
+            Combatant.Villain("target", "the Villain", edge: 5, health: 10, traits, ["toughness"])
+        ]);
+
+        state = state.With(state["armed"].Holds(item, state.Page));
+
+        return encounter.Step(state, new Attack("armed", "target", "might", Type: type, Item: item)).Added;
     }
 
     /// <summary>The one line an exchange wrote citing <paramref name="ruleId"/>.</summary>
