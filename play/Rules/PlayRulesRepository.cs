@@ -26,7 +26,7 @@ namespace ProwlersAndParagonsAutomation.Play.Rules;
 ///
 /// <para><b>Lenient at runtime, strict in a test.</b> This deserializer ignores a field no model
 /// reads, so a data edit cannot take a host down; <c>PlayRulesFileCoverageTests</c> re-reads the
-/// same six files with <c>JsonUnmappedMemberHandling.Disallow</c> and fails naming the field. That
+/// same files with <c>JsonUnmappedMemberHandling.Disallow</c> and fails naming the field. That
 /// is the shape <see cref="RulesRepository"/> and <c>RulesFileCoverageTests</c> already use, and it
 /// exists because unread data reads as a source of truth and is not one.</para>
 /// </summary>
