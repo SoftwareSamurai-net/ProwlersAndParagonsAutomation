@@ -267,6 +267,18 @@ flagged side as losing without looking at it.
 A `land_rate` or a `hold_rate` of `null` means that Trait was never swung or never answered, which
 is not the same finding as one that never worked.
 
+### What a matrix cell carries
+
+`run_matrix` answers one table under `matrix`. Each row is a `matchup` — the whole party, or one
+Hero by name — and its `cells` are one per style. A cell is a `win_rate`, an `unfair` flag, a
+`draw_rate`, the `mean_pages` and its own `seeds` block; `runs_a_cell` and `total_runs` are at the
+top, and `style_notes` carries the guess behind each column so a table is quotable on its own.
+
+**A cell is one number and the detail of it is a `run_encounters` call away**: pass that cell's own
+`seeds.first`, its `style`, the table's `targeting` and `max_pages`, and the same combatants — the
+Hero alone, for a Hero's row — and you get the whole per-character report for exactly those fights.
+The blocks are consecutive and never overlap, so no two cells are the same fight.
+
 **`defence_traits_unread` is at the top of every report and should be `0`.** The Trait that answered
 an attack is the one figure here read back out of a ledger sentence rather than off the state; above
 zero, the `defences` tables are short by that many rows and something has moved.

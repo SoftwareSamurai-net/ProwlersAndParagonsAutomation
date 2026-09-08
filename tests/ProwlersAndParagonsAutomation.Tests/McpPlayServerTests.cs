@@ -5932,6 +5932,55 @@ public sealed class McpPlayServerTests
         });
 
     /// <summary>
+    /// <b>A matrix row and a matrix cell carry exactly the keys the play policy names, and this is
+    /// asked <em>of the cell</em> rather than of the whole answer.</b>
+    ///
+    /// <para><b>The spelling guard above cannot localise a key and this is what that costs.</b> It
+    /// builds one flat set out of every key of two whole answers and asks whether the document
+    /// names anything outside it — so a key that exists <em>somewhere</em> satisfies a mention
+    /// <em>anywhere</em>. Renaming a cell's <c>mean_pages</c> to <c>mean_page_count</c> leaves it
+    /// green, because <c>run_encounters</c> answers with a <c>mean_pages</c> of its own and the
+    /// union still contains the word. A caller reading a cell would find nothing there.</para>
+    ///
+    /// <para>So the shape is asserted where it is published: every cell has these six keys and no
+    /// others, every row these three. It is an exact set rather than a <c>Contains</c> for the same
+    /// reason — a key quietly added to a cell is a figure the document does not explain.</para>
+    /// </summary>
+    [Fact]
+    public async Task AMatrixRowAndCellCarryExactlyTheKeysThePolicyNames() =>
+        await WithClient(async client =>
+        {
+            var matrix = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = PlayTools.FewestRunsACell,
+                ["seed"] = 3_300,
+                ["matchups"] = "party",
+                ["maxPages"] = 4
+            });
+
+            Assert.True(matrix["ok"]!.GetValue<bool>(), matrix.ToJsonString());
+
+            var row = Assert.Single(matrix["matrix"]!.AsArray())!;
+
+            Assert.Equal(
+                ["cells", "combatants", "matchup"],
+                row.AsObject().Select(p => p.Key).Order(StringComparer.Ordinal));
+
+            var cells = row["cells"]!.AsArray();
+
+            Assert.Equal(StylePolicy.StyleIds.Count, cells.Count);
+
+            Assert.All(cells, cell => Assert.Equal(
+                ["draw_rate", "mean_pages", "seeds", "style", "unfair", "win_rate"],
+                cell!.AsObject().Select(p => p.Key).Order(StringComparer.Ordinal)));
+
+            Assert.All(cells, cell => Assert.Equal(
+                ["first", "last"],
+                cell!["seeds"]!.AsObject().Select(p => p.Key).Order(StringComparer.Ordinal)));
+        });
+
+    /// <summary>
     /// The names those sections exist to name — the control for the check above, which would
     /// otherwise pass in silence on a parse that had stopped finding spans.
     /// </summary>
@@ -5940,7 +5989,18 @@ public sealed class McpPlayServerTests
         "style", "targeting", "unfair", "unfair_threshold", "attack_forms", "defences",
         "defeated_by", "mean_pages_survived", "defence_traits_unread", "land_rate", "hold_rate",
         "by_combatant", "by_side", "mano_a_mano", "standard", "min_max", "reckless",
-        "weakest", "strongest", "highest_threat", "narrative"
+        "weakest", "strongest", "highest_threat", "narrative",
+
+        // The two spellings the defeat figure takes, which the document draws the distinction
+        // between in as many words and nothing was holding it to.
+        "rate", "mean_a_run",
+
+        // <b>The matrix's own answer keys, which fell outside both guards.</b> The section that
+        // named them was `## The calls`, in prose and without backticks, and that section is read
+        // by the *argument* guard against the tools' input schemas — so nothing anywhere held a
+        // cell's spellings to what a cell answers with.
+        "matrix", "matchup", "cells", "win_rate", "draw_rate", "mean_pages", "runs_a_cell",
+        "total_runs", "style_notes", "seeds", "max_pages"
     ];
 
     /// <summary>Every backticked lower-case name under one heading, to the next heading.</summary>
