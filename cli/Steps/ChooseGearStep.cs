@@ -9,6 +9,17 @@ namespace ProwlersAndParagonsAutomation.Cli.Steps;
 /// Gear. Ch.6 makes mundane gear free and explicitly untracked, so free text with no cost
 /// is the right default and stays the default here. The optional extra is customising an
 /// item with the Ch.6 custom features (p.92), which do cost Hero Points.
+///
+/// <para><b>Chapter 6's own catalogue is offered beside the free text, not instead of it.</b>
+/// p.91 calls its list "examples, not a catalogue of prices", so a character may carry a letter
+/// from their mother and typing one is still how that is done. What the catalogue adds is the
+/// printed bonus and the printed features, which somebody typing "Battle Axe" would otherwise
+/// have to look up — and an armour row's Armor rank, which is the figure that is on neither
+/// page alone (p.88 for the rank, p.87 for the Gear Limit that caps it).</para>
+///
+/// <para><b>Nothing here costs a Hero Point and nothing here buys a Power.</b> A catalogue row
+/// is free like every other piece of mundane gear, and an armour row's Armor rank is reported
+/// rather than added to the Powers the character bought.</para>
 /// </summary>
 public sealed class ChooseGearStep : IWizardStep
 {
@@ -30,7 +41,7 @@ public sealed class ChooseGearStep : IWizardStep
         {
             ShowCurrentGear(sheet, rules, costs);
 
-            var choices = new List<string> { "Add an item", "Done — finish gear" };
+            var choices = new List<string> { "Pick from the book (Ch.6)", "Add an item", "Done — finish gear" };
             if (sheet.Gear.Count > 0)
             {
                 choices.Insert(1, "Customise an item");
@@ -60,6 +71,10 @@ public sealed class ChooseGearStep : IWizardStep
                     AnsiConsole.MarkupLine("[red]All gear cleared.[/]");
                     break;
 
+                case "Pick from the book (Ch.6)":
+                    PickFromCatalogue(sheet, rules, derived);
+                    break;
+
                 case "Customise an item":
                     Customise(sheet, rules, costs);
                     break;
@@ -84,6 +99,70 @@ public sealed class ChooseGearStep : IWizardStep
         foreach (var g in sheet.Gear)
             AnsiConsole.MarkupLine($"  • {Markup.Escape(GearFormatter.Describe(g, rules, costs))}");
         AnsiConsole.WriteLine();
+    }
+
+    // ── Chapter 6's catalogue ─────────────────────────────────────────────
+
+    private static void PickFromCatalogue(
+        CharacterSheet sheet, RulesRepository rules, DerivedStatsCalculator derived)
+    {
+        var rows = rules.Catalogue.Rows;
+
+        // One page of a 108-row list is unusable, so the era or the kind is asked first. The
+        // groups are the book's own headings rather than a taxonomy invented here.
+        var groups = rows
+            .GroupBy(r => r.Kind == GearCatalogueKind.Item ? "Equipment (p.91)" : $"{r.Kind} — {r.Category}")
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
+
+        var group = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Which table?")
+                .PageSize(15)
+                .AddChoices([.. groups.Keys.Order(StringComparer.Ordinal), Back]));
+
+        if (group == Back) return;
+
+        var picked = AnsiConsole.Prompt(
+            new SelectionPrompt<GearCatalogueRow>()
+                .Title($"[bold]{Markup.Escape(group)}[/]:")
+                .PageSize(20)
+                .UseConverter(r => CatalogueLabel(r, sheet, derived, rules))
+                .AddChoices(groups[group]));
+
+        sheet.Gear.Add(new SelectedGear(picked.Name) { CatalogueId = picked.Id });
+
+        AnsiConsole.MarkupLine(
+            $"  [green]Added:[/] {Markup.Escape(CatalogueLabel(picked, sheet, derived, rules))}");
+    }
+
+    /// <summary>The way out of the catalogue without picking anything.</summary>
+    private const string Back = "Back";
+
+    /// <summary>
+    /// One catalogue row as a line: its name, the columns the book prints beside it, and — for a
+    /// suit of armour — the Armor rank it would grant <em>this</em> character.
+    ///
+    /// <para><b>The rank is the figure worth showing before the choice is made</b>, because it is
+    /// the one thing the page does not print: p.88 gives the rank as Toughness plus the suit's
+    /// bonus and p.87 caps the Toughness half at the Gear Limit, so which suit is worth taking
+    /// depends on the wearer. A shield says what its die is for the same reason — the weapons
+    /// table prints only the half you get by swinging it.</para>
+    /// </summary>
+    public static string CatalogueLabel(
+        GearCatalogueRow row, CharacterSheet sheet, DerivedStatsCalculator derived, RulesRepository rules)
+    {
+        var parts = new List<string>();
+
+        if (row.BonusDice is { } dice) parts.Add($"+{dice}{(row.Subdual ? " (s)" : "")}");
+        if (row.Features.Count > 0) parts.Add(string.Join(", ", row.Features));
+
+        if (row.Kind == GearCatalogueKind.Armor)
+            parts.Add($"grants Armor {derived.ArmorRankInSuit(sheet, row.BonusDice ?? 0)}d");
+
+        if (row.IsShield)
+            parts.Add($"+{rules.Catalogue.ShieldBonusDice}d to every defence in the off hand");
+
+        return parts.Count == 0 ? row.Name : $"{row.Name} — {string.Join(" · ", parts)}";
     }
 
     private static void AddItem(CharacterSheet sheet)
