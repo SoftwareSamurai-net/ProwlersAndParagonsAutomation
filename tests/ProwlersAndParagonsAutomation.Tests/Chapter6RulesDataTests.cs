@@ -15,6 +15,7 @@ using ProwlersAndParagonsAutomation.Engine.Models;
 using FeaturePrices = ProwlersAndParagonsAutomation.Tests.CanonicalChapterSixRules.FeaturePriceShape;
 using StockSums = ProwlersAndParagonsAutomation.Tests.CanonicalChapterSixRules.StockVehicleArithmetic;
 using FeatureLimits = ProwlersAndParagonsAutomation.Tests.CanonicalChapterSixRules.VehicleFeatureLimits;
+using GradedFeature = ProwlersAndParagonsAutomation.Tests.CanonicalChapterSixRules.GradedVehicleFeature;
 
 namespace ProwlersAndParagonsAutomation.Tests;
 
@@ -774,6 +775,42 @@ public sealed class Chapter6RulesDataTests
         }
     }
 
+    /// <summary>How the chapter writes a Base Point price in prose. Indexed by the price itself.</summary>
+    private static readonly string[] NumberWords = ["", "One", "Two", "Three"];
+
+    /// <summary>
+    /// <b>The run of an entry that belongs to one grade</b>: from where the entry announces that
+    /// grade's price in words — "One Base Point provides you with…" — to wherever it announces the
+    /// next one, or to the end.
+    ///
+    /// <para>This exists because the endpoints were the whole check. A graded feature was compared
+    /// against the printed range by <c>Min()</c> and <c>Max()</c> alone, so <b>Size's middle grade
+    /// was checked by nothing</b> — repricing <c>sprawling</c> from 2 to 3 left Min 1 and Max 3 and
+    /// the whole suite green — and no graded feature had its <em>keys</em> tied to its prices at
+    /// all, so swapping <c>standard</c> and <c>advanced</c> on any of the ten two-grade features
+    /// was invisible too. The book states the binding plainly in every one of the eleven; nothing
+    /// was reading it.</para>
+    ///
+    /// <para>Matching is case-insensitive because p.101's Data Store writes "two Base Points" in
+    /// the middle of a sentence, and the grade key's underscore becomes a hyphen because p.103
+    /// prints "awe-inspiring".</para>
+    /// </summary>
+    private static string GradeClause(string text, int cost, IEnumerable<int> allCosts)
+    {
+        var start = text.IndexOf($"{NumberWords[cost]} Base Point", StringComparison.OrdinalIgnoreCase);
+        if (start < 0) return "";
+
+        var end = text.Length;
+
+        foreach (var other in allCosts.Where(c => c != cost))
+        {
+            var at = text.IndexOf($"{NumberWords[other]} Base Point", StringComparison.OrdinalIgnoreCase);
+            if (at > start && at < end) end = at;
+        }
+
+        return text[start..end];
+    }
+
     private static readonly Regex VehiclePrice =
         new(@"^(−?-?\d+) Vehicle Points?(?: per (.+?))?\s*$", RegexOptions.Multiline | RegexOptions.CultureInvariant);
 
@@ -834,8 +871,28 @@ public sealed class Chapter6RulesDataTests
                 case "flat_variable":
                     Assert.NotNull(feature.CostRange);
                     Assert.Null(feature.Cost);
-                    foreach (var (_, grade) in feature.CostRange!)
-                        Assert.Contains($"{grade} Vehicle Point", text, StringComparison.Ordinal);
+
+                    // The set of prices appears in the entry — and each one is read from where the
+                    // entry actually announces it, so which grade costs which is checked too. The
+                    // set alone is satisfied just as well by the two grades swapped.
+                    Assert.Equal(GradedFeature.Id, feature.Id);
+
+                    foreach (var (grade, cost) in feature.CostRange!)
+                    {
+                        Assert.Contains($"{cost} Vehicle Point", text, StringComparison.Ordinal);
+
+                        var follows = GradedFeature.PriceFollows[grade];
+                        var announced = Regex.Match(text, Regex.Escape(follows) + @" (\d+) Vehicle Point");
+
+                        Assert.True(announced.Success,
+                            $"{feature.Id}: p.{feature.PrintedPage} has no price after \"{follows}\"");
+
+                        Assert.Equal(
+                            (grade, cost),
+                            (grade, int.Parse(announced.Groups[1].Value, CultureInfo.InvariantCulture)));
+                    }
+
+                    Assert.Equal(GradedFeature.PriceFollows.Keys.Order(), feature.CostRange.Keys.Order());
                     break;
 
                 default:
@@ -946,6 +1003,23 @@ public sealed class Chapter6RulesDataTests
                     Assert.NotNull(feature.CostRange);
                     Assert.Equal((feature.Id, low), (feature.Id, feature.CostRange!.Values.Min()));
                     Assert.Equal((feature.Id, high), (feature.Id, (int?)feature.CostRange.Values.Max()));
+
+                    // …and every grade in between, bound to the clause that announces its price.
+                    // The endpoints alone leave the middle of a three-grade feature unchecked and
+                    // say nothing about which grade costs which — see the method below.
+                    foreach (var (grade, cost) in feature.CostRange)
+                    {
+                        var clause = GradeClause(text, cost, feature.CostRange.Values);
+
+                        Assert.False(clause.Length == 0,
+                            $"{feature.Id}: p.{feature.PrintedPage} announces no "
+                            + $"'{NumberWords[cost]} Base Point' clause for the {grade} grade");
+
+                        Assert.True(
+                            clause.Contains(grade.Replace('_', '-'), StringComparison.OrdinalIgnoreCase),
+                            $"{feature.Id}: p.{feature.PrintedPage} does not call its "
+                            + $"{NumberWords[cost]} Base Point grade '{grade}'");
+                    }
 
                     // A graded feature says what each grade buys, or the price maps to nothing.
                     Assert.NotNull(feature.GradeEffects);

@@ -571,6 +571,29 @@ public static class CanonicalChapterSixRules
     }
 
     /// <summary>
+    /// <b>Where p.98's Hidden Compartments announces each of its two prices</b>, as the words
+    /// immediately before the figure — and deliberately without the figure, which is read out of
+    /// the corpus so this fixture cannot be the thing that says what a grade costs.
+    ///
+    /// <para>It is the one graded vehicle feature, and it is the one whose text puts the price
+    /// <em>after</em> what it buys, so the clause rule the base features use does not reach it.
+    /// Without this, the check on it was that the set {1, 2} appears somewhere in the entry, which
+    /// a swap of the two grades satisfies exactly as well as the truth does.</para>
+    /// </summary>
+    public static class GradedVehicleFeature
+    {
+        public const string Id = "hidden_compartments";
+
+        /// <summary>Grade key to the words its price follows.</summary>
+        public static readonly IReadOnlyDictionary<string, string> PriceFollows =
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["small"] = "personal items cost",
+                ["large"] = "smuggled cargo cost"
+            };
+    }
+
+    /// <summary>
     /// <b>Limits a vehicle feature's own entry prints beside its price</b>, mapped to the printed
     /// sentence so the test can find it in the corpus rather than trust this file for it.
     ///
