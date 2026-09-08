@@ -371,9 +371,15 @@ public sealed class Chapter6RulesDataTests
                     Regex.Match(sourceRef, @"\bp\.(\d+)\b").Groups[1].Value,
                     CultureInfo.InvariantCulture);
 
-                Assert.InRange(page, CanonicalChapterSixRules.FirstPage, CanonicalChapterSixRules.LastPage);
-
-                if (!headings.Contains((page, under)))
+                // Out of the chapter's range is its own fault line rather than an Assert.InRange,
+                // which reports the number and not the entry that cited it. It is also what stops
+                // a page change reaching a heading printed twice in the book: WEAPONS is on p.88
+                // as well as p.94, and p.88 is out of range.
+                if (page < CanonicalChapterSixRules.FirstPage || page > CanonicalChapterSixRules.LastPage)
+                    faults.Add(
+                        $"{file}/{id} cites p.{page}, outside the chapter's "
+                        + $"pp.{CanonicalChapterSixRules.FirstPage}-{CanonicalChapterSixRules.LastPage}");
+                else if (!headings.Contains((page, under)))
                     faults.Add($"{file}/{id}: '{under}' is not a heading on p.{page}");
             }
         }
@@ -705,20 +711,28 @@ public sealed class Chapter6RulesDataTests
 
             Assert.True(match.Success, $"p.96's {row.Name} entry did not parse: \"{text}\"");
 
-            Assert.Equal(int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), row.VehiclePoints);
-            Assert.Equal(int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture), row.Body);
-            Assert.Equal(int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture), row.Speed);
-            Assert.Equal(int.Parse(match.Groups[4].Value.Replace('−', '-'), CultureInfo.InvariantCulture), row.Control);
+            // Compared as one named tuple rather than as six bare integers, so a failure says
+            // which of the six vehicles and which characteristic moved. A loop of
+            // Assert.Equal(int, int) reports "Expected: 10, Actual: 9" and names neither.
+            var printedFeatures = match.Groups[6].Value.Split(", ", StringSplitOptions.TrimEntries);
 
             Assert.Equal(
-                match.Groups[5].Value == "n/a"
-                    ? null
-                    : int.Parse(match.Groups[5].Value.TrimEnd('d'), CultureInfo.InvariantCulture),
-                row.Weapons);
-
-            Assert.Equal(
-                match.Groups[6].Value.Split(", ", StringSplitOptions.TrimEntries),
-                row.Features);
+                (row.Name,
+                 VehiclePoints: int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture),
+                 Body: int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture),
+                 Speed: int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture),
+                 Control: int.Parse(match.Groups[4].Value.Replace('−', '-'), CultureInfo.InvariantCulture),
+                 Weapons: match.Groups[5].Value == "n/a"
+                     ? (int?)null
+                     : int.Parse(match.Groups[5].Value.TrimEnd('d'), CultureInfo.InvariantCulture),
+                 Features: string.Join(" | ", printedFeatures)),
+                (Name: row.Name,
+                 VehiclePoints: row.VehiclePoints,
+                 Body: row.Body,
+                 Speed: row.Speed,
+                 Control: row.Control,
+                 Weapons: row.Weapons,
+                 Features: string.Join(" | ", row.Features)));
         }
     }
 
@@ -767,14 +781,14 @@ public sealed class Chapter6RulesDataTests
             {
                 case "flat":
                     Assert.False(perUnit, $"{feature.Id} is recorded flat but printed per unit");
-                    Assert.Equal(amount, feature.Cost);
+                    Assert.Equal((feature.Id, (int?)amount), (feature.Id, feature.Cost));
                     Assert.Null(feature.CostRange);
                     Assert.Null(feature.CostPerUnit);
                     break;
 
                 case "per_unit":
                     Assert.True(perUnit, $"{feature.Id} is recorded per unit but printed flat");
-                    Assert.Equal(amount, feature.CostPerUnit);
+                    Assert.Equal((feature.Id, (int?)amount), (feature.Id, feature.CostPerUnit));
                     Assert.Null(feature.Cost);
                     Assert.NotNull(feature.UnitLabel);
                     break;
@@ -833,13 +847,13 @@ public sealed class Chapter6RulesDataTests
             {
                 case "flat":
                     Assert.Null(high);
-                    Assert.Equal(low, feature.Cost);
+                    Assert.Equal((feature.Id, (int?)low), (feature.Id, feature.Cost));
                     Assert.Null(feature.CostRange);
                     break;
 
                 case "per_unit":
                     Assert.Null(high);
-                    Assert.Equal(low, feature.CostPerUnit);
+                    Assert.Equal((feature.Id, (int?)low), (feature.Id, feature.CostPerUnit));
                     Assert.Null(feature.Cost);
                     Assert.NotNull(feature.UnitLabel);
                     break;
@@ -848,8 +862,8 @@ public sealed class Chapter6RulesDataTests
                     Assert.NotNull(high);
                     Assert.Null(feature.Cost);
                     Assert.NotNull(feature.CostRange);
-                    Assert.Equal(low, feature.CostRange!.Values.Min());
-                    Assert.Equal(high, feature.CostRange.Values.Max());
+                    Assert.Equal((feature.Id, low), (feature.Id, feature.CostRange!.Values.Min()));
+                    Assert.Equal((feature.Id, high), (feature.Id, (int?)feature.CostRange.Values.Max()));
 
                     // A graded feature says what each grade buys, or the price maps to nothing.
                     Assert.NotNull(feature.GradeEffects);
