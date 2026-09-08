@@ -435,6 +435,46 @@ for required in index.html _headers _redirects; do
   }
 done
 
+# Every icon the published page and its manifest name, checked against what was actually
+# published rather than against a list written down here — a list would drift from index.html
+# the first time somebody moved one, and a `<link rel="icon">` at a path that is not served is
+# the silent kind of broken: nothing errors, no console message, and the browser draws its own
+# default glyph where the owner's mark should be. `WebPresentationTests` holds the same set
+# against `web/wwwroot`; this is the other half, and it is a different claim — a file on disk
+# is only an icon if the publish carried it into the output the deploy uploads.
+icon_paths=$(
+  {
+    grep -o '<link[^>]*rel="[^"]*\(icon\|manifest\)[^"]*"[^>]*>' "$root/publish/wwwroot/index.html" \
+      | grep -o 'href="[^"]*"' | sed 's/href="//; s/"$//'
+    grep -o '"src"[[:space:]]*:[[:space:]]*"[^"]*"' "$root/publish/wwwroot/site.webmanifest" \
+      | sed 's/.*"\(.*\)"$/\1/'
+  } | sort -u
+)
+
+# The positive control, and it is two of them because there are two scans. A scan that matched
+# nothing reports a page carrying no icon at all as compliant, which is the shape most of this
+# repository's guard faults have had — so each extraction has to have found the one thing it
+# cannot honestly come back without.
+case "$icon_paths" in
+  *"/site.webmanifest"*) ;;
+  *) echo "::error::found no <link rel=\"manifest\"> in the published index.html, so the icon" \
+          "scan below is looking at nothing."; exit 2 ;;
+esac
+case "$icon_paths" in
+  *"web-app-manifest-"*) ;;
+  *) echo "::error::found no icon src in the published site.webmanifest, so the icon scan" \
+          "below is looking at nothing."; exit 2 ;;
+esac
+
+for icon in $icon_paths; do
+  [ -s "$root/publish/wwwroot/${icon#/}" ] || {
+    echo "::error::the published site names $icon and publish/wwwroot${icon} is missing or empty."
+    echo "A browser asking for it gets the SPA fallback and silently draws its own glyph."
+    exit 2
+  }
+done
+echo "Every icon the published page and its manifest name is served: $(echo "$icon_paths" | tr '\n' ' ')"
+
 rm -rf "$site"
 cp -r "$root/publish/wwwroot" "$site"
 echo "Serving $(find "$site" -type f | wc -l | tr -d ' ') published files."

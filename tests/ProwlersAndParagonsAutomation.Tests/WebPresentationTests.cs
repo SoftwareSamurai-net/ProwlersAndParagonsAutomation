@@ -2086,6 +2086,115 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// Every icon <c>index.html</c> points at is a file that is actually there, the manifest
+    /// names this app rather than the icon generator's placeholder, and the two agree about
+    /// where the pack lives.
+    ///
+    /// <para><b>A <c>&lt;link rel="icon"&gt;</c> to a missing file is the silent kind of
+    /// broken.</b> Nothing errors and no test that reads the markup can tell: the attribute is
+    /// present, the <c>rel</c> is right, and the browser quietly falls back to its own default
+    /// glyph. That is exactly the failure mode the font guard above exists for, in the one
+    /// other place this app names files it does not compile — and the tab icon is the first
+    /// thing anybody sees of the owner's mark.</para>
+    ///
+    /// <para><b>The manifest's name is pinned to the front door's heading, not to a literal.</b>
+    /// The heading is what the end-to-end BOOT check reads and what an installed shortcut is
+    /// labelled with; two spellings is how a home-screen icon comes to be called something the
+    /// site never says. The generator ships <c>MyWebSite</c> and unhashed colours, all of which
+    /// are refused here — a placeholder that survives is a manifest nobody edited.</para>
+    /// </summary>
+    [Fact]
+    public void EveryIconTheAppNamesIsServedAndTheManifestNamesTheApp()
+    {
+        var root = Path.Combine(WebRoot, "wwwroot");
+
+        // rel is matched as a token list: `shortcut icon` is two of them, and a substring test
+        // over the whole tag would take `apple-touch-icon` for an `icon`.
+        var links = Rx("<link\\s[^>]*>", RegexOptions.IgnoreCase)
+            .Matches(IndexHtml)
+            .Select(m => m.Value)
+            .Select(tag => (
+                Rel: Rx("rel\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value,
+                Href: Rx("href\\s*=\\s*\"([^\"]*)\"", RegexOptions.IgnoreCase).Match(tag).Groups[1].Value))
+            .Select(l => (Rel: l.Rel.Split(' ', StringSplitOptions.RemoveEmptyEntries), l.Href))
+            .Where(l => l.Rel.Any(r => r is "icon" or "shortcut" or "apple-touch-icon" or "manifest"))
+            .ToList();
+
+        // The positive control. Without it a scan that matched nothing — the attribute spelled
+        // differently, the links written another way — would report a page carrying no icon at
+        // all as compliant, which is the shape most of this repository's guard faults had.
+        foreach (var rel in new[] { "icon", "shortcut", "apple-touch-icon", "manifest" })
+        {
+            Assert.True(links.Any(l => l.Rel.Contains(rel, StringComparer.Ordinal)),
+                $"index.html declares no <link rel=\"{rel}\">.");
+        }
+
+        var manifestHref = links.Single(l => l.Rel.Contains("manifest", StringComparer.Ordinal)).Href;
+
+        foreach (var (rel, href) in links)
+        {
+            // Root-relative on purpose, and asserted so the two files cannot drift into
+            // addressing one pack two ways: site.webmanifest names its own icons absolutely,
+            // and the browser asks for it from whatever route the reader is standing on.
+            Assert.StartsWith("/", href, StringComparison.Ordinal);
+
+            var file = Path.Combine(root, href.TrimStart('/'));
+
+            Assert.True(File.Exists(file),
+                $"index.html points <link rel=\"{string.Join(' ', rel)}\"> at {href}, which is "
+                + "not in wwwroot. The browser falls back to its own glyph and nothing notices.");
+            Assert.True(new FileInfo(file).Length > 128, $"{href} is empty.");
+        }
+
+        var manifestText = File.ReadAllText(Path.Combine(root, manifestHref.TrimStart('/')));
+
+        using var doc = System.Text.Json.JsonDocument.Parse(manifestText);
+        var app = doc.RootElement;
+
+        // The heading the front door renders, read out of the page rather than restated here.
+        // The markup carries the entity; the manifest is JSON and carries the character.
+        var heading = Rx("<h1>(.*?)</h1>", RegexOptions.Singleline)
+            .Match(File.ReadAllText(Path.Combine(WebRoot, "Pages", "Home.razor")))
+            .Groups[1].Value.Replace("&amp;", "&", StringComparison.Ordinal).Trim();
+
+        Assert.False(string.IsNullOrWhiteSpace(heading),
+            "Home.razor renders no <h1>, so there is no name for the manifest to agree with.");
+        Assert.Equal(heading, app.GetProperty("name").GetString());
+
+        var shortName = app.GetProperty("short_name").GetString() ?? "";
+
+        Assert.NotEmpty(shortName);
+        Assert.StartsWith(shortName, heading, StringComparison.Ordinal);
+
+        // The generator's own colours are unhashed — `"theme_color": "E63536"` is not a colour
+        // any browser will parse, and it is dropped in silence rather than reported.
+        foreach (var key in new[] { "theme_color", "background_color" })
+        {
+            Assert.Matches("^#[0-9A-Fa-f]{6}$", app.GetProperty(key).GetString() ?? "");
+        }
+
+        Assert.DoesNotContain("MyWebSite", manifestText, StringComparison.OrdinalIgnoreCase);
+
+        var icons = app.GetProperty("icons").EnumerateArray().ToList();
+
+        Assert.NotEmpty(icons);
+
+        foreach (var icon in icons)
+        {
+            var src = icon.GetProperty("src").GetString() ?? "";
+
+            Assert.StartsWith("/", src, StringComparison.Ordinal);
+
+            var file = Path.Combine(root, src.TrimStart('/'));
+
+            Assert.True(File.Exists(file),
+                $"site.webmanifest lists {src}, which is not in wwwroot. An installed shortcut "
+                + "gets whatever the platform draws for an icon that would not load.");
+            Assert.True(new FileInfo(file).Length > 128, $"{src} is empty.");
+        }
+    }
+
+    /// <summary>
     /// A family may only be served the file that carries it.
     ///
     /// <para><b>Nothing else correlates the two, and without this the redesign's headline item

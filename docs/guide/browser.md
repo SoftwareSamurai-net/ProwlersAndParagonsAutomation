@@ -1378,6 +1378,50 @@ Ch.9 builds Villains exactly like Heroes and prints no separate stat-block forma
 - **`.mode-switch` names the Hero/Villain control, not the pill shape.** The light/dark control briefly carried the same class, which made `.mode-switch button` match five buttons and the identity switch report three pressed states at once. The shape is shared by selector list; `BannerTests` caught it in under a minute. **Both controls are inside `SettingsMenu` now** — see the banner section above, including why they are drawn on `--panel` rather than on `--primary`.
 - Only the palette differs. If a layout change seems necessary for one mode, the layout is wrong for both.
 
+### `site.webmanifest` is the one file in this app that names a colour, and it has to
+
+**"No component names a colour" is a rule about components, and a manifest is not one.** It is a
+static JSON document the *operating system* reads before any of this app's CSS exists — the two
+colours in it paint the splash screen and tint the platform's own chrome around an installed
+shortcut, at a moment when there is no document to carry a token and no `data-mode` to read. A
+`var()` there is not a thing; the file names a hex or it names nothing.
+
+**So the question is not whether to name one but which one, and a manifest can name exactly one
+where the app has four.** The two fields are matched to the tokens whose *role* they stand in for,
+rather than picked:
+
+- **`background_color: #F7F9FC` is hero-light `--surface`.** That field paints the ground the
+  platform shows while the app is still starting, which is the page's own ground one moment early
+  — and the page's ground is `--surface`.
+- **`theme_color: #1B4F9C` is hero-light `--primary`.** That field tints the platform's chrome
+  immediately above the page, which is where this app's banner is — and the banner is a
+  `--primary` fill. Not `--heading`, which happens to hold the same value here and is *text*:
+  taking the coinciding one would put the wrong role in the file, and the two part company the
+  moment anybody looks at villain-light.
+
+**Hero-light, because that is what an un-stamped first visit renders** — no stored `pp.theme.v1`,
+a light system, and `data-mode` defaulting to hero. Somebody who has chosen dark, or whose
+character is a Villain, gets one splash frame in the other palette before `theme.js` stamps the
+document; that is a frame, and the alternative is four manifests the platform has no way to choose
+between. **Do not "fix" this by matching the reader's theme.** Nothing writes this file at request
+time and the site is static on purpose.
+
+**The generator shipped `"theme_color": "E63536"` and `"background_color": "312D34"`, unhashed.**
+Neither is a colour any browser will parse and both are dropped in silence, so the guard requires
+`#RRGGBB` and refuses the generator's placeholder name as well —
+`EveryIconTheAppNamesIsServedAndTheManifestNamesTheApp` in `WebPresentationTests`. That guard also
+pins the manifest's `name` to the front door's `<h1>`, read out of `Home.razor` rather than
+restated: two spellings is how a home-screen icon comes to be labelled something the site never
+says, and that heading is what the end-to-end `BOOT` check reads.
+
+**`index.html` still names no colour and must not.** A `<meta name="theme-color">` would be the
+same value in a place that *does* have a document and four palettes to be wrong about, and it is
+the obvious thing to reach for.
+
+**The policy needs nothing.** The manifest is same-origin, so it is covered by `default-src 'self'`
+(`manifest-src` falls back to it), and every icon is a same-origin image under the existing
+`img-src 'self' data:`. `scripts/write-cloudflare-headers.sh` is unchanged by any of this.
+
 ## The accounts panel on `/admin`, and why it introduces no idiom of its own
 
 **One more `Panel` beside the invitation list and the failure log**, listing the players in the
