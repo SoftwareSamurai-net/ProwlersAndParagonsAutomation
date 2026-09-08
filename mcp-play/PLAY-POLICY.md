@@ -292,6 +292,15 @@ with is your own phrase, so it is matched to the longest printed weapon name ins
 sword" is the Sword, "a battle axe" is the Battle Axe rather than the Axe. A rolled-up newspaper is
 capped and adds nothing, and what a Weapon Bonus for it would be is yours to decide.
 
+**Say a weapon's name the way you say it, not the way the table files it.** The three tables are
+alphabetical, so eight rows are printed inverted — `Rifle, Sniper`, `Pistol, Snub`, `Shield,
+Spiked`, `Shotgun, Automatic`, `Blast Rifle, Military` and the three grenades — and both spellings
+are matched, so "a sniper rifle" is the sniper's rifle at +4d rather than the plain Rifle at +3d. A
+hyphen counts as a space. A plural does not: "pistols" matches nothing and is reported as an item
+Chapter 6 does not print, so name one weapon in the singular. **And a phrase naming two printed
+weapons of equal standing adds nothing at all** — "his shield and dagger" is a question about which
+of them is being swung, so the line names both and leaves the figure to you.
+
 **`slow_healing` is half a rule about the days after a fight, and page one of every run that takes
 it says which half the fight is carrying.** Inside a scene: nobody heals on regaining consciousness
 after a defeat, so `instant_recovery` brings a character round on the Health they went down with; a
