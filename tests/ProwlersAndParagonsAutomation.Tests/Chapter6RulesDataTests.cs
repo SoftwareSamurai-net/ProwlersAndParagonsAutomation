@@ -1267,13 +1267,49 @@ public sealed class Chapter6RulesDataTests
             "headquarters.json/base_features",
             // Whether the advanced-feature die stacks, and whether a standard grade earns it.
             "headquarters.json/advanced_feature_bonus",
-            // Enormous Size, which the Size entry does not name, and the skipped 90 Health step.
+            // The two names p.102 and p.103 give the largest Size grade, and the skipped 90 Health.
             "headquarters.json/mobile_headquarters",
             // Whether an unspent point of Teamwork carries over.
             "headquarters.json/teamwork"
         ];
 
         Assert.Equal(expected.Order(), recorded.Select(r => $"{r.File}/{r.Entry}").Order());
+    }
+
+    /// <summary>
+    /// <b>The largest Size grade has two printed names, and the ambiguity that records it is
+    /// anchored to both.</b> p.102's Mobile calls it "the Enormous Size feature" while p.103's own
+    /// Size entry calls the same three Base Point grade "a truly awe-inspiring base" — so the data
+    /// keys it on p.103's word, which is the entry that prices it.
+    ///
+    /// <para>This exists because the file said something else. The grade keys were recorded as
+    /// "large, sprawling, and a third the book leaves unnamed", with <c>awe_inspiring</c> as this
+    /// project's invention — and p.103 names the third exactly as much as it names the other two.
+    /// The real gap is the book using two words for one grade, which is a smaller thing and a true
+    /// one.</para>
+    /// </summary>
+    [Fact]
+    public void TheLargestSizeGradeIsNamedTwiceInTheBookAndOnceInTheData()
+    {
+        Assert.Contains("Enormous Size", Section(102, "MOBILE"), StringComparison.Ordinal);
+        Assert.Contains("awe-inspiring", Section(103, "SIZE"), StringComparison.Ordinal);
+
+        // p.103 names all three grades it prices, which is what the interpretation now says.
+        var size = Headquarters().Entries.Single(e => e.Id == "base_features").Features!
+            .Single(f => f.Id == "size");
+
+        var printed = Section(103, "SIZE");
+
+        foreach (var grade in size.CostRange!.Keys)
+            Assert.Contains(grade.Replace('_', '-'), printed, StringComparison.OrdinalIgnoreCase);
+
+        // The Health ladder keys off the same grades, so the two entries have to agree on them.
+        var mobile = Headquarters().Entries.Single(e => e.Id == "mobile_headquarters").MobileHeadquarters!;
+
+        Assert.Contains("large", size.CostRange.Keys, StringComparer.Ordinal);
+        Assert.Contains("sprawling", size.CostRange.Keys, StringComparer.Ordinal);
+        Assert.True(mobile.HealthWithLargeSize < mobile.HealthWithSprawlingSize);
+        Assert.True(mobile.LargestSizeCannotBeAttackedOrDestroyed);
     }
 
     /// <summary>

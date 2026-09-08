@@ -424,7 +424,7 @@
       ],
       "interpretation": {
         "what_this_is": "How this file reads the printed price line on each feature, which the chapter states as prose rather than as a table.",
-        "grade_keys": "A feature whose heading prints a range - one to two Base Points, or one to three for Size - is recorded as graded, with a key per grade taken from what the entry says each price buys. The book names the grades of Size in its own text (large, sprawling) and leaves the third unnamed; awe_inspiring is this project's key for it.",
+        "grade_keys": "A feature whose heading prints a range - one to two Base Points, or one to three for Size - is recorded as graded, and each key is the word the entry itself uses for that price: standard and advanced throughout, and large, sprawling and awe_inspiring for Size, all three of which p.103 prints. The only editing is the hyphen in awe-inspiring, which a key cannot carry.",
         "every_feature_has_a_price": "Every one of the twenty-two carries a number, a set of graded numbers, or a rate per unit. Nothing here is left to the GM to price, which is what lets a later slice total a headquarters."
       },
       "description": "Twenty-two things a headquarters can have, each with its price in Base Points and what the price buys. Eleven of them come in a standard grade and an advanced one; Size has three grades; two are priced per unit or free rather than per grade.",
@@ -459,7 +459,7 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.6 Equipment, p.102",
-      "ambiguity": "The Health figures name the Size feature's grades as Large, Sprawling and Enormous, and the Size entry on p.103 names only large and sprawling, leaving its third grade unnamed. Reading Enormous as that third grade is the only reading that fits, and the page does not say it. The Health ladder also skips ninety, which every other statement about capital ships treats as an ordinary step."
+      "ambiguity": "The book calls the largest Size grade two different things. p.102 names it here, as the Enormous Size feature; p.103's Size entry calls the same three Base Point grade a truly awe-inspiring base. Nothing on either page says they are one grade, and reading them as one is the only reading that fits three prices against three names. The Health ladder also skips ninety, which every other statement about capital ships treats as an ordinary step."
     },
     {
       "id": "teamwork",
