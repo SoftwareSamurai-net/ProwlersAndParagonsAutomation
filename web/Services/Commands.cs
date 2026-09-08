@@ -1,3 +1,4 @@
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Sheets;
 
 namespace ProwlersAndParagonsAutomation.Web.Services;
@@ -10,6 +11,15 @@ public enum CommandKind
 
     /// <summary>Open a Power in the Powers editor, wherever the reader is now.</summary>
     Power,
+
+    /// <summary>
+    /// Show a row of Chapter 6's gear catalogue on the Gear step — an armour row, a weapon row,
+    /// or one of p.91's thirty-six items.
+    ///
+    /// <para>Filtered in the browser like the Powers and the steps, never over the network. The
+    /// book's passages are the one thing here that costs a request.</para>
+    /// </summary>
+    GearRow,
 
     /// <summary>
     /// Read a passage of the rulebook, at <c>/rules</c>, with what was typed carried over.
@@ -289,6 +299,45 @@ public sealed class Commands
         return query;
     }
 
+    /// <summary>
+    /// The gear row the reader asked for and has not been shown yet, or nothing.
+    ///
+    /// <para><b>The same shape as <see cref="RequestedPowerId"/>, and it does the same amount:
+    /// nothing to the character.</b> Choosing a Power opens the editor rather than buying it, and
+    /// choosing a gear row shows it on the Gear step rather than adding it. A palette is a way to
+    /// reach a control, never a second place where a character is changed — and gear is the case
+    /// where the difference is easiest to lose, because adding one costs nothing and would look
+    /// harmless.</para>
+    ///
+    /// <para>It is a fact about a screen and deliberately not a field on the character.</para>
+    /// </summary>
+    public string? RequestedGearRowId { get; private set; }
+
+    /// <summary>
+    /// Ask for a gear row to be shown on the Gear step, and close the palette. A request rather
+    /// than an action, because the step that can show one is another page.
+    /// </summary>
+    public void RequestGearRow(string rowId)
+    {
+        RequestedGearRowId = rowId;
+        IsOpen = false;
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Take the requested gear row, clearing it so it is acted on once.
+    ///
+    /// <para>Taken rather than peeked, like the section and unlike the Power: one consumer, and a
+    /// request left set would re-narrow the catalogue every time anything else on the step
+    /// re-rendered — over whatever the reader had gone on to type into the box themselves.</para>
+    /// </summary>
+    public string? TakeRequestedGearRow()
+    {
+        var id = RequestedGearRowId;
+        RequestedGearRowId = null;
+        return id;
+    }
+
     /// <summary>Take the requested section, clearing it so it is acted on once.</summary>
     public string? TakeRequestedSection()
     {
@@ -314,7 +363,8 @@ public sealed class Commands
     }
 
     /// <summary>
-    /// What to offer for what has been typed: the steps that match, then the Powers.
+    /// What to offer for what has been typed: the steps that match, then the Powers, then
+    /// Chapter 6's gear catalogue.
     ///
     /// <para><b>Powers appear only once something has been typed.</b> There are 141 of them and
     /// six steps; offering all of them to an empty box would bury the steps under a catalogue
@@ -325,7 +375,11 @@ public sealed class Commands
     /// lists use, so what a reader has learnt about finding things here holds there.</para>
     /// </summary>
     /// <param name="query">What the reader has typed.</param>
-    /// <param name="limit">The most Powers to offer. The steps are never truncated.</param>
+    /// <param name="limit">
+    /// The most Powers to offer, and the most gear rows — counted separately, so a query matching
+    /// eight Powers does not crowd out every weapon. The steps are never truncated: there are six
+    /// of them and they are what the palette is mostly for.
+    /// </param>
     public IReadOnlyList<Command> Matching(string query, int limit)
     {
         var found = new List<Command>();
@@ -350,7 +404,45 @@ public sealed class Commands
             found.Add(new Command(CommandKind.Power, power.Id, power.Name, line, power.Tags));
         }
 
+        // Chapter 6's catalogue, after the Powers and before anything the book answers. **In
+        // memory, like everything above it** — the 108 rows are fetched once at boot with the rest
+        // of the rules, so finding a battle axe costs no request.
+        foreach (var row in _session.Catalogue.Rows)
+        {
+            if (found.Count(c => c.Kind == CommandKind.GearRow) >= limit) break;
+
+            var detail = GearRowDetail(row);
+
+            // The era and the printed features are matched and not shown, exactly as a Power's
+            // tags are: somebody hunting for a two-handed weapon should not have to know which
+            // ones are.
+            IReadOnlyList<string> keywords = row.Category is null
+                ? row.Features
+                : [row.Category, .. row.Features];
+
+            if (!OptionFilter.Matches(query, [row.Name, detail, .. keywords])) continue;
+
+            found.Add(new Command(CommandKind.GearRow, row.Id, row.Name, detail, keywords));
+        }
+
         return found;
+    }
+
+    /// <summary>
+    /// The quiet second line on a gear row: what the page prints in the columns beside the name.
+    ///
+    /// <para><b>Not what the row is worth to this character.</b> An armour row's Armor rank depends
+    /// on the wearer's Toughness and the table's Gear Limit, and the palette is a way to reach a
+    /// control rather than a place a character is measured — the Gear step says that, beside the
+    /// row, where the reader can act on it.</para>
+    /// </summary>
+    private static string GearRowDetail(GearCatalogueRow row)
+    {
+        var bonus = row.BonusDice is { } dice ? $"+{dice}{(row.Subdual ? " (s)" : "")}" : null;
+
+        return string.Join(" · ",
+            new[] { row.Category, bonus, row.Features.Count > 0 ? string.Join(", ", row.Features) : null }
+                .Where(part => !string.IsNullOrEmpty(part)));
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

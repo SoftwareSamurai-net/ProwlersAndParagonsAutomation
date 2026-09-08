@@ -67,9 +67,9 @@
                        and the indices below stay the indices of `_found`. What it says is not
                        load-bearing for a screen reader, because every row it heads carries its
                        own chapter and page in its detail line. *@
-                    if (StartsTheBook(index))
+                    if (GroupHeading(index) is { } heading)
                     {
-                        <li class="palette-group" role="presentation">In the book</li>
+                        <li class="palette-group" role="presentation">@heading</li>
                     }
 
                     <li id="@RowId(index)"
@@ -120,7 +120,13 @@
 }
 
 @code {
-    /// <summary>The most Powers to offer. The six steps are never truncated.</summary>
+    /// <summary>
+    /// The most Powers to offer, and the most gear rows. The six steps are never truncated.
+    ///
+    /// <para>Counted per kind rather than over the whole list, so a word that matches eight Powers
+    /// does not push every weapon off the bottom — and eight of each is still short enough that
+    /// the book's rows are reachable by arrow key.</para>
+    /// </summary>
     private const int PowerLimit = 8;
 
     private string _query = "";
@@ -146,10 +152,34 @@
     /// </summary>
     private string Prompt => Commands.Prompt;
 
-    /// <summary>Whether this row is the first of the book's, and so wants the heading above it.</summary>
-    private bool StartsTheBook(int index) =>
-        _found[index].Kind == CommandKind.Passage
-        && (index == 0 || _found[index - 1].Kind != CommandKind.Passage);
+    /// <summary>
+    /// The heading this row wants above it, or null — set on the first row of a run of the same
+    /// kind, and only for the kinds that are worth marking off.
+    ///
+    /// <para><b>The steps and the Powers carry none, deliberately.</b> They are the app's own
+    /// controls and they were the whole of the palette for a long time; heading them would be
+    /// furniture on the two things nobody needs told apart. The book's passages are the
+    /// publisher's words rather than a control, and Chapter 6's rows lead somewhere else entirely
+    /// — nothing on the page should leave the three looking like one voice.</para>
+    ///
+    /// <para><c>role="presentation"</c> and no id, so the listbox's children stay options alone,
+    /// <c>aria-activedescendant</c> keeps naming a row and the indices stay the indices of
+    /// <c>_found</c>. What it says is not load-bearing for a screen reader: every row under it
+    /// carries its own detail line.</para>
+    /// </summary>
+    private string? GroupHeading(int index)
+    {
+        var kind = _found[index].Kind;
+
+        if (index > 0 && _found[index - 1].Kind == kind) return null;
+
+        return kind switch
+        {
+            CommandKind.Passage => "In the book",
+            CommandKind.GearRow => "Gear from the book",
+            _ => null
+        };
+    }
 
     /// <summary>
     /// Which row the reader is on, for assistive technology. Null when there is nothing to be
@@ -342,6 +372,15 @@
             case CommandKind.Power:
                 Commands.RequestPower(command.Target);
                 Nav.NavigateTo("build/characteristics");
+                return;
+
+            // A gear row is a request too, and it adds nothing to the character. It narrows the
+            // Gear step's catalogue to the row and leaves the choosing where the choosing is —
+            // the same relationship a Power has to its editor. Adding it here would be cheap
+            // (mundane gear is free) and would still be the palette changing a character.
+            case CommandKind.GearRow:
+                Commands.RequestGearRow(command.Target);
+                Nav.NavigateTo("build/gear");
                 return;
 
             // A passage is a request too, and for the same reason: the page that can read one is

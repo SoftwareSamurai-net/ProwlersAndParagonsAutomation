@@ -361,4 +361,155 @@ public sealed class CommandPaletteTests
 
         return -1;
     }
+
+    // ── Chapter 6's gear catalogue ───────────────────────────────────────────
+
+    /// <summary>
+    /// <b>Typing finds a weapon row, under a heading of its own.</b>
+    ///
+    /// <para>The rows are Chapter 6's own — armour, weapons, p.91's items — and they are matched
+    /// in the browser out of the rules the app fetched at boot. Nothing goes over the network for
+    /// them, which is the difference between this group and the book's passages.</para>
+    /// </summary>
+    [Fact]
+    public async Task TypingFindsAGearRowUnderItsOwnHeading()
+    {
+        using var ctx = Opened();
+
+        var page = ctx.Render<CommandPalette>();
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "battle axe" }),
+            "the words typed into the box");
+
+        var labels = page.FindAll(".palette-row .palette-label").Select(e => e.TextContent).ToList();
+
+        Assert.Contains("Battle Axe", labels);
+
+        // Under its own heading, and the heading is above the row rather than merely present.
+        var headings = page.FindAll(".palette-group").Select(e => e.TextContent).ToList();
+        Assert.Contains("Gear from the book", headings);
+
+        Assert.NotEmpty(page.FindAll(".palette-group ~ .palette-row"));
+
+        // And the detail line carries what the page prints beside the name, so a reader can tell
+        // two weapons apart without choosing one.
+        var detail = page.FindAll(".palette-row")
+            .Single(r => r.QuerySelector(".palette-label")!.TextContent == "Battle Axe")
+            .QuerySelector(".palette-detail")!.TextContent;
+
+        Assert.Contains("+3", detail, StringComparison.Ordinal);
+        Assert.Contains("Two-Handed", detail, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A printed feature finds the row, and it is not printed on the row that it found.</b>
+    /// The same promise a Power's tags make: somebody hunting for a two-handed weapon should not
+    /// have to already know which ones are.
+    /// </summary>
+    [Fact]
+    public async Task APrintedFeatureFindsTheRowsThatCarryIt()
+    {
+        using var ctx = Opened();
+
+        var page = ctx.Render<CommandPalette>();
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "bulky" }),
+            "the word typed into the box");
+
+        var rows = page.FindAll(".palette-row .palette-label").Select(e => e.TextContent).ToList();
+
+        // Mail, Tactical Gear and Medium are the three armour rows the book marks Bulky.
+        Assert.Contains("Mail", rows);
+        Assert.Contains("Tactical Gear", rows);
+
+        // Control: the word is not in any of their names, so the match came from the feature.
+        Assert.All(rows, r => Assert.DoesNotContain("Bulky", r, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// <b>An empty box still offers the steps alone.</b> 108 gear rows under six steps would bury
+    /// the thing the palette is mostly for, exactly as 141 Powers would — so the catalogue waits
+    /// for something to be typed, on the same rule.
+    /// </summary>
+    [Fact]
+    public void AnEmptyBoxOffersNoGearRowsEither()
+    {
+        using var ctx = Opened();
+
+        var page = ctx.Render<CommandPalette>();
+
+        Assert.Empty(page.FindAll(".palette-group"));
+        Assert.Equal(Commands.Steps.Count, page.FindAll(".palette-row").Count);
+    }
+
+    /// <summary>
+    /// <b>Choosing a gear row goes to the Gear step and changes nothing about the character.</b>
+    ///
+    /// <para>This is the rule that is easiest to lose here rather than on a Power: mundane gear is
+    /// free, so a palette that simply added the axe would look harmless and would still be a second
+    /// place a character is edited. The request narrows the step's catalogue and the choosing stays
+    /// where the choosing is.</para>
+    /// </summary>
+    [Fact]
+    public async Task ChoosingAGearRowGoesToTheGearStepAndAddsNothing()
+    {
+        using var ctx = Opened();
+
+        var page = ctx.Render<CommandPalette>();
+
+        var carried = ctx.Session.Sheet.Gear.Count;
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "battle axe" }),
+            "the words typed into the box");
+
+        await Occupying(
+            page,
+            () => page.FindAll(".palette-row")
+                .Single(r => r.QuerySelector(".palette-label")!.TextContent == "Battle Axe")
+                .ClickAsync(new MouseEventArgs()),
+            "the row chosen");
+
+        var nav = ctx.Services.GetRequiredService<NavigationManager>();
+
+        Assert.EndsWith("build/gear", nav.Uri, StringComparison.Ordinal);
+        Assert.False(CommandsOf(ctx).IsOpen);
+
+        // Nothing added, and nothing taken away either — the character is exactly as it was.
+        Assert.Equal(carried, ctx.Session.Sheet.Gear.Count);
+        Assert.DoesNotContain(ctx.Session.Sheet.Gear, g => g.Name == "Battle Axe");
+
+        // What did happen is a request, which the Gear step reads. The test below is the other
+        // half; this says the click produced one rather than nothing at all.
+        Assert.Equal(GearCatalogue.WeaponPrefix + "battle_axe", CommandsOf(ctx).RequestedGearRowId);
+    }
+
+    /// <summary>
+    /// <b>And the Gear step it lands on has the row in front of the reader, with the word in the
+    /// box.</b> A list narrowed by something the box does not show is a list that looks broken and
+    /// cannot be widened again.
+    /// </summary>
+    [Fact]
+    public void TheGearStepArrivesFilteredToTheRequestedRow()
+    {
+        using var ctx = Opened();
+
+        CommandsOf(ctx).RequestGearRow(GearCatalogue.WeaponPrefix + "battle_axe");
+
+        var step = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.Gear>();
+
+        Assert.Equal("Battle Axe", step.Find(".catalogue .options-filter input").GetAttribute("value"));
+
+        var row = Assert.Single(step.FindAll(".catalogue .options .option"));
+        Assert.Contains("Battle Axe", row.TextContent, StringComparison.Ordinal);
+
+        // Read once: rendering the step again is the ordinary consequence of a keystroke anywhere
+        // on it, and a request left set would drag the list back here every time.
+        Assert.Null(CommandsOf(ctx).RequestedGearRowId);
+    }
 }

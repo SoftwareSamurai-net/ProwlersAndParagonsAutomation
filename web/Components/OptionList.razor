@@ -81,6 +81,32 @@
     /// </summary>
     [Parameter] public string Placeholder { get; set; } = "Filter this list";
 
+    /// <summary>
+    /// What the box is to hold when the reader arrives from somewhere else — the command palette
+    /// choosing a gear row, today.
+    ///
+    /// <para><b>It seeds the box rather than filtering behind it</b>, which is the whole point: a
+    /// list narrowed by something the box does not show is a list that looks broken, and the
+    /// reader cannot widen it again because there is nothing to delete. Seeded, the next keystroke
+    /// edits a word that is visibly there.</para>
+    ///
+    /// <para><b>Applied when it changes and not on every pass</b>, so typing over it is not undone
+    /// by the next render. A parameter set once and then left alone would otherwise re-seed the
+    /// box on every parent re-render, which on this page is every keystroke elsewhere on it.</para>
+    /// </summary>
+    [Parameter] public string? Query { get; set; }
+
+    private string? _seeded;
+
+    protected override void OnParametersSet()
+    {
+        if (Query == _seeded) return;
+
+        _seeded = Query;
+        _query = Query ?? "";
+        _active = 0;
+    }
+
     private string _query = "";
     private int _pass;
     private OptionTally? _tally;

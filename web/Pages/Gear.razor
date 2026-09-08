@@ -1,5 +1,6 @@
 @page "/build/gear"
 @inject CharacterSession Session
+@inject Commands Commands
 
 <PageTitle>Gear — Prowlers &amp; Paragons</PageTitle>
 
@@ -59,7 +60,7 @@
         the Armor rank it grants you.
     </p>
 
-    <OptionList Placeholder="Filter armour, weapons and equipment">
+    <OptionList Placeholder="Filter armour, weapons and equipment" Query="@_catalogueQuery">
         @foreach (var row in Session.Catalogue.Rows)
         {
             <OptionRow Name="@row.Name" Caveat="@RowCaveat(row)" Cost="@RowCost(row)"
@@ -138,6 +139,22 @@
 
     private string _newItem = "";
     private SelectedGear? _editing;
+
+    /// <summary>
+    /// What the catalogue's filter box holds when the reader arrives from the command palette.
+    ///
+    /// <para><b>The row's name, so the box shows why the list is short.</b> The palette hands over
+    /// a row id; what a reader can edit is a word. Taken rather than peeked — see
+    /// <c>Commands.TakeRequestedGearRow</c> — so it seeds the box once and does not drag the list
+    /// back to that row every time anything else on this page re-renders.</para>
+    /// </summary>
+    private string? _catalogueQuery;
+
+    protected override void OnInitialized()
+    {
+        if (Commands.TakeRequestedGearRow() is { } rowId && Session.Catalogue.Find(rowId) is { } row)
+            _catalogueQuery = row.Name;
+    }
 
     // SelectedGear is a record, so an edit produces a new instance rather than mutating
     // one. The picker works on these mutable copies and Save writes them back.
