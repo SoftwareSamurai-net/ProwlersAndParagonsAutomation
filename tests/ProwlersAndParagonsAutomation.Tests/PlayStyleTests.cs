@@ -297,6 +297,58 @@ public sealed class PlayStyleTests
             + "purchase against the shortfall is not being reached.");
     }
 
+    /// <summary>
+    /// <b>Checking Your Swing makes <c>min_max</c>'s dice dearer, because the price is read off the
+    /// success map rather than typed.</b>
+    ///
+    /// <para><b>The claim is the whole of what reading the map buys, and nothing was driving it.</b>
+    /// p.84's purchase buys dice and this policy has to work out how many cover a shortfall on
+    /// average — so under Ch.3 p.69's flatter map, where a six is worth one success instead of two,
+    /// the same shortfall costs more points. It cannot be measured through a run: the two settings
+    /// are two different fights, because the flattened six changes every roll on both sides.</para>
+    ///
+    /// <para>The control is the map itself, read out of the store: the two counters really do value
+    /// a six differently, and agree about every other face. Without that, "the price moved" could be
+    /// a price that moves for any reason at all.</para>
+    /// </summary>
+    [Fact]
+    public void CheckingYourSwingMakesTheDiceMinMaxPricesDearer()
+    {
+        var book = new SuccessCounter(_play);
+        var checking = new SuccessCounter(_play, checkingYourSwing: true);
+
+        // The control, off the store: one face is worth less and the rest are unchanged.
+        Assert.True(checking.Value(book.HighestFace) < book.Value(book.HighestFace),
+            "Checking Your Swing no longer flattens the top face, so there is no map here for the "
+            + "pricing to have read.");
+
+        for (var face = 1; face < book.HighestFace; face++)
+            Assert.Equal(book.Value(face), checking.Value(face));
+
+        var policy = new MinMax(_play);
+
+        // The same shortfall, priced under each map. Every shortfall this policy can see is dearer
+        // or the same; at least one of them is strictly dearer, which is what "the map is read"
+        // means — a policy with a figure typed into it would answer alike for all of them.
+        var dearer = 0;
+
+        for (var shortfall = 1; shortfall <= 6; shortfall++)
+        {
+            var underTheBook = policy.PointsToCover(shortfall, checkingYourSwing: false);
+            var underChecking = policy.PointsToCover(shortfall, checkingYourSwing: true);
+
+            Assert.True(underChecking >= underTheBook,
+                $"a shortfall of {shortfall} costs {underChecking} points under the flatter map and "
+                + $"{underTheBook} under the book's, which is the wrong way round.");
+
+            if (underChecking > underTheBook) dearer++;
+        }
+
+        Assert.True(dearer > 0,
+            "no shortfall between one and six cost more under Checking Your Swing, so the price is "
+            + "not being read off the success map at all.");
+    }
+
     // ── the target-selection axis ─────────────────────────────────────────
 
     /// <summary>

@@ -248,10 +248,10 @@ public sealed class MinMax : StylePolicy
 
         if (shortfall > 0)
         {
-            var dice = DiceThatWouldCover(state, shortfall);
+            var points = PointsToCover(shortfall, state.Table.CheckingYourSwing);
 
-            return dice > 0 && dice <= pool
-                ? Buy(actor, ResolveSpend.ExtraDice, dice)
+            return points > 0 && points <= pool
+                ? Buy(actor, ResolveSpend.ExtraDice, points)
                 : Buy(actor, ResolveSpend.Reroll);
         }
 
@@ -259,18 +259,25 @@ public sealed class MinMax : StylePolicy
     }
 
     /// <summary>
-    /// How many of p.84's dice it would take to cover a shortfall of <paramref name="shortfall"/>
-    /// successes on average, at the file's own rate and under the map in force.
+    /// How many points of p.84's dice it would take to cover a shortfall of
+    /// <paramref name="shortfall"/> successes on average, at the file's own rate and under the
+    /// success map <paramref name="checkingYourSwing"/> selects.
     ///
     /// <para><b>Neither the die's worth nor the purchase's rate is typed here.</b> The mean is the
     /// average of every face's value under <see cref="SuccessCounter"/>, so Checking Your Swing's
     /// flatter map moves it; the dice a point buys and the points a die costs are
     /// <c>spend_challenge_roll_dice</c>'s own <c>dice_gained</c> and <c>cost_resolve</c>. A figure
     /// written here would be a second transcription of a rule the store already holds.</para>
+    ///
+    /// <para><b>Public so the claim can be driven at the point it is made.</b> "Checking Your Swing
+    /// moves the price" is the whole of what reading the map rather than typing a figure buys, and
+    /// inside a fight the two settings are two different fights — the flattened six changes every
+    /// roll — so the same shortfall under the two maps cannot be compared through a run. A fixture
+    /// asks this directly, with the two maps' values for a six as its control.</para>
     /// </summary>
-    private int DiceThatWouldCover(EncounterState state, int shortfall)
+    public int PointsToCover(int shortfall, bool checkingYourSwing)
     {
-        var counter = CounterFor(state);
+        var counter = CounterFor(checkingYourSwing);
         var faces = Enumerable.Range(1, counter.HighestFace).ToList();
         var perDie = faces.Average(counter.Value);
 
@@ -284,20 +291,40 @@ public sealed class MinMax : StylePolicy
         return (int)Math.Ceiling((double)diceNeeded / perPoint) * spend.CostResolve!.Value;
     }
 
-    private SuccessCounter CounterFor(EncounterState state)
+    private SuccessCounter CounterFor(bool checkingYourSwing)
     {
-        if (_counter is not null && _counterCheckingYourSwing == state.Table.CheckingYourSwing)
-            return _counter;
+        if (_counter is not null && _counterCheckingYourSwing == checkingYourSwing) return _counter;
 
-        _counterCheckingYourSwing = state.Table.CheckingYourSwing;
-        _counter = new SuccessCounter(Play, state.Table.CheckingYourSwing);
+        _counterCheckingYourSwing = checkingYourSwing;
+        _counter = new SuccessCounter(Play, checkingYourSwing);
 
         return _counter;
     }
 
     /// <summary>
-    /// Whether the worst any one opponent could do this page still leaves this combatant standing —
-    /// the condition p.78's two dice are worth their halved defences on.
+    /// Whether the worst <b>one</b> opponent could do to this combatant with <b>damage</b> still
+    /// leaves them standing — the condition p.78's two dice are worth their halved defences on.
+    ///
+    /// <para><b>It is a bound on one attack's damage and on nothing else, and that is worth saying
+    /// out loud because the rule this policy publishes is broader than the arithmetic under it.</b>
+    /// The greatest attack rank on the other side, at <c>damage.damage_per_net_success</c>, is a
+    /// true ceiling on what a single attack can take off — every die a success and no defence at
+    /// all — and three things a page can do to a character are outside it:</para>
+    ///
+    /// <list type="bullet">
+    /// <item><b>Everybody on the other side acts.</b> The ceiling is the greatest single attack, so
+    /// two opponents who could each take half of somebody's Health both pass it.</item>
+    /// <item><b>p.76's special effect is not damage.</b> An Ensnare that outlasts what is left of a
+    /// target ends their fight without a point coming off, and no figure here can see it.</item>
+    /// <item><b>Fatal Damage is a clock rather than a floor.</b> The comparison is against
+    /// <c>damage.defeated_at_health</c>, so with that setting on a blow can leave somebody above the
+    /// defeat figure and bleeding, and p.79's tick at the page turn finishes them.</item>
+    /// </list>
+    ///
+    /// <para>Wound Penalties are the one omission that cannot bite: they cost a hurt attacker dice,
+    /// so the real figure is smaller than this ceiling rather than larger. <b>A policy is allowed to
+    /// be simple and is not allowed to read as cleverer than it is</b> — this is a worst case on one
+    /// opponent's damage, and <c>docs/guide/play-engine.md</c> records it as one.</para>
     /// </summary>
     private bool TheCounterattackCannotReachThem(EncounterState state, Combatant actor)
     {
