@@ -2195,6 +2195,101 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// The mark in the banner is the owner's own artwork, cropped rather than redrawn, and it
+    /// never reaches paper.
+    ///
+    /// <para><b>How <c>logo.svg</c> was made, so it can be made again.</b> <c>favicon.svg</c> —
+    /// the file the owner's generator produced, and the whole lockup — draws a full-bleed ground
+    /// and then 130 paths: the first 81 are the eye, the 25 after them spell
+    /// <c>SoftwareSamurai.net</c>, and the last 24 are the tagline under it. Those two runs sit
+    /// in a clean horizontal band below the eye and are dropped, because at the size the banner
+    /// draws this mark they are a grey smudge rather than words. The 81 that are kept are moved
+    /// into a square tile of their own by one <c>translate</c>, with their coordinates untouched
+    /// — which is what this test checks, and it is the only claim worth making mechanically: an
+    /// SVG that has been re-traced, re-coloured or re-exported by a different tool is a
+    /// different drawing wearing the same name, and nothing else here would notice.</para>
+    ///
+    /// <para><b>The ground stays, and that is the crop decision.</b> The banner's fill is
+    /// <c>--primary</c>, which is navy for a Hero and crimson for a Villain; the mark's red on
+    /// that crimson is a mark nobody can see. Lifted off its ground it would also stop being the
+    /// same drawing — 56 of the paths kept here are the <em>same dark</em> as the ground and are
+    /// the counters inside the eye, so a transparent version paints them as shapes where the
+    /// artwork has holes. See <c>docs/guide/browser.md</c>.</para>
+    ///
+    /// <para><b>And it does not print.</b> <c>.banner</c> is in the print block's hide list and
+    /// covers this element already — but a selector that is only correct because of another
+    /// selector is one rearrangement away from being wrong, which is the reason the two palette
+    /// switches and the settings menu are all named there beside it. This one is an image on a
+    /// coloured tile: getting it onto paper costs ink, and the printed sheet is the deliverable.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheBannersMarkIsTheOwnersArtworkCroppedAndNeverPrints()
+    {
+        var root = Path.Combine(WebRoot, "wwwroot");
+        var layout = File.ReadAllText(Path.Combine(WebRoot, "Layout", "MainLayout.razor"));
+
+        var img = Rx("<img\\s[^>]*class=\"banner-mark\"[^>]*>").Match(layout);
+
+        // The positive control for the scan. Without it a markup change that dropped the mark,
+        // or spelled its class differently, would leave every assertion below with nothing to
+        // be false about — the shape most of this repository's guard faults have had.
+        Assert.True(img.Success,
+            "MainLayout renders no <img class=\"banner-mark\">, so the banner carries no mark.");
+
+        var src = Rx("src=\"([^\"]*)\"").Match(img.Value).Groups[1].Value;
+        var alt = Rx("alt=\"([^\"]*)\"").Match(img.Value).Groups[1].Value;
+
+        // Relative, not root-relative, unlike the icons in index.html — and for the opposite
+        // reason. This markup is rendered by the app under `<base href="/">`, which resolves it
+        // to the same place; the proof pages are written into wwwroot and have no <base>, so a
+        // leading slash would send Chrome to the filesystem root and the pixel goldens would
+        // record a banner with a broken image in it.
+        Assert.Equal("logo.svg", src);
+        Assert.False(string.IsNullOrWhiteSpace(alt),
+            "The banner's mark has no alt text. axe requires one, and an empty alt would say "
+            + "this image is decoration — it is the only thing on the page naming its author.");
+
+        var mark = File.ReadAllText(Path.Combine(root, src));
+        var pack = File.ReadAllText(Path.Combine(root, "favicon.svg"));
+
+        static List<string> Drawings(string svg) =>
+            Rx("<path\\s[^>]*d=\"([^\"]+)\"").Matches(svg).Select(m => m.Groups[1].Value).ToList();
+
+        var kept = Drawings(mark);
+        var whole = Drawings(pack);
+
+        Assert.True(kept.Count > 50,
+            $"logo.svg draws {kept.Count} paths. It is meant to be the eye out of the owner's "
+            + "lockup, which is 81 of them — this is an empty or truncated file.");
+        Assert.True(kept.Count < whole.Count,
+            "logo.svg draws as many paths as favicon.svg, so nothing was cropped off. The "
+            + "wordmark and tagline are what make it unreadable at the size the banner uses.");
+
+        // The tile's own ground is the one path that is not in the pack: it is cut to the
+        // cropped square rather than to the original 2048. Everything else has to be the
+        // owner's, verbatim — a coordinate re-exported by another tool would fail here, which
+        // is the point.
+        var foreign = kept.Where(d => !whole.Contains(d, StringComparer.Ordinal)).ToList();
+
+        Assert.True(foreign.Count == 1,
+            $"logo.svg draws {foreign.Count} paths that are not in favicon.svg, and exactly one "
+            + "— its own tile ground — is expected. The mark must be the owner's artwork moved, "
+            + "not redrawn.");
+        Assert.Matches(Rx(@"^M0 0L\d+ 0L\d+ \d+L0 \d+L0 0Z$"), foreign[0]);
+
+        // Named on paper as well as covered by `.banner`, for the reason the doc comment gives.
+        var hidden = Rx(@"([^{}]+)\{([^{}]*)\}")
+            .Matches(OnlyPrintBlockOf(AppCss))
+            .Where(r => Normalise(r.Groups[2].Value).Contains("display:none", StringComparison.Ordinal))
+            .SelectMany(r => r.Groups[1].Value.Split(',').Select(s => s.Trim()))
+            .ToList();
+
+        Assert.Contains(".banner", hidden, StringComparer.Ordinal);
+        Assert.Contains(".banner-mark", hidden, StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// A family may only be served the file that carries it.
     ///
     /// <para><b>Nothing else correlates the two, and without this the redesign's headline item

@@ -389,6 +389,58 @@ tokens rots the first time one of them moves, silently.
   because the point of that control is that the avenues are a closed set with a marking of their
   own, so a *tool* that grew the underline would arrive as a fourth avenue.
 
+### The owner's mark keeps its own ground, and that is what lets it sit in every palette
+
+**`web/wwwroot/logo.svg` is the eye out of the owner's lockup, on the dark tile it was drawn on.**
+It is the third part of the wordmark rather than a fourth item in the row: it is *inside*
+`.banner-title`, which is the one block in this band that opts out of `align-items: baseline`, so
+it opts out with it and `proof-align.html` goes on excluding the whole block by name. As a sibling
+of that block it would join the baseline row, where an image's baseline is its own bottom edge — a
+32px tile hanging its foot on the text line, and a spread the alignment harness would be right to
+fail.
+
+**Two decisions were made about the file, and the second is the one that matters.**
+
+- **It is cropped to the eye.** The lockup carries `SoftwareSamurai.net` and a tagline below the
+  mark, and at `--space-7` those are a grey smudge where words should be. The crop is the first 81
+  paths of `favicon.svg` moved into a square of their own by one `translate`, coordinates
+  untouched — so the two files are provably the same drawing, which
+  `TheBannersMarkIsTheOwnersArtworkCroppedAndNeverPrints` checks path by path. Regenerate it from
+  `favicon.svg` in the same folder; the kit it originally came from is not in the repository.
+- **It keeps its dark ground, and was not lifted off it.** Lifting it is the obvious thing to
+  do — a transparent mark takes whatever surface it lands on — and it is wrong here twice over.
+  The banner's fill is `--primary`, which is `#1B4F9C` for a Hero and `#8B0F1D` for a Villain in
+  **both** themes, and this mark's red on that crimson is a mark nobody can see: the tile is
+  exactly what makes one file work on both. And the ground is not only a backdrop — 56 of the 81
+  paths are that same dark and are the counters *inside* the eye, so a transparent version paints
+  them as shapes where the artwork has holes. It is not the same drawing.
+
+**An `<img>`, never inlined, and that is rule 1 rather than a preference.** The artwork is two
+colours of somebody else's and it carries them itself, exactly as the favicon pack and the two
+typefaces do. Inlined into a component those fills would be a component naming a colour, which
+`NoComponentNamesAColour` refuses and should: there is no token for another firm's brand red, and
+a mark redrawn in `--accent` is not the mark. Kept as a file it is an image like any other and the
+four palettes never touch it — which is also why `app.css` gives it a size, a corner and nothing
+else. The `--radius` is because a square dark tile on a coloured band reads as a hole in the band.
+
+**It is not inside the home link.** The mark says who made the site; `Prowlers & Paragons` says
+what the site is. Folding the two into one anchor makes them one claim, and leaves the image either
+announcing the destination a second time or carrying no name at all — so it is its own element with
+its own `alt`, which axe requires and which a decorative `alt=""` would have satisfied while telling
+a screen reader nothing.
+
+**It does not print**, and `.banner-mark` is named in the print block although `.banner` above it
+already covers the whole band — the same reason the two palette switches and their menu are named
+there. This one is the only image in the app's chrome, and the printed sheet's entire colour budget
+is about 6mm of heading tint.
+
+**This moved four pixel goldens and no others**: `shell-hero-light`, `shell-hero-dark`,
+`shell-villain-light` and `shell-villain-dark` are the pages that draw the band. Measured
+before-and-after with `scripts/visual/diff.mjs`, each is ~0.66% of its pixels inside one bounding
+box in the top-left corner — the tile, and the wordmark moved right by its width and the column
+gap. `front-door-*`, `rules-reference` and `explained-sheet` came back pixel-identical, which is the
+answer to "does the front door draw the banner": it does not.
+
 ### The settings menu, and why it is the character switcher's mechanism
 
 **The Hero/Villain and Light/Dark/Auto switches live behind `SettingsMenu` now.** That took the

@@ -475,6 +475,33 @@ for icon in $icon_paths; do
 done
 echo "Every icon the published page and its manifest name is served: $(echo "$icon_paths" | tr '\n' ' ')"
 
+# The same claim for the images a *component* names, which the scan above cannot see: they are
+# compiled into the WebAssembly payload rather than written in index.html, so the list is derived
+# from the razor sources instead of from the published page. The failure is the same shape and
+# quieter still — a missing `<img>` draws its alt text on a coloured band and nothing errors.
+component_images=$(
+  grep -rho 'src="[^":/][^"]*\.\(svg\|png\|webp\|avif\|jpg\|jpeg\|gif\)"' "$root/web" --include='*.razor' \
+    | sed 's/src="//; s/"$//' | sort -u
+)
+
+# The positive control: this repository has exactly one such image today, and a scan that stopped
+# matching would otherwise report every component as compliant by finding nothing to check.
+case "$component_images" in
+  *logo.svg*) ;;
+  *) echo "::error::found no component-drawn image under web/, so the scan below is looking at" \
+          "nothing. If the banner's mark was deliberately removed, delete this check with it."
+     exit 2 ;;
+esac
+
+for image in $component_images; do
+  [ -s "$root/publish/wwwroot/$image" ] || {
+    echo "::error::a component draws $image and publish/wwwroot/$image is missing or empty."
+    echo "The browser gets the SPA fallback for it and paints the alt text instead."
+    exit 2
+  }
+done
+echo "Every image a component draws is served: $(echo "$component_images" | tr '\n' ' ')"
+
 rm -rf "$site"
 cp -r "$root/publish/wwwroot" "$site"
 echo "Serving $(find "$site" -type f | wc -l | tr -d ' ') published files."
