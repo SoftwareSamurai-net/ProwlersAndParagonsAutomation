@@ -32,6 +32,7 @@ public static class PlayServer
     public const string StartEncounterTool = "start_encounter";
     public const string TakeTurnTool = "take_turn";
     public const string RunEncountersTool = "run_encounters";
+    public const string RunMatrixTool = "run_matrix";
 
     /// <summary>
     /// What the client is told at the start of the session. Short on purpose — the policy is long
@@ -84,8 +85,11 @@ public static class PlayServer
         yield return McpServerTool.Create(tools.TakeTurn, Changes(TakeTurnTool));
 
         // run_encounters holds nothing and leaves nothing behind — it is a measurement, and the
-        // same arguments give the same answer because the seeds are the caller's.
+        // same arguments give the same answer because the seeds are the caller's. run_matrix is
+        // the same thing across every style and every matchup at once, and is read-only for the
+        // same reason.
         yield return McpServerTool.Create(tools.RunEncounters, Read(RunEncountersTool));
+        yield return McpServerTool.Create(tools.RunMatrix, Read(RunMatrixTool));
     }
 
     /// <summary>A tool that reads and has no effect a second call would repeat.</summary>

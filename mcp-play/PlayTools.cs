@@ -379,8 +379,38 @@ public sealed class PlayTools
     /// </summary>
     public const int MostRuns = 5_000;
 
-    /// <summary>The policies this server will run, by the name a caller passes.</summary>
+    /// <summary>
+    /// The named policies this server will run besides the styles, by the name a caller passes.
+    ///
+    /// <para><b>It is one entry and it is kept.</b> <c>attack_the_weakest</c> is the policy this
+    /// server shipped with and every figure in <c>PROGRESS.md</c>'s first balance measurement was
+    /// taken under it — so removing the name would make that measurement unreproducible from its own
+    /// echo, which is the one thing a report here exists to prevent. New work uses
+    /// <c>style</c> and <c>targeting</c>.</para>
+    /// </summary>
     public static IReadOnlyList<string> Policies { get; } = ["attack_the_weakest"];
+
+    /// <summary>
+    /// The fewest runs a fairness verdict is allowed off, which is the owner's line and not a rule.
+    ///
+    /// <para>The rest of this tool answers from 30 up, because a rate is worth reporting there. A
+    /// verdict is a different claim: <c>unfair</c> says a side loses at least half the time, and the
+    /// owner set both halves of that — a hundred fights or more, and a win rate at or below one in
+    /// two. Below the floor the flag is <c>null</c> rather than <c>false</c>, because "not unfair"
+    /// and "not enough fights to say" are different answers and only one of them is reassuring.
+    /// </para>
+    /// </summary>
+    public const int FewestRunsForAVerdict = 100;
+
+    /// <summary>The win rate at or below which a side's matchup is flagged. The owner's figure.</summary>
+    public const double UnfairAtOrBelow = 0.5;
+
+    /// <summary>What the flag means, in the answer, every time it appears.</summary>
+    private const string UnfairNote =
+        "unfair is a threshold the owner set and not a rule the book prints: a side that wins half "
+        + "its fights or fewer over at least "
+        + "100 runs. It is null below that many runs, because "
+        + "\"not unfair\" and \"not enough fights to say\" are different answers.";
 
     [Description(
         "Runs the same fight N times on consecutive seeds and reports the rates. Refuses fewer "
@@ -402,7 +432,20 @@ public sealed class PlayTools
         int? seed = null,
         [Description("The range class the fight opens in: close, distant or extreme. Close by default.")]
         string? openingRange = null,
-        [Description("Which policy chooses each turn. Currently: attack_the_weakest.")]
+        [Description(
+            "The style both sides play in: mano_a_mano, standard, min_max or reckless. Standard by "
+            + "default. A style is a guess about how people play and never a rule, so its note "
+            + "comes back beside the figures. \"narrative\" is refused by name — it needs a model "
+            + "as the Villain, through take_turn.")]
+        string? style = null,
+        [Description(
+            "Which opponent each side goes after: weakest, strongest or highest_threat. Weakest by "
+            + "default. An axis of its own, independent of the style.")]
+        string? targeting = null,
+        [Description(
+            "The original policy this server shipped with, attack_the_weakest — kept so the "
+            + "measurements taken under it stay reproducible. Given, it overrides style and "
+            + "targeting; leave it out and use style instead.")]
         string? policy = null,
         [Description("The page each run stops at if neither side is down. 20 by default.")]
         int? maxPages = null,
@@ -434,16 +477,23 @@ public sealed class PlayTools
         if (pages < 1)
             return Write(Problem("BAD_PAGE_LIMIT", $"A run has to be allowed at least one page, and {pages} is not."));
 
-        var wanted = (policy ?? Policies[0]).Trim().ToLowerInvariant();
-
-        if (!Policies.Contains(wanted, StringComparer.Ordinal))
+        if (policy is not null)
         {
-            return Write(Problem("NO_SUCH_POLICY",
-                $"'{policy}' is not a policy this server has. Available: "
-                + string.Join(", ", Policies)
-                + ". A policy is a guess about how people play, not a rule — its name goes in the "
-                + "answer for that reason."));
+            var wanted = policy.Trim().ToLowerInvariant();
+
+            if (!Policies.Contains(wanted, StringComparer.Ordinal))
+            {
+                return Write(Problem("NO_SUCH_POLICY",
+                    $"'{policy}' is not a policy this server has. Available: "
+                    + string.Join(", ", Policies)
+                    + ". A policy is a guess about how people play, not a rule — its name goes in "
+                    + "the answer for that reason. The styles are asked for with \"style\" "
+                    + "instead: " + string.Join(", ", StylePolicy.StyleIds) + "."));
+            }
         }
+
+        if (!TryReadStyle(style, targeting, out var chosenStyle, out var chosenTargeting, out var named))
+            return Write(named);
 
         if (!TryReadSetup(combatants, table, challengeLevel, seed, openingRange, visibility, out var setup, out var problem))
             return Write(problem);
@@ -468,7 +518,9 @@ public sealed class PlayTools
 
         // Typed as the interface deliberately: a policy is a seam, and every report here
         // prints the seam's own Name rather than a class name written down beside it.
-        IPolicy chooser = new AttackTheWeakest(_play);
+        IPolicy chooser = policy is null
+            ? StylePolicy.For(chosenStyle, chosenTargeting, _play)
+            : new AttackTheWeakest(_play);
 
         try
         {
@@ -481,12 +533,372 @@ public sealed class PlayTools
     }
 
     /// <summary>
+    /// The style and the target selector a caller asked for, or a refusal naming what is available.
+    ///
+    /// <para><b>The owner's fifth style is refused by its own name rather than falling into "no such
+    /// style".</b> <c>narrative</c> is a real way of playing and its absence is a decision, not an
+    /// omission: a seed cannot fake a Villain acting befitting their character, because nothing in
+    /// this engine makes a Flaw bite and "befitting" is a judgement. A caller who asks for it is
+    /// told where it lives — <c>take_turn</c>, with the model as the Villain — so nobody reads the
+    /// gap as an oversight and nobody builds a fake one.</para>
+    /// </summary>
+    private static bool TryReadStyle(
+        string? style, string? targeting,
+        out PlayStyle chosen, out Targeting selector, out JsonObject problem)
+    {
+        chosen = PlayStyle.Standard;
+        selector = Targeting.Weakest;
+        problem = new JsonObject();
+
+        var wantedStyle = (style ?? StylePolicy.WireOf(PlayStyle.Standard)).Trim().ToLowerInvariant();
+
+        if (string.Equals(wantedStyle, StylePolicy.NarrativeStyle, StringComparison.Ordinal))
+        {
+            problem = Problem("NARRATIVE_IS_NOT_SEEDED", StylePolicy.NarrativeIsNotSeeded);
+            return false;
+        }
+
+        if (!StylePolicy.TryReadStyle(wantedStyle, out chosen))
+        {
+            problem = Problem("NO_SUCH_STYLE",
+                $"'{style}' is not a style this server runs. Available: "
+                + string.Join(", ", StylePolicy.StyleIds)
+                + ". A style is a guess about how people play and not a rule, which is why its note "
+                + "comes back beside every figure measured under it.");
+            return false;
+        }
+
+        var wantedTargeting =
+            (targeting ?? StylePolicy.WireOf(Targeting.Weakest)).Trim().ToLowerInvariant();
+
+        if (StylePolicy.TryReadTargeting(wantedTargeting, out selector)) return true;
+
+        problem = Problem("NO_SUCH_TARGETING",
+            $"'{targeting}' is not a way of choosing a target here. Available: "
+            + string.Join(", ", StylePolicy.TargetingIds)
+            + ". It is an axis of its own, so any of them composes with any style.");
+
+        return false;
+    }
+
+    // ── The matrix ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The fewest runs a matrix cell may be measured over — the owner's floor, and the same one a
+    /// fairness verdict needs, because every cell carries one.
+    /// </summary>
+    public const int FewestRunsACell = FewestRunsForAVerdict;
+
+    /// <summary>Which matchups a matrix is built out of, by the name a caller passes.</summary>
+    public static IReadOnlyList<string> Matchups { get; } = ["all", "party", "each_hero_alone"];
+
+    [Description(
+        "Runs the same fight at N per cell across every simulated style and every matchup — the "
+        + "whole party against the opposition, and each Hero alone against it — and answers one "
+        + "table: rows are matchups, columns are styles, cells are a win rate, an unfair flag and "
+        + "the mean pages. Refuses fewer than 100 runs a cell, which is the owner's floor for "
+        + "saying a fight is unfair at all. Every cell's seeds are derived from the one base seed "
+        + "and echoed, so the whole table reproduces.")]
+    public string RunMatrix(
+        [Description("The fight, in the same shape start_encounter takes.")]
+        JsonElement combatants,
+        [Description("How many fights per cell. At least 100. 100 by default.")]
+        int? runs = null,
+        [Description(
+            "Which rows: all (the default), party, or each_hero_alone. A Hero alone is that Hero "
+            + "against everybody not on their side.")]
+        string? matchups = null,
+        [Description(
+            "Which opponent each side goes after in every cell: weakest, strongest or "
+            + "highest_threat. Weakest by default. The styles are the columns and are not chosen.")]
+        string? targeting = null,
+        [Description("The table's switches, in the same shape start_encounter takes.")]
+        JsonElement? table = null,
+        [Description("The scene's Challenge Level. 0 by default.")]
+        int? challengeLevel = null,
+        [Description(
+            "The base seed. Each cell takes a block of consecutive seeds derived from it, in the "
+            + "order the rows and columns are listed, and every block is echoed.")]
+        int? seed = null,
+        [Description("The range class every fight opens in: close, distant or extreme.")]
+        string? openingRange = null,
+        [Description("What the light is like: clear, poor or none. Echoed inside \"table\".")]
+        string? visibility = null,
+        [Description("The page each run stops at if neither side is down. 20 by default.")]
+        int? maxPages = null)
+    {
+        var perCell = runs ?? FewestRunsACell;
+
+        if (perCell < FewestRunsACell)
+        {
+            return Write(Problem("TOO_FEW_RUNS_A_CELL",
+                $"{perCell} runs a cell is refused: every cell of this table carries a fairness "
+                + $"verdict, and the owner's line for one is at least {FewestRunsACell} fights. "
+                + "run_encounters will answer a bare rate from 30, without the verdict."));
+        }
+
+        var pages = maxPages ?? 20;
+
+        if (pages < 1)
+            return Write(Problem("BAD_PAGE_LIMIT", $"A run has to be allowed at least one page, and {pages} is not."));
+
+        if (!TryReadStyle(null, targeting, out _, out var selector, out var named))
+            return Write(named);
+
+        var wantedRows = (matchups ?? Matchups[0]).Trim().ToLowerInvariant();
+
+        if (!Matchups.Contains(wantedRows, StringComparer.Ordinal))
+        {
+            return Write(Problem("NO_SUCH_MATCHUP",
+                $"'{matchups}' is not a set of rows this tool builds. Available: "
+                + string.Join(", ", Matchups) + "."));
+        }
+
+        if (!TryReadSetup(combatants, table, challengeLevel, seed, openingRange, visibility, out var setup, out var problem))
+            return Write(problem);
+
+        var heroes = setup.Combatants.Where(c => c.Kind == CombatantKind.Hero).ToList();
+
+        if (heroes.Count == 0)
+        {
+            return Write(Problem("NO_PARTY",
+                "A matrix is the party against the opposition and each Hero alone against it, and "
+                + "no combatant here has a \"kind\" of hero. The kind is yours to say and nothing "
+                + "derives it — the Hero/Villain flag on a sheet is presentation — so say which of "
+                + "these characters is the party, or measure the one matchup with run_encounters."));
+        }
+
+        var partySide = heroes[0].Side;
+        var opposition = setup.Combatants
+            .Where(c => !string.Equals(c.Side, partySide, StringComparison.Ordinal))
+            .ToList();
+
+        // <b>There is deliberately no "nobody to fight" refusal here.</b> `TryReadSetup` has already
+        // refused a fight whose combatants all share one side, and the party's side is taken off a
+        // Hero who is in this fight — so a set with two sides and a Hero on one of them always has
+        // somebody on the other. A guard no call can reach is worse than none.
+
+        var rows = Rows(wantedRows, setup, heroes, partySide, opposition);
+        var styles = Enum.GetValues<PlayStyle>();
+        var cells = rows.Count * styles.Length;
+        var total = (long)cells * perCell;
+
+        // <b>The whole table is capped and not each cell.</b> There is no progress and no cancel
+        // over this transport, so what matters is how long the one call takes; a cap per cell would
+        // let twenty of them add up to the session that looks broken.
+        if (total > MostRuns)
+        {
+            return Write(Problem("MATRIX_TOO_LARGE",
+                $"{rows.Count} matchups times {styles.Length} styles is {cells} cells, and at "
+                + $"{perCell} runs each that is {total} fights — more than the {MostRuns} this "
+                + "transport will answer in one call. Ask for fewer runs a cell, or narrow the "
+                + "rows with \"matchups\"."));
+        }
+
+        // <b>Consecutive blocks, so the whole matrix is one contiguous seed range.</b> Every cell
+        // reproduces on its own, no two cells share a fight, and a reader with the base seed and
+        // the row and column order can rebuild any cell of it — which is what an echoed seed is
+        // for.
+        var last = (long)setup.Seed + total - 1;
+
+        if (last > int.MaxValue)
+        {
+            return Write(Problem("SEED_RANGE",
+                $"{total} fights from the seed {setup.Seed} would end at {last}, which is past the "
+                + $"largest seed there is ({int.MaxValue}). Start lower, or ask for fewer runs."));
+        }
+
+        var matrix = new JsonArray();
+        var index = 0;
+
+        try
+        {
+            foreach (var row in rows)
+            {
+                var cellsOut = new JsonArray();
+
+                foreach (var style in styles)
+                {
+                    var cellSeed = setup.Seed + index * perCell;
+                    index++;
+
+                    var policy = StylePolicy.For(style, selector, _play);
+                    var measured = Cell(setup with { Combatants = row.Fight, Seed = cellSeed },
+                        policy, perCell, pages, partySide);
+
+                    cellsOut.Add(new JsonObject
+                    {
+                        ["style"]      = StylePolicy.WireOf(style),
+                        ["win_rate"]   = Rate(measured.Wins, perCell),
+                        ["unfair"]     = Unfair(measured.Wins, perCell),
+                        ["draw_rate"]  = Rate(measured.Draws, perCell),
+                        ["mean_pages"] = Mean(measured.Pages, perCell),
+                        ["seeds"]      = new JsonObject
+                        {
+                            ["first"] = cellSeed,
+                            ["last"]  = cellSeed + perCell - 1
+                        }
+                    });
+                }
+
+                matrix.Add(new JsonObject
+                {
+                    ["matchup"]    = row.Id,
+                    ["combatants"] = Strings(row.Fight.Select(c => c.Id)),
+                    ["cells"]      = cellsOut
+                });
+            }
+        }
+        catch (Exception e) when (IsCallersFault(e))
+        {
+            return Write(Problem("RUN_REFUSED", e.Message));
+        }
+
+        return Write(new JsonObject
+        {
+            ["ok"]            = true,
+            ["runs_a_cell"]   = perCell,
+            ["cells"]         = cells,
+            ["total_runs"]    = total,
+            ["side"]          = partySide,
+            ["styles"]        = Strings(styles.Select(StylePolicy.WireOf)),
+            ["matchups"]      = Strings(rows.Select(r => r.Id)),
+
+            ["seeds"] = new JsonObject
+            {
+                ["first"] = setup.Seed,
+                ["last"]  = last,
+                ["note"]  = "each cell takes a block of runs_a_cell consecutive seeds, in the order "
+                            + "the rows and then the columns are listed, so no two cells share a "
+                            + "fight and the whole table rebuilds from this one figure"
+            },
+
+            ["targeting"] = new JsonObject
+            {
+                ["id"]   = StylePolicy.WireOf(selector),
+                ["note"] = TargetingNote(selector)
+            },
+
+            ["style_notes"] = StyleNotes(),
+
+            ["table"]           = TableEcho(setup.Table, setup.Visibility, setup.Source, setup.SourceNote),
+            ["challenge_level"] = setup.ChallengeLevel,
+            ["opening_range"]   = Wire(setup.Opening.ToString()),
+            ["max_pages"]       = pages,
+
+            ["unfair_threshold"] = new JsonObject
+            {
+                ["win_rate_at_or_below"] = UnfairAtOrBelow,
+                ["fewest_runs"]          = FewestRunsForAVerdict,
+                ["note"]                 = UnfairNote
+            },
+
+            ["narrative"] = StylePolicy.NarrativeIsNotSeeded,
+
+            ["matrix"] = matrix
+        });
+    }
+
+    /// <summary>One row of the matrix: which fight it is, and what it is called.</summary>
+    private sealed record Matchup(string Id, IReadOnlyList<Combatant> Fight);
+
+    /// <summary>
+    /// The rows: the whole party against the opposition, and each Hero alone against it.
+    ///
+    /// <para><b>"Alone" is one Hero and everybody not on their side</b>, which drops any ally who is
+    /// not a Hero as well as the other Heroes — the question the owner asked it for is whether a
+    /// one-on-one can be epic, and a Foe standing beside the Hero is not that fight.</para>
+    /// </summary>
+    private static List<Matchup> Rows(
+        string wanted, Setup setup, IReadOnlyList<Combatant> heroes, string partySide,
+        IReadOnlyList<Combatant> opposition)
+    {
+        var rows = new List<Matchup>();
+
+        if (!string.Equals(wanted, "each_hero_alone", StringComparison.Ordinal))
+            rows.Add(new Matchup("party", setup.Combatants));
+
+        if (string.Equals(wanted, "party", StringComparison.Ordinal)) return rows;
+
+        foreach (var hero in heroes.OrderBy(h => h.Id, StringComparer.Ordinal))
+            rows.Add(new Matchup(hero.Id, [hero, .. opposition]));
+
+        return rows;
+    }
+
+    /// <summary>What one cell measured.</summary>
+    /// <param name="Wins">How many of the runs the party's side was the last one standing in.</param>
+    /// <param name="Draws">How many ended with both sides up, or neither.</param>
+    /// <param name="Pages">Pages across every run, for the mean.</param>
+    private sealed record CellResult(int Wins, int Draws, long Pages);
+
+    /// <summary>
+    /// N seeded fights of one matchup under one style — the rate, the draws and the pages, and
+    /// nothing else.
+    ///
+    /// <para>It is deliberately not <see cref="Measure"/>: a cell is one number in a table of
+    /// twenty, and answering each of them with a full per-character report would be an answer
+    /// nobody can read. A reader who wants the detail of one cell calls <c>run_encounters</c> with
+    /// that cell's own seed block, which is why every one of them is echoed.</para>
+    /// </summary>
+    private CellResult Cell(Setup setup, IPolicy policy, int runs, int maxPages, string side)
+    {
+        var wins = 0;
+        var draws = 0;
+        long pages = 0;
+
+        var sides = setup.Combatants.Select(c => c.Side).Distinct(StringComparer.Ordinal).ToList();
+
+        for (var run = 0; run < runs; run++)
+        {
+            var engine = new Encounter(_play, new SeededDice(setup.Seed + run), setup.Table);
+
+            var state = engine.RunToEnd(
+                engine.Begin(setup.Combatants, setup.ChallengeLevel, setup.Opening, setup.Visibility),
+                policy, maxPages);
+
+            var floor = engine.DefeatFloor;
+            pages += state.Page;
+
+            var standing = sides
+                .Where(s => state.Combatants.Values
+                    .Any(c => string.Equals(c.Side, s, StringComparison.Ordinal) && !c.Defeated(floor)))
+                .ToList();
+
+            if (standing.Count != 1) draws++;
+            else if (string.Equals(standing[0], side, StringComparison.Ordinal)) wins++;
+        }
+
+        return new CellResult(wins, draws, pages);
+    }
+
+    /// <summary>Every style's note, so a matrix carries the guess behind each of its columns.</summary>
+    private JsonObject StyleNotes()
+    {
+        var notes = new JsonObject();
+
+        foreach (var style in Enum.GetValues<PlayStyle>())
+            notes[StylePolicy.WireOf(style)] = StylePolicy.NoteFor(style, _play);
+
+        return notes;
+    }
+
+    /// <summary>
     /// N seeded runs of one fight, and what came out of them.
     ///
-    /// <para><b>Every rate is printed beside the four things that make it mean anything.</b> The N,
-    /// the seeds, the policy's own name and the table's settings are in the same object as the
-    /// figures, deliberately — a caller that has to make a second call to find out what a number
-    /// was measured under will quote the number on its own.</para>
+    /// <para><b>Every rate is printed beside the things that make it mean anything.</b> The N, the
+    /// seeds, the policy's own name, the style and the selector with their notes, and the table's
+    /// settings are in the same object as the figures, deliberately — a caller that has to make a
+    /// second call to find out what a number was measured under will quote the number on its own.
+    /// </para>
+    ///
+    /// <para><b>The second half of the report answers the owner's second question</b> — what has
+    /// this party no answer for, and where is each character strongest and weakest — and it is
+    /// <em>observed</em> rather than restated. Which attack forms landed, which defences held and
+    /// what put each character down all come off <see cref="Encounter.RunObserved"/>, which reads
+    /// them off the engine's own record of each roll and off the difference between two states. A
+    /// report that echoed the intents instead would credit an attack the rules refused with a
+    /// miss.</para>
     /// </summary>
     private JsonObject Measure(Setup setup, IPolicy policy, int runs, int maxPages)
     {
@@ -500,27 +912,31 @@ public sealed class PlayTools
         var healthLeft = setup.Combatants.ToDictionary(c => c.Id, _ => 0L, StringComparer.Ordinal);
         var groupLeft = setup.Combatants.ToDictionary(c => c.Id, _ => 0L, StringComparer.Ordinal);
 
+        var tallies = setup.Combatants.ToDictionary(c => c.Id, _ => new Tally(), StringComparer.Ordinal);
+
         var openingResolve = setup.Combatants.Sum(c => (long)c.Resolve);
 
         long totalPages = 0;
         long adversitySpent = 0;
         var draws = 0;
+        var unread = 0;
 
         for (var run = 0; run < runs; run++)
         {
             var seed = setup.Seed + run;
             var engine = new Encounter(_play, new SeededDice(seed), setup.Table);
-            var state = engine.Begin(
+            var opened = engine.Begin(
                 setup.Combatants, setup.ChallengeLevel, setup.Opening, setup.Visibility);
 
-            var opened = state.Adversity;
+            var adversity = opened.Adversity;
 
-            state = engine.RunToEnd(state, policy, maxPages);
-
+            var result = engine.RunObserved(opened, policy, maxPages);
+            var state = result.State;
             var floor = engine.DefeatFloor;
 
             totalPages += state.Page;
-            adversitySpent += opened - state.Adversity;
+            adversitySpent += adversity - state.Adversity;
+            unread += result.Observed.DefenceTraitsUnread;
 
             var standing = sides
                 .Where(side => state.Combatants.Values
@@ -539,7 +955,19 @@ public sealed class PlayTools
 
                 healthBySide[combatant.Side] += combatant.Kind == CombatantKind.MinionGroup ? 0 : combatant.CurrentHealth;
                 resolveSpentBySide[combatant.Side] += combatant.Resolve;
+
+                tallies[combatant.Id].Pages +=
+                    result.Observed.LastPageStandingOn.GetValueOrDefault(combatant.Id, state.Page);
             }
+
+            foreach (var attack in result.Observed.Attacks)
+            {
+                tallies[attack.Attacker].Attacking(attack);
+                tallies[attack.Target].Defending(attack);
+            }
+
+            foreach (var defeat in result.Observed.Defeats)
+                tallies[defeat.Combatant].Defeated(defeat);
         }
 
         // Resolve *spent* is what the fight opened with less what is left, which is why the loop
@@ -566,12 +994,28 @@ public sealed class PlayTools
 
         foreach (var side in sides)
         {
+            var members = setup.Combatants
+                .Where(c => string.Equals(c.Side, side, StringComparison.Ordinal))
+                .Select(c => tallies[c.Id])
+                .ToList();
+
             bySide.Add(new JsonObject
             {
                 ["side"]                   = side,
                 ["win_rate"]               = Rate(wins[side], runs),
+
+                // <b>The owner's line, and it says so wherever it appears.</b> A side that wins half
+                // its fights or fewer over a hundred or more is flagged; below a hundred the answer
+                // is null rather than false, because "not unfair" and "not enough fights to say" are
+                // different things and only one of them is reassuring.
+                ["unfair"]                 = Unfair(wins[side], runs),
+
                 ["mean_health_remaining"]  = holdsHealth[side] ? Mean(healthBySide[side], runs) : null,
-                ["mean_resolve_spent"]     = Mean(openingBySide[side] * runs - resolveSpentBySide[side], runs)
+                ["mean_resolve_spent"]     = Mean(openingBySide[side] * runs - resolveSpentBySide[side], runs),
+
+                ["attack_forms"]           = AttackForms(Tally.Merged(members), runs),
+                ["defences"]               = Defences(Tally.Merged(members)),
+                ["defeated_by"]            = DefeatedBy(Tally.Merged(members), runs)
             });
         }
 
@@ -579,6 +1023,8 @@ public sealed class PlayTools
 
         foreach (var combatant in setup.Combatants)
         {
+            var tally = tallies[combatant.Id];
+
             byCombatant.Add(new JsonObject
             {
                 ["id"]                    = combatant.Id,
@@ -608,14 +1054,25 @@ public sealed class PlayTools
                 ["holding"]               = combatant.Holding?.Name,
 
                 ["defeat_rate"]           = Rate(defeats[combatant.Id], runs),
+                ["mean_pages_survived"]   = Mean(tally.Pages, runs),
                 ["mean_health_remaining"] = combatant.Kind == CombatantKind.MinionGroup
                     ? null
                     : Mean(healthLeft[combatant.Id], runs),
                 ["mean_minions_remaining"] = combatant.Kind == CombatantKind.MinionGroup
                     ? Mean(groupLeft[combatant.Id], runs)
-                    : null
+                    : null,
+
+                // <b>Where this character is strongest and weakest, which is the owner's second
+                // question.</b> Every figure is off the observation and none is off the intent: an
+                // attack the rules refused is not an exchange, and a defence that held is one that
+                // out-rolled the attack rather than one that was declared.
+                ["attack_forms"]          = AttackForms(tally, runs),
+                ["defences"]              = Defences(tally),
+                ["defeated_by"]           = DefeatedBy(tally, runs)
             });
         }
+
+        var style = policy as StylePolicy;
 
         return new JsonObject
         {
@@ -631,11 +1088,28 @@ public sealed class PlayTools
             },
             ["policy"]          = new JsonObject
             {
-                ["id"]   = "attack_the_weakest",
+                ["id"]   = style?.Id ?? Policies[0],
                 ["name"] = policy.Name,
                 ["note"] = "a policy is a guess about how people play, not a rule — this figure is "
                            + "about a party that plays this way"
             },
+
+            // <b>The two axes are echoed apart from each other, because they are two guesses.</b>
+            // How freely a side spends and who it swings at are independent, and a reader arguing
+            // with one of them has to be able to see which one they are arguing with.
+            ["style"]           = new JsonObject
+            {
+                ["id"]   = style is null ? Policies[0] : style.Id,
+                ["note"] = style?.Note
+                           ?? "the policy this server shipped with: hit whoever is nearly down, and "
+                              + "buy a reroll when the roll came close"
+            },
+            ["targeting"]       = new JsonObject
+            {
+                ["id"]   = StylePolicy.WireOf(style?.Targeting ?? Targeting.Weakest),
+                ["note"] = TargetingNote(style?.Targeting ?? Targeting.Weakest)
+            },
+
             ["table"]           = TableEcho(setup.Table, setup.Visibility, setup.Source, setup.SourceNote),
 
             ["challenge_level"] = setup.ChallengeLevel,
@@ -647,10 +1121,204 @@ public sealed class PlayTools
             ["mean_adversity_spent"] = Mean(adversitySpent, runs),
             ["opening_resolve"]      = openingResolve,
 
+            ["unfair_threshold"] = new JsonObject
+            {
+                ["win_rate_at_or_below"] = UnfairAtOrBelow,
+                ["fewest_runs"]          = FewestRunsForAVerdict,
+                ["note"]                 = UnfairNote
+            },
+
+            // <b>Published rather than swallowed.</b> The Trait that answered an attack is the one
+            // figure in this report that is read back out of a ledger sentence rather than off the
+            // state, and this is how many exchanges it could not be read for. It is zero on every
+            // fight this engine resolves today; above zero, the defence tables below are short by
+            // that many rows and the sentence LedgerReading is anchored on has moved.
+            ["defence_traits_unread"] = unread,
+
             ["by_side"]      = bySide,
             ["by_combatant"] = byCombatant
         };
     }
+
+    /// <summary>
+    /// Whether this side's rate is at or below the owner's line, or null where there are too few
+    /// runs to say.
+    /// </summary>
+    private static JsonValue? Unfair(int wins, int runs) =>
+        runs < FewestRunsForAVerdict
+            ? null
+            : JsonValue.Create((double)wins / runs <= UnfairAtOrBelow);
+
+    /// <summary>One sentence about what a target selector assumes, for the echo.</summary>
+    private static string TargetingNote(Targeting targeting) => targeting switch
+    {
+        Targeting.Weakest =>
+            "focus fire on whoever is nearly down — a real table habit, and one of several",
+        Targeting.Strongest =>
+            "take the hardest opponent down first, while everybody is still fresh",
+        Targeting.HighestThreat =>
+            "go after whoever has done the most damage so far, and before anybody has landed "
+            + "anything, whoever has the greatest attack rank",
+        _ => throw new ArgumentOutOfRangeException(nameof(targeting), targeting, "No such selector.")
+    };
+
+    // ── What a run is tallied into ────────────────────────────────────────
+
+    /// <summary>What one attack form did, across every run.</summary>
+    private sealed class Swinging
+    {
+        public int Exchanges { get; set; }
+        public int Landed { get; set; }
+        public long Damage { get; set; }
+        public long Minions { get; set; }
+    }
+
+    /// <summary>What one defending Trait did, across every run.</summary>
+    private sealed class Answering
+    {
+        public int Answered { get; set; }
+        public int Held { get; set; }
+    }
+
+    /// <summary>
+    /// One combatant's whole record across N runs — what they swung with, what answered for them,
+    /// what put them down, and how long they lasted.
+    /// </summary>
+    private sealed class Tally
+    {
+        public Dictionary<string, Swinging> Attacks { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, Answering> Defences { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, int> Defeats { get; } = new(StringComparer.Ordinal);
+        public long Pages { get; set; }
+
+        public void Attacking(ObservedAttack attack)
+        {
+            if (!Attacks.TryGetValue(attack.TraitId, out var form))
+                Attacks[attack.TraitId] = form = new Swinging();
+
+            form.Exchanges++;
+            if (attack.Landed) form.Landed++;
+            form.Damage += attack.Damage;
+            form.Minions += attack.MinionsDefeated;
+        }
+
+        public void Defending(ObservedAttack attack)
+        {
+            var trait = attack.DefenceTrait;
+
+            // A defence the ledger reading could not recover is counted nowhere rather than counted
+            // under a made-up name. `defence_traits_unread` at the top of the report is where it is
+            // said out loud.
+            if (trait is null) return;
+
+            if (!Defences.TryGetValue(trait, out var answering))
+                Defences[trait] = answering = new Answering();
+
+            answering.Answered++;
+            if (attack.DefenceHeld) answering.Held++;
+        }
+
+        public void Defeated(ObservedDefeat defeat)
+        {
+            // p.79's dying clock belongs to nobody's turn, so a defeat with no attacker is filed
+            // under the sentence that says so rather than dropped.
+            var by = defeat.By is null || defeat.With is null
+                ? "no attack — the page turn, a clock or an effect running out"
+                : $"{defeat.By} with {defeat.With}";
+
+            Defeats[by] = Defeats.GetValueOrDefault(by) + 1;
+        }
+
+        /// <summary>Several combatants' records added together, which is what a side's row is.</summary>
+        public static Tally Merged(IEnumerable<Tally> tallies)
+        {
+            var merged = new Tally();
+
+            foreach (var tally in tallies)
+            {
+                merged.Pages += tally.Pages;
+
+                foreach (var (trait, form) in tally.Attacks)
+                {
+                    if (!merged.Attacks.TryGetValue(trait, out var into))
+                        merged.Attacks[trait] = into = new Swinging();
+
+                    into.Exchanges += form.Exchanges;
+                    into.Landed += form.Landed;
+                    into.Damage += form.Damage;
+                    into.Minions += form.Minions;
+                }
+
+                foreach (var (trait, answering) in tally.Defences)
+                {
+                    if (!merged.Defences.TryGetValue(trait, out var into))
+                        merged.Defences[trait] = into = new Answering();
+
+                    into.Answered += answering.Answered;
+                    into.Held += answering.Held;
+                }
+
+                foreach (var (by, count) in tally.Defeats)
+                    merged.Defeats[by] = merged.Defeats.GetValueOrDefault(by) + count;
+            }
+
+            return merged;
+        }
+    }
+
+    /// <summary>
+    /// Which attack forms landed damage and how much, by the Trait or Power that was rolled —
+    /// strongest first, so the answer to "what is this character best at" is the first row.
+    /// </summary>
+    private static JsonArray AttackForms(Tally tally, int runs) =>
+    [
+        .. tally.Attacks
+            .OrderByDescending(pair => pair.Value.Damage)
+            .ThenByDescending(pair => pair.Value.Minions)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => (JsonNode)new JsonObject
+            {
+                ["trait_id"]           = pair.Key,
+                ["exchanges"]          = pair.Value.Exchanges,
+                ["landed"]             = pair.Value.Landed,
+                ["land_rate"]          = Ratio(pair.Value.Landed, pair.Value.Exchanges),
+                ["total_damage"]       = pair.Value.Damage,
+                ["mean_damage_a_run"]  = Mean(pair.Value.Damage, runs),
+                ["minions_defeated"]   = pair.Value.Minions
+            })
+    ];
+
+    /// <summary>
+    /// Which defences answered for this combatant and how often they held — the other half of "where
+    /// are they weakest", and the half a Health total cannot show.
+    /// </summary>
+    private static JsonArray Defences(Tally tally) =>
+    [
+        .. tally.Defences
+            .OrderByDescending(pair => pair.Value.Answered)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => (JsonNode)new JsonObject
+            {
+                ["trait"]     = pair.Key,
+                ["answered"]  = pair.Value.Answered,
+                ["held"]      = pair.Value.Held,
+                ["hold_rate"] = Ratio(pair.Value.Held, pair.Value.Answered)
+            })
+    ];
+
+    /// <summary>What put this combatant out of the fight, by attacker and by what they used.</summary>
+    private static JsonArray DefeatedBy(Tally tally, int runs) =>
+    [
+        .. tally.Defeats
+            .OrderByDescending(pair => pair.Value)
+            .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => (JsonNode)new JsonObject
+            {
+                ["by"]   = pair.Key,
+                ["runs"] = pair.Value,
+                ["rate"] = Rate(pair.Value, runs)
+            })
+    ];
 
     // ── Reading a setup ───────────────────────────────────────────────────
 
@@ -2095,6 +2763,18 @@ public sealed class PlayTools
     /// <summary>A mean, rounded to two places.</summary>
     private static JsonValue Mean(long total, int runs) =>
         JsonValue.Create(Math.Round((double)total / runs, 2))!;
+
+    /// <summary>
+    /// A proportion of something that may not have happened at all — a land rate over no exchanges,
+    /// a hold rate over no attacks.
+    ///
+    /// <para><b>It answers null rather than 0.</b> "This Trait landed nothing" and "this Trait was
+    /// never swung" are different findings and only one of them is about the character; a report
+    /// that printed <c>0.0</c> for both would answer the owner's question about where somebody is
+    /// weakest with a figure about a Trait they never used.</para>
+    /// </summary>
+    private static JsonValue? Ratio(long count, long outOf) =>
+        outOf <= 0 ? null : JsonValue.Create(Math.Round((double)count / outOf, 3));
 
     private static readonly JsonSerializerOptions Formatting = new() { WriteIndented = true };
 

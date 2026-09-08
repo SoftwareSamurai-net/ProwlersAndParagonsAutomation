@@ -73,13 +73,13 @@ public sealed class McpPlayServerTests
     // ── The contract ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// The four tools as a stranger's configuration spells them. <b>Literals, not
+    /// The five tools as a stranger's configuration spells them. <b>Literals, not
     /// <c>PlayServer</c>'s constants</b>: a constant compared with itself proves nothing about a
     /// contract somebody else has written down — the same reasoning <see cref="McpServerTests"/>
     /// records for the character server's six.
     /// </summary>
     private static readonly string[] WireNames =
-        ["combat_guide", "run_encounters", "start_encounter", "take_turn"];
+        ["combat_guide", "run_encounters", "run_matrix", "start_encounter", "take_turn"];
 
     /// <summary>
     /// <b>The wire names are the contract.</b> A stranger configures a client against them and the
@@ -87,7 +87,7 @@ public sealed class McpPlayServerTests
     /// dropped from the list is a method nobody can call.
     /// </summary>
     [Fact]
-    public async Task TheFourToolsAreServedUnderTheirWireNames() =>
+    public async Task TheFiveToolsAreServedUnderTheirWireNames() =>
         await WithClient(async client =>
         {
             var served = (await client.ListToolsAsync()).Select(t => t.Name).Order(StringComparer.Ordinal);
@@ -1954,10 +1954,19 @@ public sealed class McpPlayServerTests
             Assert.Equal(500 + PlayTools.FewestRuns - 1, answer["seeds"]!["last"]!.GetValue<int>());
 
             // The policy's own Name, not a string written here: a balance figure is a figure about a
-            // particular way of playing, and IPolicy.Name is what that way is called.
+            // particular way of playing, and IPolicy.Name is what that way is called. The default is
+            // the standard style going after whoever is nearly down.
             Assert.Equal(
-                new AttackTheWeakest(_play).Name,
+                StylePolicy.For(PlayStyle.Standard, Targeting.Weakest, _play).Name,
                 answer["policy"]!["name"]!.GetValue<string>());
+
+            // <b>And the two guesses inside it come back apart</b>, each with the sentence a reader
+            // is meant to argue with. A style quoted without its note is a name.
+            Assert.Equal("standard", answer["style"]!["id"]!.GetValue<string>());
+            Assert.Equal("weakest", answer["targeting"]!["id"]!.GetValue<string>());
+
+            Assert.False(string.IsNullOrWhiteSpace(answer["style"]!["note"]!.GetValue<string>()));
+            Assert.False(string.IsNullOrWhiteSpace(answer["targeting"]!["note"]!.GetValue<string>()));
 
             var table = answer["table"]!.AsObject();
 
@@ -2977,6 +2986,58 @@ public sealed class McpPlayServerTests
             {
                 ["kind"] = "attack", ["actor"] = "nobody_in_this_fight",
                 ["target"] = "villain", ["trait_id"] = "might"
+            })),
+
+            // ── The styles, the target selectors and the matrix ──────────────
+
+            ["NO_SUCH_STYLE"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["style"] = "everybody_runs_away"
+            })),
+
+            // <b>Refused by its own name, not as "no such style".</b> narrative is a real way of
+            // playing and its absence from the seeded list is a decision: nothing in this engine
+            // makes a Flaw bite, so a seeded policy pretending to it would name a measurement that
+            // was measuring something else.
+            ["NARRATIVE_IS_NOT_SEEDED"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["style"] = "narrative"
+            })),
+
+            ["NO_SUCH_TARGETING"] = new(client => Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns,
+                ["targeting"] = "whoever_looks_shiftiest"
+            })),
+
+            ["TOO_FEW_RUNS_A_CELL"] = new(client => Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRuns
+            })),
+
+            ["NO_SUCH_MATCHUP"] = new(client => Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRunsACell,
+                ["matchups"] = "everybody_against_everybody"
+            })),
+
+            ["NO_PARTY"] = new(client => Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = NobodyIsAHero(),
+                ["runs"] = PlayTools.FewestRunsACell
+            })),
+
+            ["MATRIX_TOO_LARGE"] = new(client => Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.MostRuns
             })),
 
             ["ENCOUNTER_OVER"] = new(async client => await Call(client, "take_turn",
@@ -5104,6 +5165,17 @@ public sealed class McpPlayServerTests
             if (entry!["id"]!.GetValue<string>() == who) entry["holding"] = "the sword";
         }
 
+        return fight;
+    }
+
+    /// <summary>
+    /// The same fight with nobody in it whose <c>kind</c> is <c>hero</c> — a Villain against a Foe,
+    /// which is a fight this engine resolves and a matrix cannot have rows for.
+    /// </summary>
+    private static JsonArray NobodyIsAHero()
+    {
+        var fight = TwoSides();
+        fight[0]!["kind"] = "foe";
         return fight;
     }
 

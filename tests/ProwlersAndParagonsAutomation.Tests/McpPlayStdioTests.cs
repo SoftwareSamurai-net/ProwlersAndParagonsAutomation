@@ -495,6 +495,22 @@ public sealed class McpPlayStdioTests
         {
             ["combatants"] = Fight(), ["runs"] = 1
         }, "TOO_FEW_RUNS");
+
+        // The matrix over one Hero and a group of Minions: two rows, four columns, and the smallest
+        // N the owner's verdict is allowed off — enough to reach every branch of the tool over the
+        // wire without making this the slowest test in the file.
+        yield return ("run_matrix", new JsonObject
+        {
+            ["combatants"] = Fight(),
+            ["runs"] = PlayTools.FewestRunsACell,
+            ["seed"] = 11,
+            ["maxPages"] = 8
+        }, "unfair_threshold");
+
+        yield return ("run_matrix", new JsonObject
+        {
+            ["combatants"] = Fight(), ["runs"] = 1
+        }, "TOO_FEW_RUNS_A_CELL");
     }
 
     /// <summary>A Hero and a group of Minions, which is enough for both sides to be able to lose.</summary>
