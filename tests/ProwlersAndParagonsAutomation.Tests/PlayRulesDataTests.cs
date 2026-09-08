@@ -3076,6 +3076,57 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
+    /// The corpus sections each interpreted Chapter 7 table is built out of, and the page they are
+    /// on. The list is what <see cref="TheChapterSevenTablesAreReadOutOfTheCorpusColumns"/> reads,
+    /// written down once so its shape can be asserted rather than described.
+    /// </summary>
+    public static TheoryData<string, string[], int> ChapterSevenInterpretedTables() => new()
+    {
+        { "disaster_results", ["DISASTER — MINOR", "RESULTS — MAJOR RESULTS"], 105 },
+        { "lifting_table", ["LIFTING — WEIGHT EXAMPLES THRESHOLD"], 106 },
+        { "scorching_table", ["SCORCHING — HEAT ELECTRICITY", "SCORCHING — RANK"], 107 },
+        { "smashing_table", ["SMASHING — MATERIAL", "SMASHING — STRUCTURE"], 107 },
+        { "scenery_table", ["SCENERY — SCENERY STRUCTURE RANK"], 108 },
+        { "massive_objects_table", ["MASSIVE OBJECTS — OBJECT RANK RANK"], 108 },
+    };
+
+    /// <summary>
+    /// <b>An interpretation that describes the wrong extraction is worse than none</b>, because it
+    /// is the one place a reader is told what shape to expect before they open the corpus.
+    ///
+    /// <para>The six interpreted tables do not arrive the same way. Three are split into two corpus
+    /// sections and have to be <em>paired</em> — Disaster Results, Scorching, Smashing. Three arrive
+    /// as one section: Lifting's rows each run onto a second line, and Scenery and Massive Objects
+    /// are one undivided run of cells to be <em>cut</em>. The entries said so correctly; the
+    /// paragraph above <see cref="TheChapterSevenTablesAreReadOutOfTheCorpusColumns"/> and the
+    /// matching one in <c>docs/guide/play-rules.md</c> both said all six were two blocks, which
+    /// sends a reader looking for sections that do not exist.</para>
+    ///
+    /// <para><b>So the shape is derived rather than described.</b> Whether a table has one corpus
+    /// section or two is a fact about <c>ch07-environment.json</c>, and the claim "two blocks" is
+    /// allowed in a <c>row_alignment</c> exactly when the corpus really carries two.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ChapterSevenInterpretedTables))]
+    public void EveryChapterSevenInterpretationDescribesTheShapeItsCorpusBlockHas(
+        string id, string[] headings, int page)
+    {
+        // Positive control on the fixture: every heading named really is a section of Chapter 7 on
+        // the page given, or "the corpus carries one section" would be a claim about a typo.
+        foreach (var heading in headings)
+            Assert.NotEmpty(ChapterSevenBlock(heading, page));
+
+        var interpretation = EnvironmentEntryById(id).Interpretation;
+
+        Assert.NotNull(interpretation);
+        Assert.Contains("not a rule the page states", interpretation.WhatThisIs, StringComparison.Ordinal);
+
+        var saysTwoBlocks = interpretation.RowAlignment.Contains("two blocks", StringComparison.Ordinal);
+
+        Assert.Equal(headings.Length == 2, saysTwoBlocks);
+    }
+
+    /// <summary>
     /// Matches <paramref name="pattern"/> end to end from the first character of
     /// <paramref name="text"/>, exactly <paramref name="expected"/> times, and returns what is left.
     ///
@@ -3122,9 +3173,15 @@ public sealed class PlayRulesDataTests
     /// <b>Chapter 7's ten tables are read out of the corpus, not typed into a canonical file.</b>
     ///
     /// <para>Six of them need a reading first, because the extractor reads a table of three or more
-    /// columns across rather than down, and splits three of these into two blocks each: the Disaster
-    /// Results table, the Lifting table, the Scorching table, the Smashing table, the Scenery table
-    /// and the Massive Objects table. <b>Pairing the blocks and cutting the runs into rows is this
+    /// columns across rather than down: the Disaster Results table, the Lifting table, the Scorching
+    /// table, the Smashing table, the Scenery table and the Massive Objects table. <b>The six do not
+    /// all arrive the same way, and this sentence said they did.</b> Only three arrive as two corpus
+    /// sections to be paired — Disaster Results, Scorching and Smashing. Lifting arrives as one
+    /// section whose every row spans two lines. Scenery and Massive Objects arrive as one section
+    /// apiece, an undivided run of name, rank, rank that has to be cut. Each entry's own
+    /// <c>row_alignment</c> already said which of the three it was;
+    /// <see cref="EveryChapterSevenInterpretationDescribesTheShapeItsCorpusBlockHas"/> now holds it
+    /// to the corpus. <b>Pairing the blocks and cutting the runs into rows is this
     /// project's reading</b>, which is why each of those six entries carries an
     /// <c>interpretation</c> saying so and why the rows are on <see cref="DerivedPaths"/> — a
     /// hundred and twenty rows transcribed a second time would be a second thing to disagree with
