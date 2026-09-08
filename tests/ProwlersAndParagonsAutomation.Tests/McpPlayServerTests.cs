@@ -5564,6 +5564,147 @@ public sealed class McpPlayServerTests
     };
 
     /// <summary>
+    /// The sections of the play policy whose backticked names are answer keys rather than prose —
+    /// the two this slice added, plus the styles table that names what a caller may ask for.
+    /// </summary>
+    private static readonly string[] SectionsNamingWhatComesBack =
+    [
+        "## Styles: how a fight is played",
+        "## Is this fight too unfair, and what has the party no answer for"
+    ];
+
+    /// <summary>
+    /// <b>Every name the play policy prints in those sections is one this server really answers
+    /// with, or really accepts.</b>
+    ///
+    /// <para><b>The echo keys fall outside the guard that already exists, and that is the finding
+    /// this is here for.</b>
+    /// <see cref="EveryArgumentNameThePolicyPrintsIsSpelledTheWayTheSchemaSpellsIt"/> reads the
+    /// <c>## The calls</c> section and checks spans against the tools' <em>input schemas</em>;
+    /// <see cref="EveryProvenanceNameThePolicyPrintsIsOneThisServerEchoes"/> covers exactly two keys
+    /// of the echoed table. Everything this slice added — <c>attack_forms</c>, <c>defences</c>,
+    /// <c>defeated_by</c>, <c>unfair</c>, the style ids, the selector ids — is an answer key or an
+    /// accepted value in a third place, and nothing was holding any of them to the server. That is
+    /// the same fault the <c>max_pages</c> guard was written for: the document is right-looking and
+    /// wrong, and a model reading it looks for a field that never arrives.</para>
+    ///
+    /// <para><b>Held in both directions.</b> Every span in those sections has to be something the
+    /// server produces or accepts, and the keys the document undertakes to name have to still be in
+    /// it — otherwise a parse that had stopped finding spans would pass in silence, which is how
+    /// three of this repository's historical guards were wrong.</para>
+    /// </summary>
+    [Fact]
+    public async Task EveryReportKeyThePolicyNamesIsOneThisServerAnswersWith() =>
+        await WithClient(async client =>
+        {
+            var answer = await Call(client, "run_encounters", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["runs"] = PlayTools.FewestRunsForAVerdict,
+                ["seed"] = 3_030
+            });
+
+            Assert.True(answer["ok"]!.GetValue<bool>(), answer.ToJsonString());
+
+            var matrix = await Call(client, "run_matrix", new Dictionary<string, object?>
+            {
+                ["combatants"] = PartyOfTwo(),
+                ["runs"] = PlayTools.FewestRunsACell,
+                ["seed"] = 3_030,
+                ["maxPages"] = 6
+            });
+
+            var produced = new HashSet<string>(StringComparer.Ordinal);
+
+            Keys(answer, produced);
+            Keys(matrix, produced);
+
+            foreach (var name in StylePolicy.StyleIds) produced.Add(name);
+            foreach (var name in StylePolicy.TargetingIds) produced.Add(name);
+            foreach (var name in PlayTools.Policies) produced.Add(name);
+            foreach (var name in PlayTools.Matchups) produced.Add(name);
+            foreach (var tool in (await client.ListToolsAsync()).Select(t => t.Name)) produced.Add(tool);
+
+            // `narrative` is the one name here the server refuses rather than answers with, which is
+            // the whole point of it being in the document.
+            produced.Add(StylePolicy.NarrativeStyle);
+
+            // The two JSON literals the document quotes as values rather than as keys.
+            produced.Add("null");
+            produced.Add("false");
+
+            var spans = SectionsNamingWhatComesBack.SelectMany(SpansUnder).ToList();
+
+            // The control on the parse, before its result is compared with anything: it found the
+            // names those sections are there to name.
+            foreach (var named in ReportKeysThePolicyUndertakesToName)
+            {
+                Assert.Contains(named, spans, StringComparer.Ordinal);
+            }
+
+            var invented = spans.Where(s => !produced.Contains(s)).Order(StringComparer.Ordinal).ToList();
+
+            Assert.True(invented.Count == 0,
+                "mcp-play/PLAY-POLICY.md names " + string.Join(", ", invented)
+                + ", and this server answers with no such thing — a reader is being sent looking "
+                + "for a field that never arrives, or asking for a value that is refused.");
+        });
+
+    /// <summary>
+    /// The names those sections exist to name — the control for the check above, which would
+    /// otherwise pass in silence on a parse that had stopped finding spans.
+    /// </summary>
+    private static readonly string[] ReportKeysThePolicyUndertakesToName =
+    [
+        "style", "targeting", "unfair", "unfair_threshold", "attack_forms", "defences",
+        "defeated_by", "mean_pages_survived", "defence_traits_unread", "land_rate", "hold_rate",
+        "by_combatant", "by_side", "mano_a_mano", "standard", "min_max", "reckless",
+        "weakest", "strongest", "highest_threat", "narrative"
+    ];
+
+    /// <summary>Every backticked lower-case name under one heading, to the next heading.</summary>
+    private static List<string> SpansUnder(string heading)
+    {
+        var text = PlayPolicy.Text;
+        var at = text.IndexOf(heading, StringComparison.Ordinal);
+
+        Assert.True(at >= 0,
+            $"mcp-play/PLAY-POLICY.md no longer has the section \"{heading}\". Either it has "
+            + "stopped describing what comes back, or this parse has stopped finding it — and in "
+            + "both cases nothing holds the spellings together.");
+
+        var from = at + heading.Length;
+        var next = text.IndexOf("\n## ", from, StringComparison.Ordinal);
+        var section = next < 0 ? text[from..] : text[from..next];
+
+        return new Regex(@"`([a-z][a-z_0-9]*)`", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(section)
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>Every key anywhere in a JSON answer, however deep.</summary>
+    private static void Keys(JsonNode? node, HashSet<string> into)
+    {
+        switch (node)
+        {
+            case JsonObject o:
+                foreach (var (key, value) in o)
+                {
+                    into.Add(key);
+                    Keys(value, into);
+                }
+
+                break;
+
+            case JsonArray a:
+                foreach (var item in a) Keys(item, into);
+                break;
+        }
+    }
+
+    /// <summary>
     /// The same fight with nobody in it whose <c>kind</c> is <c>hero</c> — a Villain against a Foe,
     /// which is a fight this engine resolves and a matrix cannot have rows for.
     /// </summary>
