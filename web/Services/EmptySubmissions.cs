@@ -52,13 +52,30 @@ public static class EmptySubmissions
         {
             if (await memberships.ReadAsync(row.Id) is not { } detail) continue;
 
-            // The waiting snapshot first, for the reason in the remarks: it is the sheet both
-            // screens draw when there is one.
-            var showing = detail.Pending ?? detail.Approved;
-
-            if (showing is not null && session.HasNothingOnIt(showing)) empty.Add(row.Id);
+            if (ShowsNothing(session, detail)) empty.Add(row.Id);
         }
 
         return empty;
+    }
+
+    /// <summary>
+    /// Whether one membership already read is holding a sheet with nothing on it.
+    ///
+    /// <para><b>Split out so that a caller which has the detail in its hand does not have to fetch
+    /// it again.</b> The campaign's own page reads every membership once and takes two answers off
+    /// that read — this, and the clone the shared objects' budget is summed from — and a second
+    /// pass for the second answer would double the requests a GM pays for on the one screen that
+    /// already costs a read per player. What must not be split is the rule itself: two spellings
+    /// of "the slot the screens draw" is two things to keep in step.</para>
+    ///
+    /// <para><b>The waiting snapshot first</b>, for the reason in the remarks above: it is the
+    /// sheet both screens draw when there is one.</para>
+    /// </summary>
+    public static bool ShowsNothing(CharacterSession session, MembershipDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(detail);
+
+        return (detail.Pending ?? detail.Approved) is { } showing && session.HasNothingOnIt(showing);
     }
 }

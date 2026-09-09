@@ -142,7 +142,7 @@ public static class CampaignAssets
             .. assets.Select(asset => new CampaignAssetLine(
                 asset,
                 costs.CampaignAssetBudget(asset, everyone.SelectMany(m => m.Sheet.CampaignAssets)),
-                Priced(costs, asset),
+                Spend(costs, asset),
                 [
                     .. everyone
                         .Select(m => new AssetContributor(
@@ -208,9 +208,16 @@ public static class CampaignAssets
     /// that draws a campaign's objects re-deciding whether a payload it did not write is
     /// priceable, and the one that forgets takes a GM's whole roster down over a feature id from
     /// another build.</para>
+    ///
+    /// <para><b>Public because the editor needs the same answer about an object that is not in
+    /// the ledger yet</b> — a shared object being written down is priced as it is typed, and a
+    /// screen that reached past this to the engine would be the caller that forgets.</para>
     /// </summary>
-    private static int? Priced(CostCalculator costs, CampaignAsset asset)
+    public static int? Spend(CostCalculator costs, CampaignAsset asset)
     {
+        ArgumentNullException.ThrowIfNull(costs);
+        ArgumentNullException.ThrowIfNull(asset);
+
         try
         {
             return costs.CampaignAssetPointsSpent(asset);

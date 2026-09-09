@@ -292,6 +292,74 @@ else
         }
     </Panel>
 
+    @* ── The game's own vehicles and bases ─────────────────────────────────────
+
+       **Ch.6 pp.96 and 100 both let a team pool their allowances on one object, and a character
+       is one character** — so a pooled machine recorded on a sheet is either unrepresentable or
+       copied across five sheets with five chances to disagree. It is written down once, on the
+       game; what each member's sheet carries is the Hero Points they put in. The budget here is
+       the sum of those, in the object's own second currency.
+
+       **It is on this screen rather than beside the game's other settings because this is the
+       only screen that has read the members' sheets.** A budget summed from five clones cannot be
+       drawn where the clones are not, and the clones are what the roster above already opens. *@
+    <Panel Title="Shared vehicles and bases" Aside="@SharedAside">
+        <p class="small muted">
+            A team can pool their allowances on one object (Ch.6, pp.96 and 100). It is written
+            down here, once; each player records what they put in on their own sheet.
+        </p>
+
+        @if (_campaign is null)
+        {
+            <p class="small muted" role="status">
+                This game's own settings could not be read just now, so nothing shared can be shown.
+            </p>
+        }
+        else if (_ledger.Count == 0)
+        {
+            <EmptyState>Nothing shared yet. Name a vehicle or a base for the table to pool into.</EmptyState>
+        }
+        else
+        {
+            <ChosenList>
+                @foreach (var line in _ledger)
+                {
+                    <ChosenRow>
+                        <Body>
+                            <b>@Books(line)</b>
+                            <span class="muted small"><br />@Kind(line.Asset)</span>
+
+                            @if (line.Asset.Features.Count > 0)
+                            {
+                                <span class="muted small"><br />@Features(line.Asset)</span>
+                            }
+
+                            @* **Who paid, largest first**, which is the question a GM has about a
+                               shared object — and the one thing on this screen that no single
+                               player's sheet can answer. *@
+                            <span class="muted small"><br />@Funders(line)</span>
+
+                            @* **Reported, and never repaired.** The remedy is somebody putting
+                               more in or the object losing a feature, and both are decisions about
+                               this table's game rather than arithmetic to do on their behalf. *@
+                            @if (line.IsOverBudget)
+                            {
+                                <span class="muted small"><br />@OverBudget</span>
+                            }
+
+                            @* Not the same sentence, and it must never be drawn as the one above:
+                               an object with no price is not an object over its budget. *@
+                            @if (line.Spent is null)
+                            {
+                                <span class="muted small"><br />@Unpriceable</span>
+                            }
+                        </Body>
+                    </ChosenRow>
+                }
+            </ChosenList>
+        }
+    </Panel>
+
     <p class="small muted spaced"><a href="campaign">Back to your campaigns</a></p>
 }
 
@@ -371,6 +439,22 @@ else
     /// per refresh, beside the roster it describes.
     /// </summary>
     private IReadOnlySet<string> _empty = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The campaign itself, or null when its payload could not be read.
+    ///
+    /// <para><b>The list row is not enough any more.</b> A row carries the label and the join
+    /// code; the shared vehicles and bases are inside the payload, which is the one thing the
+    /// server never looks into — so drawing them means loading the campaign, not listing it.</para>
+    /// </summary>
+    private Campaign? _campaign;
+
+    /// <summary>
+    /// The game's shared objects with their books open: what its members bought each, what has
+    /// been built, and who paid. Empty for a game that owns nothing shared, and for one whose
+    /// payload could not be read.
+    /// </summary>
+    private IReadOnlyList<CampaignAssetLine> _ledger = [];
 
     /// <summary>Which membership's changes are open, or null.</summary>
     private string? _reading;
@@ -472,6 +556,43 @@ else
         await Refresh(asked);
     }
 
+    private string SharedAside =>
+        _ledger.Count == 1 ? "1 shared object" : $"{_ledger.Count} shared objects";
+
+    /// <summary>
+    /// Every line about a shared object, asked of <c>sheets/</c> and of the engine rather than
+    /// composed here — the rule the Vehicles &amp; bases step is written under, and the reason a
+    /// figure on this screen cannot disagree with the same figure on a player's.
+    /// </summary>
+    private static string Books(CampaignAssetLine line) =>
+        AssetFormatter.Describe(line.Asset, line.Spent, line.Budget);
+
+    /// <inheritdoc cref="Books"/>
+    private static string Kind(CampaignAsset asset) => AssetFormatter.Describe(asset);
+
+    /// <inheritdoc cref="Books"/>
+    private string Features(CampaignAsset asset) =>
+        string.Join(", ", asset.Features.Select(
+            f => AssetFormatter.Feature(f, Session.Rules, !asset.IsHeadquarters)));
+
+    /// <summary>
+    /// Who put in, and how much. <b>Never an account or an address</b> — a membership deliberately
+    /// never tells a GM whose account is on the other side of it, and the label the roster above
+    /// draws is the same label here.
+    /// </summary>
+    private static string Funders(CampaignAssetLine line) =>
+        line.Contributors.Count == 0
+            ? "Nobody has put anything into this yet."
+            : string.Join(" · ", line.Contributors.Select(c => $"{c.Who} {c.HeroPoints} HP"));
+
+    private const string OverBudget =
+        "More has been built with this than its members have put in. Somebody can put more in, "
+        + "or it can lose a feature — nothing has been changed either way.";
+
+    private const string Unpriceable =
+        "Something on this was built with a feature these rules do not have, so what it has cost "
+        + "cannot be worked out here. What its members put in is still counted.";
+
     /// <summary>
     /// Re-read the campaign and what is waiting in it.
     ///
@@ -505,6 +626,12 @@ else
 
         _label = mine.Label;
 
+        // **The payload, not the row.** A shared vehicle or base lives inside it, and the list
+        // above carries only what the server can read — a label and a join code. Null is a payload
+        // this build cannot open or a read that failed, which the panel says out loud rather than
+        // drawing as a game that owns nothing.
+        _campaign = await Store.LoadAsync(mine.Id);
+
         var inbox = await Memberships.InboxAsync();
 
         // Null means the inbox could not be read, which is not the same as an empty campaign — so
@@ -512,7 +639,15 @@ else
         if (inbox is not null)
         {
             _waiting = [.. inbox.Where(m => m.CampaignId == Id)];
-            _empty = await EmptySubmissions.AmongAsync(Memberships, Session, _waiting);
+
+            // **One pass, two answers.** Both need the payload behind each row, and the server
+            // hands one back only when it is asked for by membership — so a second pass for the
+            // budget would ask for every player's sheet twice on the screen that already costs the
+            // most to open.
+            var read = await CampaignRoster.ReadAsync(Memberships, Session, _waiting);
+
+            _empty = read.Empty;
+            _ledger = CampaignAssets.Ledger(_campaign, Session.Costs, read.Clones);
         }
 
         _state = Reading.Read;
