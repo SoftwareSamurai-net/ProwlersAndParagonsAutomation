@@ -246,6 +246,54 @@ public sealed class PlaySceneryTests
     }
 
     /// <summary>
+    /// <b>A passive defence exactly equal to the Structure does not smash through, and the page is
+    /// what says so.</b>
+    ///
+    /// <para>p.78's parenthesis is "if the target's passive defense <em>exceeds</em> the object's
+    /// Structure, they smash though unharmed" — so the tie belongs to the object and the target
+    /// takes half the blow. The fixture above straddles the boundary with a 6 and a 12 against a
+    /// Toughness of 8 and never stands on it, which is exactly how a <c>&gt;=</c> in place of the
+    /// <c>&gt;</c> survived the whole suite: an off-by-one at a boundary no fixture stands on is
+    /// invisible to every test that stands either side of it.</para>
+    ///
+    /// <para><b>The instrument is Health, and the control is one rank up.</b> The same fight is run
+    /// twice against the same brick wall, once with a Toughness equal to its Structure and once with
+    /// a Toughness one above it: the first has to lose half the blow and the second has to lose
+    /// nothing, so a comparison that had slipped either way moves one of the two answers.</para>
+    /// </summary>
+    [Fact]
+    public void APassiveDefenceEqualToTheStructureDoesNotSmashThrough()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+
+        var wall = _play.GetEnvironment("scenery_table").SceneryTable!
+            .Single(r => r.Scenery.Contains("Brick Wall", StringComparer.Ordinal)).Structure;
+
+        var half = Rounding.Half(_play, rule.MinimumDamage);
+        Assert.True(half > 0, "half the blow is nothing, so the two runs could not differ by it");
+
+        var tied = Knocked("a brick wall", wall);
+        var over = Knocked("a brick wall", wall + 1);
+
+        // The tie belongs to the object: p.78 hands the target the parenthesis only where their
+        // passive defence exceeds the Structure, and equal is not more.
+        Assert.Equal(12 - rule.MinimumDamage - half, tied.State["villain"].CurrentHealth);
+
+        var hit = Assert.Single(tied.Lines, l =>
+            string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+            && l.Text.Contains("Brick Wall", StringComparison.Ordinal));
+
+        Assert.Contains("does not exceed the Structure", hit.Text, StringComparison.Ordinal);
+
+        // The control, one rank above the same wall: this is where the parenthesis starts.
+        Assert.Equal(12 - rule.MinimumDamage, over.State["villain"].CurrentHealth);
+
+        Assert.Contains(over.Lines, l =>
+            string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+            && l.Text.Contains(rule.APassiveDefenseAboveTheObjectsStructure, StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// <b>An object no page rates refuses the purchase rather than charging for it.</b>
     ///
     /// <para>The extra damage is priced off a Structure. A knockback into "a pile of cardboard" has
