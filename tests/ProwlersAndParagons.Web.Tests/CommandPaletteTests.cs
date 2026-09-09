@@ -540,6 +540,28 @@ public sealed class CommandPaletteTests
         Assert.Contains("2 Base Points", row.QuerySelector(".palette-detail")!.TextContent,
                         StringComparison.Ordinal);
 
+        // Singular where the figure is one, which the row beside it is: "1 Base Points" reads as a
+        // form field rather than a sentence, and the rule is the one every message here follows.
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "tesseract" }),
+            "a feature priced at more than one");
+
+        Assert.Contains("2 Base Points",
+            page.FindAll(".palette-row.kind-asset")
+                .Single(r => r.QuerySelector(".palette-label")!.TextContent == "Tesseract")
+                .QuerySelector(".palette-detail")!.TextContent, StringComparison.Ordinal);
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "disguised" }),
+            "a feature priced at one");
+
+        Assert.Contains("1 Base Point ",
+            page.FindAll(".palette-row.kind-asset")
+                .Single(r => r.QuerySelector(".palette-label")!.TextContent == "Disguised")
+                .QuerySelector(".palette-detail")!.TextContent + " ", StringComparison.Ordinal);
+
         Assert.Contains("Vehicles and bases from the book",
                         page.FindAll(".palette-group").Select(e => e.TextContent));
 

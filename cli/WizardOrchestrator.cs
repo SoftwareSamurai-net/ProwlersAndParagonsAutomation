@@ -33,11 +33,25 @@ public sealed class WizardOrchestrator
             new ChooseTierStep(),
             new BuyCharacteristicsStep(),
             new ChooseGearStep(),
+            new ChooseAssetsStep(),
             new CalculateDerivedStep(),
             new FinishingTouchesStep(),
             new GmReviewStep(validator, exporter, projectRoot),
         ];
     }
+
+    /// <summary>
+    /// The steps this wizard will run, in order, by id.
+    ///
+    /// <para><b>It exists so that "the step is wired in" is a thing a test can ask.</b> A step
+    /// written and not added to <c>_steps</c> is a screen nobody can reach, and a test of its own
+    /// labels would pass all the way through that.</para>
+    ///
+    /// <para><b>Read off the list rather than written out again.</b> A second copy is the one that
+    /// goes stale, which is the failure this repository has been bitten by in the README roadmap,
+    /// in the gaps list and in <c>ExpectedKinds</c>.</para>
+    /// </summary>
+    public IReadOnlyList<string> StepIds => [.. _steps.Select(s => s.StepId)];
 
     public void Run()
     {

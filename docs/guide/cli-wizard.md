@@ -15,11 +15,14 @@ Read before touching `cli/`. The wizard is the oldest front end and the only one
 1. `ChooseTierStep` — selects tier and optional package
 2. `BuyCharacteristicsStep` — abilities, talents, powers (via `PowerBrowser` + `ProConSelector`), flaws
 3. `ChooseGearStep` — gear: Chapter 6's catalogue or free text, no HP cost either way
-4. `CalculateDerivedStep` — displays computed Edge and Health
-5. `FinishingTouchesStep` — name, appearance, motivation, quote, connections
-6. `GmReviewStep` — full validation, sheet display, `.txt` **and** `.json` export to `output/`
+4. `ChooseAssetsStep` — vehicles, headquarters and Gadgets (Ch.6 pp.94–103)
+5. `CalculateDerivedStep` — displays computed Edge and Health
+6. `FinishingTouchesStep` — name, appearance, motivation, quote, connections
+7. `GmReviewStep` — full validation, sheet display, `.txt` **and** `.json` export to `output/`
 
-Steps 1–5 render a Back/Continue prompt (`WizardOrchestrator.PromptNavigation`); `gm_review` is the terminus and breaks the loop.
+Steps 1–6 render a Back/Continue prompt (`WizardOrchestrator.PromptNavigation`); `gm_review` is the terminus and breaks the loop.
+
+`WizardOrchestrator.StepIds` is that list, read off `_steps` rather than written out again, so a step that exists and is not wired in fails a test rather than being a screen nobody can reach.
 
 ## The wizard shows the Trait Cap in force, and has no step that sets one
 
@@ -52,3 +55,35 @@ in as many words rather than implying the step is covered. The wizard has no har
 drives `AnsiConsole` directly — so the menu and the two prompts are unreachable from a test here,
 exactly as they are for the other five steps. The equivalent surface is driven end to end in the
 browser suite's `GearCataloguePickerTests`.
+
+
+## The Vehicles & bases step names its currency on every line, because three of them pass through
+
+`ChooseAssetsStep` is Chapter 6 pp.94–103: a vehicle bought in **Vehicle Points**, a headquarters in
+**Base Points**, and a Gadget whose build **pays Hero Points out**. The Perks convert at twenty-five
+and three to one and are the only Hero Points in the step — so every price on every line carries its
+unit. A bare "10" beside the HP budget panel that sits above every step reads as a Hero Point price,
+and that is the one mistake the whole chapter is careful about.
+
+- **Nothing here decides a cost.** Every figure is asked of `CostCalculator` and every list comes off
+  `AssetCatalogue`; a total added up in the step would be a second calculator to disagree with the
+  first. The same rule the browser's step is written under.
+- **The four characteristics are bought from zero** (p.96) and the prompts refuse nothing. Control
+  above half the Speed, a Control below −3, a Mecha with too little Might and a machine over its
+  budget are all *reported* by the validator on the GM review step — an illegal character is
+  reported, never repaired, and a prompt that clamped the number would be repairing it.
+- **A stock vehicle is copied and then forgotten.** p.96's six are worked examples printed with
+  their totals, so copying one is how somebody starts; nothing records which row it came from,
+  because after that it is their machine. The one printed feature line that is not a bare feature
+  name — the Submersible's "Rader (Sonar)", which is the Radar Power taken through Unique Systems —
+  is skipped rather than guessed at, so the machine comes out under budget rather than over.
+- **A Gadget is a name and a Complexity here, and that is a stopping point rather than a gap.**
+  Spending its pool means pricing Powers, which means the whole Pro-and-Con selector under every
+  Power of every Gadget — the Powers step over again. The browser's step buys Powers into a Gadget,
+  and a payload handed to `build --from` carries Pros and Cons too; both are priced by the same
+  engine.
+
+`FeatureLabel` and `StockLabel` are the two parts of this step a test can reach, and
+`ChooseAssetsStepTests` says so in as many words rather than implying the step is covered — the same
+shape as `ChooseGearStepTests`. The equivalent surface is driven end to end in the browser suite's
+`AssetStepTests`.

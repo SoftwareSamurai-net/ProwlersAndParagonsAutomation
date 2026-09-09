@@ -698,7 +698,7 @@
         return row switch
         {
             { Cost: { } flat }        => $"{flat} {unit}",
-            { CostPerUnit: { } rate } => $"{rate} {unit} each",
+            { CostPerUnit: { } rate } => $"{rate} {unit} each",   // abbreviated, so no plural to get wrong
             { Grades: { } grades }    => $"{grades.Values.Min()}–{grades.Values.Max()} {unit}",
             _                         => ""
         };

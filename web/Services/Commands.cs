@@ -497,10 +497,15 @@ public sealed class Commands
     {
         var currency = row.Kind == AssetRowKind.BaseFeature ? "Base Points" : "Vehicle Points";
 
+        // Singular where the figure is one: "1 Vehicle Points" reads as a form field rather than a
+        // sentence, which is the rule every message in this app is held to.
+        string Priced(int points) =>
+            Math.Abs(points) == 1 ? $"{points} {currency[..^1]}" : $"{points} {currency}";
+
         var price = row switch
         {
-            { Cost: { } flat }           => $"{flat} {currency}",
-            { CostPerUnit: { } rate }    => $"{rate} {currency} per {row.UnitLabel}",
+            { Cost: { } flat }           => Priced(flat),
+            { CostPerUnit: { } rate }    => $"{Priced(rate)} per {row.UnitLabel}",
             { Grades: { } grades }       => $"{grades.Values.Min()}–{grades.Values.Max()} {currency}",
             _                            => null
         };
