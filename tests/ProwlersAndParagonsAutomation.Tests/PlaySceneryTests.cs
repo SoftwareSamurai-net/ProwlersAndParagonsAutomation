@@ -326,6 +326,41 @@ public sealed class PlaySceneryTests
     }
 
     /// <summary>
+    /// <b>The line for a purchase that names nothing counts what a purchase can actually name.</b>
+    ///
+    /// <para>It offered the caller "58 things", which is every row of Chapter 7's three object
+    /// tables — and sixteen of those are Massive Objects rows, which the very next branch refuses
+    /// because p.108 gives them a weight rank in place of a Structure. A ledger line that sends a
+    /// reader at sixteen names this engine will not take is the same defect as a plausible figure
+    /// with a page cited beside it, reached from the other end.</para>
+    ///
+    /// <para>The figure is derived from the shipped tables rather than typed, and both halves are
+    /// asserted: the count is the rows that carry a Structure, and it is not the count of all of
+    /// them — so a line that went back to counting everything fails here rather than reading
+    /// plausibly.</para>
+    /// </summary>
+    [Fact]
+    public void TheLineForAKnockbackIntoNothingCountsOnlyWhatCarriesAStructure()
+    {
+        var rated = _play.GetEnvironment("smashing_table").SmashingTable!.Rows.Sum(r => r.Materials.Count)
+                    + _play.GetEnvironment("scenery_table").SceneryTable!.Sum(r => r.Scenery.Count);
+
+        var massive = _play.GetEnvironment("massive_objects_table").MassiveObjectsTable!
+            .Sum(r => r.Objects.Count);
+
+        Assert.True(massive > 0,
+            "no Massive Objects rows were read, so 'the count excludes them' is a claim about "
+            + "nothing and this fixture could not tell the two counts apart");
+
+        var line = Assert.Single(Knocked(null, 8).Lines, l =>
+            string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+            && l.Text.Contains("was named", StringComparison.Ordinal));
+
+        Assert.Contains($"rate {rated} things", line.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain($"rate {rated + massive} things", line.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Six points of subdual damage — the entry's own floor — and then the point spent, optionally
     /// naming what the target is thrown into.
     /// </summary>

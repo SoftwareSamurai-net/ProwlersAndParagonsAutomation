@@ -3051,7 +3051,8 @@ public sealed partial class Encounter
     /// one.</b> <c>damage_on_striking_a_solid_object</c>,
     /// <c>the_object_must_be_tougher_than_the_target</c> and
     /// <c>a_passive_defense_above_the_objects_structure</c> all need a thing with a Structure, and
-    /// pp.107-108 rate ninety-four of them — so <see cref="SpendResolve.SolidObject"/> names one and
+    /// pp.107-108's three object tables rate fifty-eight things, forty-two of them with a Structure
+    /// — so <see cref="SpendResolve.SolidObject"/> names one and
     /// the clause is applied for real. The two conditions are <em>one</em> test read from both
     /// sides: p.78's parenthesis defines what "tougher than they are" means, so the extra damage
     /// lands unless the target's passive defence exceeds the Structure, and where it does they smash
@@ -3192,8 +3193,9 @@ public sealed partial class Encounter
                 $"nothing was named for {target.Name} to hit on the way, so p.78's last clause is "
                 + $"not applied: striking something solid would have cost them "
                 + $"{rule.DamageOnStrikingASolidObject}, and what they flew into is the GM's. "
-                + $"Chapter 7 pp.107-108 rate {SceneryRows().Count()} things a purchase can name "
-                + "instead"));
+                + $"Chapter 7 pp.107-108 rate {SceneryRows().Count(r => r.Structure is not null)} "
+                + "things with a Structure that a purchase can name instead — a Massive Objects row "
+                + "carries a weight rank instead of one and is refused"));
 
             return state;
         }
