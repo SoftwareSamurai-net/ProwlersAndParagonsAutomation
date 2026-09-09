@@ -664,9 +664,12 @@ public static class CharacterSheetRenderer
                 ["name"]                 = g.Name,
                 ["complexity"]           = g.Complexity,
                 ["hero_points_granted"]  = costs.GadgetPool(g),
-                ["hero_points_spent"]    = GadgetPriceable(g, rules)
-                    ? costs.GadgetSpend(g, sheet.ImmortalityCost)
-                    : null,
+                // Asked of the calculator, not of the Power ids. This gate used to be "every
+                // Power is one the rulebook has", which let a Gadget whose Power carried an
+                // unknown Con — or an unresolvable cost variant — through to a `GadgetSpend` that
+                // throws, and took the whole export down over it.
+                ["hero_points_spent"]    = AssetFormatter.Reachable(
+                    () => costs.GadgetSpend(g, sheet.ImmortalityCost)),
                 ["powers"] = new JsonArray(g.Powers
                     .Select(p => (JsonNode)JsonValue.Create(p.PowerId)!).ToArray()),
                 ["ability_ranks"] = new JsonObject(g.AbilityRanks
@@ -792,26 +795,9 @@ public static class CharacterSheetRenderer
     /// report down over one mistyped id.</para>
     /// </summary>
     private static bool Priceable(OwnedVehicle vehicle, CostCalculator costs) =>
-        CanPrice(() => costs.VehiclePointsSpent(vehicle));
+        AssetFormatter.Reachable(() => costs.VehiclePointsSpent(vehicle)) is not null;
 
     /// <inheritdoc cref="Priceable(OwnedVehicle, CostCalculator)"/>
     private static bool Priceable(OwnedHeadquarters headquarters, CostCalculator costs) =>
-        CanPrice(() => costs.BasePointsSpent(headquarters));
-
-    /// <summary>Whether every Power on a Gadget is one the rulebook has.</summary>
-    private static bool GadgetPriceable(BuiltGadget gadget, RulesRepository rules) =>
-        gadget.Powers.All(p => p.PowerId is not null && rules.GetPower(p.PowerId) is not null);
-
-    private static bool CanPrice(Func<int> price)
-    {
-        try
-        {
-            _ = price();
-            return true;
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
-    }
+        AssetFormatter.Reachable(() => costs.BasePointsSpent(headquarters)) is not null;
 }

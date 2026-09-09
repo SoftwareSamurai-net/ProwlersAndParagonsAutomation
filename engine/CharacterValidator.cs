@@ -1662,7 +1662,11 @@ public sealed class CharacterValidator
 
         foreach (var power in gadget.Powers)
         {
-            if (power.PowerId is not null && _rules.GetPower(power.PowerId) is not null) continue;
+            if (power.PowerId is not null && _rules.GetPower(power.PowerId) is { } model)
+            {
+                priceable &= CheckPowerIsPriceable(power, model, gadget.Name, issues);
+                continue;
+            }
 
             issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GADGET_POWER",
                 power.PowerId is null
@@ -2052,6 +2056,70 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
+    /// <b>The two things about a Power's own selection that make <c>CostCalculator</c> throw</b>:
+    /// a cost variant that is absent or resolves to nothing, and a missing nomination on a Power
+    /// whose rate comes from the nominated Trait. Both are absent-and-unknown together, because
+    /// the repair is the same and the second reached the calculator where the first was reported.
+    ///
+    /// <para><b>Shared, because a Gadget's Powers are Powers.</b> p.94 buys them under the
+    /// ordinary rules and <c>GadgetSpend</c> prices them through <c>PowerCost</c>, so they throw
+    /// in exactly these two places — and <c>GadgetIsPriceable</c> checked the Power id alone. An
+    /// Omni-Power inside a Gadget with a cost variant the rulebook does not have took
+    /// <c>Validate</c> out with an <c>InvalidOperationException</c>. A second copy of these two
+    /// clauses would be a second thing to fix one of; this is the one.</para>
+    /// </summary>
+    /// <param name="insideGadget">The Gadget carrying this Power, or null on the character's own.</param>
+    /// <returns>False when the Power cannot be priced at all.</returns>
+    private bool CheckPowerIsPriceable(
+        SelectedPower sp, PowerModel power, string? insideGadget, List<ValidationIssue> issues)
+    {
+        var resolvable = true;
+
+        // The owner clause, and nothing at all when the Power is the character's own: "Omni-Power"
+        // alone in a finding does not say which of two budgets it is against.
+        var whose = insideGadget is null ? "" : $"On the Gadget {insideGadget}: ";
+
+        if (power.CostType is "per_rank_variable" or "flat_variable"
+            && (sp.CostVariantKey is null || power.CostVariants?.ContainsKey(sp.CostVariantKey) != true))
+        {
+            issues.Add(new(ValidationSeverity.Error, "POWER_VARIANT_NOT_CHOSEN",
+                $"{whose}{power.Name} costs a different amount depending on which version you "
+                + $"take, and none the rulebook lists has been chosen. "
+                + $"Pick one of: {Names(power.CostVariants?.Keys)}.")
+            {
+                SubjectKind = ValidationSubject.Power,
+                SubjectId   = sp.PowerId,
+                OwnerId     = insideGadget,
+                Options     = Keys(power.CostVariants?.Keys)
+            });
+            resolvable = false;
+        }
+
+        // An unknown nomination threw for Boost, whose cost comes from the nominated Trait, and
+        // silently gave Expertise a baseline of nothing — two wrong answers to the one mistake.
+        if (power.Prerequisite?.Relationship == "baseline_selected_trait"
+            && (sp.BaselineTraitId is null || !IsATrait(sp.BaselineTraitId)))
+        {
+            issues.Add(new(ValidationSeverity.Error, "POWER_BASELINE_TRAIT_NOT_CHOSEN",
+                $"{whose}Power '{power.Name}' derives its baseline rank from a Trait the player " +
+                "nominates, and no Trait the rulebook has is recorded.")
+            {
+                // The nomination may be any ability, talent or power, so there is no short
+                // list to offer — which is itself the answer, and the code says which
+                // field is missing.
+                SubjectKind = ValidationSubject.Power,
+                SubjectId   = sp.PowerId,
+                OwnerId     = insideGadget
+            });
+
+            // Boost also takes its cost per rank from that Trait.
+            if (power.CostType == "special") resolvable = false;
+        }
+
+        return resolvable;
+    }
+
+    /// <summary>
     /// Powers whose cost or baseline depends on a player choice are unresolvable until
     /// that choice is recorded on the selection.
     /// </summary>
@@ -2085,43 +2153,7 @@ public sealed class CharacterValidator
                 continue;
             }
 
-            // Absent and present-but-unknown are one finding: the repair is the same, and the
-            // second reached CostCalculator and threw where the first was reported.
-            if (power.CostType is "per_rank_variable" or "flat_variable"
-                && (sp.CostVariantKey is null || power.CostVariants?.ContainsKey(sp.CostVariantKey) != true))
-            {
-                issues.Add(new(ValidationSeverity.Error, "POWER_VARIANT_NOT_CHOSEN",
-                    $"{power.Name} costs a different amount depending on which version you "
-                    + $"take, and none the rulebook lists has been chosen. "
-                    + $"Pick one of: {Names(power.CostVariants?.Keys)}.")
-                {
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId,
-                    Options     = Keys(power.CostVariants?.Keys)
-                });
-                resolvable = false;
-            }
-
-            // Again absent and unknown together. An unknown nomination threw for Boost, whose
-            // cost comes from the nominated Trait, and silently gave Expertise a baseline of
-            // nothing — two different wrong answers to the same mistake.
-            if (power.Prerequisite?.Relationship == "baseline_selected_trait"
-                && (sp.BaselineTraitId is null || !IsATrait(sp.BaselineTraitId)))
-            {
-                issues.Add(new(ValidationSeverity.Error, "POWER_BASELINE_TRAIT_NOT_CHOSEN",
-                    $"Power '{power.Name}' derives its baseline rank from a Trait the player " +
-                    "nominates, and no Trait the rulebook has is recorded.")
-                {
-                    // The nomination may be any ability, talent or power, so there is no short
-                    // list to offer — which is itself the answer, and the code says which
-                    // field is missing.
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId
-                });
-
-                // Boost also takes its cost per rank from that Trait.
-                if (power.CostType == "special") resolvable = false;
-            }
+            resolvable &= CheckPowerIsPriceable(sp, power, insideGadget: null, issues);
 
             // A nomination that is missing or unresolvable is the finding above; one that resolves
             // to a *Power* is this one, and only on Expertise. Ch.2 p.28 narrows that Power alone
