@@ -555,7 +555,7 @@ public sealed class CommandPaletteTests
     /// did. See <c>PaletteBookTests.ChoosingAPassageAsksTheRulesReferenceTheSameQuestion</c>.</para>
     /// </summary>
     [Fact]
-    public void TheGearStepAlreadyOpenIsFilteredToTheRequestedRowToo()
+    public async Task TheGearStepAlreadyOpenIsFilteredToTheRequestedRowToo()
     {
         using var ctx = Opened();
 
@@ -567,8 +567,10 @@ public sealed class CommandPaletteTests
         Assert.Equal("", step.Find(".catalogue .options-filter input").GetAttribute("value"));
         Assert.True(step.FindAll(".catalogue .options .option").Count > 1);
 
-        step.InvokeAsync(() => CommandsOf(ctx).RequestGearRow(GearCatalogue.WeaponPrefix + "battle_axe"))
-            .GetAwaiter().GetResult();
+        // On the renderer's own thread, because choosing a row raises `Changed` and the page
+        // answers it with `StateHasChanged`.
+        await step.InvokeAsync(
+            () => CommandsOf(ctx).RequestGearRow(GearCatalogue.WeaponPrefix + "battle_axe"));
 
         Assert.Equal("Battle Axe", step.Find(".catalogue .options-filter input").GetAttribute("value"));
 
