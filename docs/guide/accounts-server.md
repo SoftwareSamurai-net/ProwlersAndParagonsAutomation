@@ -296,6 +296,22 @@ table beside `characters` with the same five columns. The contract is `docs/CHAR
   part of the payload for a reason no amount of discipline could get round**: redeeming a code means
   *finding* the campaign it belongs to, and that is a query. It is in the list because the GM has to
   be able to read it out. See the membership section below for the whole of it.
+- **The campaign's shared vehicles and bases are inside the payload, and adding them changed
+  nothing here.** Ch.6 pp.96 and 100 let a team pool their allowances on one object; the object is
+  written down on the campaign and each member's sheet records only the Hero Points it put in. That
+  is a `Campaign.Assets` list in the browser's own record and nothing else — **no route, no column,
+  no parse, no migration**, because a campaign is stored as a string this server does not look
+  into. The member reads it through `GET /api/memberships/{id}/table`, which already answers that
+  string verbatim.
+- **A field-by-field projection of that route would have broken it silently, and the test that was
+  there could not have caught it.** `the live table discloses no byte a join has not already handed
+  the same player` moves two fields the server could plausibly know the names of and compares byte
+  for byte — so a handler rebuilding the payload out of the keys somebody had thought of answers
+  both correctly and drops everything else. Written as exactly that projection, the whole worker
+  suite stayed green apart from `a member reads a shared vehicle this server has never heard of`,
+  which is why that test exists and why it names the object's id and a feature id individually. The
+  member would have opened the Vehicles and bases step and been offered nothing, with no error
+  anywhere.
 - **Nothing bumped `StoredCharacter.CurrentVersion`, and nothing may.** It is 1, a mismatch is
   discarded in silence, and an absent `campaignId` deserialises to null — which correctly means
   "belongs to no campaign". Bumping it would empty every returning visitor's browser *and* every

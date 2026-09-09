@@ -1414,40 +1414,7 @@ public sealed class CharacterValidator
                 ? (f.Name, f.CostType, f.CostRange) : null,
             _rules.Assets.VehicleFeatures.Select(f => f.Id).ToList(), issues);
 
-        var rates = _rules.Assets.Characteristics;
-
-        // p.96: "Control ... can't exceed half the vehicle's Speed." **Half rounds up**, because
-        // p.7's glossary settles every halving in the book that way — "always round up, regardless
-        // of the context" — and p.96 works that rule on this very page: a Foe-piloted sedan with
-        // 7d Body is disabled after "4 points of damage (half of 7)".
-        //
-        // This was written `Control * 2 > Speed`, which is `Control > floor(Speed / 2)` and so
-        // rejects a legal machine at every odd Speed. p.97 prints three of them — Helicopter
-        // (Military), Helicopter (Personal) and Jet Pack, each Speed 7d with Control +4d.
-        var controlCap = HalfRoundedUp(vehicle.Speed);
-
-        if (vehicle.Control > 0 && vehicle.Control > controlCap)
-            issues.Add(new(ValidationSeverity.Error, "VEHICLE_CONTROL_ABOVE_HALF_SPEED",
-                $"{vehicle.Name} has Control {vehicle.Control} against Speed {vehicle.Speed}. "
-                + "A vehicle's Control may not exceed half its Speed.")
-            {
-                SubjectKind = ValidationSubject.Vehicle,
-                SubjectId   = vehicle.Name,
-                Value       = vehicle.Control,
-                Limit       = controlCap
-            });
-
-        // p.96: a negative Control pays two points back a rank, down to −3 and no further.
-        if (vehicle.Control < rates.NegativeControlMinimum)
-            issues.Add(new(ValidationSeverity.Error, "VEHICLE_CONTROL_BELOW_MINIMUM",
-                $"{vehicle.Name} has Control {vehicle.Control}. A vehicle's Control cannot go "
-                + $"below {rates.NegativeControlMinimum}, however many points that would pay back.")
-            {
-                SubjectKind = ValidationSubject.Vehicle,
-                SubjectId   = vehicle.Name,
-                Value       = vehicle.Control,
-                Limit       = rates.NegativeControlMinimum
-            });
+        CheckControl(vehicle.Name, vehicle.Control, vehicle.Speed, issues);
 
         CheckMechaMight(vehicle, issues);
 
@@ -1513,6 +1480,57 @@ public sealed class CharacterValidator
             // call the comparison above makes, so the figure quoted is the figure tested.
             Limit       = HalfRoundedUp(vehicle.Body)
         });
+    }
+
+    /// <summary>
+    /// p.96's two printed sentences about Control, for whichever machine is carrying it.
+    ///
+    /// <para><b>One home for the pair, because there are two records that carry them</b>: a
+    /// machine one character owns and one the campaign does. They are the same printed rule read
+    /// off the same rates, and a second copy is a second place to miss a correction — and, worse,
+    /// a second place to have written no copy at all, which is what the campaign's own object
+    /// shipped with.</para>
+    /// </summary>
+    /// <param name="name">What to call it in the sentence.</param>
+    /// <param name="control">Its Control.</param>
+    /// <param name="speed">Its Speed, which is what bounds Control from above.</param>
+    /// <param name="issues">Where the findings go.</param>
+    private void CheckControl(string name, int control, int speed, List<ValidationIssue> issues)
+    {
+        var rates = _rules.Assets.Characteristics;
+
+        // p.96: "Control ... can't exceed half the vehicle's Speed." **Half rounds up**, because
+        // p.7's glossary settles every halving in the book that way — "always round up, regardless
+        // of the context" — and p.96 works that rule on this very page: a Foe-piloted sedan with
+        // 7d Body is disabled after "4 points of damage (half of 7)".
+        //
+        // This was written `Control * 2 > Speed`, which is `Control > floor(Speed / 2)` and so
+        // rejects a legal machine at every odd Speed. p.97 prints three of them — Helicopter
+        // (Military), Helicopter (Personal) and Jet Pack, each Speed 7d with Control +4d.
+        var controlCap = HalfRoundedUp(speed);
+
+        if (control > 0 && control > controlCap)
+            issues.Add(new(ValidationSeverity.Error, "VEHICLE_CONTROL_ABOVE_HALF_SPEED",
+                $"{name} has Control {control} against Speed {speed}. "
+                + "A vehicle's Control may not exceed half its Speed.")
+            {
+                SubjectKind = ValidationSubject.Vehicle,
+                SubjectId   = name,
+                Value       = control,
+                Limit       = controlCap
+            });
+
+        // p.96: a negative Control pays two points back a rank, down to −3 and no further.
+        if (control < rates.NegativeControlMinimum)
+            issues.Add(new(ValidationSeverity.Error, "VEHICLE_CONTROL_BELOW_MINIMUM",
+                $"{name} has Control {control}. A vehicle's Control cannot go "
+                + $"below {rates.NegativeControlMinimum}, however many points that would pay back.")
+            {
+                SubjectKind = ValidationSubject.Vehicle,
+                SubjectId   = name,
+                Value       = control,
+                Limit       = rates.NegativeControlMinimum
+            });
     }
 
     /// <summary>One headquarters: its features and its Base Point budget.</summary>
@@ -1753,6 +1771,97 @@ public sealed class CharacterValidator
                     Limit       = 0
                 });
         }
+    }
+
+    /// <summary>
+    /// <b>A campaign's own shared vehicle or base, against the same printed rules a machine one
+    /// character owns is held to.</b>
+    ///
+    /// <para><b>Why it is a method of its own rather than a clause of <see cref="Validate"/>.</b>
+    /// A <see cref="CampaignAsset"/> is not on a <see cref="CharacterSheet"/> — that is the whole
+    /// of the owner's answer to the pooling question — so nothing that walks a sheet will ever
+    /// reach one. It is still rules, and rules do not go in a host: p.96's two sentences about
+    /// Control and the fact that a characteristic is bought upward from nothing are printed, and
+    /// a browser comparing <c>Control * 2 &gt; Speed</c> would be a front end holding a rule.</para>
+    ///
+    /// <para><b>What it is not is storage.</b> The object is handed in, exactly as
+    /// <see cref="CostCalculator.CampaignAssetBudget"/>'s contributions are, so this stays as pure
+    /// and as synchronous as everything else here. Joining an object to the campaign it belongs to
+    /// is a host's job and stays one.</para>
+    ///
+    /// <para><b>Every code here is one this validator already reports about a machine one
+    /// character owns</b>, deliberately: a shared machine is over the same table, and a second
+    /// vocabulary for the same fault would be a second thing for a reader to learn and a second
+    /// list for <c>ValidationIssueStructureTests</c> to hold.</para>
+    ///
+    /// <para><b>Reported, never repaired.</b> Every figure the ledger prints still answers what
+    /// the campaign says, which is what makes the finding worth printing beside it.</para>
+    /// </summary>
+    /// <param name="asset">The campaign's shared object.</param>
+    /// <returns>What is wrong with it, or nothing.</returns>
+    public IReadOnlyList<ValidationIssue> CheckSharedAsset(CampaignAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        var issues = new List<ValidationIssue>();
+
+        // A shared object is named by the table and identified by its id, so — unlike a machine on
+        // a sheet — a blank name is not a reason to stop. The id is what every contribution names
+        // and it is what a sentence can be written about.
+        var name = string.IsNullOrWhiteSpace(asset.Name) ? asset.Id : asset.Name;
+
+        var kind = asset.IsHeadquarters
+            ? ValidationSubject.Headquarters
+            : ValidationSubject.Vehicle;
+
+        // **A kind that is neither spelling is read as a vehicle and said out loud**, which is
+        // what CampaignAsset.IsHeadquarters' own remarks promise and what nothing was doing: the
+        // reading is silent by design, so that one mistyped field cannot take a campaign page
+        // down, and the whole of that trade is that somebody says so instead. The same code the
+        // contribution's own kind is reported under — one word for one mistake.
+        if (!CampaignAssetContribution.Kinds.Contains(asset.Kind, StringComparer.Ordinal))
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_CAMPAIGN_ASSET_KIND",
+                $"{name} is written down as a '{asset.Kind}', which Chapter 6 does not have. It is "
+                + "priced as a vehicle. Hero Points can be pooled on a vehicle or on a "
+                + "headquarters.")
+            {
+                SubjectKind = kind,
+                SubjectId   = name,
+                Options     = CampaignAssetContribution.Kinds
+            });
+
+        // The two feature tables, the same lookup CheckVehicle and CheckHeadquarters make. An
+        // unknown id, a graded feature with no grade and a per-unit one bought no times or fewer
+        // are all already spelled there, and all three reach a campaign's payload the same way.
+        CheckAssetFeatures(
+            name, asset.Features,
+            id => asset.IsHeadquarters
+                ? _rules.Assets.FindBaseFeature(id) is { } b ? (b.Name, b.CostType, b.CostRange) : null
+                : _rules.Assets.FindVehicleFeature(id) is { } v ? (v.Name, v.CostType, v.CostRange) : null,
+            [.. (asset.IsHeadquarters
+                    ? _rules.Assets.BaseFeatures.Select(f => f.Id)
+                    : _rules.Assets.VehicleFeatures.Select(f => f.Id))],
+            issues);
+
+        // pp.100-103 give a headquarters no characteristics at all, so there is nothing below to
+        // say about one — CampaignAssetPointsSpent charges none of them for the same reason.
+        if (asset.IsHeadquarters) return issues;
+
+        // p.96 opens Body, Speed and Control at nothing and you spend upward, so a rank below that
+        // **pays Vehicle Points back**: Body at −20 buys twenty points of features for nothing and
+        // reads as an object comfortably inside its budget. Control is the one that may be
+        // negative — the book says so and floors it — and it is checked by CheckControl instead.
+        foreach (var (what, rank) in new[]
+                 { ("Body", asset.Body), ("Speed", asset.Speed), ("Weapons", asset.Weapons ?? 0) }
+                     .Where(c => c.Item2 < 0))
+            issues.Add(Negative("NEGATIVE_RANK", kind, name,
+                $"{name} has {what} {rank}d. A vehicle's characteristics are bought from nothing, "
+                + "and a rank below that pays Vehicle Points back rather than costing them. Only "
+                + "Control may be negative.", rank));
+
+        CheckControl(name, asset.Control, asset.Speed, issues);
+
+        return issues;
     }
 
     /// <summary>

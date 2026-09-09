@@ -292,6 +292,247 @@ else
         }
     </Panel>
 
+    @* ── The game's own vehicles and bases ─────────────────────────────────────
+
+       **Ch.6 pp.96 and 100 both let a team pool their allowances on one object, and a character
+       is one character** — so a pooled machine recorded on a sheet is either unrepresentable or
+       copied across five sheets with five chances to disagree. It is written down once, on the
+       game; what each member's sheet carries is the Hero Points they put in. The budget here is
+       the sum of those, in the object's own second currency.
+
+       **It is on this screen rather than beside the game's other settings because this is the
+       only screen that has read the members' sheets.** A budget summed from five clones cannot be
+       drawn where the clones are not, and the clones are what the roster above already opens. *@
+    <Panel Title="Shared vehicles and bases" Aside="@SharedAside">
+        <p class="small muted">
+            A team can pool their allowances on one object (Ch.6, pp.96 and 100). Each player
+            records what they put in on their own sheet.
+        </p>
+
+        @if (_campaign is null)
+        {
+            <p class="small muted" role="status">
+                This game's own settings could not be read just now, so nothing shared can be shown.
+            </p>
+        }
+        else if (_ledger.Count == 0 && _rosterRead)
+        {
+            <EmptyState>Nothing shared yet. Name a vehicle or a base for the table to pool into.</EmptyState>
+        }
+        else if (_ledger.Count == 0)
+        {
+            <p class="small muted" role="status">@RosterUnread</p>
+        }
+        else
+        {
+            @* **A failed read of the players is not a game that owns nothing**, and it is not a
+               game whose objects are all over budget either. The objects came out of the
+               campaign's own payload, which this screen read separately and has; what is missing
+               is the clones the budget is summed from. So they are named and the sums are not. *@
+            @if (!_rosterRead)
+            {
+                <p class="small muted" role="status">@RosterUnread</p>
+            }
+
+            <ChosenList>
+                @foreach (var line in _ledger)
+                {
+                    @* **The findings go through the row's own slot**, which is where every other
+                       list in this app puts them: it leads with the word Error or Warning and
+                       differs in style as well as in colour, because a colour difference alone
+                       fails WCAG 1.4.1 — see `RowFinding`. A sentence hand-drawn into the body
+                       would be the same information with that half taken off it. *@
+                    <ChosenRow Findings="Session.Check(line.Asset)">
+                        <Body>
+                            <b>@(_rosterRead ? Books(line) : Named(line.Asset))</b>
+                            <span class="muted small"><br />@Kind(line.Asset)</span>
+
+                            @if (line.Asset.Features.Count > 0)
+                            {
+                                <span class="muted small"><br />@Features(line.Asset)</span>
+                            }
+
+                            @* **Who paid, largest first**, which is the question a GM has about a
+                               shared object — and the one thing on this screen that no single
+                               player's sheet can answer. *@
+                            @if (_rosterRead)
+                            {
+                                <span class="muted small"><br />@Funders(line)</span>
+
+                                @* **Reported, and never repaired.** The remedy is somebody putting
+                                   more in or the object losing a feature, and both are decisions
+                                   about this table's game rather than arithmetic to do on their
+                                   behalf. *@
+                                @if (line.IsOverBudget)
+                                {
+                                    <span class="muted small"><br />@OverBudget</span>
+                                }
+
+                                @* Not the same sentence, and it must never be drawn as the one
+                                   above: an object with no price is not an object over its
+                                   budget. *@
+                                @if (line.Spent is null)
+                                {
+                                    <span class="muted small"><br />@Unpriceable</span>
+                                }
+                            }
+
+                        </Body>
+                        <Actions>
+                            <button type="button" class="btn small"
+                                    @onclick="() => EditAsset(line.Asset)">Edit</button>
+
+                            @* **Two presses**, for the reason removing a player takes two: every
+                               member who put into this is holding its id as the record of what
+                               they paid for, and there is no undo behind the button. *@
+                            @if (_dropping == line.Asset.Id)
+                            {
+                                <button type="button" class="btn small danger"
+                                        @onclick="() => DropAsset(line.Asset)">Remove for good</button>
+                                <button type="button" class="btn small quiet"
+                                        @onclick="() => _dropping = null">Cancel</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn small quiet"
+                                        @onclick="() => _dropping = line.Asset.Id">Remove</button>
+                            }
+                        </Actions>
+                    </ChosenRow>
+                }
+            </ChosenList>
+
+            <p class="small muted">
+                Removing one leaves every member's Hero Points exactly where they are, and their
+                own sheet says the object is not here any more.
+            </p>
+        }
+
+        @* **The kind is chosen as the object is named, and never afterwards.** A vehicle and a
+           base are bought in different currencies off different tables, so a kind that changed
+           later would strand every feature already on it — and every member's contribution copied
+           the kind when they backed it. *@
+        @if (_campaign is not null)
+        {
+            <div class="inline spaced">
+                <input type="text" placeholder="Name one the table can pool into"
+                       aria-label="Name a shared vehicle or base"
+                       @bind="_naming" @bind:event="oninput" />
+                <select aria-label="A vehicle or a headquarters" value="@_namingKind"
+                        @onchange="e => _namingKind = e.Value?.ToString() ?? Vehicle">
+                    <option value="@Vehicle">A vehicle</option>
+                    <option value="@Headquarters">A headquarters</option>
+                </select>
+                <button type="button" class="btn" aria-label="Add a shared vehicle or base"
+                        disabled="@string.IsNullOrWhiteSpace(_naming)"
+                        @onclick="StartAsset">Add</button>
+            </div>
+        }
+
+        @* Outside the editor, because saving closes it — the fault this screen already records
+           about every sentence it wrote inside a panel that the same press destroyed. *@
+        @if (_saidAboutAsset is { } aboutAsset)
+        {
+            <p class="small muted spaced" role="status">@aboutAsset</p>
+        }
+    </Panel>
+
+    @if (_draft is { } draft)
+    {
+        <Panel Class="machine" Title="@DraftTitle" Aside="@DraftBooks(draft)">
+            @* p.96 opens Body, Speed and Control at nothing and gives Weapons no starting value
+               at all, so a shared machine costs what it is — exactly as one character's own does,
+               and priced by the same calculation. *@
+            <Field Label="Name" For="shared-name">
+                <input id="shared-name" type="text" maxlength="80"
+                       @bind="_draftName" @bind:event="oninput" />
+            </Field>
+
+            @if (!draft.IsHeadquarters)
+            {
+                <VehicleRanksNote />
+
+                <Field Label="Body" For="shared-body">
+                    <input id="shared-body" type="number" min="0" value="@draft.Body"
+                           @onchange="e => SetDraft(draft with { Body = Number(e) })" />
+                </Field>
+                <Field Label="Speed" For="shared-speed">
+                    <input id="shared-speed" type="number" min="0" value="@draft.Speed"
+                           @onchange="e => SetDraft(draft with { Speed = Number(e) })" />
+                </Field>
+                <Field Label="Control" For="shared-control">
+                    <input id="shared-control" type="number" value="@draft.Control"
+                           @onchange="e => SetDraft(draft with { Control = Number(e) })" />
+                </Field>
+                <Field Label="Weapons" For="shared-weapons">
+                    <input id="shared-weapons" type="number" min="0" value="@draft.Weapons"
+                           placeholder="unarmed"
+                           @onchange="e => SetDraft(draft with { Weapons = OptionalNumber(e) })" />
+                    <span class="muted small">Leave it empty for a machine with no weapon systems at all.</span>
+                </Field>
+            }
+            else
+            {
+                @* pp.100–103 give a headquarters no characteristics at all, and the Perk grants
+                   the building already furnished — so a base with no features is not an error. *@
+                <p class="small muted">
+                    A base has no ranks of its own. The building comes with the Perk; every point
+                    after that is a feature (p.100).
+                </p>
+            }
+
+            <Field Label="@DraftFeatureLabel">
+                @if (draft.Features.Count > 0)
+                {
+                    <ChosenList>
+                        @foreach (var f in draft.Features.ToList())
+                        {
+                            <ChosenRow>
+                                <Body>@FeatureName(draft, f)</Body>
+                                <Actions>
+                                    @if (PerUnit(draft, f))
+                                    {
+                                        <input type="number" min="1" value="@f.Units" class="units"
+                                               aria-label="Units"
+                                               @onchange="e => SetDraftFeature(draft, f, f with { Units = Number(e) })" />
+                                    }
+                                    <button type="button" class="btn small danger"
+                                            @onclick="() => SetDraftFeature(draft, f, null)">Remove</button>
+                                </Actions>
+                            </ChosenRow>
+                        }
+                    </ChosenList>
+                }
+
+                <OptionList Placeholder="@DraftFeaturePlaceholder">
+                    @foreach (var row in DraftFeatureRows)
+                    {
+                        <OptionRow Name="@row.Name" Caveat="@row.Description" Cost="@Price(row)"
+                                   Keywords="@row.Keywords"
+                                   OnSelect="() => AddDraftFeature(draft, row)" />
+                    }
+                </OptionList>
+            </Field>
+
+            @* **Said as it is typed, and not only once it is written down**, which is the whole
+               difference between a report and a repair: nothing here refuses the save, and a GM
+               who means to write down an object the book does not allow still can. VehicleRanksNote
+               above states the two Control sentences; this is what says whether this object keeps
+               them. *@
+            @foreach (var fault in Session.Check(draft with { Name = DraftTitle }))
+            {
+                <p class="small muted spaced" role="status">@fault.Message</p>
+            }
+
+            <div class="inline">
+                <button type="button" class="btn primary"
+                        disabled="@string.IsNullOrWhiteSpace(_draftName)"
+                        @onclick="SaveAsset">Save</button>
+                <button type="button" class="btn quiet" @onclick="() => _draft = null">Cancel</button>
+            </div>
+        </Panel>
+    }
+
     <p class="small muted spaced"><a href="campaign">Back to your campaigns</a></p>
 }
 
@@ -371,6 +612,36 @@ else
     /// per refresh, beside the roster it describes.
     /// </summary>
     private IReadOnlySet<string> _empty = new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The campaign itself, or null when its payload could not be read.
+    ///
+    /// <para><b>The list row is not enough any more.</b> A row carries the label and the join
+    /// code; the shared vehicles and bases are inside the payload, which is the one thing the
+    /// server never looks into — so drawing them means loading the campaign, not listing it.</para>
+    /// </summary>
+    private Campaign? _campaign;
+
+    /// <summary>
+    /// The game's shared objects with their books open: what its members bought each, what has
+    /// been built, and who paid. Empty for a game that owns nothing shared, and for one whose
+    /// payload could not be read.
+    /// </summary>
+    private IReadOnlyList<CampaignAssetLine> _ledger = [];
+
+    /// <summary>
+    /// Whether the members' sheets were read, which is what every figure on a shared object is
+    /// summed from.
+    ///
+    /// <para><b>It is a separate answer from the campaign, and drawing them as one was the
+    /// fault.</b> The objects are in the campaign's payload, which is its own read; the budget is
+    /// summed from the clones behind the memberships, which is another. A failed inbox left the
+    /// ledger empty and the panel said "Nothing shared yet" — a GM told their machines were gone
+    /// on the strength of a request about something else, with Edit and Remove gone too. The same
+    /// shape as the roster telling a GM nobody has joined, and reported here rather than
+    /// repeated.</para>
+    /// </summary>
+    private bool _rosterRead;
 
     /// <summary>Which membership's changes are open, or null.</summary>
     private string? _reading;
@@ -472,6 +743,278 @@ else
         await Refresh(asked);
     }
 
+    private const string RosterUnread =
+        "This game's players could not be read just now, so nothing can be said about what has "
+        + "been put into these. Nothing has been changed.";
+
+    /// <summary>
+    /// What to call an object where its books cannot be opened: its name, or its id when the
+    /// table has not given it one. <b>The same fallback <c>AssetFormatter</c> makes</b> when it
+    /// prints the pair, so a reader meets one answer either way.
+    /// </summary>
+    private static string Named(CampaignAsset asset) =>
+        string.IsNullOrWhiteSpace(asset.Name) ? asset.Id : asset.Name;
+
+    private string SharedAside =>
+        _ledger.Count == 1 ? "1 shared object" : $"{_ledger.Count} shared objects";
+
+    /// <summary>
+    /// Every line about a shared object, asked of <c>sheets/</c> and of the engine rather than
+    /// composed here — the rule the Vehicles &amp; bases step is written under, and the reason a
+    /// figure on this screen cannot disagree with the same figure on a player's.
+    /// </summary>
+    private static string Books(CampaignAssetLine line) =>
+        AssetFormatter.Describe(line.Asset, line.Spent, line.Budget);
+
+    /// <inheritdoc cref="Books"/>
+    private static string Kind(CampaignAsset asset) => AssetFormatter.Describe(asset);
+
+    /// <inheritdoc cref="Books"/>
+    private string Features(CampaignAsset asset) =>
+        string.Join(", ", asset.Features.Select(
+            f => AssetFormatter.Feature(f, Session.Rules, !asset.IsHeadquarters)));
+
+    /// <summary>
+    /// Who put in, and how much. <b>Never an account or an address</b> — a membership deliberately
+    /// never tells a GM whose account is on the other side of it, and the label the roster above
+    /// draws is the same label here.
+    /// </summary>
+    private static string Funders(CampaignAssetLine line) =>
+        line.Contributors.Count == 0
+            ? "Nobody has put anything into this yet."
+            : string.Join(" · ", line.Contributors.Select(c => $"{c.Who} {c.HeroPoints} HP"));
+
+    private const string OverBudget =
+        "More has been built with this than its members have put in. Somebody can put more in, "
+        + "or it can lose a feature — nothing has been changed either way.";
+
+    // ── The GM writes one down ────────────────────────────────────────────────
+
+    /// <summary>
+    /// The two kinds, off the constants a contribution names them with. <b>One spelling</b>: a
+    /// contribution and the object it names have to agree about which currency the pooled Hero
+    /// Points buy, and a second copy of either word is a chance for them not to.
+    /// </summary>
+    private const string Vehicle = CampaignAssetContribution.Vehicle;
+
+    /// <inheritdoc cref="Vehicle"/>
+    private const string Headquarters = CampaignAssetContribution.Headquarters;
+
+    /// <summary>What is being named in the add box, and which of the two it will be.</summary>
+    private string _naming = "";
+
+    private string _namingKind = Vehicle;
+
+    /// <summary>
+    /// The object being written down, or null when none is.
+    ///
+    /// <para><b>A draft rather than the stored object, edited and then saved in one write.</b>
+    /// Every other editor in this app changes a character held in this browser; this one changes a
+    /// campaign that lives on a server, so a field bound straight to it would be a request per
+    /// number typed — on a panel that is nothing but number boxes.</para>
+    /// </summary>
+    private CampaignAsset? _draft;
+
+    /// <summary>Whether the draft is one this campaign has never held.</summary>
+    private bool _draftIsNew;
+
+    /// <summary>
+    /// The draft's name, held beside it because the box is bound as it is typed and the record is
+    /// what gets written. It goes onto the draft at the save.
+    /// </summary>
+    private string _draftName = "";
+
+    /// <summary>Which shared object is one press away from being removed, or null.</summary>
+    private string? _dropping;
+
+    /// <summary>What became of the last write, or null. Drawn outside the editor it was about.</summary>
+    private string? _saidAboutAsset;
+
+    private string DraftTitle =>
+        string.IsNullOrWhiteSpace(_draftName) ? "A shared object" : _draftName.Trim();
+
+    /// <summary>
+    /// The books on the draft as it is typed: what it is costing, against what its members have
+    /// already put in.
+    ///
+    /// <para><b>The budget is the one already summed for this object</b>, and nothing for an
+    /// object nobody has funded — which is every new one. A GM writing a machine down before the
+    /// table has paid for it is the ordinary way round, and the panel says so by reading over
+    /// budget from the first feature.</para>
+    /// </summary>
+    private string DraftBooks(CampaignAsset draft) =>
+        AssetFormatter.Describe(draft, CampaignAssets.Spend(Session.Costs, draft), Funded(draft));
+
+    private int Funded(CampaignAsset asset) =>
+        _ledger.FirstOrDefault(
+            l => string.Equals(l.Asset.Id, asset.Id, StringComparison.Ordinal))?.Budget ?? 0;
+
+    private string DraftFeatureLabel =>
+        _draft is { IsHeadquarters: true } ? "Features (pp.100–103)" : "Features (pp.96–100)";
+
+    private string DraftFeaturePlaceholder =>
+        _draft is { IsHeadquarters: true } ? "Filter the base features" : "Filter the vehicle features";
+
+    /// <summary>
+    /// Which of the two tables the draft picks from. <b>The kind decides it</b>, the same way a
+    /// character says it by which of its two collections a machine is stored in.
+    /// </summary>
+    private IEnumerable<AssetCatalogueRow> DraftFeatureRows =>
+        Session.Assets.Rows.Where(r => r.Kind == (_draft is { IsHeadquarters: true }
+            ? AssetRowKind.BaseFeature
+            : AssetRowKind.VehicleFeature));
+
+    /// <inheritdoc cref="Books"/>
+    private string FeatureName(CampaignAsset asset, SelectedAssetFeature feature) =>
+        AssetFormatter.Feature(feature, Session.Rules, !asset.IsHeadquarters);
+
+    private bool PerUnit(CampaignAsset asset, SelectedAssetFeature feature) =>
+        asset.IsHeadquarters
+            ? Session.Assets.FindBaseFeature(feature.FeatureId) is { CostType: "per_unit" }
+            : Session.Assets.FindVehicleFeature(feature.FeatureId) is { CostType: "per_unit" };
+
+    /// <inheritdoc cref="Books"/>
+    private static string Price(AssetCatalogueRow row) => AssetRows.Price(row);
+
+    /// <summary>
+    /// Start writing one down. <b>The id is minted here and never moves again</b>, because every
+    /// member's sheet holds it as the record of what they paid for — a key derived from the name
+    /// would orphan five contributions the first time somebody disliked the name.
+    /// </summary>
+    private void StartAsset()
+    {
+        if (string.IsNullOrWhiteSpace(_naming)) return;
+
+        _draftName = _naming.Trim();
+        _draft = new CampaignAsset(StoredCampaign.NewAssetId(), _namingKind, _draftName);
+        _draftIsNew = true;
+        _naming = "";
+        _saidAboutAsset = null;
+    }
+
+    private void EditAsset(CampaignAsset asset)
+    {
+        _draft = asset;
+        _draftIsNew = false;
+        _draftName = asset.Name;
+        _dropping = null;
+        _saidAboutAsset = null;
+    }
+
+    private void SetDraft(CampaignAsset updated) => _draft = updated;
+
+    /// <summary>
+    /// A feature goes on at its cheapest grade, because <c>CostCalculator</c> throws rather than
+    /// guessing one — the same answer the Vehicles &amp; bases step gives, from the same helper.
+    /// </summary>
+    private void AddDraftFeature(CampaignAsset draft, AssetCatalogueRow row)
+    {
+        var prefix = draft.IsHeadquarters
+            ? AssetCatalogue.BaseFeaturePrefix
+            : AssetCatalogue.VehicleFeaturePrefix;
+
+        var id = row.Id[prefix.Length..];
+        if (draft.Features.Any(f => f.FeatureId == id)) return;
+
+        SetDraft(draft with
+        {
+            Features = [.. draft.Features,
+                        new SelectedAssetFeature(id) { GradeKey = AssetRows.CheapestGrade(row) }]
+        });
+    }
+
+    private void SetDraftFeature(
+        CampaignAsset draft, SelectedAssetFeature old, SelectedAssetFeature? updated) =>
+        SetDraft(draft with { Features = Replace(draft.Features, old, updated) });
+
+    /// <summary>
+    /// Write the draft into the campaign, and say so when it went nowhere.
+    ///
+    /// <para><b>A refused save has to be said out loud</b>, because a form that closes and does
+    /// nothing is indistinguishable from a control that is not wired up — the rule every refusal
+    /// on the campaigns page follows.</para>
+    ///
+    /// <para><b>The object is replaced by id, never by position.</b> A list rewritten in order
+    /// would put one object's features on another the moment two were written down in the same
+    /// sitting.</para>
+    /// </summary>
+    private async Task SaveAsset()
+    {
+        if (_campaign is not { } game || _draft is not { } draft) return;
+        if (string.IsNullOrWhiteSpace(_draftName)) return;
+
+        _saidAboutAsset = null;
+
+        var saved = draft with { Name = _draftName.Trim() };
+
+        var assets = CampaignAsset.On(game).ToList();
+        var at = assets.FindIndex(a => string.Equals(a.Id, saved.Id, StringComparison.Ordinal));
+
+        if (at < 0) assets.Add(saved); else assets[at] = saved;
+
+        if (!await Store.SaveAsync(game with { Assets = assets }))
+        {
+            _saidAboutAsset = "That could not be saved just now. Try again in a moment.";
+            return;
+        }
+
+        _saidAboutAsset = _draftIsNew
+            ? "Written down. Every player can now put Hero Points into it from their own sheet."
+            : null;
+
+        _draft = null;
+
+        await Refresh();
+    }
+
+    /// <summary>
+    /// Take a shared object off the campaign.
+    ///
+    /// <para><b>Nobody's Hero Points are refunded and nobody's sheet is edited</b>, which is the
+    /// same answer deleting a campaign gets: their contribution stays, still costs them, and their
+    /// own screen reports that it names an object this game has not. Reaching into five characters
+    /// to tidy up after a decision about the game would be this application editing work that is
+    /// not its own.</para>
+    /// </summary>
+    private async Task DropAsset(CampaignAsset asset)
+    {
+        _dropping = null;
+
+        if (_campaign is not { } game) return;
+
+        var kept = CampaignAsset.On(game)
+            .Where(a => !string.Equals(a.Id, asset.Id, StringComparison.Ordinal))
+            .ToList();
+
+        if (!await Store.SaveAsync(game with { Assets = kept }))
+        {
+            _saidAboutAsset = "That could not be removed just now. Try again in a moment.";
+            return;
+        }
+
+        if (_draft is { } draft && string.Equals(draft.Id, asset.Id, StringComparison.Ordinal))
+            _draft = null;
+
+        _saidAboutAsset = "Removed. Anybody who put into it still has, and their sheet says so.";
+
+        await Refresh();
+    }
+
+    private static IReadOnlyList<T> Replace<T>(IReadOnlyList<T> list, T old, T? updated) where T : class =>
+        [.. list.SelectMany(item => ReferenceEquals(item, old)
+            ? (updated is null ? Array.Empty<T>() : [updated])
+            : new[] { item })];
+
+    private static int Number(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var value) ? value : 0;
+
+    private static int? OptionalNumber(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var value) ? value : null;
+
+    private const string Unpriceable =
+        "Something on this was built with a feature these rules do not have, so what it has cost "
+        + "cannot be worked out here. What its members put in is still counted.";
+
     /// <summary>
     /// Re-read the campaign and what is waiting in it.
     ///
@@ -505,15 +1048,39 @@ else
 
         _label = mine.Label;
 
+        // **The payload, not the row.** A shared vehicle or base lives inside it, and the list
+        // above carries only what the server can read — a label and a join code. Null is a payload
+        // this build cannot open or a read that failed, which the panel says out loud rather than
+        // drawing as a game that owns nothing.
+        _campaign = await Store.LoadAsync(mine.Id);
+
         var inbox = await Memberships.InboxAsync();
 
         // Null means the inbox could not be read, which is not the same as an empty campaign — so
         // the list stays as it was rather than reporting that everybody has left.
+        _rosterRead = inbox is not null;
+
+        IReadOnlyList<(string MembershipId, string Who, CharacterSheet Sheet)> clones = [];
+
         if (inbox is not null)
         {
             _waiting = [.. inbox.Where(m => m.CampaignId == Id)];
-            _empty = await EmptySubmissions.AmongAsync(Memberships, Session, _waiting);
+
+            // **One pass, two answers.** Both need the payload behind each row, and the server
+            // hands one back only when it is asked for by membership — so a second pass for the
+            // budget would ask for every player's sheet twice on the screen that already costs the
+            // most to open.
+            var read = await CampaignRoster.ReadAsync(Memberships, Session, _waiting);
+
+            _empty = read.Empty;
+            clones = read.Clones;
         }
+
+        // **Outside the branch, because the objects are not in it.** They come out of the
+        // campaign's own payload, read above; only what has been put into them needs the clones.
+        // Built inside, a failed inbox drew a game that owns nothing over a payload this screen
+        // had already opened the objects out of.
+        _ledger = CampaignAssets.Ledger(_campaign, Session.Costs, clones);
 
         _state = Reading.Read;
     }

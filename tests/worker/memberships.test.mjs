@@ -732,6 +732,53 @@ test('a member reads the game’s live table, including changes made after they 
     assert.equal(seen.payload, moved);
 });
 
+test('a member reads a shared vehicle this server has never heard of', async () => {
+    // **The case a field-by-field projection would pass every other test and fail.** The test above
+    // moves two fields the server could plausibly know the names of; a route that rebuilt the
+    // payload out of the keys somebody had thought of would answer those two correctly and silently
+    // drop everything else. A campaign's shared vehicles and bases are inside that everything else:
+    // they are what the members of a game pool their Hero Points into, and a member whose browser
+    // never receives them cannot put anything into one.
+    //
+    // Nothing here teaches this server what a vehicle is. The claim is the opposite one — that it
+    // still does not know, and answers the bytes anyway.
+    const { app, gm, player, membership } = await aTable();
+
+    const withAShared = JSON.stringify({
+        Version: 1,
+        Campaign: {
+            ...campaignPayload.Campaign,
+            Assets: [{
+                Id: 'a_0000000000000000000000',
+                Kind: 'vehicle',
+                Name: 'The Wing',
+                Body: 8,
+                Speed: 10,
+                Features: [{ FeatureId: 'sensors', Units: 1 }],
+            }],
+        },
+    });
+
+    assert.equal((await app.call(`/api/campaigns/${gid()}`, {
+        method: 'PUT', body: { label: 'Nightfall', payload: withAShared }, cookie: gm.cookie,
+    })).status, 204);
+
+    const read = await liveTable(app, player.cookie, membership);
+    const seen = await read.json();
+
+    assert.equal(read.status, 200);
+
+    // Byte for byte, which is the only assertion that a projection cannot satisfy by accident.
+    assert.equal(seen.payload, withAShared,
+        'the live table did not answer the campaign verbatim, so a shared object cannot reach a member');
+
+    // And the parts a member's screen keys on, named individually — so a failure says which half
+    // went missing rather than printing two long strings.
+    assert.ok(seen.payload.includes('a_0000000000000000000000'),
+        'the object’s id did not survive, so every contribution naming it would be orphaned');
+    assert.ok(seen.payload.includes('sensors'), 'the object’s features did not survive');
+});
+
 test('the live table discloses no byte a join has not already handed the same player', async () => {
     // **The claim the route is built on, checked rather than asserted in a comment.** The whole
     // argument for answering the campaign's payload verbatim — rather than a table-only projection

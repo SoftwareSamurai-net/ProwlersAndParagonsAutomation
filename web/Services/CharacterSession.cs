@@ -596,4 +596,16 @@ public sealed class CharacterSession
     /// <see cref="Validate()"/>, and two of those is how they end up disagreeing.</para>
     /// </summary>
     public ValidationResult Validate(CharacterSheet sheet) => Validator.Validate(sheet);
+
+    /// <summary>
+    /// What is wrong with one of a campaign's shared vehicles or bases, or nothing.
+    ///
+    /// <para><b>Here for the same reason <see cref="Validate(CharacterSheet)"/> is</b>: the object
+    /// is not the character being built and the validator stays private. A shared object is priced
+    /// off the same printed table a machine on a sheet is, so it is held to the same printed
+    /// constraints — see <c>CharacterValidator.CheckSharedAsset</c>, which is where the argument
+    /// for that living in the engine rather than on the screen is written down.</para>
+    /// </summary>
+    public IReadOnlyList<ValidationIssue> Check(CampaignAsset asset) =>
+        Validator.CheckSharedAsset(asset);
 }

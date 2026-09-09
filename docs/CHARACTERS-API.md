@@ -326,6 +326,15 @@ nothing about another member. **Nothing is parsed** — a route that lifted `Tab
 a second place to keep in step with the engine and one that would fail silently, answering nulls,
 the first time the shape moved.
 
+**That is not hypothetical, and the campaign's shared vehicles and bases are what would go.** Ch.6
+lets a table pool their Hero Points into one object; the object lives in the campaign's payload and
+a member reaches it only through this route. A handler that rebuilt the payload out of the fields
+somebody had thought of would answer the tier, the cap and the price correctly and drop the shared
+objects — and the whole worker suite stayed green under exactly that mutation except for the one
+test that puts a shared vehicle in the payload and reads it back byte for byte. **Add no key here
+and parse nothing**: whatever a campaign grows next travels for free, and the moment it does not,
+it fails silently.
+
 **Nothing about the character's copy changes.** The copy is what the engine costs from and what
 travels to a fight, and joining again is the only thing that ever writes a new one.
 

@@ -970,7 +970,7 @@ else
     /// </summary>
     private async Task RecheckTable()
     {
-        var read = await LiveTableAsync();
+        var read = await CampaignReaches.LiveAsync(Memberships, Session.Sheet, _playing);
 
         _liveWentAway = read is null;
         _live = read;
@@ -1131,18 +1131,22 @@ else
     }
 
     /// <summary>
-    /// Turn the character's campaign id into a campaign, and remember which id it was.
-    /// See <see cref="_resolvedFrom"/> for why that is kept.
+    /// Turn the character's campaign id into a campaign, both ways round, and remember which id it
+    /// was. See <see cref="_resolvedFrom"/> for why that is kept.
+    ///
+    /// <para><b>The two reads and their ordering are <c>CampaignReaches</c>'</b>, since the
+    /// Vehicles and bases step needs the identical answer to offer this game's shared objects — the
+    /// live read is asked only where the account's own answered nothing, which is a member rather
+    /// than a GM, and a second copy of that ordering would be a second chance to ask the wrong
+    /// address first. What stays here is what is local to this screen: when the answer was read,
+    /// and whether a recheck has since taken a list away.</para>
     /// </summary>
     private async Task ResolveCampaign()
     {
-        _campaign = await Store.ForAsync(Session.Sheet);
+        var reach = await CampaignReaches.ForAsync(Store, Memberships, Session.Sheet, _playing);
 
-        // **Only where the account's own read answered nothing**, which is a member rather than a
-        // GM. A second request on the GM's path would be one this screen already has the answer to,
-        // and it would be answered 404 anyway: the table address is authorised by a membership row
-        // and a GM has none for their own game.
-        _live = _campaign is null ? await LiveTableAsync() : null;
+        _campaign = reach.Owned;
+        _live = reach.Live;
 
         // Stamped in the same statement the read is assigned in, so the age on screen can never be
         // a stamp from a different answer. Cleared with it: a resolve is a fresh start, and the
@@ -1152,25 +1156,6 @@ else
 
         _resolvedFrom = Session.Sheet.CampaignId;
         _resolved = true;
-    }
-
-    /// <summary>
-    /// The game this character is in, as its table has it now, read through the reader's own
-    /// membership.
-    ///
-    /// <para><b>The membership row is what makes the request possible</b>, so a missing list is a
-    /// null rather than a guess: <c>_playing</c> is the one read on this server scoped to the
-    /// player, and without a row for this campaign there is no id to ask under. That is the same
-    /// evidence <see cref="WorthSaying"/> uses, from the same list, one screen up.</para>
-    /// </summary>
-    private async Task<Campaign?> LiveTableAsync()
-    {
-        if (Session.Sheet.CampaignId is not { } id) return null;
-
-        var row = _playing?.FirstOrDefault(
-            m => string.Equals(m.CampaignId, id, StringComparison.Ordinal));
-
-        return row is null ? null : await Memberships.TableAsync(row.Id);
     }
 
     private void Reload() => _ = InvokeAsync(async () =>

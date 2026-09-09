@@ -367,6 +367,27 @@ careful about.
   printed feature line that is not a bare feature name — the Submersible's "Rader (Sonar)", which is
   the Radar Power taken through Unique Systems — is skipped rather than guessed at, so the machine
   comes out under budget rather than over.
+- **The fourth panel is the campaign's, and what a character records there is only what it put
+  in.** Ch.6 pp.96 and 100 both let a team pool their allowances on one object, and a
+  `CharacterSheet` is one character — so a pooled machine recorded on a sheet is either
+  unrepresentable or copied across five sheets with five chances to disagree. The owner settled it
+  on 2026-09-09: the object lives on the *campaign*, and the sheet holds a `CampaignAssetContribution`
+  naming its id. The step reads the game through `CampaignReaches` and offers its objects by name;
+  choosing one copies the id, the name and the kind off the object, so a contribution's kind can
+  never disagree with what it names and nobody has to type an id. **A contribution opens at
+  nothing**, which is the opposite of the Gadget's minimum Complexity one panel up and right for
+  the opposite reason: a Gadget at zero is a finding the moment it exists, and a contribution of
+  nothing is somebody saying which object they are backing before saying how much.
+- **A contribution to an object the game does not have is `UNKNOWN_CAMPAIGN_ASSET`, and it is
+  computed nowhere the engine can reach.** Answering it means resolving a campaign id, which is
+  storage — so `CampaignAssets.Orphaned` sits beside `CampaignJoin` rather than in the validator,
+  and it says **nothing at all when no campaign resolved**: a member's browser reads no campaign
+  for a game that is perfectly alive, and an orphan reported against that null would accuse every
+  member of every live game. That is `WorthSaying`'s lesson verbatim, one screen over. Reported and
+  never repaired — the Hero Points are still spent and still charged, and dropping the row would be
+  editing somebody's character to quieten a sentence.
+- **Nothing is asked of the server for a character in no game**, which is most of them and every
+  one belonging to somebody signed out. Asserted against the request log rather than assumed.
 - **Pros and Cons on a Gadget's Power are not on this page**, and that is a stopping point rather
   than a gap: it would be the whole `ProConPicker` under every Power of every Gadget. A payload from
   `build --from` or the MCP server carries them and is priced correctly. A half-picker offering some
@@ -1767,6 +1788,56 @@ works and nobody can reach.
   nothing.** The real race is between the diff being drawn and the button being pressed, which a
   test drives with no seam at all — so the seam was deleted, because one nothing races reads as a
   guarantee and is not one. `FakeApi` records that where the seam used to be.
+- **The campaign's shared vehicles and bases are on `/campaign/{id}`, and they are there because
+  it is the only screen that has read the members' sheets.** A shared object's budget is the sum of
+  what every member put in, so it cannot be drawn where the clones are not — and the clones are
+  what that screen's roster already opens. The GM names an object, gives it Chapter 6's
+  characteristics and features, and takes it away again; `CampaignAssets.Ledger` puts the spend
+  beside the budget and lists who paid, largest first.
+  - **The id is minted (`a_`, its own letter) and never moves.** Every member's sheet holds it as
+    the record of what they paid for, so a key derived from the name would orphan five
+    contributions the first time somebody disliked the name. It never reaches the server as a key
+    either: an object lives *inside* the payload.
+  - **The kind is chosen as the object is named and never afterwards.** A vehicle and a base are
+    bought in different currencies off different tables, so a kind that moved later would strand
+    every feature already on it — and every contribution copied the kind when it was backed.
+  - **It is a draft saved in one write**, unlike every other editor in this app, which changes a
+    character held in this browser. This one changes a campaign that lives on a server, and a field
+    bound straight to it would be a request per number typed on a panel that is nothing but number
+    boxes. A refused save says so and keeps the draft open.
+  - **The budget is summed from the *clones*, never from a waiting snapshot.** A snapshot is a
+    request the GM has not decided about, so counting it would spend a player's Hero Points on a
+    shared object before anybody agreed they were spent.
+  - **Three sentences that must not merge.** Under budget says nothing; over budget prints both
+    figures and offers no repair; and an object these rules cannot price says *that* instead. The
+    third is reachable rather than theoretical — a campaign's payload is written by whatever build
+    the GM was running, `CostCalculator` throws on a feature id it does not know, and before
+    `CampaignAssets.Spend` caught it that exception took the GM's whole roster down with the panel.
+    **It is two throws and not one**: the engine also multiplies inside `checked`, and that one
+    arrives by typing rather than by meeting another build's payload, because the editor prices the
+    draft on every change.
+  - **What the book says about the object itself is a fourth thing, and it is not about the
+    budget.** p.96 floors a negative Control at −3 and caps it at half the Speed, and a
+    characteristic below zero *pays Vehicle Points back* — so an object with Body −20 reads as
+    comfortably inside a budget nobody funded. The page prints `VehicleRanksNote` stating the two
+    Control sentences and checked neither. It is `CharacterValidator.CheckSharedAsset` now, in the
+    engine because they are printed rules, reusing the codes a machine on a sheet is reported
+    under, and drawn through `ChosenRow.Findings` in the row and beside the Save in the editor.
+    Reported and never repaired: the save is still offered.
+  - **A game whose players could not be read is not a game that owns nothing.** The objects come
+    out of the campaign's own payload, which this screen reads on its own line; the budget beside
+    them is summed from the clones behind the memberships, which is another read. Built inside the
+    inbox branch, the ledger was empty on a failed inbox and the panel said *"Nothing shared yet"*
+    — Edit and Remove gone with the rows. Where the clones are missing the objects are named and
+    the sums are not, because a budget summed from no clones is nothing and nothing drawn as a
+    budget makes every object on the page over its budget.
+  - **Removing one takes nobody's Hero Points with it.** The contribution stays on the member's
+    sheet, still costs them, and their own screen reports it as naming an object the game does not
+    have — the same answer deleting a campaign gets, and for the same reason.
+  - **`CampaignRoster.ReadAsync` is one pass with both of that screen's per-member answers taken
+    off it** — the empty-submission marker and the clone. Both need the payload behind a row, which
+    the server hands back only per membership, so a second pass would ask for every player's sheet
+    twice on the screen that already costs the most to open.
 - **A submission's label and its payload come from one source: the character the row names, read
   by id.** `Submit` used to send `Session.Sheet` — the character on screen — into a membership
   keyed on `AccountCharacterStore.CurrentIdAsync()`, the browser's current-character pointer.
