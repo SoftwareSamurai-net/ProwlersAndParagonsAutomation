@@ -3192,7 +3192,8 @@ public sealed partial class Encounter
                 $"nothing was named for {target.Name} to hit on the way, so p.78's last clause is "
                 + $"not applied: striking something solid would have cost them "
                 + $"{rule.DamageOnStrikingASolidObject}, and what they flew into is the GM's. "
-                + "Chapter 7 pp.107-108 rate ninety-four things a purchase can name instead"));
+                + $"Chapter 7 pp.107-108 rate {SceneryRows().Count()} things a purchase can name "
+                + "instead"));
 
             return state;
         }
@@ -3232,9 +3233,9 @@ public sealed partial class Encounter
             + $"{(passive.Trait is null ? "nothing at all" : $"{passive.Trait} at {passive.Rank}d")}: "
             + (smashesThrough
                 ? $"that exceeds the Structure, so {rule.APassiveDefenseAboveTheObjectsStructure} "
-                  + $"and the object is not tougher than they are "
-                  + $"({nameof(rule.TheObjectMustBeTougherThanTheTarget)} is "
-                  + $"{rule.TheObjectMustBeTougherThanTheTarget})"
+                  + "— which is p.78's own parenthesis, and it is what settles the clause beside "
+                  + "it: the_object_must_be_tougher_than_the_target is "
+                  + $"{rule.TheObjectMustBeTougherThanTheTarget} and this object is not"
                 : $"it does not exceed the Structure, so the object is tougher than they are and "
                   + $"they take {rule.DamageOnStrikingASolidObject} — {extra} more off the "
                   + $"{inflicted} the blow did, leaving them on {health} Health")));
