@@ -905,6 +905,22 @@ public sealed class PlaySceneryTests
         // refusal is about the distance and not about the object.
         Assert.Contains(Throws("the Statue of Liberty", might: 15, at: RangeBand.Close).Lines, l =>
             string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+
+        // <b>And the object with no weight rank is reported rather than refused.</b> p.108 plainly
+        // lets a motorcycle be thrown and no page says how far, so the silence is the GM's — but
+        // deleting the line that says so left the whole suite green, which is a silence a reader
+        // cannot tell from a rule that never ran. The same weak throw carries it the whole way.
+        var structureOnly = Throws("a motorcycle", might: 15, at: RangeBand.Distant);
+
+        Assert.Contains(structureOnly.Lines, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+
+        var unlimited = Assert.Single(structureOnly.Lines, l =>
+            string.Equals(l.Rule, "throwing_range", StringComparison.Ordinal));
+
+        Assert.Contains("Motorcycle", unlimited.Text, StringComparison.Ordinal);
+        Assert.Contains("rather than a weight rank", unlimited.Text, StringComparison.Ordinal);
+        Assert.Contains("not limited here", unlimited.Text, StringComparison.Ordinal);
     }
 
     /// <summary>
