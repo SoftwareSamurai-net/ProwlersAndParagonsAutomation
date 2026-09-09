@@ -255,13 +255,13 @@ public sealed class OptionFilterTests
             Assert.Contains(word, row.TextContent, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>The tab holding one of the filtered lists, driven to where the list exists.</summary>
     /// <summary>
     /// Which list on the page this case is about. Empty for the two tabs that have one; the Gear
     /// step has two, and the custom features are the list with descriptions on it.
     /// </summary>
     private static string Scope(string which) => which == "gear" ? ".customising " : "";
 
+    /// <summary>The tab holding one of the filtered lists, driven to where the list exists.</summary>
     private static IRenderedComponent<Microsoft.AspNetCore.Components.IComponent> Page(
         RenderContext ctx, string which)
     {

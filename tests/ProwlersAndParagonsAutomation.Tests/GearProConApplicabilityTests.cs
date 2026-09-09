@@ -59,6 +59,20 @@ public sealed class GearProConApplicabilityTests
                 + $"Marked: {string.Join(", ", marked)}");
         }
 
+        // **The mapped name is mapped to one entry and not the other, and it is asserted by id
+        // because no substring test can tell the two apart.** "Zone / Nova (Area of Effect)"
+        // contains "Area of Effect" exactly as "Area / Burst (Area of Effect)" does, so moving
+        // the mark from one to the other satisfies every assertion above — count included — and
+        // this test passed under precisely that mutation. The reason the mark belongs on
+        // `area_burst` is not in either name: the Weapon Features glossary's own Area/Burst entry
+        // defers to `area_burst` by id, and that is the only place in the book where this Pro and
+        // a piece of gear meet.
+        Assert.Contains(ProConApplicability.GearTarget,
+            _f.Rules.GetPro("area_burst")!.ApplicableTo, StringComparer.Ordinal);
+
+        Assert.DoesNotContain(ProConApplicability.GearTarget,
+            _f.Rules.GetPro("zone_nova")!.ApplicableTo, StringComparer.Ordinal);
+
         // The one the page leaves off, which is the whole argument for not crediting it.
         Assert.DoesNotContain(ProConApplicability.GearTarget,
             _f.Rules.GetCon("item")!.ApplicableTo, StringComparer.Ordinal);

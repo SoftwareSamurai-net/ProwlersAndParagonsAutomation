@@ -1,4 +1,5 @@
 @page "/build/gear"
+@implements IDisposable
 @inject CharacterSession Session
 @inject Commands Commands
 
@@ -152,9 +153,36 @@
 
     protected override void OnInitialized()
     {
-        if (Commands.TakeRequestedGearRow() is { } rowId && Session.Catalogue.Find(rowId) is { } row)
-            _catalogueQuery = row.Name;
+        Commands.Changed += Asked;
+
+        // Arriving here *because* somebody chose a row in the palette. This call covers the
+        // navigation; the subscription above covers the other case, and it is the likelier one —
+        // the palette is how you look a weapon up while you are choosing gear. `NavigateTo` to the
+        // address you are already at is a no-op, Blazor reuses this instance rather than making a
+        // second one, and a request read in `OnInitialized` alone is then never read at all. This
+        // repository shipped that defect once already, on `/rules`; `Characteristics.razor` carries
+        // the same pair for the same reason.
+        Asked();
     }
+
+    /// <summary>
+    /// Somebody asked for a catalogue row from the palette, so put it in front of them.
+    ///
+    /// <para>Taken rather than peeked — see <c>Commands.TakeRequestedGearRow</c> — so it seeds the
+    /// box once and does not drag the list back to that row every time anything else on this page
+    /// re-renders. <c>Commands.Changed</c> also fires for the palette opening and closing, which is
+    /// why nothing re-renders unless a row really was asked for.</para>
+    /// </summary>
+    private void Asked()
+    {
+        if (Commands.TakeRequestedGearRow() is not { } rowId) return;
+        if (Session.Catalogue.Find(rowId) is not { } row) return;
+
+        _catalogueQuery = row.Name;
+        StateHasChanged();
+    }
+
+    public void Dispose() => Commands.Changed -= Asked;
 
     // SelectedGear is a record, so an edit produces a new instance rather than mutating
     // one. The picker works on these mutable copies and Save writes them back.

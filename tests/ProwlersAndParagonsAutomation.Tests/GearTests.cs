@@ -276,6 +276,49 @@ public sealed class GearTests
         Assert.DoesNotContain(result.Issues, i => i.Code == "HP_BUDGET_EXCEEDED");
     }
 
+    /// <summary>
+    /// <b>A misspelled catalogue row is reported and does not take the budget check down with
+    /// it.</b>
+    ///
+    /// <para><c>CheckGear</c> returns a <em>priceability</em> flag, and the caller spends it on
+    /// one thing: whether to run <c>CheckHpBudget</c>, which is one of the two limits a character
+    /// can break. <c>GearCost</c> never reads <c>CatalogueId</c>, so an id that resolves to
+    /// nothing cannot make an item unpriceable — and clearing the flag for one silently dropped
+    /// <c>HP_BUDGET_EXCEEDED</c> from a character that really was over. That is the failure
+    /// <c>CheckTierSelected</c>'s own doc comment calls the worst answer this validator can give:
+    /// a character reported legal, confidently, about something that is not.</para>
+    /// </summary>
+    [Fact]
+    public void AnUnknownCatalogueRowIsReportedWithoutSilencingTheBudget()
+    {
+        var overspent = _f.LegalSheet();
+
+        // Ranks alone, all of them under the Standard tier's 12d cap, so the only thing wrong with
+        // this character is the price: nothing else here can be mistaken for the finding below.
+        foreach (var ability in overspent.AbilityRanks.Keys.ToList())
+            overspent.AbilityRanks[ability] = 12;
+
+        foreach (var talent in overspent.TalentRanks.Keys.ToList())
+            overspent.TalentRanks[talent] = 6;
+
+        // The positive control, and the whole instrument: without it, "the finding is there" is
+        // satisfied by a character nobody could be over budget on.
+        Assert.Contains(_f.Validator.Validate(overspent).Issues,
+            i => i.Code == "HP_BUDGET_EXCEEDED");
+
+        overspent.Gear.Add(new SelectedGear("Battle Axe")
+        {
+            CatalogueId = GearCatalogue.WeaponPrefix + "battel_axe"
+        });
+
+        var result = _f.Validator.Validate(overspent);
+
+        Assert.Contains(result.Issues,
+            i => i is { Code: "UNKNOWN_GEAR_CATALOGUE_ROW", Severity: ValidationSeverity.Error });
+
+        Assert.Contains(result.Issues, i => i.Code == "HP_BUDGET_EXCEEDED");
+    }
+
     [Fact]
     public void PlainGearRaisesNoIssues()
     {

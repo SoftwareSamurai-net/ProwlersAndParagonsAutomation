@@ -490,6 +490,35 @@ public sealed class CommandPaletteTests
     }
 
     /// <summary>
+    /// <b>The gear rows are capped, and the cap is counted per kind rather than over the list.</b>
+    ///
+    /// <para>That is the claim <c>PowerLimit</c>'s own doc comment makes — "counted per kind
+    /// rather than over the whole list, so a word that matches eight Powers does not push every
+    /// weapon off the bottom" — and nothing held it: a shared counter left every assertion in this
+    /// file green while a query matching the cap in Powers offered <em>no</em> gear at all. So the
+    /// two halves are asserted together, at a limit small enough that both kinds reach it.</para>
+    /// </summary>
+    [Fact]
+    public void TheGearRowsAreCappedAndTheCapIsNotSharedWithThePowers()
+    {
+        using var ctx = Opened();
+        var commands = CommandsOf(ctx);
+
+        // "a" reaches most of the Powers and most of the catalogue, so both kinds hit the cap.
+        var found = commands.Matching("a", 3);
+
+        Assert.Equal(3, found.Count(c => c.Kind == CommandKind.Power));
+        Assert.Equal(3, found.Count(c => c.Kind == CommandKind.GearRow));
+
+        // The positive control: the cap is a cap and not the number of rows there are, so a query
+        // matching fewer than the limit gets all of them and the assertion above is a truncation.
+        var few = commands.Matching("battle axe", 3);
+
+        Assert.Contains(few, c => c.Kind == CommandKind.GearRow);
+        Assert.True(few.Count(c => c.Kind == CommandKind.GearRow) < 3);
+    }
+
+    /// <summary>
     /// <b>And the Gear step it lands on has the row in front of the reader, with the word in the
     /// box.</b> A list narrowed by something the box does not show is a list that looks broken and
     /// cannot be widened again.
@@ -656,5 +685,43 @@ public sealed class CommandPaletteTests
         Assert.True(ctx.Session.Rules.Powers.Count > limit);
         Assert.True(ctx.Session.Catalogue.Rows.Count > limit);
         Assert.True(ctx.Session.Assets.Rows.Count > limit);
+    }
+
+    /// <summary>
+    /// <b>And a reader who was already on the Gear step gets the same answer</b> — which is the
+    /// likeliest reader of all, since the palette is how you look a weapon up while choosing gear.
+    ///
+    /// <para><b>The page is rendered before the row is asked for, and it is the same instance every
+    /// assertion is about.</b> That is the whole drive: <c>NavigateTo("build/gear")</c> from
+    /// <c>build/gear</c> is a no-op, Blazor reuses the instance rather than initialising a second
+    /// one, and a request read in <c>OnInitialized</c> alone is therefore never read at all. This
+    /// repository has shipped that exact defect once, on <c>/rules</c>, and the test that hid it
+    /// rendered a fresh page afterwards — which is a thing the app never does and a test always
+    /// did. See <c>PaletteBookTests.ChoosingAPassageAsksTheRulesReferenceTheSameQuestion</c>.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheGearStepAlreadyOpenIsFilteredToTheRequestedRowToo()
+    {
+        using var ctx = Opened();
+
+        // On the Gear step already, with the palette over it. Nothing renders a second one.
+        var step = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.Gear>();
+
+        // The positive control: with no request made, the box is empty and the whole catalogue is
+        // on offer — so "the list is short" below is a filter and not the page's resting state.
+        Assert.Equal("", step.Find(".catalogue .options-filter input").GetAttribute("value"));
+        Assert.True(step.FindAll(".catalogue .options .option").Count > 1);
+
+        // On the renderer's own thread, because choosing a row raises `Changed` and the page
+        // answers it with `StateHasChanged`.
+        await step.InvokeAsync(
+            () => CommandsOf(ctx).RequestGearRow(GearCatalogue.WeaponPrefix + "battle_axe"));
+
+        Assert.Equal("Battle Axe", step.Find(".catalogue .options-filter input").GetAttribute("value"));
+
+        var row = Assert.Single(step.FindAll(".catalogue .options .option"));
+        Assert.Contains("Battle Axe", row.TextContent, StringComparison.Ordinal);
+
+        Assert.Null(CommandsOf(ctx).RequestedGearRowId);
     }
 }

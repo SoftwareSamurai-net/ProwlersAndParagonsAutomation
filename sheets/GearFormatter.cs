@@ -67,16 +67,25 @@ public static class GearFormatter
     }
 
     /// <summary>
-    /// The bonus column, and the printed "(s)" beside it.
+    /// The bonus column, the printed "(s)" beside it, and — on the two rows that have one — what
+    /// the bonus is <em>for</em>.
     ///
     /// <para><b>A zero is printed and a null is not</b>, because they say different things: the
     /// Armor table prints 0 for Leather, and the weapons tables have one row the book gives no
     /// bonus at all. Suppressing the zero would make the two look alike on a sheet.</para>
+    ///
+    /// <para><b>An armour or weapon bonus applies to the thing the row is for and needs no
+    /// saying; two of p.91's items are not like that.</b> The Crowbar's four dice are for "Might
+    /// rolls made to force things open or apart" and the Climbing Claws' two are for climbing, and
+    /// the page says so in the same breath as the figure. A sheet printing <c>Crowbar +4</c> beside
+    /// <c>Battle Axe +3</c> states a general bonus the book does not grant — and the row carries
+    /// the qualifier precisely so it can be printed.</para>
     /// </summary>
     private static string Bonus(GearCatalogueRow? row) =>
         row?.BonusDice is not { } dice
             ? ""
-            : $" +{dice.ToString(CultureInfo.InvariantCulture)}{(row.Subdual ? "(s)" : "")}";
+            : $" +{dice.ToString(CultureInfo.InvariantCulture)}{(row.Subdual ? "(s)" : "")}"
+              + (string.IsNullOrEmpty(row.BonusAppliesTo) ? "" : $" to {row.BonusAppliesTo}");
 
     /// <summary>
     /// A printed feature name. <b>Shield is the one that carries a figure</b>: p.88 gives a shield

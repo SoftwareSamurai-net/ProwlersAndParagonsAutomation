@@ -1162,7 +1162,13 @@ public sealed class CharacterValidator
                     // option list a screen would offer to choose from is a repair this engine does
                     // not make.
                 });
-                resolvable = false;
+
+                // **And `resolvable` is deliberately left alone.** That flag means one thing —
+                // this item cannot be priced — and the caller spends it on one thing: whether to
+                // run the Hero Point budget check. `GearCost` never reads `CatalogueId`, so an id
+                // that resolves to nothing prices exactly as it did before. Clearing the flag here
+                // dropped `HP_BUDGET_EXCEEDED` from a character that really was over, which is a
+                // misspelling buying silence on one of the two limits a character can break.
             }
 
             var itemResolvable = true;
