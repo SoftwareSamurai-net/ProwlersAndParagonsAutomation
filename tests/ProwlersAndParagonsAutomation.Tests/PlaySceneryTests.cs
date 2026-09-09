@@ -1111,7 +1111,10 @@ public sealed class PlaySceneryTests
             encounter.Step(first.State, new EndTurn("villain")).State, new EndPage("villain"));
 
         // The positive control on the page turn: the Hero is the one to act again.
-        Assert.Equal("hero", next.State.Current.Id);
+        var acting = next.State.Current;
+
+        Assert.NotNull(acting);
+        Assert.Equal("hero", acting.Id);
 
         var second = encounter.Step(next.State, Throw());
 
