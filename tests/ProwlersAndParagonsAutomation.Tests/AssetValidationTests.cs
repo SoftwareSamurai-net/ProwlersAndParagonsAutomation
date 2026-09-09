@@ -67,11 +67,23 @@ public sealed class AssetValidationTests
     {
         var sheet = _f.LegalSheet();
 
+        // <b>Exactly at the budget, which is where the comparison has to be driven.</b> Two
+        // features against three Base Points is under it, and a check written `spent >= budget`
+        // would have been just as green — so a base that spends every point its Perk bought,
+        // which is the ordinary case, would have been reported over budget. Three of three.
         sheet.Headquarters.Add(new OwnedHeadquarters("The Vault")
         {
             PerkHeroPoints = 1,
-            Features = [new SelectedAssetFeature("hidden"), new SelectedAssetFeature("disguised")]
+            Features =
+            [
+                new SelectedAssetFeature("hidden"),
+                new SelectedAssetFeature("disguised"),
+                new SelectedAssetFeature("remote")
+            ]
         });
+
+        Assert.Equal(3, _f.Costs.BasePointsSpent(sheet.Headquarters[0]));
+        Assert.Equal(3, _f.Costs.BasePointBudget(sheet.Headquarters[0]));
         Assert.False(Reports(sheet, "HEADQUARTERS_OVER_BUDGET"));
 
         sheet.Headquarters[0] = sheet.Headquarters[0] with
@@ -145,6 +157,20 @@ public sealed class AssetValidationTests
             Features = [new SelectedAssetFeature("mecha") { Units = 7 }]
         };
         Assert.False(Reports(sheet, "MECHA_MIGHT_BELOW_HALF_BODY"));
+
+        // <b>And one rank below half, which is the boundary the pair above straddles.</b> Legal
+        // at 7 and reported at 3 leaves four ranks between them, so a floor loosened by exactly
+        // one rank — `Units + 1 >= HalfRoundedUp(Body)`, which is what an off-by-one here would
+        // look like — kept both assertions true. Might 6 against Body 14 is the case that tells
+        // the two apart, and it is the case a player actually writes down.
+        sheet.Vehicles[0] = sheet.Vehicles[0] with
+        {
+            Features = [new SelectedAssetFeature("mecha") { Units = 6 }]
+        };
+
+        var justUnder = Only(sheet, "MECHA_MIGHT_BELOW_HALF_BODY");
+        Assert.Equal(6, justUnder.Value);
+        Assert.Equal(7, justUnder.Limit);
 
         // And a machine that is not a Mecha is never asked about, however low its Might would be.
         sheet.Vehicles[0] = sheet.Vehicles[0] with { Features = [] };
