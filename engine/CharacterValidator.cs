@@ -652,6 +652,14 @@ public sealed class CharacterValidator
     /// <para>The ranks cannot be exploited the same way — costs floor at zero — but a Trait at
     /// −50d is not a character, and reporting it legal is the same wrong answer in a quieter
     /// voice. The wizard cannot produce any of this: it counts upwards from a menu.</para>
+    ///
+    /// <para><b>And it happened again the moment Chapter 6 added four collections.</b> A Perk
+    /// allowance, a vehicle's three bought characteristics and a Gadget's Trait ranks are all the
+    /// same unbounded field, and only <c>CampaignAssetContribution.HeroPoints</c> — the one that
+    /// looks most like a spend — was checked. The other three each fund something for nothing.
+    /// <b>The pattern to take from this is that a new collection needs a clause here</b>, and the
+    /// way it stays true is that nothing here is derived: each clause is written out, so an
+    /// absent one is visible.</para>
     /// </summary>
     private void CheckQuantities(CharacterSheet sheet, List<ValidationIssue> issues)
     {
@@ -689,6 +697,58 @@ public sealed class CharacterValidator
             issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Character, choice.Id,
                 $"{owner}'s '{choice.Id}' is applied {choice.Units} times, which would "
                 + "discount it rather than charge for it.", choice.Units!.Value));
+
+        // Chapter 6's four collections, which arrived after every clause above and were bounded
+        // by none of them. Each is the same exploit in a new field:
+        //
+        //  • a vehicle's Body/Speed/Weapons below zero **pays Vehicle Points back**, and a machine
+        //    with Body −20 buys twenty points of features for nothing, inside its budget, silent.
+        //    Control is the one that may be negative — p.96 says so and floors it at −3, which
+        //    CheckVehicle reports — so it is deliberately not here.
+        //  • a Perk allowance below zero is Hero Points *paid to the character*: PerkHeroPoints
+        //    −1000 took a legal sheet from 18 HP to −982, reported only as a Vehicle Point budget
+        //    finding that says nothing about the thousand Hero Points. CampaignAssets' own
+        //    HeroPoints was already checked; these two are the same field and were not.
+        //  • a Gadget's Trait ranks below zero pay its pool back: `might: -50` beside a 20d Blast
+        //    spends −30 out of a pool of six, which is inside it.
+        //
+        // Reported, never repaired, like every other quantity here: the totals stay what the sheet
+        // says, which is what makes the finding worth printing beside them.
+        foreach (var vehicle in sheet.Vehicles.Where(v => v.Name is not null))
+        {
+            foreach (var (what, rank) in new[]
+                     { ("Body", vehicle.Body), ("Speed", vehicle.Speed), ("Weapons", vehicle.Weapons ?? 0) }
+                         .Where(c => c.Item2 < 0))
+                issues.Add(Negative("NEGATIVE_RANK", ValidationSubject.Vehicle, vehicle.Name,
+                    $"{vehicle.Name} has {what} {rank}d. A vehicle's characteristics are bought "
+                    + "from nothing, and a rank below that pays Vehicle Points back rather than "
+                    + "costing them. Only Control may be negative.", rank));
+
+            if (vehicle.PerkHeroPoints < 0)
+                issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Vehicle, vehicle.Name,
+                    $"{vehicle.Name} records {vehicle.PerkHeroPoints} Hero Points of the Unique "
+                    + "Vehicle Perk, which would pay the character rather than cost them.",
+                    vehicle.PerkHeroPoints));
+        }
+
+        foreach (var hq in sheet.Headquarters.Where(h => h.Name is not null && h.PerkHeroPoints < 0))
+            issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Headquarters, hq.Name,
+                $"{hq.Name} records {hq.PerkHeroPoints} Hero Points of the Headquarters Perk, "
+                + "which would pay the character rather than cost them.", hq.PerkHeroPoints));
+
+        foreach (var gadget in sheet.Gadgets.Where(g => g.Name is not null))
+            foreach (var (id, rank) in gadget.AbilityRanks.Concat(gadget.TalentRanks).Where(e => e.Value < 0))
+                issues.Add(new(ValidationSeverity.Error, "NEGATIVE_RANK",
+                    $"{gadget.Name} has {rank}d of '{id}'. A Trait cannot have fewer than no "
+                    + "ranks, and a negative one pays the Gadget's pool back rather than "
+                    + "spending it.")
+                {
+                    SubjectKind = ValidationSubject.Gadget,
+                    SubjectId   = gadget.Name,
+                    OwnerId     = id,
+                    Value       = rank,
+                    Limit       = 0
+                });
 
         // Zero is not a purchase. A per-unit Perk or Power at no units costs nothing and does
         // nothing, so it is a line on the sheet the character did not buy.

@@ -514,6 +514,123 @@ public sealed class AssetValidationTests
         Assert.False(Reports(perkOnly, "ASSET_PERK_RECORDED_TWICE"));
     }
 
+    // ── Quantities below zero, which pay rather than cost ─────────────────────
+
+    /// <summary>
+    /// <b>A vehicle's characteristics are bought from nothing, so a rank below nothing pays
+    /// Vehicle Points back.</b>
+    ///
+    /// <para>Body −20 buys twenty Vehicle Points of features for free — Sensors, Flight,
+    /// Spaceflight, a Cargo Hold and a Com System came to exactly nothing on a machine whose Perk
+    /// bought it no allowance at all, inside its budget, with no finding anywhere on the sheet.
+    /// This is `CheckQuantities`' own documented exploit — a per-unit Perk at −1000 — in a
+    /// collection that arrived after every clause it had.</para>
+    ///
+    /// <para><b>Control is deliberately not here.</b> p.96 makes a negative Control legal and
+    /// floors it at −3, which <c>VEHICLE_CONTROL_BELOW_MINIMUM</c> reports; the other three have
+    /// no such sentence.</para>
+    /// </summary>
+    [Fact]
+    public void AVehicleRankBelowZeroIsReportedAndStillPaysBack()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.Vehicles.Add(new OwnedVehicle("Ghost")
+        {
+            Body = -20,
+            Features =
+            [
+                new SelectedAssetFeature("sensors"),      // 10
+                new SelectedAssetFeature("flight"),       //  2
+                new SelectedAssetFeature("spaceflight"),  //  4
+                new SelectedAssetFeature("cargo_hold"),   //  2
+                new SelectedAssetFeature("com_system")    //  2
+            ]
+        });
+
+        // The control first: this really is a machine whose features were free.
+        Assert.Equal(0, _f.Costs.VehiclePointsSpent(sheet.Vehicles[0]));
+        Assert.Equal(0, _f.Costs.VehiclePointBudget(sheet.Vehicles[0]));
+        Assert.False(Reports(sheet, "VEHICLE_OVER_BUDGET"));
+
+        var issue = Only(sheet, "NEGATIVE_RANK");
+        Assert.Equal(ValidationSubject.Vehicle, issue.SubjectKind);
+        Assert.Equal("Ghost", issue.SubjectId);
+        Assert.Equal(-20, issue.Value);
+        Assert.Equal(0, issue.Limit);
+
+        // Never repaired: the twenty points are still paid back, which is what the sheet says.
+        Assert.Equal(0, _f.Costs.VehiclePointsSpent(sheet.Vehicles[0]));
+
+        // Speed and Weapons are the same field. Control is not — it is legal below zero.
+        sheet.Vehicles[0] = sheet.Vehicles[0] with { Body = 0, Speed = -3, Weapons = -4, Control = -3 };
+        Assert.Equal(2, Issues(sheet).Count(i => i.Code == "NEGATIVE_RANK"));
+        Assert.False(Reports(sheet, "VEHICLE_CONTROL_BELOW_MINIMUM"));
+    }
+
+    /// <summary>
+    /// <b>A Perk allowance below zero pays the character Hero Points.</b>
+    ///
+    /// <para>`PerkHeroPoints` is the same unbounded field a Perk's `Units` is, and it reaches
+    /// `TotalCost` by the same route. A vehicle recording −1000 took a legal sheet from 18 Hero
+    /// Points to −982, and the only thing said about it was a Vehicle Point budget finding, which
+    /// mentions no Hero Points at all. `CampaignAssetContribution.HeroPoints` was checked from
+    /// the start; these two are the same field and were not.</para>
+    /// </summary>
+    [Fact]
+    public void APerkAllowanceBelowZeroIsReportedOnBothKindsOfAsset()
+    {
+        var sheet = _f.LegalSheet();
+        var honest = _f.Costs.TotalCost(sheet);
+
+        sheet.Vehicles.Add(new OwnedVehicle("Debt") { PerkHeroPoints = -1000 });
+        sheet.Headquarters.Add(new OwnedHeadquarters("Overdraft") { PerkHeroPoints = -500 });
+
+        // The control: the sheet really has been paid, which is what makes the silence a defect
+        // rather than a tidy-up.
+        Assert.Equal(honest - 1500, _f.Costs.TotalCost(sheet));
+
+        var vehicle = Issues(sheet).Single(
+            i => i.Code == "NEGATIVE_UNITS" && i.SubjectKind == ValidationSubject.Vehicle);
+        Assert.Equal("Debt", vehicle.SubjectId);
+        Assert.Equal(-1000, vehicle.Value);
+
+        var headquarters = Issues(sheet).Single(
+            i => i.Code == "NEGATIVE_UNITS" && i.SubjectKind == ValidationSubject.Headquarters);
+        Assert.Equal("Overdraft", headquarters.SubjectId);
+        Assert.Equal(-500, headquarters.Value);
+
+        // Reported, never repaired.
+        Assert.Equal(honest - 1500, _f.Costs.TotalCost(sheet));
+    }
+
+    /// <summary>
+    /// <b>A Gadget's Trait rank below zero pays its pool back.</b> `might: -50` beside a 20d Blast
+    /// spends −30 out of a pool of six, which is comfortably inside it — so a Gadget carrying a
+    /// Power worth twenty Hero Points was legal and silent.
+    /// </summary>
+    [Fact]
+    public void AGadgetTraitRankBelowZeroIsReported()
+    {
+        var sheet = ABuilder();
+        sheet.Gadgets.Add(new BuiltGadget("Cheat")
+        {
+            Complexity   = 3,
+            Powers       = [new SelectedPower("blast", 20) { SourceId = "tech" }],
+            AbilityRanks = new Dictionary<string, int> { ["might"] = -50 }
+        });
+
+        // The control: the pool really is being paid back into.
+        Assert.Equal(6, _f.Costs.GadgetPool(sheet.Gadgets[0]));
+        Assert.True(_f.Costs.GadgetSpend(sheet.Gadgets[0]) < 0);
+        Assert.False(Reports(sheet, "GADGET_OVER_POOL"));
+
+        var issue = Only(sheet, "NEGATIVE_RANK");
+        Assert.Equal(ValidationSubject.Gadget, issue.SubjectKind);
+        Assert.Equal("Cheat", issue.SubjectId);
+        Assert.Equal("might", issue.OwnerId);
+        Assert.Equal(-50, issue.Value);
+    }
+
     // ── Nameless things ───────────────────────────────────────────────────────
 
     /// <summary>

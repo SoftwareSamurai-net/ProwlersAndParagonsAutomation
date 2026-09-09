@@ -1101,11 +1101,19 @@ public sealed class ValidationIssueStructureTests
         ["TRAIT_ABOVE_CAP"]      = [ValidationSubject.Ability, ValidationSubject.Talent, ValidationSubject.Power],
         ["TRAIT_BELOW_MINIMUM"]  = [ValidationSubject.Ability, ValidationSubject.Talent],
         ["TRAIT_BELOW_PACKAGE"]  = [ValidationSubject.Ability, ValidationSubject.Talent],
-        ["NEGATIVE_RANK"]        = [ValidationSubject.Ability, ValidationSubject.Talent, ValidationSubject.Power],
+        ["NEGATIVE_RANK"]        = [ValidationSubject.Ability, ValidationSubject.Talent, ValidationSubject.Power,
+
+            // …and Chapter 6's two: a vehicle's bought characteristics, and a Gadget's own Trait
+            // ranks. Both pay a currency back when they go below zero.
+            ValidationSubject.Vehicle, ValidationSubject.Gadget],
 
         // A quantity, which sits on a Power, a Perk or a Pro — the last two under Character,
         // since a Perk is not one of the kinds and an option belongs to its owner.
-        ["NEGATIVE_UNITS"]       = [ValidationSubject.Power, ValidationSubject.Character],
+        ["NEGATIVE_UNITS"]       = [ValidationSubject.Power, ValidationSubject.Character,
+
+            // A Perk allowance recorded against a machine or a base is the same field as a Perk's
+            // Units and pays the character the same way.
+            ValidationSubject.Vehicle, ValidationSubject.Headquarters],
 
         ["UNKNOWN_PRO"]              = [ValidationSubject.Character],
         ["UNKNOWN_CON"]              = [ValidationSubject.Character],
@@ -1630,7 +1638,10 @@ public sealed class ValidationIssueStructureTests
                 });
                 sheet.Vehicles.Add(new OwnedVehicle("The Sub")
                 {
-                    PerkHeroPoints = 1, Control = -9
+                    // Control below its floor is legal-shaped and reported; Body below zero is
+                    // not a rank at all and pays Vehicle Points back, and the Perk allowance
+                    // below zero pays Hero Points back. Three different findings on one machine.
+                    PerkHeroPoints = -2, Control = -9, Body = -4
                 });
                 // Both unpriceable faults on one machine, and deliberately on a machine of their
                 // own: an unpriceable feature silences that vehicle's budget check, so putting one
@@ -1667,6 +1678,9 @@ public sealed class ValidationIssueStructureTests
                     Features = [new SelectedAssetFeature("size")]
                 });
 
+                // …and an allowance below zero, which pays Hero Points to the character.
+                sheet.Headquarters.Add(new OwnedHeadquarters("The Overdraft") { PerkHeroPoints = -3 });
+
                 // …and the Perk recorded a second time beside the bases it already paid for.
                 sheet.Perks.Add(new SelectedPerk("headquarters", 2));
                 return sheet;
@@ -1694,7 +1708,11 @@ public sealed class ValidationIssueStructureTests
                     AbilityRanks = new Dictionary<string, int> { ["mightt"] = 4 },
                     TalentRanks  = new Dictionary<string, int> { ["technologee"] = 2 }
                 });
-                sheet.Gadgets.Add(new BuiltGadget("Overreach") { Complexity = 9 });
+                sheet.Gadgets.Add(new BuiltGadget("Overreach")
+                {
+                    Complexity   = 9,
+                    AbilityRanks = new Dictionary<string, int> { ["might"] = -50 }
+                });
                 sheet.Gadgets.Add(new BuiltGadget("Freeze Ray")
                 {
                     Complexity = 3,
