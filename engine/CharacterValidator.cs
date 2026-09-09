@@ -19,7 +19,23 @@ public enum ValidationSubject
     Power,
     Gear,
     GearFeature,
-    Flaw
+    Flaw,
+
+    /// <summary>A vehicle this character owns outright (Ch.6 pp.94-100).</summary>
+    Vehicle,
+
+    /// <summary>A headquarters this character owns outright (Ch.6 pp.100-103).</summary>
+    Headquarters,
+
+    /// <summary>A Gadget built under p.94 — the one thing here that pays Hero Points out.</summary>
+    Gadget,
+
+    /// <summary>
+    /// A feature bought for a vehicle or a base. One kind for both tables, because the finding
+    /// carries the owner's name and the owner is what says which table it came off — the same
+    /// relationship <see cref="GearFeature"/> has to <see cref="Gear"/>.
+    /// </summary>
+    AssetFeature
 }
 
 /// <summary>
@@ -131,6 +147,14 @@ public sealed class CharacterValidator
         // Same reason, for gear: an unknown feature or a graded one with no grade cannot
         // be priced, so the gap has to be reported before anything asks for a total.
         var gearResolvable = CheckGear(sheet, issues, modifiersResolvable);
+
+        // Same reason again, for Chapter 6's other three: a feature the rulebook does not have, or
+        // a graded one with no grade, cannot be priced — and VehiclePointsSpent throws on either
+        // rather than guessing, which is what makes reporting first load-bearing.
+        // Its own budget checks are gated internally rather than by the caller: unlike the Hero
+        // Point total, a vehicle's Vehicle Point total is per machine, so one unpriceable feature
+        // silences that machine alone and not the sheet.
+        CheckAssets(sheet, issues, modifiersResolvable);
 
         // Outside the tier block on purpose: a house cap below 1d is nonsense whether or not the
         // character has found a tier yet, and half of what this reports needs no tier to say.
@@ -1219,6 +1243,461 @@ public sealed class CharacterValidator
         }
 
         return resolvable;
+    }
+
+
+    // ── Vehicles, headquarters and Gadgets (Ch.6 pp.94-103) ───────────────────
+
+    /// <summary>
+    /// What a character owns beside their own body, and what they built out of a Gadget's pool.
+    ///
+    /// <para><b>Reported, never repaired</b>, like everything else here: a machine over its budget
+    /// is still priced at what it says, and a Gadget whose Complexity is above its builder's
+    /// Technology is still worth twice its Complexity. The engine is a judge and does not make
+    /// design decisions about somebody's vehicle any more than about their Powers.</para>
+    ///
+    /// <para><b>The budget checks are per asset and gated per asset.</b> A feature the rulebook
+    /// does not have takes <c>VehiclePointsSpent</c> down rather than letting it guess, so a
+    /// machine that cannot be priced is reported and skipped — and the machine beside it is still
+    /// checked, which is what a single sheet-wide gate would have thrown away.</para>
+    /// </summary>
+    private void CheckAssets(
+        CharacterSheet sheet, List<ValidationIssue> issues, bool modifiersResolvable)
+    {
+        foreach (var vehicle in sheet.Vehicles) CheckVehicle(vehicle, issues);
+        foreach (var hq in sheet.Headquarters) CheckHeadquarters(hq, issues);
+        foreach (var gadget in sheet.Gadgets) CheckGadget(sheet, gadget, issues, modifiersResolvable);
+
+        CheckCampaignAssets(sheet, issues);
+        CheckAssetPerksAreNotRecordedTwice(sheet, issues);
+    }
+
+    /// <summary>
+    /// One vehicle: its features, its two printed constraints, and its Vehicle Point budget.
+    /// </summary>
+    private void CheckVehicle(OwnedVehicle vehicle, List<ValidationIssue> issues)
+    {
+        // A vehicle is identified by its name, exactly as a piece of gear is, so a nameless one
+        // cannot be reported about or printed — every message would name nothing.
+        if (string.IsNullOrWhiteSpace(vehicle.Name))
+        {
+            issues.Add(new(ValidationSeverity.Error, "VEHICLE_WITHOUT_NAME",
+                "A vehicle has no name. A vehicle is identified by its name, so one without a "
+                + "name cannot be put on a sheet.")
+            {
+                SubjectKind = ValidationSubject.Character
+            });
+            return;
+        }
+
+        var priceable = CheckAssetFeatures(
+            vehicle.Name, vehicle.Features,
+            id => _rules.Assets.FindVehicleFeature(id) is { } f
+                ? (f.Name, f.CostType, f.CostRange) : null,
+            _rules.Assets.VehicleFeatures.Select(f => f.Id).ToList(), issues);
+
+        var rates = _rules.Assets.Characteristics;
+
+        // p.96: "Control may not exceed half the vehicle's Speed." Compared as doubled Control
+        // against Speed rather than by halving Speed, because that needs no rounding rule — and
+        // the book prints none for this sentence. A rounding rule invented here would be this
+        // project making one up, which is the one thing data/rules/ exists to prevent.
+        if (vehicle.Control > 0 && vehicle.Control * 2 > vehicle.Speed)
+            issues.Add(new(ValidationSeverity.Error, "VEHICLE_CONTROL_ABOVE_HALF_SPEED",
+                $"{vehicle.Name} has Control {vehicle.Control} against Speed {vehicle.Speed}. "
+                + "A vehicle's Control may not exceed half its Speed.")
+            {
+                SubjectKind = ValidationSubject.Vehicle,
+                SubjectId   = vehicle.Name,
+                Value       = vehicle.Control,
+                Limit       = vehicle.Speed / 2
+            });
+
+        // p.96: a negative Control pays two points back a rank, down to −3 and no further.
+        if (vehicle.Control < rates.NegativeControlMinimum)
+            issues.Add(new(ValidationSeverity.Error, "VEHICLE_CONTROL_BELOW_MINIMUM",
+                $"{vehicle.Name} has Control {vehicle.Control}. A vehicle's Control cannot go "
+                + $"below {rates.NegativeControlMinimum}, however many points that would pay back.")
+            {
+                SubjectKind = ValidationSubject.Vehicle,
+                SubjectId   = vehicle.Name,
+                Value       = vehicle.Control,
+                Limit       = rates.NegativeControlMinimum
+            });
+
+        CheckMechaMight(vehicle, issues);
+
+        if (!priceable) return;
+
+        var spent  = _costs.VehiclePointsSpent(vehicle);
+        var budget = _costs.VehiclePointBudget(vehicle);
+
+        if (spent > budget)
+            issues.Add(new(ValidationSeverity.Error, "VEHICLE_OVER_BUDGET",
+                $"{vehicle.Name} costs {spent} Vehicle Points and the Unique Vehicle Perk bought "
+                + $"it {budget} — {vehicle.PerkHeroPoints} Hero "
+                + $"Point{(vehicle.PerkHeroPoints == 1 ? "" : "s")} at "
+                + $"{_rules.Assets.VehiclePointsPerHeroPoint} each.")
+            {
+                SubjectKind = ValidationSubject.Vehicle,
+                SubjectId   = vehicle.Name,
+                Value       = spent,
+                Limit       = budget
+            });
+    }
+
+    /// <summary>
+    /// p.99's Mecha, the one vehicle feature that prints a floor beside its price: "A vehicle's
+    /// Might may not be lower than half its Body."
+    ///
+    /// <para><b>A floor on what the limbs cost, not a cap</b> — a 14d Body Mecha owes at least
+    /// seven Vehicle Points of Might before anything else. The Might is the feature's own unit
+    /// count, which is what <c>vehicles.json</c> prices it per.</para>
+    /// </summary>
+    private void CheckMechaMight(OwnedVehicle vehicle, List<ValidationIssue> issues)
+    {
+        var mecha = vehicle.Features.FirstOrDefault(
+            f => string.Equals(f.FeatureId, AssetCatalogue.MechaFeatureId, StringComparison.Ordinal));
+
+        if (mecha is null || mecha.Units * 2 >= vehicle.Body) return;
+
+        issues.Add(new(ValidationSeverity.Error, "MECHA_MIGHT_BELOW_HALF_BODY",
+            $"{vehicle.Name} is a Mecha with Might {mecha.Units} against Body {vehicle.Body}. "
+            + "A Mecha's Might may not be lower than half its Body.")
+        {
+            SubjectKind = ValidationSubject.AssetFeature,
+            SubjectId   = AssetCatalogue.MechaFeatureId,
+            OwnerId     = vehicle.Name,
+            Value       = mecha.Units,
+
+            // Half the Body, rounded up, which is the smallest whole Might that satisfies the
+            // sentence — derived from the comparison above rather than from a rounding rule.
+            Limit       = (vehicle.Body + 1) / 2
+        });
+    }
+
+    /// <summary>One headquarters: its features and its Base Point budget.</summary>
+    private void CheckHeadquarters(OwnedHeadquarters headquarters, List<ValidationIssue> issues)
+    {
+        if (string.IsNullOrWhiteSpace(headquarters.Name))
+        {
+            issues.Add(new(ValidationSeverity.Error, "HEADQUARTERS_WITHOUT_NAME",
+                "A headquarters has no name. A headquarters is identified by its name, so one "
+                + "without a name cannot be put on a sheet.")
+            {
+                SubjectKind = ValidationSubject.Character
+            });
+            return;
+        }
+
+        var priceable = CheckAssetFeatures(
+            headquarters.Name, headquarters.Features,
+            id => _rules.Assets.FindBaseFeature(id) is { } f
+                ? (f.Name, f.CostType, f.CostRange) : null,
+            _rules.Assets.BaseFeatures.Select(f => f.Id).ToList(), issues);
+
+        if (!priceable) return;
+
+        var spent  = _costs.BasePointsSpent(headquarters);
+        var budget = _costs.BasePointBudget(headquarters);
+
+        if (spent > budget)
+            issues.Add(new(ValidationSeverity.Error, "HEADQUARTERS_OVER_BUDGET",
+                $"{headquarters.Name} costs {spent} Base Points and the Headquarters Perk bought "
+                + $"it {budget} — {headquarters.PerkHeroPoints} Hero "
+                + $"Point{(headquarters.PerkHeroPoints == 1 ? "" : "s")} at "
+                + $"{_rules.Assets.BasePointsPerHeroPoint} each. The building itself is free; "
+                + "these are the features.")
+            {
+                SubjectKind = ValidationSubject.Headquarters,
+                SubjectId   = headquarters.Name,
+                Value       = spent,
+                Limit       = budget
+            });
+    }
+
+    /// <summary>
+    /// One Gadget: what the builder needed, what the pool paid out, and what was spent from it.
+    ///
+    /// <para><b>The one place in this validator where the budget runs the other way.</b> A Gadget
+    /// costs the character nothing; what it can be over is its own pool, which is twice its
+    /// Complexity.</para>
+    /// </summary>
+    private void CheckGadget(
+        CharacterSheet sheet, BuiltGadget gadget, List<ValidationIssue> issues, bool modifiersResolvable)
+    {
+        if (string.IsNullOrWhiteSpace(gadget.Name))
+        {
+            issues.Add(new(ValidationSeverity.Error, "GADGET_WITHOUT_NAME",
+                "A Gadget has no name. A Gadget is identified by its name, so one without a name "
+                + "cannot be put on a sheet.")
+            {
+                SubjectKind = ValidationSubject.Character
+            });
+            return;
+        }
+
+        var minimum = _rules.Assets.MinimumGadgetComplexity;
+
+        if (gadget.Complexity < minimum)
+            issues.Add(new(ValidationSeverity.Error, "GADGET_COMPLEXITY_BELOW_MINIMUM",
+                $"{gadget.Name} has Complexity {gadget.Complexity}. A Gadget's Complexity starts "
+                + $"at {minimum}.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                Value       = gadget.Complexity,
+                Limit       = minimum
+            });
+
+        // p.94's two prerequisites, both of which this sheet can actually answer. The third —
+        // no more than half the builder's Intellect in one issue — is about an issue rather than
+        // about a sheet, and nothing here knows which issue it is looking at, so it is not
+        // reported. See docs/guide/rules-engine.md.
+        var prerequisites = _rules.Gadgets.Entries
+            .Single(e => e.Id == "gadget_prerequisites").Prerequisites!;
+
+        var technology = sheet.GetTalentRank("technology");
+
+        if (technology < prerequisites.MinimumTechnologyRank)
+            issues.Add(new(ValidationSeverity.Error, "GADGET_BUILDER_BELOW_TECHNOLOGY_MINIMUM",
+                $"{gadget.Name} was built with Technology {technology}d. Building a Gadget at all "
+                + $"needs {prerequisites.MinimumTechnologyRank}d.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                Value       = technology,
+                Limit       = prerequisites.MinimumTechnologyRank
+            });
+        else if (gadget.Complexity > technology)
+            issues.Add(new(ValidationSeverity.Error, "GADGET_COMPLEXITY_ABOVE_TECHNOLOGY",
+                $"{gadget.Name} has Complexity {gadget.Complexity} and its builder's Technology "
+                + $"is {technology}d. A Gadget's Complexity reaches as far as the builder's "
+                + "Technology and no further.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                Value       = gadget.Complexity,
+                Limit       = technology
+            });
+
+        // A Power the rulebook does not have, or one missing a cost variant, throws out of
+        // GadgetSpend exactly as it would out of any other pricing. Those are reported against the
+        // character's own Powers by the checks above; a Gadget's are its own, so they are asked
+        // here and the pool comparison is skipped when the answer cannot be had.
+        if (!modifiersResolvable || !GadgetIsPriceable(gadget, issues)) return;
+
+        var pool  = _costs.GadgetPool(gadget);
+        var spent = _costs.GadgetSpend(gadget, sheet.ImmortalityCost);
+
+        if (spent > pool)
+            issues.Add(new(ValidationSeverity.Error, "GADGET_OVER_POOL",
+                $"{gadget.Name} spends {spent} Hero Points and its build paid out {pool} — twice "
+                + $"its Complexity of {gadget.Complexity}. The pool is not the character's own "
+                + "budget and cannot be topped up from it.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                Value       = spent,
+                Limit       = pool
+            });
+    }
+
+    /// <summary>
+    /// Whether a Gadget's own Powers, Abilities and Talents can be priced at all, reporting each
+    /// gap by name. Unknown ids are reported and not charged for, which is the answer
+    /// <c>AbilityCost</c> already gives for the character's own.
+    /// </summary>
+    private bool GadgetIsPriceable(BuiltGadget gadget, List<ValidationIssue> issues)
+    {
+        var priceable = true;
+
+        foreach (var power in gadget.Powers)
+        {
+            if (power.PowerId is not null && _rules.GetPower(power.PowerId) is not null) continue;
+
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GADGET_POWER",
+                power.PowerId is null
+                    ? $"{gadget.Name} carries a Power with no id at all."
+                    : $"{gadget.Name} carries a Power, '{power.PowerId}', that is not one the "
+                      + "rulebook has, so what the Gadget spent cannot be worked out.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                OwnerId     = power.PowerId
+            });
+            priceable = false;
+        }
+
+        return priceable;
+    }
+
+    /// <summary>
+    /// Hero Points put into a campaign's shared vehicle or base. There is nothing else on this
+    /// sheet to check — what the object turned out to be is the campaign's answer — so this is
+    /// the two things a record can be wrong about on its own.
+    /// </summary>
+    private static void CheckCampaignAssets(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        foreach (var contribution in sheet.CampaignAssets)
+        {
+            if (string.IsNullOrWhiteSpace(contribution.AssetId))
+                issues.Add(new(ValidationSeverity.Error, "CAMPAIGN_ASSET_WITHOUT_ID",
+                    $"Hero Points have been put into a campaign asset with no id"
+                    + $"{(string.IsNullOrWhiteSpace(contribution.Name) ? "" : $" ('{contribution.Name}')")}. "
+                    + "The id is what a campaign sums a shared vehicle or base on.")
+                {
+                    SubjectKind = ValidationSubject.Character
+                });
+
+            if (!CampaignAssetContribution.Kinds.Contains(contribution.Kind, StringComparer.Ordinal))
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_CAMPAIGN_ASSET_KIND",
+                    $"A contribution names a kind of shared asset, '{contribution.Kind}', that "
+                    + "Chapter 6 does not have. Hero Points can be pooled on a vehicle or on a "
+                    + "headquarters.")
+                {
+                    SubjectKind = ValidationSubject.Character,
+                    SubjectId   = contribution.AssetId,
+                    Options     = CampaignAssetContribution.Kinds
+                });
+
+            if (contribution.HeroPoints < 0)
+                issues.Add(new(ValidationSeverity.Error, "NEGATIVE_UNITS",
+                    $"'{(string.IsNullOrWhiteSpace(contribution.Name) ? contribution.AssetId : contribution.Name)}' "
+                    + $"records {contribution.HeroPoints} Hero Points put in, which would pay the "
+                    + "character rather than cost them.")
+                {
+                    SubjectKind = ValidationSubject.Character,
+                    SubjectId   = contribution.AssetId,
+                    Value       = contribution.HeroPoints,
+                    Limit       = 0
+                });
+        }
+    }
+
+    /// <summary>
+    /// <b>The same machine recorded twice is paid for twice.</b> A vehicle carries the Hero Points
+    /// its own Unique Vehicle Perk cost, and a <c>SelectedPerk</c> naming that Perk is a second
+    /// spend somebody wrote down — <see cref="CostCalculator.TotalCost"/> charges both, correctly,
+    /// because both are on the sheet.
+    ///
+    /// <para><b>A warning rather than an error, and the distinction is the point.</b> Nothing here
+    /// is illegal: a character may buy the Perk twice over, and a machine the player has not
+    /// detailed yet is a perfectly ordinary way to hold the points. What is likely is that they
+    /// meant one. Reported, never repaired — the total stays what the sheet says.</para>
+    /// </summary>
+    private static void CheckAssetPerksAreNotRecordedTwice(
+        CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        Report("unique_vehicle", "Unique Vehicle", sheet.Vehicles.Count,
+               sheet.Vehicles.Sum(v => v.PerkHeroPoints), "vehicle");
+
+        Report("headquarters", "Headquarters", sheet.Headquarters.Count,
+               sheet.Headquarters.Sum(h => h.PerkHeroPoints), "headquarters");
+
+        void Report(string perkId, string perkName, int owned, int onTheAssets, string noun)
+        {
+            if (owned == 0) return;
+
+            var onThePerk = sheet.Perks
+                .Where(p => string.Equals(p.PerkId, perkId, StringComparison.Ordinal))
+                .Sum(p => p.Units);
+
+            if (onThePerk == 0) return;
+
+            issues.Add(new(ValidationSeverity.Warning, "ASSET_PERK_RECORDED_TWICE",
+                $"The {perkName} Perk is bought for {onThePerk} Hero "
+                + $"Point{(onThePerk == 1 ? "" : "s")} and the {noun}"
+                + $"{(owned == 1 ? "" : "s")} on this sheet already record {onTheAssets}. Both are "
+                + "charged, so the same purchase may have been paid for twice.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                SubjectId   = perkId,
+                Value       = onThePerk + onTheAssets,
+                Limit       = onTheAssets
+            });
+        }
+    }
+
+    /// <summary>
+    /// The features on one vehicle or base: an id the rulebook does not have, a graded one with no
+    /// grade, and a per-unit one bought no times. Written once because both tables price features
+    /// the same three ways and only the currency differs.
+    ///
+    /// <para>Every finding files itself against the feature with the owner's <em>name</em> in
+    /// <see cref="ValidationIssue.OwnerId"/> — the same shape a gear feature's finding takes, and
+    /// the reason this needs no owner-kind argument: a caller looking for the row already has the
+    /// collection it came from.</para>
+    ///
+    /// <para>Returns false when anything here cannot be priced, which is what stops the caller
+    /// asking for a total that would throw.</para>
+    /// </summary>
+    private static bool CheckAssetFeatures(
+        string ownerName,
+        IReadOnlyList<SelectedAssetFeature> features,
+        Func<string, (string Name, string CostType, IReadOnlyDictionary<string, int>? Grades)?> lookup,
+        IReadOnlyList<string> everyId,
+        List<ValidationIssue> issues)
+    {
+        var priceable = true;
+
+        foreach (var selection in features)
+        {
+            var found = selection?.FeatureId is null ? null : lookup(selection.FeatureId);
+
+            if (found is not { } feature)
+            {
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_ASSET_FEATURE",
+                    selection?.FeatureId is null
+                        ? $"{ownerName} has a feature with no name at all."
+                        : $"{ownerName} has a feature, '{selection.FeatureId}', that is not one "
+                          + "Chapter 6 lists.")
+                {
+                    SubjectKind = ValidationSubject.AssetFeature,
+                    SubjectId   = selection?.FeatureId,
+                    OwnerId     = ownerName,
+                    Options     = everyId
+                });
+                priceable = false;
+                continue;
+            }
+
+            if (feature.CostType == "flat_variable"
+                && (selection!.GradeKey is null || feature.Grades?.ContainsKey(selection.GradeKey) != true))
+            {
+                issues.Add(new(ValidationSeverity.Error, "ASSET_FEATURE_NEEDS_GRADE",
+                    $"{ownerName}'s {feature.Name} is priced by grade, and no grade Chapter 6 "
+                    + $"lists has been chosen. Pick one of: {Names(feature.Grades?.Keys)}.")
+                {
+                    SubjectKind = ValidationSubject.AssetFeature,
+                    SubjectId   = selection.FeatureId,
+                    OwnerId     = ownerName,
+                    Options     = [.. feature.Grades?.Keys ?? []]
+                });
+                priceable = false;
+            }
+
+            if (feature.CostType == "per_unit" && selection!.Units <= 0)
+            {
+                issues.Add(new(ValidationSeverity.Error, "PER_UNIT_WITHOUT_UNITS",
+                    $"{ownerName}'s {feature.Name} is priced by the unit and "
+                    + $"{(selection.Units == 0 ? "none has been bought" : $"{selection.Units} have been bought")}, "
+                    + "so it would "
+                    + (selection.Units == 0
+                        ? "cost nothing and do nothing."
+                        : "pay points back rather than cost them."))
+                {
+                    SubjectKind = ValidationSubject.AssetFeature,
+                    SubjectId   = selection.FeatureId,
+                    OwnerId     = ownerName,
+                    Value       = selection.Units,
+                    Limit       = 1
+                });
+                priceable = false;
+            }
+        }
+
+        return priceable;
     }
 
     /// <summary>

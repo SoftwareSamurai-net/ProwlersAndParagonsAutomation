@@ -1056,7 +1056,43 @@ public sealed class ValidationIssueStructureTests
         ["TWO_FISTED_PAIR_WITHOUT_POWER"]   = [ValidationSubject.Gear],
         ["UNKNOWN_PERK"]                    = [ValidationSubject.Character],
         ["GEAR_WITHOUT_NAME"]               = [ValidationSubject.Character],
-        ["PER_UNIT_WITHOUT_UNITS"]          = [ValidationSubject.Character, ValidationSubject.Power],
+
+        // Also the feature, since Chapter 6's two feature tables price by the unit as well. The
+        // three kinds are the three collections a repair loop would write into.
+        ["PER_UNIT_WITHOUT_UNITS"]          =
+            [ValidationSubject.Character, ValidationSubject.Power, ValidationSubject.AssetFeature],
+
+        // ── Chapter 6's vehicles, headquarters and Gadgets ────────────────────
+        //
+        // A machine, a base or a Gadget is identified by its name, exactly as gear is, so a
+        // nameless one is filed against the character: there is no subject a message could name.
+        ["VEHICLE_WITHOUT_NAME"]            = [ValidationSubject.Character],
+        ["HEADQUARTERS_WITHOUT_NAME"]       = [ValidationSubject.Character],
+        ["GADGET_WITHOUT_NAME"]             = [ValidationSubject.Character],
+
+        // The machine, because the budget and both Control rules are facts about the whole of it.
+        ["VEHICLE_OVER_BUDGET"]                 = [ValidationSubject.Vehicle],
+        ["VEHICLE_CONTROL_ABOVE_HALF_SPEED"]    = [ValidationSubject.Vehicle],
+        ["VEHICLE_CONTROL_BELOW_MINIMUM"]       = [ValidationSubject.Vehicle],
+        ["HEADQUARTERS_OVER_BUDGET"]            = [ValidationSubject.Headquarters],
+
+        // The feature, with the machine or base in OwnerId — the same shape a gear feature's
+        // finding takes, and the reason there is one AssetFeature kind rather than two.
+        ["UNKNOWN_ASSET_FEATURE"]           = [ValidationSubject.AssetFeature],
+        ["ASSET_FEATURE_NEEDS_GRADE"]       = [ValidationSubject.AssetFeature],
+        ["MECHA_MIGHT_BELOW_HALF_BODY"]     = [ValidationSubject.AssetFeature],
+
+        ["GADGET_COMPLEXITY_BELOW_MINIMUM"]         = [ValidationSubject.Gadget],
+        ["GADGET_COMPLEXITY_ABOVE_TECHNOLOGY"]      = [ValidationSubject.Gadget],
+        ["GADGET_BUILDER_BELOW_TECHNOLOGY_MINIMUM"] = [ValidationSubject.Gadget],
+        ["GADGET_OVER_POOL"]                        = [ValidationSubject.Gadget],
+        ["UNKNOWN_GADGET_POWER"]                    = [ValidationSubject.Gadget],
+
+        // A contribution to a campaign's shared object belongs to the sheet: what the object is
+        // belongs to the campaign, and there is no vehicle or base here to name.
+        ["CAMPAIGN_ASSET_WITHOUT_ID"]       = [ValidationSubject.Character],
+        ["UNKNOWN_CAMPAIGN_ASSET_KIND"]     = [ValidationSubject.Character],
+        ["ASSET_PERK_RECORDED_TWICE"]       = [ValidationSubject.Character],
 
         // A Trait or a Power over the cap, under the 1d floor, under its package's floor, or
         // recorded with a negative quantity: the kind says which collection to write into.
@@ -1103,7 +1139,8 @@ public sealed class ValidationIssueStructureTests
         "UNKNOWN_ABILITY", "UNKNOWN_TALENT", "UNKNOWN_GEAR_FEATURE", "GEAR_FEATURE_NEEDS_GRADE",
         "UNKNOWN_SOURCE", "UNKNOWN_TRAIT_SOURCE", "POWER_VARIANT_NOT_CHOSEN",
         "PRO_VARIANT_NOT_CHOSEN", "CON_VARIANT_NOT_CHOSEN", "RANKLESS_POWER_WITHOUT_SOURCE",
-        "POWER_WITHOUT_SOURCE", "MODIFIER_ON_UNBOUGHT_ABILITY", "FLAW_MIN_NOT_MET"
+        "POWER_WITHOUT_SOURCE", "MODIFIER_ON_UNBOUGHT_ABILITY", "FLAW_MIN_NOT_MET",
+        "UNKNOWN_ASSET_FEATURE", "ASSET_FEATURE_NEEDS_GRADE", "UNKNOWN_CAMPAIGN_ASSET_KIND"
     };
 
     /// <summary>
@@ -1303,7 +1340,8 @@ public sealed class ValidationIssueStructureTests
         "unpriceable", "duplicates", "per-unit with no units",
         "power-specific ungraded", "sample villain",
         "house cap above the tier", "house cap below one",
-        "a table's price for immortality"
+        "a table's price for immortality",
+        "a vehicle", "a headquarters", "a gadget", "assets without names", "a shared asset"
     ];
 
     /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
@@ -1571,6 +1609,111 @@ public sealed class ValidationIssueStructureTests
                 // Airmid's recorded package impossible, checked here on a submitted character.
                 var sheet = Legal();
                 sheet.SelectedPackageId = "superhero_package";
+                return sheet;
+            }
+
+            // ── Chapter 6's vehicles, headquarters and Gadgets ────────────────────
+
+            case "a vehicle":
+            {
+                // Over its Vehicle Point budget, Control above half its Speed, a feature the
+                // rulebook does not have, and a Mecha whose limbs are too weak for its Body.
+                var sheet = Legal();
+                sheet.Vehicles.Add(new OwnedVehicle("The Wing")
+                {
+                    PerkHeroPoints = 1,
+                    Body = 20, Speed = 4, Control = 3,
+                    Features = [new SelectedAssetFeature("mecha") { Units = 2 }]
+                });
+                sheet.Vehicles.Add(new OwnedVehicle("The Sub")
+                {
+                    PerkHeroPoints = 1, Control = -9
+                });
+                // Both unpriceable faults on one machine, and deliberately on a machine of their
+                // own: an unpriceable feature silences that vehicle's budget check, so putting one
+                // on The Wing would have hidden the finding this case is mostly for.
+                sheet.Vehicles.Add(new OwnedVehicle("The Mystery")
+                {
+                    PerkHeroPoints = 1,
+                    Features =
+                    [
+                        new SelectedAssetFeature("teleport_bay"),
+                        new SelectedAssetFeature("passengers") { Units = 0 }
+                    ]
+                });
+                return sheet;
+            }
+
+            case "a headquarters":
+            {
+                // Over its Base Point budget, and a graded feature with no grade chosen.
+                var sheet = Legal();
+                sheet.Headquarters.Add(new OwnedHeadquarters("The Vault")
+                {
+                    PerkHeroPoints = 1,
+                    Features =
+                    [
+                        new SelectedAssetFeature("hidden"),
+                        new SelectedAssetFeature("disguised"),
+                        new SelectedAssetFeature("tesseract")
+                    ]
+                });
+                sheet.Headquarters.Add(new OwnedHeadquarters("The Loft")
+                {
+                    PerkHeroPoints = 4,
+                    Features = [new SelectedAssetFeature("size")]
+                });
+
+                // …and the Perk recorded a second time beside the bases it already paid for.
+                sheet.Perks.Add(new SelectedPerk("headquarters", 2));
+                return sheet;
+            }
+
+            case "a gadget":
+            {
+                // Complexity below the floor, a builder with too little Technology, a Complexity
+                // above what Technology allows, a pool overspent, and a Power that is not one.
+                // A builder who can build at all, so the Technology floor is not what answers
+                // here — that one is on "assets without names", because a builder is either below
+                // the floor or not and one sheet cannot be both.
+                var sheet = Legal();
+                sheet.TalentRanks["technology"] = 6;
+
+                sheet.Gadgets.Add(new BuiltGadget("Trinket") { Complexity = 1 });
+                sheet.Gadgets.Add(new BuiltGadget("Whatsit")
+                {
+                    Complexity = 3,
+                    Powers = [new SelectedPower("time_ray", 4)]
+                });
+                sheet.Gadgets.Add(new BuiltGadget("Overreach") { Complexity = 9 });
+                sheet.Gadgets.Add(new BuiltGadget("Freeze Ray")
+                {
+                    Complexity = 3,
+                    Powers = [new SelectedPower("blast", 12) { SourceId = "tech" }]
+                });
+                return sheet;
+            }
+
+            case "assets without names":
+            {
+                var sheet = Legal();
+                sheet.Vehicles.Add(new OwnedVehicle("  "));
+                sheet.Headquarters.Add(new OwnedHeadquarters(""));
+                sheet.Gadgets.Add(new BuiltGadget(" ") { Complexity = 3 });
+
+                // The Technology floor, which the case above cannot also reach: a builder is
+                // either below it or not, and the sheet above is not.
+                sheet.Gadgets.Add(new BuiltGadget("Bodge") { Complexity = 3 });
+                return sheet;
+            }
+
+            case "a shared asset":
+            {
+                var sheet = Legal();
+                sheet.CampaignAssets.Add(new CampaignAssetContribution("")
+                {
+                    Name = "The Aerie", Kind = "space_station", HeroPoints = -2
+                });
                 return sheet;
             }
 
@@ -1975,6 +2118,20 @@ public sealed class ValidationIssueStructureTests
                 // Gear has no id — its name is all it has — so it is looked up on the character.
                 ValidationSubject.Gear => sheet.Gear.Any(g => g.Name == id),
 
+                // The same for Chapter 6's three: a machine, a base and a Gadget are identified by
+                // their names, which is why a nameless one is filed against the character instead.
+                ValidationSubject.Vehicle      => sheet.Vehicles.Any(v => v.Name == id),
+                ValidationSubject.Headquarters => sheet.Headquarters.Any(h => h.Name == id),
+                ValidationSubject.Gadget       => sheet.Gadgets.Any(g => g.Name == id),
+
+                // A feature off either of Chapter 6's two tables. The owner is in OwnerId, which
+                // is what says which table — the same division a gear feature's finding uses.
+                ValidationSubject.AssetFeature =>
+                    _f.Rules.Assets.FindVehicleFeature(id) is not null
+                    || _f.Rules.Assets.FindBaseFeature(id) is not null
+                    || sheet.Vehicles.Any(v => v.Features.Any(f => f?.FeatureId == id))
+                    || sheet.Headquarters.Any(h => h.Features.Any(f => f?.FeatureId == id)),
+
                 // The whole sheet: a Perk, a starting package, or a Pro or Con. Those are the
                 // three things that belong to the character rather than to one of its Traits.
                 ValidationSubject.Character =>
@@ -1984,7 +2141,11 @@ public sealed class ValidationIssueStructureTests
                     || sheet.SelectedPackageId == id
                     || _f.Rules.GetPro(id) is not null
                     || _f.Rules.GetCon(id) is not null
-                    || EveryChoiceOn(sheet).Any(c => c.Id == id),
+                    || EveryChoiceOn(sheet).Any(c => c.Id == id)
+
+                    // …and a campaign's shared vehicle or base, which is a fourth thing that
+                    // belongs to the sheet rather than to any Trait: what this character put in.
+                    || sheet.CampaignAssets.Any(a => a.AssetId == id),
 
                 _ => true
             };
@@ -2021,7 +2182,16 @@ public sealed class ValidationIssueStructureTests
                 || sheet.SelectedPowers.Any(p => p.PowerId == owner)
                 || sheet.Gear.Any(g => g.Name == owner)
                 || _f.Rules.GetAbility(owner) is not null
-                || sheet.AbilityModifiers.ContainsKey(owner);
+                || sheet.AbilityModifiers.ContainsKey(owner)
+
+                // A vehicle or a base carrying a Chapter 6 feature, by name — they have no id
+                // either, for the same reason gear does not.
+                || sheet.Vehicles.Any(v => v.Name == owner)
+                || sheet.Headquarters.Any(h => h.Name == owner)
+
+                // A Gadget's own Power, by id: UNKNOWN_GADGET_POWER names the Gadget as the
+                // subject and the Power it could not price as the owner.
+                || sheet.Gadgets.Any(g => g.Powers.Any(p => p.PowerId == owner));
 
             Assert.True(findable,
                 $"{issue.Code} says its subject sits on '{owner}', which is not a Power, a piece "
@@ -2051,8 +2221,11 @@ public sealed class ValidationIssueStructureTests
             if (issue.Value is not { } value || issue.Limit is not { } limit) continue;
 
             if (issue.Code.Contains("MIN_NOT_MET", StringComparison.Ordinal)
-                || issue.Code.EndsWith("BELOW_MINIMUM", StringComparison.Ordinal)
-                || issue.Code.EndsWith("BELOW_PACKAGE", StringComparison.Ordinal)
+                // Any "below" code, rather than the two suffixes this used to name. Chapter 6
+                // prints a floor that is neither — a Mecha's Might below half its Body — and
+                // spelling the suffixes out would have exempted it from the direction check
+                // silently, which is the shape of hole this whole file exists to close.
+                || issue.Code.Contains("_BELOW_", StringComparison.Ordinal)
                 || issue.Code.StartsWith("NEGATIVE_", StringComparison.Ordinal)
                 || issue.Code.EndsWith("WITHOUT_UNITS", StringComparison.Ordinal))
                 Assert.True(value < limit, $"{issue.Code}: {value} is not below its minimum of {limit}.");
@@ -2108,6 +2281,19 @@ public sealed class ValidationIssueStructureTests
         "NO_TIER_SELECTED" or "UNKNOWN_TIER" => _f.Rules.GetTier(option) is not null,
 
         "UNKNOWN_PACKAGE" => _f.Rules.CreationRules.OptionalPackages.Any(p => p.Id == option),
+
+        // Chapter 6's two feature tables. The whole list for an id that resolves to nothing, and
+        // the feature's own grades for one that needs a grade — the two shapes Options takes.
+        "UNKNOWN_ASSET_FEATURE" =>
+            _f.Rules.Assets.FindVehicleFeature(option) is not null
+            || _f.Rules.Assets.FindBaseFeature(option) is not null,
+
+        "ASSET_FEATURE_NEEDS_GRADE" => issue.SubjectId is { } featureId
+            && ((_f.Rules.Assets.FindVehicleFeature(featureId)?.CostRange?.ContainsKey(option) ?? false)
+                || (_f.Rules.Assets.FindBaseFeature(featureId)?.CostRange?.ContainsKey(option) ?? false)),
+
+        "UNKNOWN_CAMPAIGN_ASSET_KIND" =>
+            CampaignAssetContribution.Kinds.Contains(option, StringComparer.Ordinal),
 
         "FLAW_MIN_NOT_MET" or "UNKNOWN_FLAW" => _f.Rules.GetFlaw(option) is not null,
 
