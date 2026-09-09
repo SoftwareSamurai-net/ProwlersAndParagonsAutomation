@@ -188,6 +188,69 @@ public sealed class PlaySceneryTests
             string.Equals(l.Rule, "scenery_table", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// <b>p.80's stray round drops the named obstacle, the same way it drops the stated
+    /// Structure.</b>
+    ///
+    /// <para>The engine guide says what a stray shot carries and what it drops: "cover and its
+    /// Structure are a line of sight to somebody else". <c>TheShotGoesWide</c> resets both fields —
+    /// and <b>deleting either reset left the whole suite green</b>, so the claim was carrying
+    /// nothing an instrument could see. It matters more than tidiness: a wall the shooter could get
+    /// through is a wall the stray round might not, and p.80's second attack would then be
+    /// <em>refused</em> on the way to somebody it was never aimed past.</para>
+    ///
+    /// <para>The instrument is the count of lines each rule wrote. The first shot is made through a
+    /// brick wall, so exactly one Chapter 7 line and one p.75 line belong to this page; a leaked
+    /// field writes a second of each. The positive control is that the stray round happened at
+    /// all — two exchanges on the ledger, and p.80's own line saying where it went.</para>
+    /// </summary>
+    [Fact]
+    public void AStrayRoundIsNotSentThroughTheObstacleTheFirstShotWasAimedThrough()
+    {
+        var dice = new ScriptedDice([.. Enumerable.Repeat(1, 300)]);
+
+        var encounter = new Encounter(
+            _play, dice, TableRules.Book with { FriendlyFire = true });
+
+        var hero = Combatant.Hero(
+            "hero", "the Hero", edge: 9, health: 12, resolve: 1,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 12 },
+            [], side: "heroes");
+
+        Combatant Standing(string id, string name) => Combatant.Villain(
+            id, name, edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 4 },
+            ["toughness"], side: "villains");
+
+        var state = encounter.Begin([hero, Standing("villain", "the Villain"), Standing("bystander", "the Bystander")]);
+
+        var shot = encounter.Step(state, new Attack(
+            "hero", "villain", "might", Type: AttackType.RangedWeapon,
+            CoverScenery: "a brick wall"));
+
+        // The positive controls: the shot went wide, a second attack was resolved for real, and
+        // both of them are on the ledger.
+        Assert.Contains(shot.Added, l =>
+            string.Equals(l.Rule, "gritty_friendly_fire", StringComparison.Ordinal)
+            && l.Text.Contains("the shot goes somewhere", StringComparison.Ordinal));
+
+        Assert.Single(shot.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("attacks the Villain", StringComparison.Ordinal));
+
+        Assert.Single(shot.Added, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+            && l.Text.Contains("attacks the Bystander", StringComparison.Ordinal));
+
+        // And the obstacle belonged to the first line of sight and to no other: one citation of
+        // Chapter 7's table, and one of p.75's clause about the same figure.
+        Assert.Single(shot.Added, l =>
+            string.Equals(l.Rule, "scenery_table", StringComparison.Ordinal));
+
+        Assert.Single(shot.Added, l =>
+            string.Equals(l.Rule, "modifier_cover", StringComparison.Ordinal));
+    }
+
     // ── p.78's knockback, into something the page rates ──────────────────────
 
     /// <summary>
