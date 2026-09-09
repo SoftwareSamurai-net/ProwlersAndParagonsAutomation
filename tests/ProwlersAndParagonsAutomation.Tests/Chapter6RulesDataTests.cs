@@ -30,11 +30,10 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// already is the book and a second typing of seventy-eight rows would only be a second thing to
 /// disagree with the first.</para>
 ///
-/// <para><b>None of the three files is on <see cref="RulesRepository.DataFileNames"/>.</b> That is
-/// the contract for a host which fetches the character rules over HTTP, and putting a file on it is
-/// a decision about the browser's first page load; the slice that teaches <c>CostCalculator</c>
-/// what a vehicle costs is the slice that gets to make it. Until then this file is what makes the
-/// data worth having — unread data reads like a source of truth and is not one.</para>
+/// <para><b>All three files are on <see cref="RulesRepository.DataFileNames"/> now</b>, put there
+/// by the slice that taught <c>CostCalculator</c> what a vehicle, a base and a Gadget cost. This
+/// file is still what holds the data to the pages: a loader proves a file parses, not that it says
+/// what the book says.</para>
 /// </summary>
 public sealed class Chapter6RulesDataTests
 {
@@ -106,21 +105,23 @@ public sealed class Chapter6RulesDataTests
     }
 
     /// <summary>
-    /// <b>The three files are deliberately absent from the loader's contract, and this says so out
-    /// loud.</b> Adding one to <see cref="RulesRepository.DataFileNames"/> makes the browser fetch
-    /// it before its first render, and that is the consumer slice's decision rather than a side
-    /// effect of extracting the data. If a later slice does add one, this test is where it is
-    /// removed from — not a line to delete quietly.
+    /// <b>All three files are on the loader's contract, and this says so out loud.</b>
+    ///
+    /// <para>It used to say the opposite, and the reversal is the point: the consumer slice — the
+    /// one that taught <c>CostCalculator</c> what a vehicle, a base and a Gadget cost — is the
+    /// slice that got to decide the browser fetches them before its first render. This test is
+    /// where that decision is recorded, rather than a line somebody deleted quietly.</para>
     /// </summary>
     [Fact]
-    public void TheChapterSixFilesAreNotYetOnTheRepositorysContract()
+    public void TheChapterSixFilesAreOnTheRepositorysContract()
     {
         foreach (var (file, _) in Coverage)
         {
-            Assert.DoesNotContain(file, RulesRepository.DataFileNames);
+            Assert.Contains(file, RulesRepository.DataFileNames);
 
-            // Positive control on the assertion above: the list is real and non-empty.
-            Assert.Contains("powers.json", RulesRepository.DataFileNames);
+            // Positive control on the assertion above: the list is real and does not simply
+            // contain everything anybody asks it about.
+            Assert.DoesNotContain("no-such-rules-file.json", RulesRepository.DataFileNames);
         }
     }
 

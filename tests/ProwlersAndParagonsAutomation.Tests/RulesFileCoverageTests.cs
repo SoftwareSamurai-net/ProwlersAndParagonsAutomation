@@ -55,7 +55,10 @@ public sealed class RulesFileCoverageTests
         ("gear_features.json",  typeof(List<GearFeatureModel>)),
         ("sources.json",        typeof(List<SourceModel>)),
         ("creation_rules.json", typeof(CreationRulesModel)),
-        ("gear.json",           typeof(EquipmentDataModel))
+        ("gear.json",           typeof(EquipmentDataModel)),
+        ("gadgets.json",        typeof(GadgetRulesFile)),
+        ("vehicles.json",       typeof(VehicleRulesFile)),
+        ("headquarters.json",   typeof(HeadquartersRulesFile))
     ];
 
     public static TheoryData<string, Type> FilesAndModels()

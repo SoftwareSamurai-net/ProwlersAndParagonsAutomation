@@ -33,7 +33,11 @@ public sealed class RulesRepository
     private IReadOnlyList<SourceModel>? _sources;
     private CreationRulesModel? _creationRules;
     private EquipmentDataModel? _equipment;
+    private GadgetRulesFile? _gadgetRules;
+    private VehicleRulesFile? _vehicleRules;
+    private HeadquartersRulesFile? _headquartersRules;
     private GearCatalogue? _catalogue;
+    private AssetCatalogue? _assets;
 
     // Lookup dictionaries (built on first use)
     private Dictionary<string, TierModel>? _tierMap;
@@ -56,7 +60,7 @@ public sealed class RulesRepository
         "tiers.json", "abilities.json", "talents.json", "powers.json",
         "pros.json", "cons.json", "flaws.json", "perks.json",
         "gear_features.json", "sources.json", "creation_rules.json",
-        "gear.json"
+        "gear.json", "gadgets.json", "vehicles.json", "headquarters.json"
     ];
 
     /// <summary>Reads the rules from an arbitrary source — a directory, memory, anywhere.</summary>
@@ -137,6 +141,47 @@ public sealed class RulesRepository
     /// not each have to remember to build one.</para>
     /// </summary>
     public GearCatalogue Catalogue => _catalogue ??= new GearCatalogue(this);
+
+    /// <summary>
+    /// Chapter 6's Gadget rules, printed p.94: what a builder needs, how Complexity is chosen,
+    /// and the pool of Hero Points a successful build hands out.
+    ///
+    /// <para><b>The one file in this repository whose arithmetic runs the other way.</b> Every
+    /// other price charges Hero Points; a Gadget pays them out, at twice its Complexity, into a
+    /// pool spent under the ordinary cost rules — see <see cref="CostCalculator.GadgetPool"/>.</para>
+    /// </summary>
+    public GadgetRulesFile Gadgets =>
+        _gadgetRules ??= Load<GadgetRulesFile>("gadgets.json");
+
+    /// <summary>
+    /// Chapter 6's Vehicle rules, pp.94-100: the four characteristics and what each costs, the
+    /// six stock vehicles, and the twenty-three features with their prices.
+    ///
+    /// <para><b>Every price below the Unique Vehicle Perk is in Vehicle Points, which are not
+    /// Hero Points.</b> Adding one to a Hero Point total is a category error; the two meet only at
+    /// the Perk, at twenty-five to one.</para>
+    /// </summary>
+    public VehicleRulesFile Vehicles =>
+        _vehicleRules ??= Load<VehicleRulesFile>("vehicles.json");
+
+    /// <summary>
+    /// Chapter 6's Headquarters rules, pp.100-103: the Perk, the twenty-two base features, and
+    /// the two features that carry mechanics of their own.
+    ///
+    /// <para><b>Base Points, and the same warning as above.</b> Three to a Hero Point of the
+    /// Headquarters Perk, and every price under it is in the second currency.</para>
+    /// </summary>
+    public HeadquartersRulesFile Headquarters =>
+        _headquartersRules ??= Load<HeadquartersRulesFile>("headquarters.json");
+
+    /// <summary>
+    /// The vehicle and base features, the stock vehicles and the gadget rules as flat, pickable
+    /// rows — what <see cref="Catalogue"/> is for gear, for the other three files.
+    ///
+    /// <para><b>Same reason it hangs off the repository</b>: it is those files' own contents in
+    /// the shape every reader of them wants, so four hosts do not each build one and disagree.</para>
+    /// </summary>
+    public AssetCatalogue Assets => _assets ??= new AssetCatalogue(this);
 
     // ── Lookups ───────────────────────────────────────────────────────────
 
