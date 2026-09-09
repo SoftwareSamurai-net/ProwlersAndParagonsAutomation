@@ -136,8 +136,12 @@ public sealed class CampaignAssetLedgerTests
     /// Reported and never repaired — the remedy is somebody putting more in or the object losing a
     /// feature, and both are decisions about a table's game.
     ///
-    /// <para>The under-budget case is the positive control: an implementation that called
-    /// everything over budget would satisfy the first assertion on its own.</para>
+    /// <para><b>Three states rather than two, and the third was added because a mutation
+    /// survived.</b> Under budget is the positive control, without which an implementation calling
+    /// everything over budget would pass. Funded by nobody is the extreme. Neither of those
+    /// noticed <c>Spent &gt; Budget * 2</c>: at a budget of nothing that is still true, and 18
+    /// against 50 is still false — so <b>an object over by a little</b> is the case that decides
+    /// whether the comparison is the one this line claims to make.</para>
     /// </summary>
     [Fact]
     public void AnObjectBuiltPastItsBudgetIsReportedWithBothFigures()
@@ -150,11 +154,24 @@ public sealed class CampaignAssetLedgerTests
         var funded = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
             [("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 1)))]));
 
+        // Body 20 + Speed 10 is 30, against the same one Hero Point's 25: over, and nowhere near
+        // twice over.
+        var barely = Assert.Single(CampaignAssets.Ledger(
+            Game(Wing with { Body = 20 }), ctx.Session.Costs,
+            [("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 1)))]));
+
         var starved = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, []));
 
         Assert.False(funded.IsOverBudget);
         Assert.Equal(rate, funded.Budget);
         Assert.Equal(rate - funded.Spent, funded.Remaining);
+
+        Assert.True(barely.IsOverBudget);
+        Assert.Equal(rate, barely.Budget);
+        Assert.True(barely.Spent > rate && barely.Spent < rate * 2,
+            $"the fixture stopped being over by a little: {barely.Spent} against {rate}");
+        Assert.Equal(rate - barely.Spent, barely.Remaining);
+        Assert.True(barely.Remaining < 0, "an object over its budget has nothing remaining");
 
         Assert.True(starved.IsOverBudget);
         Assert.Equal(funded.Spent, starved.Spent);
