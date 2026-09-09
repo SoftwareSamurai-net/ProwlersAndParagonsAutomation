@@ -105,6 +105,33 @@ public static class AssetFormatter
     }
 
     /// <summary>
+    /// What one of the campaign's own objects is, in the line a picker prints beside its name:
+    /// <c>shared vehicle · Body 8d · Speed 10d · Control +3 · unarmed</c>.
+    ///
+    /// <para><b>No figure in the object's own currency, unlike every other line in this class</b>,
+    /// and that is the whole difference between this and <see cref="Describe(OwnedVehicle,
+    /// CostCalculator)"/>. A shared object's budget is the sum of what its members put in, so the
+    /// pair a reader wants — spent against budget — cannot be worked out from the object alone: it
+    /// needs the sheets, which is what a campaign's own screen has and a character's has not. A
+    /// number printed here would be half of that pair with nothing saying so.</para>
+    ///
+    /// <para><b>A base prints no characteristics</b>, because pp.100–103 give it none — the same
+    /// reason <see cref="CostCalculator.CampaignAssetPointsSpent"/> does not charge for any.</para>
+    /// </summary>
+    public static string Describe(CampaignAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (asset.IsHeadquarters) return "shared headquarters";
+
+        var control = asset.Control > 0 ? $"+{N(asset.Control)}" : N(asset.Control);
+
+        return $"shared vehicle · Body {N(asset.Body)}d · Speed {N(asset.Speed)}d · "
+             + $"Control {control} · "
+             + (asset.Weapons is { } weapons ? $"Weapons {N(weapons)}d" : "unarmed");
+    }
+
+    /// <summary>
     /// A feature as it prints on a sheet: its name, the grade where it has one, and the count
     /// where it is bought per unit — <c>Passengers ×2</c>, <c>Science Labs (Advanced)</c>.
     /// </summary>

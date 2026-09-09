@@ -1,6 +1,8 @@
 @page "/build/assets"
 @inject CharacterSession Session
 @inject Commands Commands
+@inject AccountCampaignStore Campaigns
+@inject ApiMembershipStore Memberships
 
 <PageTitle>Vehicles &amp; bases — Prowlers &amp; Paragons</PageTitle>
 
@@ -387,6 +389,47 @@
             }
         </ChosenList>
     }
+
+    @* **A contribution to an object the game no longer has, said here and computed nowhere the
+       engine can reach.** Answering it needs the campaign, and resolving a campaign id is storage
+       — which is why `CampaignAssets.Orphaned` sits beside `CampaignJoin` rather than in the
+       validator, and why it says nothing at all when no campaign resolved: a member's browser
+       reads no campaign for a game that is perfectly alive, and an orphan reported against that
+       null would accuse everybody. Reported and never repaired: the Hero Points are still spent
+       and dropping the row would be editing somebody's character to quieten a sentence. *@
+    @foreach (var finding in Orphans)
+    {
+        <p class="small muted spaced" role="status">@finding.Message</p>
+    }
+
+    @* **The offer, listing the game's own objects by id.** A contribution keys on the object's
+       id, so typing one in by hand is a way of writing down a machine that does not exist —
+       which is exactly the state above. The list is the campaign's, read the way a member reads
+       anything about their table: their own membership row. *@
+    @if (SharedAssets is { Count: > 0 } offered)
+    {
+        <Field Label="Put Hero Points into one of the game's own">
+            <OptionList Placeholder="Filter the shared vehicles and bases">
+                @foreach (var asset in offered)
+                {
+                    <OptionRow Name="@asset.Name" Caveat="@AssetKind(asset)"
+                               OnSelect="() => Contribute(asset)" />
+                }
+            </OptionList>
+        </Field>
+    }
+    else if (Session.Sheet.CampaignId is null)
+    {
+        <p class="small muted">This character is in no game, so there is nothing shared to put into.</p>
+    }
+    else if (_reach.Either is not null)
+    {
+        <p class="small muted">This game has no shared vehicle or base yet.</p>
+    }
+    else if (_looked)
+    {
+        <p class="small muted" role="status">The game could not be read just now.</p>
+    }
 </Panel>
 
 <StepButtons Back="build/gear" BackLabel="Gear" Next="build/derived" NextLabel="Derived stats" />
@@ -472,7 +515,39 @@
     /// </summary>
     private string? _rowQuery;
 
-    protected override void OnInitialized()
+    /// <summary>
+    /// The game this character is in, read whichever way this account can read it — the account's
+    /// own campaign for a GM, the live table through a membership row for a player.
+    ///
+    /// <para><b>Read once, when the step opens.</b> A shared object is the GM's to change and a
+    /// member is here to record what they put in; re-reading it per render would be a request per
+    /// keystroke on a page full of number boxes, which is the read-per-letter the character
+    /// manager's own split exists to avoid.</para>
+    /// </summary>
+    private CampaignReach _reach;
+
+    /// <summary>
+    /// Whether the read above has happened, so "the game could not be read" is only ever said
+    /// about a read that finished. Before it, the offer is simply not drawn — the same rule the
+    /// campaigns page's live panel follows on a first render.
+    /// </summary>
+    private bool _looked;
+
+    /// <summary>The game's own shared objects, or none when there is no game to read.</summary>
+    private IReadOnlyList<CampaignAsset> SharedAssets => CampaignAsset.On(_reach.Either);
+
+    /// <summary>
+    /// What this character has put into an object its game does not have. Empty for a character
+    /// in no game and for one whose table could not be read — see <c>CampaignAssets.Orphaned</c>,
+    /// which is where the reason that is not an oversight is written down.
+    /// </summary>
+    private IReadOnlyList<CampaignFinding> Orphans =>
+        CampaignAssets.Orphaned(Session.Sheet, _reach.Either);
+
+    /// <inheritdoc cref="Headline(OwnedVehicle)"/>
+    private static string AssetKind(CampaignAsset asset) => AssetFormatter.Describe(asset);
+
+    protected override async Task OnInitializedAsync()
     {
         if (Commands.TakeRequestedAssetRow() is { } rowId && Session.Assets.Find(rowId) is { } row)
         {
@@ -484,6 +559,17 @@
             if (row.Kind == AssetRowKind.BaseFeature) _base ??= Session.Sheet.Headquarters.FirstOrDefault();
             else _vehicle ??= Session.Sheet.Vehicles.FirstOrDefault();
         }
+
+        // **Nothing is asked for a character in no game**, which is most of them and every one
+        // belonging to somebody not signed in. Both reads below are round trips; a step that made
+        // them unconditionally would charge every reader of this page for a panel that would then
+        // say there is no game.
+        if (Session.Sheet.CampaignId is null) return;
+
+        _reach = await CampaignReaches.ForAsync(
+            Campaigns, Memberships, Session.Sheet, await Memberships.MineAsync());
+
+        _looked = true;
     }
 
     // ── Vehicles ──────────────────────────────────────────────────────────
@@ -682,6 +768,37 @@
     private void RemoveContribution(CampaignAssetContribution contribution)
     {
         Session.Sheet.CampaignAssets.Remove(contribution);
+        Session.NotifyChanged();
+    }
+
+    /// <summary>
+    /// Start putting into one of the game's own objects.
+    ///
+    /// <para><b>At nothing rather than at a figure</b>, which is the opposite of the Gadget's
+    /// minimum Complexity one panel up and is right for the opposite reason: a Gadget at zero is a
+    /// finding the moment it exists, and a contribution of nothing is an ordinary state — somebody
+    /// has said which object they are backing and not yet how much.</para>
+    ///
+    /// <para><b>The id, the name and the kind are all copied from the object</b>, so a sheet read
+    /// with no campaign in front of it still prints something a reader recognises, and a
+    /// contribution's kind can never disagree with the object's. Pressing the same row twice adds
+    /// nothing: two contributions to one object from one character are one contribution written
+    /// down twice, and the ledger would sum them into a figure neither box shows.</para>
+    /// </summary>
+    private void Contribute(CampaignAsset asset)
+    {
+        if (Session.Sheet.CampaignAssets.Any(
+                c => string.Equals(c.AssetId, asset.Id, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        Session.Sheet.CampaignAssets.Add(new CampaignAssetContribution(asset.Id)
+        {
+            Name = asset.Name,
+            Kind = asset.Kind,
+        });
+
         Session.NotifyChanged();
     }
 
