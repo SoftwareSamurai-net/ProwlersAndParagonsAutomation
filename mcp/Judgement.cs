@@ -222,6 +222,14 @@ public sealed class Judgement
             ["powers"]    = Answer(() => _costs.TotalPowersCost(sheet)),
             ["perks"]     = Answer(() => _costs.TotalPerksCost(sheet)),
             ["gear"]      = Answer(() => _costs.TotalGearCost(sheet)),
+
+            // The Perks on every vehicle, headquarters and shared campaign object. **Hero Points,
+            // and the only figure about them that is** — a machine's Vehicle Points and a base's
+            // Base Points are a second currency this block has no business summing, and a Gadget's
+            // pool runs the other way entirely. Without this line the parts stopped adding up to
+            // the total the moment a character owned anything.
+            ["assets"]    = Answer(() => _costs.TotalAssetPerkCost(sheet)),
+
             ["by_power"]  = byPower,
             ["by_perk"]   = byPerk,
             ["note"]      = "Each Power is priced on its own here. Super Senses is one Power "

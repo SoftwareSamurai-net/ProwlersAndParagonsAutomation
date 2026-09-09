@@ -591,6 +591,13 @@ public sealed class BuildCommand
                 ["powers"]    = Answer(() => _costs.TotalPowersCost(sheet)),
                 ["perks"]     = Answer(() => _costs.TotalPerksCost(sheet)),
                 ["gear"]      = Answer(() => _costs.TotalGearCost(sheet)),
+
+                // The Perks on every vehicle, headquarters and shared campaign object — Hero
+                // Points, and the only figure about them that is. Vehicle Points and Base Points
+                // are a second currency and a Gadget's pool runs the other way, so neither belongs
+                // in a block whose parts have to add up to the line below.
+                ["assets"]    = Answer(() => _costs.TotalAssetPerkCost(sheet)),
+
                 ["total"]     = Answer(() => _costs.TotalCost(sheet))
             },
             ["perks"] = new JsonArray([.. sheet.Perks.Select(perk => (JsonNode)new JsonObject
