@@ -351,6 +351,18 @@ somebody typing "Battle Axe" would otherwise have to look up in the book.
   neither has a rank to reduce on a piece of gear.
 - **The right-hand column on a catalogue row is never a price**, since none of it is bought. It
   carries the printed bonus, or the era where there is no bonus.
+- **Two of p.91's items have a bonus that is only for one kind of roll, and every surface that
+  prints the figure prints the clause.** The Crowbar's +4 is for "Might rolls made to force things
+  open or apart" and the Climbing Claws' +2 for climbing a natural surface; the row has carried
+  `BonusAppliesTo` since the catalogue was built, and while nothing read it a sheet said
+  `Crowbar +4` beside `Battle Axe +3` — a general bonus the book does not grant, offering the
+  crowbar as the better weapon.
+- **The palette's request is taken on `Commands.Changed` as well as in `OnInitialized`**, for the
+  reason the `/rules` bullet further down gives at length: `NavigateTo("build/gear")` from
+  `build/gear` is a no-op, Blazor reuses the instance, and a request read on initialisation alone
+  is never read at all for the likeliest reader of the lot — somebody choosing gear who opens the
+  palette to look a weapon up. The step unsubscribes on dispose, and its guard renders the page
+  **before** the row is chosen and asserts on that same instance.
 
 **The two lists are `.catalogue` and `.customising`**, and the classes are load-bearing for the
 tests rather than for the stylesheet: an unscoped `.options-filter input` on this page now types
