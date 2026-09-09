@@ -209,8 +209,12 @@ public sealed class RepositoryGuideTests
     /// <c>Tests</c>, so a sweep that read them would key this guarantee to whether the project had
     /// been built and in which configuration.
     /// </summary>
+    private static readonly string[] SourceDirectories =
+        ["engine", "sheets", "web", "play", "cli", "mcp", "mcp-play", "mcp-shared"];
+
+    /// <inheritdoc cref="SourceDirectories"/>
     private static IEnumerable<string> SourceFiles() =>
-        new[] { "engine", "sheets", "web", "play", "cli", "mcp", "mcp-play", "mcp-shared" }
+        SourceDirectories
             .Select(d => Path.Combine(RepoRoot, d))
             .Where(Directory.Exists)
             .SelectMany(d => Directory.GetFiles(d, "*.cs", SearchOption.AllDirectories)
