@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,10 +88,22 @@ public sealed class CampaignSharedBooksTests
         return sheet;
     }
 
-    private static string Shared(IRenderedComponent<CampaignApproval> page) =>
+    /// <summary>
+    /// The shared-objects panel itself. <b>Found rather than searched for over the whole page</b>,
+    /// because the roster above it has a Remove button of its own and a search that crossed the
+    /// two would press the wrong one.
+    /// </summary>
+    private static IElement SharedPanel(IRenderedComponent<CampaignApproval> page) =>
         page.FindAll("section.panel")
-            .Single(s => s.TextContent.Contains("Shared vehicles and bases", StringComparison.Ordinal))
-            .TextContent;
+            .Single(s => s.TextContent.Contains("Shared vehicles and bases", StringComparison.Ordinal));
+
+    private static string Shared(IRenderedComponent<CampaignApproval> page) =>
+        SharedPanel(page).TextContent;
+
+    /// <summary>One of the shared panel's own controls, by the word on it.</summary>
+    private static IElement Control(IRenderedComponent<CampaignApproval> page, string word) =>
+        SharedPanel(page).QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == word);
 
     /// <summary>
     /// <b>The budget is the members' Hero Points, converted at the rate the rules data carries,
@@ -215,6 +228,209 @@ public sealed class CampaignSharedBooksTests
 
         // And the roster above it drew, which is what the exception used to prevent.
         Assert.Contains("Ninefold", page.Find(".campaign-list").TextContent, StringComparison.Ordinal);
+    }
+
+    // ── The GM writes one down ────────────────────────────────────────────────
+
+    /// <summary>A GM signed in with one campaign that owns nothing shared.</summary>
+    private static RenderContext AGameOwningNothing()
+    {
+        var ctx = new RenderContext();
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        ctx.Api.Campaign(GameId, "Nightfall", StoredCampaign.Write(
+            new Campaign(GameId, "Nightfall", "standard", 8, false)));
+
+        return ctx;
+    }
+
+    /// <summary>
+    /// <b>A GM names a shared vehicle and it is written into the game's own payload</b>, where
+    /// every member can then reach it through their own membership row.
+    ///
+    /// <para><b>The characteristics are asserted as well as the name</b>, because a save that
+    /// wrote an empty record under the right name would satisfy every other assertion here and
+    /// leave the table pooling into nothing.</para>
+    /// </summary>
+    [Fact]
+    public async Task NamingASharedVehicleWritesItIntoTheGame()
+    {
+        await using var ctx = AGameOwningNothing();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        await page.Find("input[aria-label='Name a shared vehicle or base']")
+            .InputAsync(new() { Value = "The Wing" });
+
+        await page.Find("button[aria-label='Add a shared vehicle or base']")
+            .ClickAsync(new MouseEventArgs());
+
+        await page.Find("#shared-body").ChangeAsync(new() { Value = "8" });
+        await page.Find("#shared-speed").ChangeAsync(new() { Value = "10" });
+
+        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Save")
+            .ClickAsync(new MouseEventArgs());
+
+        var game = await ctx.Services.GetRequiredService<AccountCampaignStore>().LoadAsync(GameId);
+
+        var written = Assert.Single(CampaignAsset.On(game));
+
+        Assert.Equal("The Wing", written.Name);
+        Assert.Equal(CampaignAssetContribution.Vehicle, written.Kind);
+        Assert.Equal(8, written.Body);
+        Assert.Equal(10, written.Speed);
+
+        // Minted, and its own letter — it is a key inside a payload rather than a key the server
+        // holds, and it is what every contribution will name.
+        Assert.StartsWith("a_", written.Id, StringComparison.Ordinal);
+
+        // And the screen redrew with it, which is what a GM checks rather than a payload.
+        Assert.Contains("The Wing", Shared(page), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A base is the other table and the other currency, and it has no ranks at all.</b>
+    /// pp.100–103 give a headquarters no Body, Speed, Control or Weapons — so the editor offers
+    /// none, and the features it offers are the base list rather than the vehicle one.
+    ///
+    /// <para>The two lists are what discriminates here: an editor that ignored the kind would
+    /// still be drawing a panel with a name in it.</para>
+    /// </summary>
+    [Fact]
+    public async Task ABaseOffersTheOtherTableAndNoCharacteristics()
+    {
+        await using var ctx = AGameOwningNothing();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        await page.Find("select[aria-label='A vehicle or a headquarters']")
+            .ChangeAsync(new() { Value = CampaignAssetContribution.Headquarters });
+
+        await page.Find("input[aria-label='Name a shared vehicle or base']")
+            .InputAsync(new() { Value = "The Roost" });
+
+        await page.Find("button[aria-label='Add a shared vehicle or base']")
+            .ClickAsync(new MouseEventArgs());
+
+        Assert.Empty(page.FindAll("#shared-body"));
+
+        var editor = page.FindAll("section.panel")
+            .Single(s => s.TextContent.Contains("A base has no ranks", StringComparison.Ordinal))
+            .TextContent;
+
+        // Off pp.100–103, and not off pp.96–100.
+        Assert.Contains("Holding Cells", editor, StringComparison.Ordinal);
+        Assert.DoesNotContain("Gunnery Station", editor, StringComparison.Ordinal);
+
+        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Save")
+            .ClickAsync(new MouseEventArgs());
+
+        var game = await ctx.Services.GetRequiredService<AccountCampaignStore>().LoadAsync(GameId);
+
+        Assert.True(Assert.Single(CampaignAsset.On(game)).IsHeadquarters);
+    }
+
+    /// <summary>
+    /// <b>Renaming a shared object keeps its id, so nobody's contribution is orphaned by it.</b>
+    ///
+    /// <para>This is the whole reason the id is minted rather than derived from the name: every
+    /// member's sheet is holding it as the record of what they paid for, and a key that moved on a
+    /// rename would strand five contributions at once. The member's own screen is what would say
+    /// so, and it is asserted here rather than assumed.</para>
+    /// </summary>
+    [Fact]
+    public async Task RenamingKeepsTheIdSoNobodysContributionIsOrphaned()
+    {
+        await using var ctx = await AGameWithAFundedObject();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        await Control(page, "Edit").ClickAsync(new MouseEventArgs());
+
+        await page.Find("#shared-name").InputAsync(new() { Value = "The Wing II" });
+
+        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Save")
+            .ClickAsync(new MouseEventArgs());
+
+        var game = await ctx.Services.GetRequiredService<AccountCampaignStore>().LoadAsync(GameId);
+
+        var renamed = Assert.Single(CampaignAsset.On(game));
+
+        Assert.Equal("The Wing II", renamed.Name);
+        Assert.Equal(TheWing, renamed.Id);
+
+        // The member's own answer, which is the one that matters: nothing is orphaned.
+        Assert.Empty(CampaignAssets.Orphaned(Funder(2), game));
+
+        // And the books still add up, which a lost id would have emptied.
+        Assert.Contains("Ninefold 2 HP", Shared(page), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Removing a shared object takes nobody's Hero Points with it.</b>
+    ///
+    /// <para>The same answer deleting a campaign gets: the contribution stays on the member's
+    /// sheet, still costs them, and their own screen reports that it names an object this game
+    /// does not have. Reaching into five characters to tidy up after a decision about the game
+    /// would be this application editing work that is not its own.</para>
+    /// </summary>
+    [Fact]
+    public async Task RemovingASharedObjectLeavesEveryContributionWhereItIs()
+    {
+        await using var ctx = await AGameWithAFundedObject();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        await Control(page, "Remove").ClickAsync(new MouseEventArgs());
+
+        // Two presses, because there is no undo behind it.
+        await Control(page, "Remove for good").ClickAsync(new MouseEventArgs());
+
+        var store = ctx.Services.GetRequiredService<AccountCampaignStore>();
+        var game = await store.LoadAsync(GameId);
+
+        Assert.Empty(CampaignAsset.On(game));
+
+        // The clone the campaign holds is untouched: the Hero Points are still spent.
+        var clone = (await ctx.Services.GetRequiredService<ApiMembershipStore>()
+            .ReadAsync((await ctx.Services.GetRequiredService<ApiMembershipStore>()
+                .InboxAsync())!.Single().Id))!.Approved;
+
+        Assert.NotNull(clone);
+        Assert.Equal(2, Assert.Single(clone!.CampaignAssets).HeroPoints);
+
+        // And their own screen is what says the object is gone.
+        Assert.Equal(CampaignAssets.UnknownAsset,
+                     Assert.Single(CampaignAssets.Orphaned(clone, game)).Code);
+    }
+
+    /// <summary>
+    /// <b>A save that went nowhere says so.</b> A form that closes and does nothing is
+    /// indistinguishable from a control that was never wired up, which is the rule every refusal
+    /// on the campaigns page follows.
+    /// </summary>
+    [Fact]
+    public async Task ASaveThatWentNowhereSaysSo()
+    {
+        await using var ctx = AGameOwningNothing();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        await page.Find("input[aria-label='Name a shared vehicle or base']")
+            .InputAsync(new() { Value = "The Wing" });
+
+        await page.Find("button[aria-label='Add a shared vehicle or base']")
+            .ClickAsync(new MouseEventArgs());
+
+        ctx.Api.Unreachable = true;
+
+        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Save")
+            .ClickAsync(new MouseEventArgs());
+
+        Assert.Contains("could not be saved", page.Markup, StringComparison.Ordinal);
+
+        // The draft is still open, so the GM's typing is not thrown away with the request.
+        Assert.NotEmpty(page.FindAll("#shared-name"));
     }
 
     /// <summary>

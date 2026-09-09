@@ -807,22 +807,15 @@
     /// <summary>
     /// The right-hand column: what the row costs, <b>with its currency</b>. A bare number in a
     /// list beside a Hero Point budget is the category error this whole page is careful about.
+    ///
+    /// <para><b>Both of these moved to <see cref="AssetRows"/> when the campaign's own page grew
+    /// the same two lists</b>, since a currency spelled in two screens is a currency two screens
+    /// can disagree about.</para>
     /// </summary>
-    private static string Price(AssetCatalogueRow row)
-    {
-        var unit = row.Kind == AssetRowKind.BaseFeature ? "BP" : "VP";
+    private static string Price(AssetCatalogueRow row) => AssetRows.Price(row);
 
-        return row switch
-        {
-            { Cost: { } flat }        => $"{flat} {unit}",
-            { CostPerUnit: { } rate } => $"{rate} {unit} each",   // abbreviated, so no plural to get wrong
-            { Grades: { } grades }    => $"{grades.Values.Min()}–{grades.Values.Max()} {unit}",
-            _                         => ""
-        };
-    }
-
-    private static string? CheapestGrade(AssetCatalogueRow row) =>
-        row.Grades is { } grades ? grades.OrderBy(g => g.Value).First().Key : null;
+    /// <inheritdoc cref="Price(AssetCatalogueRow)"/>
+    private static string? CheapestGrade(AssetCatalogueRow row) => AssetRows.CheapestGrade(row);
 
     private static IReadOnlyList<T> Replace<T>(IReadOnlyList<T> list, T old, T? updated) where T : class =>
         [.. list.SelectMany(item => ReferenceEquals(item, old)
