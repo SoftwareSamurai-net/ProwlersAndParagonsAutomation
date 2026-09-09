@@ -110,6 +110,19 @@ public sealed partial class Encounter
             rank = GearLimited(state, actor, attack, attack.Item.Trim(), rank, lines);
         }
 
+        // Ch.7 pp.107-108, where the caller named the obstacle instead of rating it: the Structure
+        // comes off the page and the ledger cites it. Before the refusal below, because that
+        // refusal compares an attack rank with the very figure this resolves.
+        if (attack.CoverScenery is { Length: > 0 })
+        {
+            if (TheCoverIsNamedScenery(state, actor, attack, lines, out var rated) is { } unrated)
+            {
+                return unrated;
+            }
+
+            attack = rated;
+        }
+
         // p.75's cover, and the half of it that is a refusal rather than a penalty. Before the
         // dice, because an attack that cannot be made is one nothing else about should happen to:
         // no team attack recorded against the target, no defences halved by a charge, nothing
@@ -1167,6 +1180,7 @@ public sealed partial class Encounter
             Target = unlucky.Id,
             Cover = Cover.None,
             CoverStructure = null,
+            CoverScenery = null,
             AllOut = false,
             Charge = false,
             Area = false,

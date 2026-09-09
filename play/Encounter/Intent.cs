@@ -222,9 +222,27 @@ public abstract record Intent(string Actor);
 /// exposed part of a partly-covered target leaves it out and pays the band alone; a completely
 /// hidden target cannot be hit without it.</para>
 ///
-/// <para>This engine has no scenery, so the number is the caller's — the same way the knockback's
-/// solid object and the lure's "whatever lies directly behind you" are things it has nothing to
-/// look up. <c>docs/guide/play-engine.md</c> records it.</para>
+/// <para><b>The number stays the caller's and <see cref="CoverScenery"/> is the other way of
+/// saying it.</b> Chapter 7's tables rate a material (p.107) and a thing (p.108), so a wall with a
+/// printed row need not be a figure somebody typed; but p.107 also lets the GM move a Structure by
+/// as much as four dice for how thick or how rotten the obstacle is — its own worked example does
+/// exactly that — and no table prints every object in a city. So both ways in are kept, and
+/// supplying both at once is refused rather than one of them silently winning.</para>
+/// </param>
+/// <param name="CoverScenery">
+/// The obstacle by the name Chapter 7 prints for it, where the Structure is to come off the page
+/// rather than out of the caller's head — p.107's Smashing table for a material and p.108's Scenery
+/// table for a thing.
+///
+/// <para><b>It is an alternative to <see cref="CoverStructure"/> and never a modifier on it.</b>
+/// Naming a row and supplying a figure are two answers to one question, so an attack carrying both
+/// is refused with nothing rolled. A name nothing in either table prints is refused the same way:
+/// the tables are what this engine can cite a page for, and inventing a figure for a rolled-up
+/// hoarding is what a bare number is there for.</para>
+///
+/// <para><b>p.108's Massive Objects table is not one of the two</b>, because the page says so:
+/// <c>uses_instead_of_body_or_structure</c> is "the object's weight rank", so those rows carry no
+/// Structure and hiding behind a skyscraper is refused rather than answered with a weight.</para>
 /// </param>
 /// <param name="VulnerablePart">
 /// p.80's Hard Targets: the attacker is aiming at "the vulnerable parts of a complex machine or
@@ -302,7 +320,8 @@ public sealed record Attack(
     int? CoverStructure = null,
     bool VulnerablePart = false,
     bool CloseRangeOnly = false,
-    string? Item = null) : Intent(Actor);
+    string? Item = null,
+    string? CoverScenery = null) : Intent(Actor);
 
 /// <summary>
 /// Closing with or opening from one other combatant (p.74).
