@@ -4940,7 +4940,7 @@ public sealed class PlayEngineStepTests
     [Theory]
     [InlineData(true, 3, "beat that attack by")]
     [InlineData(false, 1, "passive defence")]
-    [InlineData(true, 1, "no scenery")]
+    [InlineData(true, 1, "nothing here gives an object Health")]
     public void ALureIsRefusedWithoutAnActiveDefenceAMarginAndSomebodyToLureItOnto(
         bool dodges, int attackSuccesses, string why)
     {
@@ -4973,7 +4973,7 @@ public sealed class PlayEngineStepTests
 
         var refused = encounter.Step(state, new SpendResolve(
             "hero", ResolveSpend.Luring,
-            Target: string.Equals(why, "no scenery", StringComparison.Ordinal) ? null : "bystander"));
+            Target: why.StartsWith("nothing here gives", StringComparison.Ordinal) ? null : "bystander"));
 
         var line = Assert.Single(refused.Added);
 

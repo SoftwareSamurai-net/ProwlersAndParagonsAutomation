@@ -518,8 +518,10 @@ good. Where it landed is yours.
 **Three things about a grab are yours and the ledger says which.** What losing the item means for
 the loser's own attacks: no figure of theirs is changed, because an attack here names a Trait and
 nothing in this repository's rules data says which Trait a weapon backs — so if the sword mattered,
-say so yourself. Where a tossed item landed, for the same reason there is no scenery here. Naming an item on an attack **changes no figure at all**: not the
-pool, not the row of the table, not the damage. Do not narrate it as a bonus.
+say so yourself. Where a tossed item landed: this engine has no floor to put anything on. Naming an
+item on an attack **moves the pool through the Gear Limit and through p.108's improvised weapons and
+in no other way** — it never moves the row of p.75's table and never moves the damage, both of which
+are yours to declare. Do not narrate it as a bonus beyond what a ledger line says it was worth.
 
 **Either of them may end a partial grab by letting go: send `toss` naming the contested object.**
 p.76 prints that exit in the same paragraph as the deadlock, and it works for the character who is
@@ -641,7 +643,10 @@ state. Narrate them in your own message instead.
 
 **`luring` is the one spend that takes a `target`**, because p.79 lets a dodged attack be sent into
 a person rather than into the scenery — and a person is the only thing this engine has to send it
-into. A lure naming nobody is refused, with nothing spent: there is no scenery here to strike.
+into. A lure naming nobody is refused, with nothing spent. **Chapter 7 does not change that**: an
+obstacle carries a Structure, which is a *passive defence* offered to somebody hiding behind it, and
+nothing here gives an object Health or a defeat of its own — so there is still nothing for a
+redirected attack to land on.
 
 **`team_attack` is bought off an attack that said it was one.** Send `"team": true` on the attack
 and p.79's +2d is in the pool; the point afterwards makes that roll's sixes explode, and keep

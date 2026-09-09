@@ -513,8 +513,10 @@ public sealed partial class Encounter
     /// <summary>
     /// The label a ledger line gives the cover's own durability when it answers an attack.
     ///
-    /// <para>It is a name for a thing this engine has no catalogue of rather than a Trait id: there
-    /// is no scenery here, and the Structure is a number the caller supplied.</para>
+    /// <para>It is a name rather than a Trait id, because the obstacle is not a combatant and has no
+    /// sheet: the Structure is either a number the caller supplied or one
+    /// <see cref="Attack.CoverScenery"/> took off Chapter 7's tables, and either way there is
+    /// nothing here it could be a rank <em>of</em>.</para>
     /// </summary>
     private const string CoversStructure = "the cover's Structure";
 
@@ -3324,11 +3326,14 @@ public sealed partial class Encounter
     /// energy attack" is neither of the words p.75's table prints, so it is read as every row of
     /// that table but the mental one, derived from the table rather than listed here.</para>
     ///
-    /// <para><b>A lure into the scenery is refused rather than charged for.</b>
-    /// <c>redirects_to</c> is "whatever lies directly behind you", and this engine has no scenery,
-    /// no Structure and nothing behind anybody — the attack had already missed the buyer, so a
-    /// point taken for it would buy a state change nothing could receive. Naming a person is what
-    /// this engine can do, and the refusal says so.</para>
+    /// <para><b>A lure into the scenery is refused rather than charged for, and Chapter 7 does not
+    /// change that.</b> <c>redirects_to</c> is "whatever lies directly behind you", and an obstacle
+    /// can now carry a Structure — but a Structure is a <em>passive defence</em>, which is what an
+    /// obstacle offers a target hiding behind it, and nothing here gives an object Health or a
+    /// defeat of its own. So there is still nothing for the redirected attack to land on: the
+    /// attack had already missed the buyer, and a point taken for it would buy a state change
+    /// nothing could receive. Naming a person is what this engine can do, and the refusal says
+    /// so.</para>
     /// </summary>
     private EncounterState Lure(
         EncounterState state, Combatant actor, string? onto, List<LedgerLine> lines,
@@ -3376,8 +3381,11 @@ public sealed partial class Encounter
         if (onto is not { Length: > 0 })
         {
             return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
-                $"a lure sends the attack into {rule.RedirectsTo}, and this engine has no scenery "
-                + "to send it into — name somebody to lure it onto instead");
+                $"a lure sends the attack into {rule.RedirectsTo}. Chapter 7 rates what a shot goes "
+                + "through and what a knockback throws somebody into, but a Structure is a passive "
+                + "defence and nothing here gives an object Health or a defeat of its own, so there "
+                + "is still nothing for the attack to land on — name somebody to lure it onto "
+                + "instead");
         }
 
         if (!rule.MayRedirectOntoAPerson)
