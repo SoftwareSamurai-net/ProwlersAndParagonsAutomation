@@ -326,6 +326,111 @@ public sealed class PlaySceneryTests
     }
 
     /// <summary>
+    /// <b>p.78 says "the target's passive defense", and both halves of that phrase are driven.</b>
+    ///
+    /// <para>Every other knockback fixture here gives its target exactly one defence, a Toughness —
+    /// so the derivation that picks the figure was measured by nothing. Two mutations proved it:
+    /// letting an <em>active</em> defence answer, and taking the <em>least</em> passive one instead
+    /// of the greatest, each left all 5058 tests green.</para>
+    ///
+    /// <para><b>One target, three defences, and two objects.</b> The Villain dodges at 20, wears
+    /// Armor at 8 and has a Toughness of 2, and is thrown into a brick wall at 6 and then into a
+    /// vault door at 12 — so the Armor is what answers both, and each wrong reading moves exactly
+    /// one of the two outcomes: the least passive would take damage off the wall, and the Agility
+    /// would carry them through the vault door. Health is the instrument and the ledger line has to
+    /// name the Trait, because a line naming the Agility beside the right arithmetic is a line that
+    /// will be believed.</para>
+    /// </summary>
+    [Fact]
+    public void TheGreatestPassiveDefenceAnswersTheStructureAndAnActiveOneNeverDoes()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+        var rows = _play.GetEnvironment("scenery_table").SceneryTable!;
+
+        var wall = rows.Single(r => r.Scenery.Contains("Brick Wall", StringComparer.Ordinal)).Structure;
+        var vault = rows.Single(r => r.Scenery.Contains("Vault Door", StringComparer.Ordinal)).Structure;
+
+        Assert.True(Hide < wall && wall < Plate && Plate < vault && vault < Dodge,
+            "the three defences no longer straddle the two Structures, so a wrong reading of "
+            + "\"the target's passive defense\" would give the same two answers as the right one");
+
+        var half = Rounding.Half(_play, rule.MinimumDamage);
+        Assert.True(half > 0, "half the blow is nothing, so the two runs could not differ by it");
+
+        var through = KnockedIntoWithThreeDefences("a brick wall");
+        var into = KnockedIntoWithThreeDefences("a vault door");
+
+        // The Armor carries them through the wall, which the Toughness underneath it would not.
+        Assert.Equal(12 - rule.MinimumDamage, through.State["villain"].CurrentHealth);
+
+        // And it does not carry them through the vault door, which the Agility above it would.
+        Assert.Equal(12 - rule.MinimumDamage - half, into.State["villain"].CurrentHealth);
+
+        foreach (var run in new[] { through, into })
+        {
+            Assert.Contains(run.Lines, l =>
+                string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+                && l.Text.Contains($"armor at {Plate}d", StringComparison.Ordinal));
+        }
+    }
+
+    /// <summary>The Villain's active defence, and the biggest figure on their sheet.</summary>
+    private const int Dodge = 20;
+
+    /// <summary>The Villain's greatest passive defence.</summary>
+    private const int Plate = 8;
+
+    /// <summary>The Villain's least passive defence.</summary>
+    private const int Hide = 2;
+
+    /// <summary>
+    /// The same six-point blow and the same point of Resolve as <see cref="Knocked"/>, against a
+    /// target carrying an active defence and two passive ones — so which figure answers the
+    /// Structure is a question the fixture can ask.
+    /// </summary>
+    private (EncounterState State, IReadOnlyList<LedgerLine> Lines) KnockedIntoWithThreeDefences(
+        string solidObject)
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 },
+            []);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["agility"] = Dodge, ["armor"] = Plate, ["toughness"] = Hide
+            },
+            ["agility", "armor", "toughness"]);
+
+        // Three sixes for six successes on the attack, and nothing at all on the defence — which
+        // the Villain makes with the Agility, because p.75 answers with the greatest rank available.
+        var dice = new ScriptedDice(
+            [6, 6, 6, .. Enumerable.Repeat(1, 5), .. Enumerable.Repeat(1, Dodge)]);
+
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        var blow = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        // The positive controls: the blow was the one the entry's floor asks for, the defence that
+        // answered it was the active one, and every scripted face was consumed.
+        Assert.Contains(blow.Added, l =>
+            l.Text.Contains("might 8d for 6 successes", StringComparison.Ordinal)
+            && l.Text.Contains($"agility {Dodge}d for 0", StringComparison.Ordinal));
+
+        Assert.Equal(0, dice.Remaining);
+
+        var spent = encounter.Step(blow.State, new SpendResolve(
+            "hero", ResolveSpend.Knockback, SolidObject: solidObject));
+
+        Assert.Equal(0, dice.Remaining);
+        Assert.Equal(3 - _play.GetCombat("knockback").Knockback!.CostResolve, spent.State["hero"].Resolve);
+
+        return (spent.State, spent.Added);
+    }
+
+    /// <summary>
     /// <b>The line for a purchase that names nothing counts what a purchase can actually name.</b>
     ///
     /// <para>It offered the caller "58 things", which is every row of Chapter 7's three object
