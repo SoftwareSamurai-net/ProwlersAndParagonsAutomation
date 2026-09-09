@@ -373,7 +373,8 @@ every object in a city.
 
 - **Cover**: `"cover_scenery"` on an attack. Its Structure comes off the page, and the ledger cites
   the table beside p.75's own two lines about the same figure.
-- **Knockback**: `"solid_object"` on a `spend_resolve` of `knockback`. p.78 — the target takes half
+- **Knockback**: `"solid_object"` on a `spend_resolve` of `knockback`, and on a `spend_adversity`
+  of `anything_resolve_can` buying the same thing for an NPC. p.78 — the target takes half
   the blow again on hitting it, **unless their best passive defence exceeds its Structure**, in
   which case they smash through unharmed. A purchase that names nothing is the rest of the rule and
   says so; one that names something no page rates is refused and **costs nothing**.

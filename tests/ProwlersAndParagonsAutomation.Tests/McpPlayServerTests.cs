@@ -6302,6 +6302,118 @@ public sealed class McpPlayServerTests
                 + "the solid object was driven at all.");
         });
 
+    /// <summary>
+    /// <b>p.85's first purchase carries the object across the wire too, and nothing read it.</b>
+    ///
+    /// <para><c>SpendAdversity.SolidObject</c> is what lets the GM say where an NPC's victim
+    /// landed, and every step of its path was unmeasured: dropping the field in this server's own
+    /// reader left all 5060 tests green, and so did passing <c>null</c> for it in the engine's
+    /// Adversity dispatch. A field the reader does not have is a field the SDK drops in silence
+    /// while the caller is told <c>ok</c> — the same way the <c>team</c> flag was lost once.</para>
+    ///
+    /// <para>The Villain lands the blow and the GM's pool buys the knockback. The search over seeds
+    /// is the one <see cref="AKnockbacksSolidObjectCrossesTheWireAndCostsTheTargetHalfTheBlow"/>
+    /// makes and for the same reason, and it asserts that it found a blow rather than passing on
+    /// having found none.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAdversityKnockbacksSolidObjectCrossesTheWireToo() =>
+        await WithClient(async client =>
+        {
+            var landed = false;
+
+            for (var seed = 1; seed <= 40 && !landed; seed++)
+            {
+                var encounter = (await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = AHeavyHitterAndSomebodyWhoCanTakeIt(),
+                    ["seed"] = seed
+                }))["encounter_id"]!.GetValue<string>();
+
+                // The Hero passes so that the turn reaches the Villain: p.85's purchase needs a
+                // blow of the NPC's own on the table, and this fight's order is the engine's.
+                Assert.True((await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = encounter,
+                    ["intent"] = new JsonObject { ["kind"] = "end_turn", ["actor"] = "hero" }
+                }))["ok"]!.GetValue<bool>());
+
+                Assert.True((await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = encounter,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack",
+                        ["actor"] = "villain",
+                        ["target"] = "hero",
+                        ["trait_id"] = "might",
+                        ["damage"] = "subdual",
+                        ["all_out"] = true
+                    }
+                }))["ok"]!.GetValue<bool>());
+
+                var spend = await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = encounter,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "spend_adversity",
+                        ["actor"] = "villain",
+                        ["spend"] = "anything_resolve_can",
+                        ["as_resolve"] = "knockback",
+                        ["solid_object"] = "a vault door"
+                    }
+                });
+
+                var lines = spend["added"]!.AsArray();
+
+                if (lines.Any(l => l!["text"]!.GetValue<string>()
+                        .Contains("knockback needs", StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                landed = true;
+
+                var struck = Assert.Single(lines, l =>
+                    string.Equals(l!["rule"]!.GetValue<string>(), "knockback", StringComparison.Ordinal)
+                    && l["text"]!.GetValue<string>().Contains("Vault Door", StringComparison.Ordinal));
+
+                // The clause was applied and not merely named: the line carries the extra damage.
+                var text = struck!["text"]!.GetValue<string>();
+
+                Assert.Contains(
+                    _play.GetCombat("knockback").Knockback!.DamageOnStrikingASolidObject, text,
+                    StringComparison.Ordinal);
+
+                Assert.Contains("more off the", text, StringComparison.Ordinal);
+            }
+
+            Assert.True(landed,
+                "no seed in the search landed a blow big enough for p.78's floor, so nothing about "
+                + "the GM's solid object was driven at all.");
+        });
+
+    /// <summary>
+    /// A Villain who hits hard enough to reach p.78's floor and a Hero with the Health to stay up
+    /// after half of it again — the fight <see cref="AnAdversityKnockbacksSolidObjectCrossesTheWireToo"/>
+    /// needs, where <see cref="TwoSides"/>'s seven Health would be gone before the wall was reached.
+    /// </summary>
+    private static JsonArray AHeavyHitterAndSomebodyWhoCanTakeIt()
+    {
+        var fight = TwoSides();
+
+        foreach (var entry in fight)
+        {
+            entry!["character"]!["AbilityRanks"] = string.Equals(
+                entry["id"]!.GetValue<string>(), "villain", StringComparison.Ordinal)
+                ? new JsonObject { ["might"] = 20, ["toughness"] = 5, ["willpower"] = 4 }
+                : new JsonObject { ["might"] = 4, ["toughness"] = 12, ["willpower"] = 4 };
+        }
+
+        return fight;
+    }
+
     private static JsonArray TwoSides() =>
     [
         new JsonObject

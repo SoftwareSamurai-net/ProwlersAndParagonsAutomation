@@ -491,6 +491,94 @@ public sealed class PlaySceneryTests
     }
 
     /// <summary>
+    /// <b>p.85's first purchase carries the object too, and nothing read it.</b>
+    ///
+    /// <para><c>SpendAdversity.SolidObject</c> was added to the record, read off the wire, and
+    /// handed to <c>Knockback</c> — and every one of those steps could be undone without a test
+    /// noticing. Passing <c>null</c> in <c>ResolveAdversitySpend</c> left all 5060 tests green, and
+    /// so did dropping the field in the server's own reader. That is the shape of defect CLAUDE.md
+    /// opens with: a feature built, reviewed and merged while nothing in the application ever wrote
+    /// to the store it read from.</para>
+    ///
+    /// <para>The GM buys the knockback on the Villain's behalf out of the pool, names the vault
+    /// door, and the Hero takes half the blow again. <b>The control is the same purchase naming
+    /// nothing</b>, which has to leave the Hero on what the blow alone left them — so a fixture
+    /// that had stopped passing the field along fails rather than agreeing with itself.</para>
+    /// </summary>
+    [Fact]
+    public void AKnockbackBoughtOutOfTheAdversityPoolNamesItsObjectToo()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+
+        var vault = _play.GetEnvironment("scenery_table").SceneryTable!
+            .Single(r => r.Scenery.Contains("Vault Door", StringComparer.Ordinal)).Structure;
+
+        var half = Rounding.Half(_play, rule.MinimumDamage);
+        Assert.True(half > 0, "half the blow is nothing, so the two runs could not differ by it");
+
+        var named = TheGmKnocksTheHeroInto("a vault door");
+        var unnamed = TheGmKnocksTheHeroInto(null);
+
+        Assert.Equal(12 - rule.MinimumDamage - half, named.State["hero"].CurrentHealth);
+        Assert.Equal(12 - rule.MinimumDamage, unnamed.State["hero"].CurrentHealth);
+
+        var hit = Assert.Single(named.Lines, l =>
+            string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+            && l.Text.Contains("Vault Door", StringComparison.Ordinal));
+
+        Assert.Contains($"Structure {vault}", hit.Text, StringComparison.Ordinal);
+
+        Assert.DoesNotContain(unnamed.Lines, l =>
+            l.Text.Contains("Vault Door", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Six points of subdual damage from the Villain, and then p.85's first Adversity purchase
+    /// buying p.78's knockback on their behalf — optionally naming what the Hero is thrown into.
+    /// </summary>
+    private (EncounterState State, IReadOnlyList<LedgerLine> Lines) TheGmKnocksTheHeroInto(
+        string? solidObject)
+    {
+        const int Toughness = 4;
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 5, health: 12, resolve: 1,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = Toughness },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 9, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 },
+            ["might"]);
+
+        var dice = new ScriptedDice(
+            [6, 6, 6, .. Enumerable.Repeat(1, 5), .. Enumerable.Repeat(1, Toughness)]);
+
+        var rule = _play.GetCombat("knockback").Knockback!;
+        var encounter = new Encounter(_play, dice);
+        var blow = encounter.Step(encounter.Begin([hero, villain]), new Attack(
+            "villain", "hero", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        // The positive controls: the blow met p.78's floor, and every scripted face was consumed.
+        Assert.Contains(blow.Added, l =>
+            l.Text.Contains("might 8d for 6 successes", StringComparison.Ordinal)
+            && l.Text.Contains($"toughness {Toughness}d for 0", StringComparison.Ordinal));
+
+        Assert.Equal(0, dice.Remaining);
+        Assert.Equal(12 - rule.MinimumDamage, blow.State["hero"].CurrentHealth);
+
+        var pool = blow.State.Adversity;
+
+        var spent = encounter.Step(blow.State, new SpendAdversity(
+            "villain", AdversitySpend.AnythingResolveCan, AsResolve: ResolveSpend.Knockback,
+            SolidObject: solidObject));
+
+        // The GM's pool paid, the Villain's non-existent Resolve did not, and nothing was rolled.
+        Assert.Equal(pool - rule.CostResolve, spent.State.Adversity);
+        Assert.Equal(0, dice.Remaining);
+
+        return (spent.State, spent.Added);
+    }
+
+    /// <summary>
     /// <b>The line for a purchase that names nothing counts what a purchase can actually name.</b>
     ///
     /// <para>It offered the caller "58 things", which is every row of Chapter 7's three object
