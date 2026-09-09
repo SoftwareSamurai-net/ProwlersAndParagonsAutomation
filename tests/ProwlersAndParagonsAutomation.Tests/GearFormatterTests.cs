@@ -256,6 +256,46 @@ public sealed class GearFormatterTests
     }
 
     /// <summary>
+    /// <b>An item's bonus prints what the page says it is for.</b>
+    ///
+    /// <para>Two of p.91's thirty-six carry a figure that applies to one kind of roll and nothing
+    /// else — the Crowbar's four dice are for forcing things open, the Climbing Claws' two are for
+    /// a rock face — and the page prints the qualifier in the same breath as the number. A sheet
+    /// reading <c>Crowbar +4</c> beside <c>Battle Axe +3</c> states a general bonus the book does
+    /// not grant, and the row has carried <c>BonusAppliesTo</c> for exactly this since the
+    /// catalogue was built. The other thirty-four have no figure at all and print none.</para>
+    /// </summary>
+    [Fact]
+    public void AnItemsBonusPrintsWhatThePageSaysItIsFor()
+    {
+        var crowbar = new SelectedGear("Crowbar") { CatalogueId = GearCatalogue.ItemPrefix + "crowbar" };
+
+        Assert.Equal("Crowbar +4 to Might rolls made to force things open or apart", Describe(crowbar));
+
+        var claws = new SelectedGear("Climbing Claws")
+        {
+            CatalogueId = GearCatalogue.ItemPrefix + "climbing_claws"
+        };
+
+        Assert.Equal(
+            "Climbing Claws +2 to challenge rolls made to climb natural surfaces", Describe(claws));
+
+        // The control, and it is the half that says the clause is the row's and not a suffix this
+        // formatter adds to everything: a weapon's bonus needs no qualifying and gets none.
+        var axe = new SelectedGear("Battle Axe") { CatalogueId = GearCatalogue.WeaponPrefix + "battle_axe" };
+
+        Assert.Equal("Battle Axe +3 (Two-Handed)", Describe(axe));
+
+        // And an item with no figure prints neither.
+        var dice = new SelectedGear("Polyhedral Dice")
+        {
+            CatalogueId = GearCatalogue.ItemPrefix + "polyhedral_dice"
+        };
+
+        Assert.Equal("Polyhedral Dice", Describe(dice));
+    }
+
+    /// <summary>
     /// <b>A catalogue row that is also customised prints both, and then the price.</b> The row's
     /// own features come first because the book prints them beside the name; what the character
     /// bought follows.

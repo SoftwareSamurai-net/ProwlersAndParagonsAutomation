@@ -438,7 +438,12 @@ public sealed class Commands
     /// </summary>
     private static string GearRowDetail(GearCatalogueRow row)
     {
-        var bonus = row.BonusDice is { } dice ? $"+{dice}{(row.Subdual ? " (s)" : "")}" : null;
+        // The qualifier travels with the figure, for the reason GearFormatter.Bonus gives: two of
+        // p.91's items carry a bonus that is only for one kind of roll.
+        var bonus = row.BonusDice is { } dice
+            ? $"+{dice}{(row.Subdual ? " (s)" : "")}"
+              + (string.IsNullOrEmpty(row.BonusAppliesTo) ? "" : $" to {row.BonusAppliesTo}")
+            : null;
 
         return string.Join(" · ",
             new[] { row.Category, bonus, row.Features.Count > 0 ? string.Join(", ", row.Features) : null }

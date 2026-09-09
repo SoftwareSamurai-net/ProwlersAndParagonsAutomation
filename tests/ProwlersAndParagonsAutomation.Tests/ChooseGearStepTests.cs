@@ -91,8 +91,11 @@ public sealed class ChooseGearStepTests
 
         Assert.Equal("Polyhedral Dice", Label(GearCatalogue.ItemPrefix + "polyhedral_dice", sheet));
 
-        // And one that does print a figure carries it, so the line above is a row with nothing to
-        // say rather than a label that says nothing.
-        Assert.Equal("Crowbar — +4", Label(GearCatalogue.ItemPrefix + "crowbar", sheet));
+        // And one that does print a figure carries it — with what the page says the figure is
+        // for, because a bare "+4" beside a Battle Axe's "+3" offers the crowbar as the better
+        // weapon, which is not a thing p.91 grants.
+        Assert.Equal(
+            "Crowbar — +4 to Might rolls made to force things open or apart",
+            Label(GearCatalogue.ItemPrefix + "crowbar", sheet));
     }
 }

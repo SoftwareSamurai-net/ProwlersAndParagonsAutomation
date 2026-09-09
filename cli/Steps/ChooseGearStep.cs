@@ -153,7 +153,14 @@ public sealed class ChooseGearStep : IWizardStep
     {
         var parts = new List<string>();
 
-        if (row.BonusDice is { } dice) parts.Add($"+{dice}{(row.Subdual ? " (s)" : "")}");
+        // The qualifier travels with the figure: two of p.91's items have a bonus that is only
+        // for one kind of roll, and "+4" alone offers a crowbar as a better weapon than an axe.
+        if (row.BonusDice is { } dice)
+        {
+            parts.Add($"+{dice}{(row.Subdual ? " (s)" : "")}"
+                + (string.IsNullOrEmpty(row.BonusAppliesTo) ? "" : $" to {row.BonusAppliesTo}"));
+        }
+
         if (row.Features.Count > 0) parts.Add(string.Join(", ", row.Features));
 
         if (row.Kind == GearCatalogueKind.Armor)
