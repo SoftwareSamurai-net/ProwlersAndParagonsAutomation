@@ -604,4 +604,35 @@ public sealed class CommandPaletteTests
         Assert.Empty(page.FindAll(".palette-row.kind-asset"));
         Assert.Equal(Commands.Steps.Count, page.FindAll(".palette-row").Count);
     }
+
+    /// <summary>
+    /// <b>The cap is counted per kind, and a mutation proved nothing was checking that.</b>
+    ///
+    /// <para>A single running total over the whole list is the obvious way to write this and the
+    /// wrong one: eight Powers would fill it and every gear row and every Chapter 6 row would fall
+    /// off the bottom, which is precisely what the palette looked like before the gear slice split
+    /// the count. Changing the asset rows' cap to a whole-list count left every other test in this
+    /// file green.</para>
+    ///
+    /// <para>A one-letter query is deliberate — it is the widest net there is, so all three kinds
+    /// are over the limit and each one's count is the cap rather than a coincidence.</para>
+    /// </summary>
+    [Fact]
+    public void EachKindOfRowIsCappedOnItsOwnCount()
+    {
+        using var ctx = Opened();
+
+        const int limit = 8;
+        var found = CommandsOf(ctx).Matching("s", limit);
+
+        Assert.Equal(limit, found.Count(c => c.Kind == CommandKind.Power));
+        Assert.Equal(limit, found.Count(c => c.Kind == CommandKind.GearRow));
+        Assert.Equal(limit, found.Count(c => c.Kind == CommandKind.AssetRow));
+
+        // The control on the query: there really are more of each than the cap lets through, so
+        // the three equalities above are a cap and not a count of what happened to match.
+        Assert.True(ctx.Session.Rules.Powers.Count > limit);
+        Assert.True(ctx.Session.Catalogue.Rows.Count > limit);
+        Assert.True(ctx.Session.Assets.Rows.Count > limit);
+    }
 }
