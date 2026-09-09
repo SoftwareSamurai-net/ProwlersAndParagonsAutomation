@@ -93,6 +93,13 @@
     /// <para><b>Applied when it changes and not on every pass</b>, so typing over it is not undone
     /// by the next render. A parameter set once and then left alone would otherwise re-seed the
     /// box on every parent re-render, which on this page is every keystroke elsewhere on it.</para>
+    ///
+    /// <para><b>What that costs, said plainly.</b> A second request for the <em>same</em> value
+    /// after the reader has typed over the box is not applied, because the parameter has not
+    /// changed — so asking the palette for Battle Axe twice in a row, having edited the box in
+    /// between, looks like nothing happening. Closing it means a seed that changes when the
+    /// request does rather than when the word does, which is a parameter more than this has
+    /// earned; the first request, which is the one that carries the feature, is applied.</para>
     /// </summary>
     [Parameter] public string? Query { get; set; }
 
