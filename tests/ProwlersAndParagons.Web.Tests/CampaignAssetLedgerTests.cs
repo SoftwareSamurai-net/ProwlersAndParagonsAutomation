@@ -178,6 +178,74 @@ public sealed class CampaignAssetLedgerTests
         Assert.Equal(0, starved.Budget);
     }
 
+    /// <summary>
+    /// <b>An object these rules cannot price is a row with no figure, and it does not take the
+    /// rest of the ledger down with it.</b>
+    ///
+    /// <para><b>This is reachable rather than theoretical.</b> A campaign's objects live inside a
+    /// payload written by whatever build the GM was running and read by whatever build is open
+    /// now, so a feature id this one has never heard of is an ordinary thing to meet — and
+    /// <c>CostCalculator</c> throws on one, deliberately, rather than guessing a price. Before the
+    /// guard, that exception came out of <c>Ledger</c> and took the GM's whole roster with it:
+    /// every other object in the game, and every contributor to it, unreadable because one
+    /// feature id was from another build.</para>
+    ///
+    /// <para><b>The budget survives and is asserted</b>, which is the positive control: a row that
+    /// answered null to everything would satisfy "it did not throw" while telling the GM nothing
+    /// about the Hero Points their players have put in. And the second object in the fixture is
+    /// what proves the ledger kept going rather than stopping at the bad one.</para>
+    /// </summary>
+    [Fact]
+    public void AnObjectTheseRulesCannotPriceIsARowWithNoFigure()
+    {
+        using var ctx = new RenderContext();
+
+        var fromAnotherBuild = Wing with
+        {
+            Features = [new SelectedAssetFeature("warp_nacelles")]
+        };
+
+        var ledger = CampaignAssets.Ledger(Game(fromAnotherBuild, Roost), ctx.Session.Costs,
+        [
+            ("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 2),
+                                   (TheRoost, CampaignAssetContribution.Headquarters, 4))),
+        ]);
+
+        Assert.Equal(2, ledger.Count);
+
+        Assert.Null(ledger[0].Spent);
+        Assert.Null(ledger[0].Remaining);
+        Assert.False(ledger[0].IsOverBudget,
+            "an object with no price cannot be over a budget it has not been measured against");
+
+        // The half that still answers: who paid, and what they bought it.
+        Assert.Equal(2 * ctx.Session.Rules.Assets.VehiclePointsPerHeroPoint, ledger[0].Budget);
+        Assert.Equal(["Bulwark"], ledger[0].Contributors.Select(c => c.Who));
+
+        // And the object after it is priced as though nothing had happened, which is what a
+        // caught exception buys over a caught-and-abandoned one.
+        Assert.NotNull(ledger[1].Spent);
+    }
+
+    /// <summary>
+    /// <b>An object whose every feature these rules do have is priced</b> — the positive control
+    /// for the test above, without which an implementation that answered null to everything would
+    /// pass it.
+    /// </summary>
+    [Fact]
+    public void AnObjectWhoseFeaturesTheseRulesHaveIsPriced()
+    {
+        using var ctx = new RenderContext();
+
+        var withSensors = Wing with { Features = [new SelectedAssetFeature("sensors")] };
+
+        var line = Assert.Single(CampaignAssets.Ledger(Game(withSensors), ctx.Session.Costs, []));
+
+        // Body 8 + Speed 10 + Sensors at its printed price, all from the rules data.
+        Assert.Equal(8 + 10 + ctx.Session.Costs.VehicleFeatureCost(new SelectedAssetFeature("sensors")),
+                     line.Spent);
+    }
+
     /// <summary>Nothing to draw for a game that owns nothing shared, and none for no game at all.</summary>
     [Fact]
     public void AGameWithNoSharedObjectHasNoLedger()

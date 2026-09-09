@@ -26,10 +26,21 @@ public sealed record AssetContributor(string MembershipId, string Who, int HeroP
 /// The second currency its members' Hero Points bought — Vehicle Points or Base Points, depending
 /// on the kind. <see cref="CostCalculator.CampaignAssetBudget"/>'s answer, never worked out here.
 /// </param>
-/// <param name="Spent">What has been built with it, in the same currency.</param>
+/// <param name="Spent">
+/// What has been built with it, in the same currency, or <b>null for an object these rules cannot
+/// price at all</b> — a feature id no table in <c>vehicles.json</c> or <c>headquarters.json</c>
+/// has, or a graded feature carrying no grade.
+///
+/// <para><b>Asked rather than caught by the caller, and the null is the whole point.</b>
+/// <see cref="CostCalculator"/> throws on a feature it cannot price, deliberately — and a campaign
+/// payload can carry one, since it is written by whatever build the GM was running and read by
+/// whatever build is open now. An exception here takes down the GM's whole roster over one
+/// mistyped id, which is the same trade <c>CharacterSheetRenderer.Priceable</c> already refuses
+/// for a machine one character owns.</para>
+/// </param>
 /// <param name="Contributors">Who put in, most first. Empty for an object nobody has funded.</param>
 public sealed record CampaignAssetLine(
-    CampaignAsset Asset, int Budget, int Spent, IReadOnlyList<AssetContributor> Contributors)
+    CampaignAsset Asset, int Budget, int? Spent, IReadOnlyList<AssetContributor> Contributors)
 {
     /// <summary>
     /// Whether the object is built past what its members paid for.
@@ -38,11 +49,19 @@ public sealed record CampaignAssetLine(
     /// character: the remedy is somebody putting more in or the object losing a feature, and both
     /// are decisions about a table's game rather than arithmetic a program may do on their
     /// behalf.</para>
+    ///
+    /// <para><b>False for an object with no price</b>, because "over its budget" is a claim about
+    /// a figure and there is no figure — the same direction <see cref="EmptySubmissions"/> takes
+    /// with a row it could not read, where an accusation nobody can check is worse than
+    /// silence.</para>
     /// </summary>
-    public bool IsOverBudget => Spent > Budget;
+    public bool IsOverBudget => Spent is { } spent && spent > Budget;
 
-    /// <summary>What is left, which is negative exactly when <see cref="IsOverBudget"/> is true.</summary>
-    public int Remaining => Budget - Spent;
+    /// <summary>
+    /// What is left, which is negative exactly when <see cref="IsOverBudget"/> is true, and null
+    /// exactly when <see cref="Spent"/> is.
+    /// </summary>
+    public int? Remaining => Spent is { } spent ? Budget - spent : null;
 }
 
 /// <summary>
@@ -123,7 +142,7 @@ public static class CampaignAssets
             .. assets.Select(asset => new CampaignAssetLine(
                 asset,
                 costs.CampaignAssetBudget(asset, everyone.SelectMany(m => m.Sheet.CampaignAssets)),
-                costs.CampaignAssetPointsSpent(asset),
+                Priced(costs, asset),
                 [
                     .. everyone
                         .Select(m => new AssetContributor(
@@ -181,6 +200,27 @@ public static class CampaignAssets
     /// What to call an object in a sentence: the name the character recorded, or the id when it
     /// recorded none. The same fallback the printed sheet makes, so a reader meets one answer.
     /// </summary>
+    /// <summary>
+    /// What the object cost in its own currency, or null where these rules cannot say.
+    ///
+    /// <para><b>Caught here rather than guarded by the caller</b> for the reason
+    /// <c>CharacterSheetRenderer</c> gives about the same throw: the alternative is every screen
+    /// that draws a campaign's objects re-deciding whether a payload it did not write is
+    /// priceable, and the one that forgets takes a GM's whole roster down over a feature id from
+    /// another build.</para>
+    /// </summary>
+    private static int? Priced(CostCalculator costs, CampaignAsset asset)
+    {
+        try
+        {
+            return costs.CampaignAssetPointsSpent(asset);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     private static string Named(CampaignAssetContribution contribution) =>
         string.IsNullOrWhiteSpace(contribution.Name) ? contribution.AssetId : contribution.Name.Trim();
 }
