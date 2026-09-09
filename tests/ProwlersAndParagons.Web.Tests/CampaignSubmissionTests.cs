@@ -1034,6 +1034,61 @@ public sealed class CampaignSubmissionTests
     }
 
     /// <summary>
+    /// <b>The waiting snapshot is what the marker is about, even when the clone behind it is a
+    /// real character.</b> This is the half of <c>EmptySubmissions.ShowsNothing</c>'s rule nothing
+    /// held: every other fixture here approves the empty sheet, so <c>detail.Pending ??</c> could
+    /// be deleted outright and the whole web suite stayed green.
+    ///
+    /// <para>And it is the case the marker was written for. A GM scanning the roster is deciding
+    /// what to approve; a member who has sent an empty resubmission over a perfectly good clone is
+    /// exactly the row that must not read as settled — approving it is what replaces the real
+    /// character with the empty one.</para>
+    ///
+    /// <para>The clone being real is the discriminator and is asserted, so the fixture cannot
+    /// quietly become the same one as the tests above.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheMarkerFollowsTheWaitingSnapshotRatherThanTheCloneBehindIt()
+    {
+        var (ctx, code) = await ATableAndTwoCharacters();
+        await using var _ = ctx;
+
+        ctx.Session.Open(Jetstream(), SheetMode.Hero, JetstreamId);
+
+        var page = ctx.Render<Campaigns>();
+        Join(page, code);
+        await Send(page);
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var membership = Assert.Single((await memberships.MineAsync())!).Id;
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var version = (await memberships.ReadAsync(membership))!.PendingVersion;
+        Assert.Equal(DecisionOutcome.Done,
+            (await memberships.ApproveAsync(membership, version)).Outcome);
+
+        // The player sends an empty one over the top of it.
+        await AnEmptySnapshotIsSent(ctx, membership);
+
+        var held = await memberships.ReadAsync(membership);
+
+        // The discriminator: the clone is a real character, so a marker computed off it would say
+        // nothing at all.
+        Assert.Equal("Jetstream", held!.Approved!.Name);
+        Assert.NotEmpty(held.Approved.AbilityRanks);
+        Assert.Empty(held.Pending!.AbilityRanks);
+
+        var approval = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.CampaignApproval>(
+            p => p.Add(c => c.Id, CampaignId));
+
+        var row = approval.Find(".campaign-list .campaign-row");
+
+        Assert.Contains("Jetstream", row.TextContent, StringComparison.Ordinal);
+        Assert.Contains("empty submission", row.TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The same marker on the player's own list, where "Approved" is the reassurance that their
     /// character is the one at the table.
     /// </summary>
