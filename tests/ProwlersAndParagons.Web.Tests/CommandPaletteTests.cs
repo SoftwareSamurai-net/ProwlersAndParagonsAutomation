@@ -514,7 +514,7 @@ public sealed class CommandPaletteTests
         // matching fewer than the limit gets all of them and the assertion above is a truncation.
         var few = commands.Matching("battle axe", 3);
 
-        Assert.NotEmpty(few.Where(c => c.Kind == CommandKind.GearRow));
+        Assert.Contains(few, c => c.Kind == CommandKind.GearRow);
         Assert.True(few.Count(c => c.Kind == CommandKind.GearRow) < 3);
     }
 
