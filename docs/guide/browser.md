@@ -1813,6 +1813,24 @@ works and nobody can reach.
     third is reachable rather than theoretical — a campaign's payload is written by whatever build
     the GM was running, `CostCalculator` throws on a feature id it does not know, and before
     `CampaignAssets.Spend` caught it that exception took the GM's whole roster down with the panel.
+    **It is two throws and not one**: the engine also multiplies inside `checked`, and that one
+    arrives by typing rather than by meeting another build's payload, because the editor prices the
+    draft on every change.
+  - **What the book says about the object itself is a fourth thing, and it is not about the
+    budget.** p.96 floors a negative Control at −3 and caps it at half the Speed, and a
+    characteristic below zero *pays Vehicle Points back* — so an object with Body −20 reads as
+    comfortably inside a budget nobody funded. The page prints `VehicleRanksNote` stating the two
+    Control sentences and checked neither. It is `CharacterValidator.CheckSharedAsset` now, in the
+    engine because they are printed rules, reusing the codes a machine on a sheet is reported
+    under, and drawn through `ChosenRow.Findings` in the row and beside the Save in the editor.
+    Reported and never repaired: the save is still offered.
+  - **A game whose players could not be read is not a game that owns nothing.** The objects come
+    out of the campaign's own payload, which this screen reads on its own line; the budget beside
+    them is summed from the clones behind the memberships, which is another read. Built inside the
+    inbox branch, the ledger was empty on a failed inbox and the panel said *"Nothing shared yet"*
+    — Edit and Remove gone with the rows. Where the clones are missing the objects are named and
+    the sums are not, because a budget summed from no clones is nothing and nothing drawn as a
+    budget makes every object on the page over its budget.
   - **Removing one takes nobody's Hero Points with it.** The contribution stays on the member's
     sheet, still costs them, and their own screen reports it as naming an object the game does not
     have — the same answer deleting a campaign gets, and for the same reason.
