@@ -64,11 +64,11 @@ public sealed class RulesSourceTests
     /// its armour, weapon and equipment rows. <c>gadgets.json</c>, <c>vehicles.json</c> and
     /// <c>headquarters.json</c> followed when the sheet learned to own a vehicle, a base and a
     /// Gadget, so <see cref="RulesRepository.Vehicles"/>, <c>Headquarters</c> and <c>Gadgets</c>
-    /// exist and every browser fetches all four — the rules payload was about 232 KiB before any of
-    /// them and grows by roughly half again with the four. <b>Approximate on purpose</b>: a figure
-    /// to the byte in a comment is one nothing re-counts, and every data edit moves it. Removing an
-    /// exemption without adding the collection, or the reverse, fails one of the two checks
-    /// below.</para>
+    /// exist and every browser fetches all four. The rules payload was about 230 KiB uncompressed
+    /// before any of them and is roughly 390 KiB with all four — about 80 KiB gzipped, which is
+    /// what actually crosses the wire. <b>Approximate on purpose</b>: a figure to the byte in a
+    /// comment is one nothing re-counts, and every data edit moves it. Removing an exemption
+    /// without adding the collection, or the reverse, fails one of the two checks below.</para>
     /// </summary>
     private static readonly string[] NotLoadedByTheRepository = ["meta.json"];
 
