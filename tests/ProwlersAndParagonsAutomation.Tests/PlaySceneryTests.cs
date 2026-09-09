@@ -456,6 +456,80 @@ public sealed class PlaySceneryTests
     }
 
     /// <summary>
+    /// <b>Where both chapters could answer, Chapter 6 does — and that reading needs a phrase both
+    /// of them match.</b>
+    ///
+    /// <para><c>ImprovisedFrom</c>'s own comment says a wooden club is p.89's <c>Club</c> and not
+    /// p.107's <c>Wood</c>: "the manufactured weapon is what the caller is holding and the material
+    /// is what it happens to be made of". Nothing drove it. Every fixture named either a printed
+    /// weapon Chapter 7 does not rate ("a battle axe") or a thing Chapter 6 does not print ("a
+    /// brick"), so <b>deleting the Chapter 6 test from <c>ImprovisedFrom</c> altogether left the
+    /// whole suite green</b> — the precedence was carrying nothing an instrument could see.</para>
+    ///
+    /// <para><b>"A steel mace" is the phrase that separates them</b>, and the arithmetic is the
+    /// instrument rather than the ledger's wording: p.89's Mace is +2d on the capped Trait, and
+    /// p.107's Steel would be +1d under a ceiling of its own, so the two readings differ by a die
+    /// and only one of them writes a p.108 line. The control is "a steel girder", where Chapter 6
+    /// prints nothing and the same Steel row does answer — without it, the first half would be
+    /// satisfied by a matcher that had stopped finding materials at all.</para>
+    ///
+    /// <para><b>An item Chapter 6 prints ambiguously stays ambiguous</b>, which is the second half
+    /// of the same sentence: falling through to a different chapter's figure would answer a question
+    /// the ledger has just said is the GM's.</para>
+    /// </summary>
+    [Fact]
+    public void APrintedWeaponAnswersBeforeTheMaterialItIsMadeOf()
+    {
+        var mace = _play.GetEquipment("ancient_weapons").Weapons!
+            .Single(w => string.Equals(w.Name, "Mace", StringComparison.Ordinal));
+
+        var steel = _play.GetEnvironment("smashing_table").SmashingTable!.Rows
+            .Single(r => r.Materials.Contains("Steel", StringComparer.Ordinal)).Structure;
+
+        var improvised = _play.GetEnvironment("scenery_as_weapons").SceneryAsWeapons!;
+        var ceiling = new TableRules().GearLimit(_play);
+
+        // The two readings have to disagree, or this fixture is driving one answer twice.
+        Assert.NotEqual(mace.BonusDice, improvised.CloseCombatBonusDice);
+        Assert.True(steel + improvised.CapBonusDice > ceiling + improvised.CloseCombatBonusDice,
+            "p.108's own ceiling would bind on Steel, so the improvised answer is not the one this "
+            + "fixture is telling apart from Chapter 6's");
+
+        var manufactured = Swings("a steel mace", new TableRules());
+
+        Assert.Equal(ceiling + mace.BonusDice, manufactured.Rank);
+
+        Assert.DoesNotContain(manufactured.Lines, l =>
+            string.Equals(l.Rule, "scenery_as_weapons", StringComparison.Ordinal));
+
+        Assert.Contains(manufactured.Lines, l =>
+            string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal)
+            && l.Text.Contains($"Mace at +{mace.BonusDice}d", StringComparison.Ordinal));
+
+        // The control: the same material, in a phrase Chapter 6 prints nothing for.
+        var raw = Swings("a steel girder", new TableRules());
+
+        Assert.Equal(ceiling + improvised.CloseCombatBonusDice, raw.Rank);
+
+        Assert.Contains(raw.Lines, l =>
+            string.Equals(l.Rule, "scenery_as_weapons", StringComparison.Ordinal)
+            && l.Text.Contains("Steel", StringComparison.Ordinal));
+
+        // And the ambiguous half: two printed weapons of the same length tie, and Chapter 7 is not
+        // asked to break a tie Chapter 6 made.
+        var tied = Swings("a steel shield and dagger", new TableRules());
+
+        Assert.Equal(ceiling, tied.Rank);
+
+        Assert.DoesNotContain(tied.Lines, l =>
+            string.Equals(l.Rule, "scenery_as_weapons", StringComparison.Ordinal));
+
+        Assert.Contains(tied.Lines, l =>
+            string.Equals(l.Rule, "gear_limit", StringComparison.Ordinal)
+            && l.Text.Contains("is the GM's", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// <b>A thrown object costs the other printed die, and p.74 finally has the operand it wants.</b>
     ///
     /// <para><c>throwing_range.rank_formula</c> is "throwing rank = Might - the object's weight rank"
