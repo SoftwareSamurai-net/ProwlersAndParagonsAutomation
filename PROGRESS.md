@@ -108,7 +108,7 @@ as in scope. **Nothing here is a defect.**
 
 - [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
 
-- [ ] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment become mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle and a headquarters in their own currencies, the sheet prints them, the palette offers them, and the fight reads scenery Structure. the gear catalogue half landed 2026-09-10 (verified by the orchestrator: the Gear-Limit cap and the budget-silencing flag each went red under mutation); vehicles, headquarters, gadgets, the fight's scenery and the campaign-side pooling remain, and the owner's answers to the design questions are in the entry
+- [ ] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment become mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle and a headquarters in their own currencies, the sheet prints them, the palette offers them, and the fight reads scenery Structure. the gear catalogue half landed 2026-09-10 (verified by the orchestrator: the Gear-Limit cap and the budget-silencing flag each went red under mutation); the fight reads Chapter 7's scenery since 2026-09-10 (verified by the orchestrator: the smash-through tie went red under mutation once the review stood a fixture on it); vehicles, headquarters, gadgets and the campaign-side pooling remain, and the owner's answers to the design questions are in the entry
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -2153,10 +2153,30 @@ not benefit from mundane armour. Reading (b): p.88 *grants* a rank and never rem
 figure floors at the wearer's own Power. The interpretation is recorded on `gear.json`'s armour
 entry, and `ArmourRankTests` pins the 8 so the choice is deliberate and visible.
 
+**Step 5 landed on 2026-09-10: the fight reads Chapter 7.** An attack can name a piece of scenery
+for its cover (`cover_scenery`) and the Structure comes off p.107's materials or p.108's scenery
+table rather than the caller's word — a row *and* a stated figure together are refused, because
+p.107 lets a GM thicken a wall and the caller who has done so states the number. A knockback can
+name what the target flies into (`solid_object`, on the Resolve spend and the Adversity one): p.78's
+half the original blow, rounded up by p.7, unless the target's best *passive* defence exceeds the
+Structure, in which case they smash through unharmed — a tie belongs to the object, and the fixture
+now stands on that tie because the orchestrator's `>=` mutation walked straight through the one that
+only straddled it. A Massive Objects row has a weight rank and no Structure, so naming one for
+either is refused with nothing spent. A thrown or swung object is priced off p.108 with p.87's Gear
+Limit on the Trait and p.108's row-rank-plus-six ceiling on the sum, both applied because the page
+does not say which replaces which; a massive object's throw reaches as far as p.74's table says off
+its weight rank and no further; an object breaks apart after one shot. Chapter 6 is asked before
+Chapter 7 when a name matches both. `EntriesNotYetApplied` stays empty. The review found fourteen
+things, the shape of most being a claim nothing measured: the Adversity knockback's object was read
+by nothing end to end, the published policy did not tie a row's name to its rank, the ledger offered
+a knockback sixteen rows it would then refuse, the swung-versus-thrown halves of p.108 were
+indistinguishable, and p.80's stray round dropping the obstacle was unasserted in both fields.
+`vehicular_gear_limit` is not read and does not need to be — it sits in the character rules, and
+a fight caps a named vehicle by p.87 exactly as it caps a sword; `play-engine.md` records that.
+
 **Still to do**: steps 3 and 4 (vehicles, headquarters and gadgets on the sheet, and the palette for
-the other three files), step 5 (the fight reads Chapter 7), and then the campaign-side half of the
-owner's pooling answer — the campaign object that sums its members' contributions, on the accounts
-server and the campaign page.
+the other three files), and then the campaign-side half of the owner's pooling answer — the campaign
+object that sums its members' contributions, on the campaign page.
 
 ## Completed work
 

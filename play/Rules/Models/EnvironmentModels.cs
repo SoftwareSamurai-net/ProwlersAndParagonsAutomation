@@ -3,12 +3,15 @@
 // JsonUnmappedMemberHandling.Disallow: a field nothing reads is a field nothing can hold to the
 // rulebook.
 //
-// Nothing in play/ applies any of this yet. The repository loads the file and these models cover
-// it; no rule reads a figure out of it. Chapter 4's modifier_cover, knockback and throwing_range
-// are the three that already name what this chapter supplies — the cover's Structure, an object
-// tougher than the target, an object's weight rank — and wiring them to it is a slice of its own.
-// The file's own header says so, and Encounter.EntriesNotYetApplied is deliberately untouched:
-// that set is the engine's record of what it has been given to apply and has not.
+// Three of this chapter's tables are applied and the rest of it is loaded and not. Encounter.Scenery
+// reads smashing_table, scenery_table and massive_objects_table, and scenery_as_weapons and
+// massive_objects beside them, because Chapter 4's modifier_cover, knockback and throwing_range each
+// name a figure only this chapter prints — the cover's Structure, an object tougher than the target,
+// an object's weight rank. Everything else here is a mechanic this engine has no intent for at all
+// (falling, suffocation, swimming, disasters, toxins), which is the same footing as multiple actions
+// and combat stunts: not stubbed, simply nothing to call. Encounter.EntriesNotYetApplied stays
+// untouched for that reason — that set is the engine's record of what it has been *given* to apply
+// and has not.
 
 namespace ProwlersAndParagonsAutomation.Play.Rules.Models;
 

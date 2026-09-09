@@ -87,6 +87,7 @@ public sealed partial class Encounter
         var capped = Math.Min(rank, ceiling);
         var (weapon, table, ambiguous) = WeaponFor(item);
         var bonus = weapon?.BonusDice ?? 0;
+        var improvised = ImprovisedFrom(item);
 
         var raised = state.Table.RaisedGearLimit && state.Table.GearLimitRank is not null
             ? $" — this table raised it from {limit.DefaultRank}d, which is the switch p.80 offers"
@@ -108,12 +109,23 @@ public sealed partial class Encounter
                       + "it adds nothing of its own"
                     : $"{item} is the {table} table's {weapon.Name} at +{weapon.BonusDice}d";
 
+        // Ch.7 p.108, where Chapter 6 prints no weapon and Chapter 7 does rate the thing: an
+        // improvised weapon is priced by its own page, and the p.87 line above says what the Trait
+        // came to bear as before that page's ceiling is put on top of it.
+        if (improvised is not null)
+        {
+            added = $"Chapter 6 prints no weapon called {item} and Chapter 7 rates it, so p.108 "
+                    + "prices it as an improvised weapon instead";
+        }
+
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
             $"p.87 caps {limit.WhatItIs} at {ceiling}d{raised}, so {carried}; {added}, for an "
             + $"attack rank of {capped + bonus}d"));
 
-        return capped + bonus;
+        return improvised is null
+            ? capped + bonus
+            : ImprovisedWeapon(state, actor, attack, improvised, capped, lines);
     }
 
     /// <summary>
