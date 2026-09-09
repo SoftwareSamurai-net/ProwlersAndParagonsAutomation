@@ -160,6 +160,85 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
     }
 
     /// <summary>
+    /// <b>A catalogue row survives a round trip, and an item that names none writes what it wrote
+    /// before the field existed.</b>
+    ///
+    /// <para>The same compatibility guarantee as the cap above and for the same reason: a stored
+    /// character written before <c>CatalogueId</c> existed reads back as exactly the item it always
+    /// was, so <c>StoredCharacter.CurrentVersion</c> did not have to move — and a bump would have
+    /// discarded every stored character in silence.</para>
+    ///
+    /// <para><b>Strict, because a submitted file is read that way.</b> A field the strict reader
+    /// refuses is a field a caller cannot use, and the whole point of putting the row on the sheet
+    /// is that somebody can hand this program a character wearing Plate.</para>
+    /// </summary>
+    [Fact]
+    public void ACatalogueRowSurvivesARoundTripAndAnItemWithoutOneAddsNoBytes()
+    {
+        var plain = RulesFixture.StandardSheet();
+        plain.Gear.Add(new SelectedGear("A letter from his mother"));
+
+        var written = CharacterSheetJson.Write(plain);
+        Assert.DoesNotContain("CatalogueId", written, StringComparison.Ordinal);
+
+        var back = CharacterSheetJson.Read(written, strict: true)!;
+        Assert.Null(Assert.Single(back.Gear).CatalogueId);
+
+        var armoured = RulesFixture.StandardSheet();
+        armoured.Gear.Add(new SelectedGear("Plate")
+        {
+            CatalogueId = GearCatalogue.ArmorPrefix + "ancient_plate"
+        });
+
+        var withRow = CharacterSheetJson.Write(armoured);
+        Assert.Contains("\"CatalogueId\":\"armor:ancient_plate\"", withRow, StringComparison.Ordinal);
+
+        var readBack = CharacterSheetJson.Read(withRow, strict: true)!;
+        Assert.Equal(GearCatalogue.ArmorPrefix + "ancient_plate", Assert.Single(readBack.Gear).CatalogueId);
+    }
+
+    /// <summary>
+    /// <b>A row id that is not a row is read and then reported — never repaired.</b>
+    ///
+    /// <para>Both halves matter and they are the two failure modes this project has already
+    /// shipped. Throwing at the reader would take a whole submitted character down over one
+    /// misspelling; <em>dropping</em> the id would hand back a legal character carrying a plain
+    /// item where a Battle Axe was sent, which is the misspelled-field-name failure the strict
+    /// reader exists for. So the reader keeps it and <c>CharacterValidator</c> names it.</para>
+    /// </summary>
+    [Fact]
+    public void AnUnknownRowIdIsKeptByTheReaderAndReportedByTheValidator()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.Gear.Add(new SelectedGear("Battle Axe")
+        {
+            CatalogueId = GearCatalogue.WeaponPrefix + "battel_axe"
+        });
+
+        var back = CharacterSheetJson.Read(CharacterSheetJson.Write(sheet), strict: true)!;
+
+        Assert.Equal(GearCatalogue.WeaponPrefix + "battel_axe", Assert.Single(back.Gear).CatalogueId);
+
+        var finding = Assert.Single(
+            _f.Validator.Validate(back).Issues,
+            i => i.Code == "UNKNOWN_GEAR_CATALOGUE_ROW");
+
+        Assert.Equal(ValidationSeverity.Error, finding.Severity);
+        Assert.Contains("battel_axe", finding.Message, StringComparison.Ordinal);
+
+        // The control: the correctly spelled row is not reported, so this is about the id being
+        // wrong rather than about recording one at all.
+        var fixedUp = _f.LegalSheet();
+        fixedUp.Gear.Add(new SelectedGear("Battle Axe")
+        {
+            CatalogueId = GearCatalogue.WeaponPrefix + "battle_axe"
+        });
+
+        Assert.DoesNotContain(_f.Validator.Validate(fixedUp).Issues,
+            i => i.Code == "UNKNOWN_GEAR_CATALOGUE_ROW");
+    }
+
+    /// <summary>
     /// <b>A table's optional rules and its price for Immortality survive a round trip, and a
     /// character at no table still writes what it wrote before either field existed.</b>
     ///
@@ -497,7 +576,8 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
     {
         var gear = Hero()["gear"]!.AsArray().Select(g => g!.AsObject()).ToList();
 
-        AssertKeys(gear[0], "name", "cost", "paired_under_two_fisted", "features", "pros", "cons");
+        AssertKeys(gear[0], "name", "catalogue_id", "bonus_dice", "catalogue_features",
+            "cost", "paired_under_two_fisted", "features", "pros", "cons");
 
         var maul = gear.Single(g => g["name"]!.GetValue<string>() == "Breaching maul");
         Assert.Equal(1, maul["cost"]!.GetValue<int>());   // "powerful" grade, 1 HP
@@ -533,16 +613,50 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
     }
 
     [Fact]
-    public void PlainGearStillExportsAllSixKeysWithEmptyCollections()
+    public void PlainGearStillExportsAllNineKeysWithEmptyCollectionsAndNoCatalogueRow()
     {
         var sheet = RulesFixture.StandardSheet();
         sheet.Gear.Add(new SelectedGear("Padded costume"));
 
         var gear = Render(sheet)["gear"]!.AsArray().Select(g => g!.AsObject()).Single();
 
-        AssertKeys(gear, "name", "cost", "paired_under_two_fisted", "features", "pros", "cons");
+        AssertKeys(gear, "name", "catalogue_id", "bonus_dice", "catalogue_features",
+            "cost", "paired_under_two_fisted", "features", "pros", "cons");
+
         Assert.Equal(0, gear["cost"]!.GetValue<int>());
         Assert.Empty(gear["features"]!.AsArray());
+
+        // **The three catalogue keys are present and null**, which is the shape a reader can rely
+        // on: an item somebody typed names no row, and the two figures beside a row it does not
+        // have would be invented. They are written rather than omitted for the reason every other
+        // key here is — a key that comes and goes is a shape a parser has to branch on.
+        Assert.Null(gear["catalogue_id"]);
+        Assert.Null(gear["bonus_dice"]);
+        Assert.Null(gear["catalogue_features"]);
+    }
+
+    /// <summary>
+    /// <b>An item chosen off Chapter 6's catalogue exports the row it names and what the page
+    /// prints beside it.</b> The id is the fact — a reader with <c>gear.json</c> can resolve
+    /// everything else from it — and the two figures are the convenience for a reader without it.
+    /// </summary>
+    [Fact]
+    public void ACatalogueItemExportsItsRowIdAndThePrintedFigures()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.Gear.Add(new SelectedGear("Battle Axe")
+        {
+            CatalogueId = GearCatalogue.WeaponPrefix + "battle_axe"
+        });
+
+        var gear = Render(sheet)["gear"]!.AsArray().Select(g => g!.AsObject()).Single();
+
+        Assert.Equal(GearCatalogue.WeaponPrefix + "battle_axe", gear["catalogue_id"]!.GetValue<string>());
+        Assert.Equal(3, gear["bonus_dice"]!.GetValue<int>());
+        Assert.Equal(["Two-Handed"], gear["catalogue_features"]!.AsArray().Select(f => f!.GetValue<string>()));
+
+        // Still free: p.91 says mundane gear is not bought, and a battle axe is mundane gear.
+        Assert.Equal(0, gear["cost"]!.GetValue<int>());
     }
 
     // ── Derived stats and narrative ───────────────────────────────────────────
@@ -553,10 +667,39 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
         var sheet = SampleCharacters.Hero();
         var derived = Render(sheet)["derived"]!.AsObject();
 
-        AssertKeys(derived, "edge", "health", "resolve");
+        AssertKeys(derived, "edge", "health", "resolve", "armor_from_gear");
         Assert.Equal(_f.Derived.CalculateEdge(sheet), derived["edge"]!.GetValue<int>());
         Assert.Equal(_f.Derived.CalculateHealth(sheet), derived["health"]!.GetValue<int>());
         Assert.Equal(_f.Derived.CalculateResolve(sheet), derived["resolve"]!.GetValue<int>());
+
+        // Null on a character wearing no armour, which is the sample Hero — the figure is granted
+        // by a suit and there is none.
+        Assert.Null(derived["armor_from_gear"]);
+    }
+
+    /// <summary>
+    /// <b>And it carries the rank once a suit is worn — capped by the Gear Limit, not by the
+    /// wearer's Toughness.</b> p.88 gives the rank as Toughness plus the suit's bonus; p.87 caps
+    /// the Toughness half. A 10d Hero in Plate is 8d in a standard game, which is p.87's own
+    /// stated intent: mundane armour is less useful to a superhuman.
+    /// </summary>
+    [Fact]
+    public void DerivedCarriesTheArmorRankAWornSuitGrants()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilityRanks["toughness"] = 10;
+        sheet.Gear.Add(new SelectedGear("Plate")
+        {
+            CatalogueId = GearCatalogue.ArmorPrefix + "ancient_plate"
+        });
+
+        var derived = Render(sheet)["derived"]!.AsObject();
+
+        Assert.Equal(8, derived["armor_from_gear"]!.GetValue<int>());
+
+        // The control: the wearer's whole Toughness plus the bonus would be 12, which is the
+        // reading p.87 rules out and the one this figure would silently be if the cap were lost.
+        Assert.NotEqual(12, derived["armor_from_gear"]!.GetValue<int>());
     }
 
     [Fact]

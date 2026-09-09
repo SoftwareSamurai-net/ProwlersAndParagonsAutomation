@@ -488,16 +488,32 @@ public sealed class CostCalculator
     /// up granting you extra Hero Points)." So Cons discount an item down to free and stop,
     /// where a Power floors at 1.</para>
     ///
-    /// <para>The Item Con is not charged or credited here. Ch.6 says "As physical objects,
-    /// every piece of gear has the Item Con" — a statement of what gear is, not a discount
-    /// to claim, and Item is absent from the list of Cons the same page says are commonly
-    /// applied to gear. Crediting it would make every 1 HP feature free and leave the
-    /// printed prices meaningless.</para>
+    /// <para><b>The Item Con is not credited, even when a host writes it down.</b> Ch.6 says
+    /// "As physical objects, every piece of gear has the Item Con" — a statement of what gear
+    /// is, not a discount to claim, and Item is absent from the list of Cons the same page says
+    /// are commonly applied to gear. Crediting it would make every 1 HP feature free and leave
+    /// the printed prices meaningless.</para>
+    ///
+    /// <para><b>That used to be true only of what the engine added.</b> Nothing puts Item on an
+    /// item automatically, so the comment above was correct about the engine's own arithmetic and
+    /// wrong about the answer: a submitted character that recorded the Con the book says every
+    /// object carries got <c>cons.json</c>'s −1 like any other, and a 1 HP feature came out free
+    /// — precisely the outcome this paragraph gives as the reason not to credit it. The data
+    /// slice recorded the disagreement rather than repairing it; this is the repair, and the
+    /// id comes off <c>gear.json</c>'s own <c>item_con_id</c> rather than being spelled here.
+    /// The Con still <em>prints</em> on the sheet, because it is true of the item; it is worth
+    /// nothing, which is what the page says it is.</para>
     /// </summary>
     public int GearCost(SelectedGear gear)
     {
+        ArgumentNullException.ThrowIfNull(gear);
+
+        var itemConId = _rules.Equipment.GearProsAndCons.GearProsAndCons?.ItemConId;
+
         var features = gear.Features.Sum(FeatureCost);
-        var modifiers = gear.Pros.Sum(ResolveProCost) + gear.Cons.Sum(ResolveConCost);
+        var modifiers = gear.Pros.Sum(ResolveProCost)
+                      + gear.Cons.Where(c => !string.Equals(c.Id, itemConId, StringComparison.Ordinal))
+                               .Sum(ResolveConCost);
 
         return Math.Max(0, features + modifiers);
     }

@@ -15,6 +15,15 @@ public interface IGenericProCon
     string Name { get; }
 
     /// <summary>
+    /// How the option is priced: "flat" for the great majority, "flat_variable" for a graded
+    /// one, and <b>"special" for Overkill and Weak alone</b> — the two that change a Power's
+    /// rate per rank rather than its total, which is why neither prints a figure and why
+    /// <see cref="ProwlersAndParagonsAutomation.Engine.CostCalculator"/> answers 0 for either
+    /// on anything that has no rank.
+    /// </summary>
+    string CostType { get; }
+
+    /// <summary>
     /// Base Power Ranges this option can be applied to (Ch.2 p.19: Self, Touch, Ranged,
     /// Zone, Special). Empty means the entry states no range constraint and it applies to
     /// any Power.

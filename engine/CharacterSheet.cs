@@ -102,6 +102,23 @@ public record SelectedGearFeature(string FeatureId, string? GradeKey = null);
 /// </summary>
 public record SelectedGear(string Name)
 {
+    /// <summary>
+    /// The Chapter 6 catalogue row this item was chosen from, or null for something the player
+    /// simply wrote down.
+    ///
+    /// <para><b>An id and not a copy of the row.</b> What a Battle Axe is worth is the rulebook's
+    /// answer and belongs in <c>gear.json</c>; a character sheet that carried the figure would be
+    /// a second copy of it, and the two would disagree the first time the data was corrected.
+    /// <see cref="GearCatalogue.Find"/> resolves it, and an id that resolves to nothing is
+    /// <c>CharacterValidator</c>'s to report — an illegal character is reported, never
+    /// repaired.</para>
+    ///
+    /// <para><b>Null is the ordinary case and stays legal.</b> p.91's list is "examples, not a
+    /// catalogue of prices", so a character may carry a letter from their mother; and a payload
+    /// written before this field existed reads back as exactly the item it always was.</para>
+    /// </summary>
+    public string? CatalogueId { get; init; }
+
     /// <summary>Custom features bought for this item (Ch.6, p.93). Usually empty.</summary>
     public IReadOnlyList<SelectedGearFeature> Features { get; init; } = [];
 
