@@ -141,6 +141,193 @@ public record SelectedGear(string Name)
 }
 
 /// <summary>
+/// A feature bought for a vehicle or a headquarters (Ch.6 pp.96-103).
+///
+/// <para><b>One record for both tables, because the price has the same three shapes on each</b> —
+/// a flat number, a pair or triple of graded numbers keyed by the word the entry itself uses, or a
+/// rate per unit. What differs is the currency, and the currency is a fact about the thing the
+/// feature is bought for rather than about the selection.</para>
+/// </summary>
+/// <param name="FeatureId">
+/// The feature's own id, unprefixed — <c>flight</c>, <c>training_facilities</c>. The
+/// <see cref="AssetCatalogue"/> prefixes are for a palette row, which has to keep three tables
+/// apart; a selection already knows which table it is on from where it is stored.
+/// </param>
+public record SelectedAssetFeature(string FeatureId)
+{
+    /// <summary>
+    /// How many units of a per-unit feature were bought — four more passengers each, one rank of
+    /// a Mecha's Might, one Hero Point's worth of Unique Systems. Always 1 otherwise.
+    /// </summary>
+    public int Units { get; init; } = 1;
+
+    /// <summary>
+    /// Which grade of a graded feature, keyed as the entry words it: <c>standard</c> or
+    /// <c>advanced</c> throughout, <c>small</c>/<c>large</c> on Hidden Compartments, and
+    /// <c>large</c>/<c>sprawling</c>/<c>awe_inspiring</c> on Size. Null on a flat feature.
+    /// </summary>
+    public string? GradeKey { get; init; }
+}
+
+/// <summary>
+/// A unique vehicle this character owns outright (Ch.6 pp.94-100).
+///
+/// <para><b>Two currencies, and only one of them is Hero Points.</b>
+/// <see cref="PerkHeroPoints"/> is what the character spent on the Unique Vehicle Perk for this
+/// machine, and it is the only figure here that counts against a tier's budget. Everything else is
+/// priced in Vehicle Points, twenty-five to the Hero Point, and adding one to a Hero Point total is
+/// a category error — see <see cref="CostCalculator.VehiclePointsSpent"/>.</para>
+///
+/// <para><b>The four ranks are bought from zero.</b> p.96 opens Body, Speed and Control at nothing
+/// and leaves Weapons off entirely, so a machine costs what it is, and a vehicle with a rank
+/// nobody paid for would be a Perk that quietly bought more than it says.
+/// <see cref="SelectedGear"/>'s free baseline is the wrong precedent: mundane gear is free because
+/// the chapter says it is not tracked, and a unique vehicle is the opposite of untracked.</para>
+///
+/// <para><b>A vehicle a whole team paid for is not this.</b> Both p.96 and p.100 let Heroes pool
+/// their allowances on one object, and a <see cref="CharacterSheet"/> is one character — so a
+/// shared machine is a <see cref="CampaignAssetContribution"/>, which records what this character
+/// put in and nothing about what the object turned out to be. This record is for a vehicle one
+/// character owns: a solo Hero's, or a Villain's.</para>
+/// </summary>
+public record OwnedVehicle(string Name)
+{
+    /// <summary>
+    /// Hero Points spent on the Unique Vehicle Perk for this machine. Twenty-five Vehicle Points
+    /// each, and the one figure here <see cref="CostCalculator.TotalCost"/> charges.
+    /// </summary>
+    public int PerkHeroPoints { get; init; }
+
+    /// <summary>Body, at one Vehicle Point a rank: durability, armour and health in one figure.</summary>
+    public int Body { get; init; }
+
+    /// <summary>Speed, at one Vehicle Point a rank.</summary>
+    public int Speed { get; init; }
+
+    /// <summary>
+    /// Control, at two Vehicle Points a rank — a modifier rather than a rank in its own right.
+    /// Negative is legal and pays two points back a rank, to a floor of −3 the validator reports.
+    /// </summary>
+    public int Control { get; init; }
+
+    /// <summary>
+    /// Weapons, at one Vehicle Point a rank, or null for a machine with none. Null rather than
+    /// zero because the printed tables print an em dash: an unarmed vehicle has no rank at all,
+    /// which is not the same claim as a rank of nothing.
+    /// </summary>
+    public int? Weapons { get; init; }
+
+    /// <summary>Features off p.96-100's table of twenty-three, priced in Vehicle Points.</summary>
+    public IReadOnlyList<SelectedAssetFeature> Features { get; init; } = [];
+}
+
+/// <summary>
+/// A headquarters this character owns outright (Ch.6 pp.100-103).
+///
+/// <para><b>The Perk buys the building and the second currency furnishes it.</b> p.100 grants a
+/// basic base — a mansion or a warehouse, already fitted out — for the Perk alone, and every Hero
+/// Point after that is three Base Points. So a headquarters with no features is not an error and
+/// not free either: it cost whatever <see cref="PerkHeroPoints"/> says.</para>
+///
+/// <para><b>p.100 gives Villains headquarters too</b>, in as many words, which is why nothing here
+/// is conditioned on what kind of character owns it. The one place that distinction bites is
+/// Teamwork, which Training Facilities grants and which behaves exactly like Resolve — computed
+/// for anybody, quoted for a Hero. See <see cref="DerivedStatsCalculator.CalculateTeamwork"/>.</para>
+/// </summary>
+public record OwnedHeadquarters(string Name)
+{
+    /// <summary>
+    /// Hero Points spent on the Headquarters Perk for this base. Three Base Points each, and the
+    /// one figure here <see cref="CostCalculator.TotalCost"/> charges.
+    /// </summary>
+    public int PerkHeroPoints { get; init; }
+
+    /// <summary>Features off pp.100-103's table of twenty-two, priced in Base Points.</summary>
+    public IReadOnlyList<SelectedAssetFeature> Features { get; init; } = [];
+}
+
+/// <summary>
+/// A Gadget built under Ch.6 p.94 — <b>the one thing in this chapter that pays Hero Points out
+/// rather than charging them.</b>
+///
+/// <para>A successful build hands the builder twice the Gadget's Complexity in Hero Points, and
+/// they are spent on Abilities, Talents and Powers under the ordinary cost rules. That pool is not
+/// the character's own budget and is deliberately not folded into
+/// <see cref="CostCalculator.TotalCost"/>: a Gadget makes a character no more expensive, and a
+/// total that netted the two off would report a Hero who had built three Gadgets as cheaper than
+/// the same Hero on the page.</para>
+///
+/// <para><b>The Item Con is on it and is not credited</b>, which is the answer gear already gets —
+/// p.94 says the Gadget carries it, and a statement of what a thing is is not a discount to claim.
+/// See <see cref="CostCalculator.GadgetSpend"/>.</para>
+/// </summary>
+public record BuiltGadget(string Name)
+{
+    /// <summary>
+    /// What the builder assigned, at least 3 and at most their own Technology rank. It decides
+    /// both the difficulty of the attempt and the size of the pool a success pays out.
+    /// </summary>
+    public int Complexity { get; init; }
+
+    /// <summary>Powers bought out of the pool, priced exactly as a character's own are.</summary>
+    public IReadOnlyList<SelectedPower> Powers { get; init; } = [];
+
+    /// <summary>Ability ranks bought out of the pool, at 1 HP a rank.</summary>
+    public IReadOnlyDictionary<string, int> AbilityRanks { get; init; } =
+        new Dictionary<string, int>();
+
+    /// <summary>Talent ranks bought out of the pool, at 1 HP a rank.</summary>
+    public IReadOnlyDictionary<string, int> TalentRanks { get; init; } =
+        new Dictionary<string, int>();
+}
+
+/// <summary>
+/// Hero Points this character put into a vehicle or headquarters that belongs to the campaign
+/// rather than to them (Ch.6 p.96 and p.100, which both let Heroes pool their allowances).
+///
+/// <para><b>This is the whole of the sheet's side of a shared object, and that is deliberate.</b> A
+/// <see cref="CharacterSheet"/> is one character, so a pooled machine is either unrepresentable on
+/// one or double-counted across five. What a character can honestly say is how much they put in;
+/// what the object came out as is the campaign's answer, summed from every member's contribution.
+/// The campaign-side object is a later slice — this shape exists so it can be summed.</para>
+///
+/// <para><b>It costs Hero Points on this sheet and nothing else on this sheet.</b> There is no
+/// second currency here, no features and no ranks: those belong to the object, and a copy of them
+/// on each member's sheet would be five copies to disagree.</para>
+/// </summary>
+/// <param name="AssetId">
+/// The campaign's id for the object. Stable, and the key a campaign sums on — the name below is
+/// what a reader sees and may be re-typed.
+/// </param>
+public record CampaignAssetContribution(string AssetId)
+{
+    /// <summary>What the object is called, for a sheet that has no campaign in front of it.</summary>
+    public string Name { get; init; } = "";
+
+    /// <summary>
+    /// <see cref="Vehicle"/> or <see cref="Headquarters"/> — which currency the campaign will
+    /// convert the pooled Hero Points into.
+    ///
+    /// <para><b>A string rather than an enum</b>, because this travels through JSON to a campaign
+    /// this engine cannot see, and a serializer writing an enum as <c>0</c> would make the payload
+    /// depend on a declaration order. The validator reports anything that is neither.</para>
+    /// </summary>
+    public string Kind { get; init; } = Vehicle;
+
+    /// <summary>Hero Points put in. Charged on this sheet like any other spend.</summary>
+    public int HeroPoints { get; init; }
+
+    /// <summary>The two kinds of shared object Chapter 6 lets a team pool points on.</summary>
+    public const string Vehicle = "vehicle";
+
+    /// <inheritdoc cref="Vehicle"/>
+    public const string Headquarters = "headquarters";
+
+    /// <summary>Both of the above, for a host offering a choice and for the validator's message.</summary>
+    public static IReadOnlyList<string> Kinds { get; } = [Vehicle, Headquarters];
+}
+
+/// <summary>
 /// Mutable state object for a character being built in the wizard.
 /// All calculators and validators receive this and read from it.
 /// </summary>
@@ -400,4 +587,25 @@ public class CharacterSheet
     /// not simply a list of strings. See <see cref="CostCalculator.TotalGearCost"/>.
     /// </summary>
     public List<SelectedGear> Gear { get; } = [];
+
+    /// <summary>
+    /// Vehicles this character owns outright, each with the Hero Points that bought it and the
+    /// Vehicle Points those Hero Points became. Empty on nearly every character.
+    /// </summary>
+    public List<OwnedVehicle> Vehicles { get; } = [];
+
+    /// <summary>Headquarters this character owns outright, on the same terms.</summary>
+    public List<OwnedHeadquarters> Headquarters { get; } = [];
+
+    /// <summary>
+    /// Gadgets built under p.94. <b>These cost the character nothing</b> — the pool runs the other
+    /// way — so nothing here is in <see cref="CostCalculator.TotalCost"/>.
+    /// </summary>
+    public List<BuiltGadget> Gadgets { get; } = [];
+
+    /// <summary>
+    /// Hero Points put into vehicles and headquarters that belong to a campaign rather than to
+    /// this character. Charged here; everything else about the object belongs to the campaign.
+    /// </summary>
+    public List<CampaignAssetContribution> CampaignAssets { get; } = [];
 }

@@ -101,6 +101,10 @@ public static class CharacterSheetJson
         sheet.Flaws.RemoveAll(f => f is null);
         sheet.Gear.RemoveAll(g => g is null);
         sheet.Connections.RemoveAll(c => c is null);
+        sheet.Vehicles.RemoveAll(v => v is null);
+        sheet.Headquarters.RemoveAll(h => h is null);
+        sheet.Gadgets.RemoveAll(g => g is null);
+        sheet.CampaignAssets.RemoveAll(c => c is null);
 
         // A piece of gear's three lists are declared non-null and come back null when the keys
         // are absent, which is a NullReferenceException the next time anything prices it. Absent
@@ -119,12 +123,61 @@ public static class CharacterSheetJson
             };
         }
 
+        // The same non-null-declared-comes-back-null trap the gear lists fall into, on the four
+        // Chapter 6 collections. Absent and empty mean the same thing on every one of them, so
+        // this is repaired in both modes rather than reported: there is nothing a caller would
+        // want told about a vehicle with no features.
+        for (var i = 0; i < sheet.Vehicles.Count; i++)
+            if (sheet.Vehicles[i].Features is null)
+                sheet.Vehicles[i] = sheet.Vehicles[i] with { Features = [] };
+
+        for (var i = 0; i < sheet.Headquarters.Count; i++)
+            if (sheet.Headquarters[i].Features is null)
+                sheet.Headquarters[i] = sheet.Headquarters[i] with { Features = [] };
+
+        for (var i = 0; i < sheet.Gadgets.Count; i++)
+        {
+            var gadget = sheet.Gadgets[i];
+            if (gadget.Powers is not null && gadget.AbilityRanks is not null
+                                          && gadget.TalentRanks is not null) continue;
+
+            sheet.Gadgets[i] = gadget with
+            {
+                Powers       = gadget.Powers ?? [],
+                AbilityRanks = gadget.AbilityRanks ?? new Dictionary<string, int>(),
+                TalentRanks  = gadget.TalentRanks ?? new Dictionary<string, int>()
+            };
+        }
+
+        // A Gadget's Powers are SelectedPowers and fall into the same Pros/Cons trap the
+        // character's own do — a NullReferenceException the next thing that prices the Gadget.
+        for (var i = 0; i < sheet.Gadgets.Count; i++)
+        {
+            var gadget = sheet.Gadgets[i];
+            if (gadget.Powers.All(p => p is null || (p.Pros is not null && p.Cons is not null)))
+                continue;
+
+            sheet.Gadgets[i] = gadget with
+            {
+                Powers = [.. gadget.Powers.Where(p => p is not null)
+                                          .Select(p => p with { Pros = p.Pros ?? [], Cons = p.Cons ?? [] })]
+            };
+        }
+
+        for (var i = 0; i < sheet.CampaignAssets.Count; i++)
+            if (sheet.CampaignAssets[i].Kind is null)
+                sheet.CampaignAssets[i] = sheet.CampaignAssets[i] with { Kind = "" };
+
         if (dropIdlessEntries)
         {
             sheet.SelectedPowers.RemoveAll(p => p.PowerId is null);
             sheet.Perks.RemoveAll(p => p.PerkId is null);
             sheet.Flaws.RemoveAll(f => f.FlawId is null);
             sheet.Gear.RemoveAll(g => g.Name is null);
+            sheet.Vehicles.RemoveAll(v => v.Name is null);
+            sheet.Headquarters.RemoveAll(h => h.Name is null);
+            sheet.Gadgets.RemoveAll(g => g.Name is null);
+            sheet.CampaignAssets.RemoveAll(c => c.AssetId is null);
 
             // And the entries one level in, which are the same thing in a nested list: a Pro
             // that is null, a gear feature that is null. The validator reports these on the

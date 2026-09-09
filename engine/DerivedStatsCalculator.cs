@@ -227,6 +227,44 @@ public sealed class DerivedStatsCalculator
         return ResolveAffectedByPower(power);
     }
 
+    // ── Teamwork, from a base's Training Facilities ───────────────────────────
+
+    /// <summary>
+    /// Points of Teamwork this character opens each issue with: one for every headquarters they
+    /// share that has Training Facilities (Ch.6 p.103).
+    ///
+    /// <para><b>It behaves exactly like Resolve, and the data says so in that word</b> — the
+    /// entry's own <c>behaves_like</c> is <c>resolve</c> — except that it may only be spent
+    /// assisting an ally. So it is handled exactly as Resolve is: <b>computed for anybody, quoted
+    /// for a Hero.</b> Only Heroes hold Resolve, the GM gets Adversity instead, and this engine
+    /// has no way of telling which kind of character it has been handed — nor should it, since
+    /// that flag is presentation and a rule branching on it would be the browser deciding a rule.
+    /// A host that knows it is showing a Villain does not print this figure, the same silence it
+    /// keeps about Resolve.</para>
+    ///
+    /// <para><b>Only bases this character owns are counted, and that is a real gap rather than a
+    /// simplification.</b> The grant is to "every character who shares the headquarters", and a
+    /// shared base belongs to a campaign — a <c>CampaignAssetContribution</c> records the Hero
+    /// Points this character put in and nothing about what the base turned out to have. So a team
+    /// member who paid into a base with Training Facilities gets nothing here, correctly: the
+    /// sheet cannot know, and inventing the point would be this engine answering a question only
+    /// the campaign can. The campaign slice is where that is answered.</para>
+    ///
+    /// <para><b>Two bases with the feature grant two points</b>, which the page neither states nor
+    /// forbids, and which follows from the grant being per headquarters. Nothing says a character
+    /// may not own two, and the arithmetic is the one the entry prints.</para>
+    /// </summary>
+    public int CalculateTeamwork(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var teamwork = _rules.Assets.Teamwork;
+
+        return sheet.Headquarters.Count(hq => hq.Features.Any(
+                   f => string.Equals(f.FeatureId, teamwork.GrantedByFeature, StringComparison.Ordinal)))
+             * teamwork.PointsPerIssue;
+    }
+
     // ── Baseline rank ─────────────────────────────────────────────────────
 
     /// <summary>
