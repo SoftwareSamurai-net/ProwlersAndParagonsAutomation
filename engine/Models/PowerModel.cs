@@ -152,8 +152,9 @@ public record PowerModel
     /// <para><b>Immortality is the one, and this is the range its own <see cref="Description"/>
     /// prints</b> — "In a game where Heroes can die, GMs should charge more for this — somewhere
     /// between 6 and 12 Hero Points" (Ch.2 p.31). <b>The prose is the source and these two
-    /// numbers are a transcription of it</b>, which is why <c>ImmortalityCampaignCostTests</c>
-    /// reads that sentence back out of the shipped data and requires it to still say 6 and 12. A
+    /// numbers are a transcription of it</b>, which is why
+    /// <c>PowerDataTests.ImmortalitysCampaignCostRangeIsWhatItsOwnDescriptionSays</c> reads that
+    /// sentence back out of the shipped data and requires it to still say 6 and 12. A
     /// range restated in a second place is a range that can drift from the one the book printed,
     /// and the point of the structured pair is that something mechanical can read it — not that
     /// there are now two answers.</para>

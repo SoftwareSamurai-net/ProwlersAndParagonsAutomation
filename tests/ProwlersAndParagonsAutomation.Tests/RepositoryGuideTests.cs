@@ -202,4 +202,85 @@ public sealed class RepositoryGuideTests
 
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
+
+    /// <summary>
+    /// Every source directory a pointer can be written in. <b>Build output is excluded and that is
+    /// not tidiness</b>: <c>web/bin</c> holds framework assemblies whose bytes contain the letters
+    /// <c>Tests</c>, so a sweep that read them would key this guarantee to whether the project had
+    /// been built and in which configuration.
+    /// </summary>
+    private static IEnumerable<string> SourceFiles() =>
+        new[] { "engine", "sheets", "web", "play", "cli", "mcp", "mcp-play", "mcp-shared" }
+            .Select(d => Path.Combine(RepoRoot, d))
+            .Where(Directory.Exists)
+            .SelectMany(d => Directory.GetFiles(d, "*.cs", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(d, "*.razor", SearchOption.AllDirectories)))
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                                    StringComparison.Ordinal)
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
+                                    StringComparison.Ordinal));
+
+    /// <summary>
+    /// <b>A test class named in a doc comment has to exist.</b> The rule this file opens with —
+    /// a dead pointer is worse than no pointer — was enforced for <c>docs/guide/</c> paths and for
+    /// the test names <c>PROGRESS.md</c> gives, and for nothing a doc comment says. Those are the
+    /// pointers most likely to rot, because a comment beside the code is where the argument for a
+    /// guard actually lives: <c>CampaignAsset</c> said "<c>CampaignAssetShapeTests</c> holds the
+    /// two name sets together" about a class that has never existed, and
+    /// <c>PowerModel</c> named <c>ImmortalityCampaignCostTests</c> for a file called
+    /// <c>ImmortalityHousePriceTests</c>. Both send a reader looking for a guarantee they cannot
+    /// find, and neither breaks a build.
+    ///
+    /// <para><b>The class and not the method</b>, deliberately. A method name moves with an
+    /// ordinary rename and would make this an obstacle at the wrong moment; a class that is not
+    /// there at all is the failure worth catching, and it is the one both of these were.</para>
+    ///
+    /// <para>The count is the positive control. A sweep that had stopped finding pointers would
+    /// satisfy an empty loop and say nothing, which is the single most common way a check in this
+    /// repository has been wrong.</para>
+    /// </summary>
+    [Fact]
+    public void EveryTestClassASourceCommentNamesExists()
+    {
+        var declared = new Regex(@"class\s+([A-Za-z][A-Za-z0-9]*Tests)\b",
+                                 RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(string.Join("\n", Directory
+                .GetFiles(Path.Combine(RepoRoot, "tests"), "*.cs", SearchOption.AllDirectories)
+                .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                                        StringComparison.Ordinal)
+                         && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
+                                        StringComparison.Ordinal))
+                .Select(File.ReadAllText)))
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.True(declared.Count >= 50,
+            $"Only {declared.Count} test classes were found, which means this scan has stopped "
+            + "finding them rather than that the suite has shrunk.");
+
+        var named = new Regex(@"[A-Za-z][A-Za-z0-9]*Tests", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var dead = new List<string>();
+        var seen = 0;
+
+        foreach (var file in SourceFiles())
+        {
+            foreach (var pointer in named.Matches(File.ReadAllText(file))
+                         .Select(m => m.Value).Distinct(StringComparer.Ordinal))
+            {
+                seen++;
+
+                if (!declared.Contains(pointer))
+                    dead.Add($"{Path.GetFileName(file)} names {pointer}");
+            }
+        }
+
+        Assert.True(seen >= 30,
+            $"Only {seen} test pointers were found in the source, which means this scan has "
+            + "stopped finding them rather than that the comments have stopped naming tests.");
+
+        Assert.True(dead.Count == 0,
+            "A doc comment names a test class that does not exist, which sends a reader hunting "
+            + "for a guarantee they cannot find: " + string.Join("; ", dead));
+    }
 }

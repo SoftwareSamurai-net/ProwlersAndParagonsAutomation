@@ -29,8 +29,9 @@ namespace ProwlersAndParagonsAutomation.Engine;
 /// the property names — <see cref="Body"/>, <see cref="Speed"/>, <see cref="Control"/>,
 /// <see cref="Weapons"/> and a list of <see cref="SelectedAssetFeature"/> — because both are
 /// priced from one set of printed rates and a second spelling is a second thing to correct when
-/// <c>vehicles.json</c> moves. <c>CampaignAssetShapeTests</c> holds the two name sets
-/// together.</para>
+/// <c>vehicles.json</c> moves.
+/// <c>CampaignAssetTests.TheSharedObjectNamesAVehiclesCharacteristicsTheSameWay</c> holds the two
+/// name sets together.</para>
 /// </summary>
 /// <param name="Id">
 /// The campaign's own id for the object, and the key a contribution names. Stable, which is
