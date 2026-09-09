@@ -869,8 +869,27 @@ public sealed class PlaySceneryTests
 
         Assert.Null(first.State["hero"].Holding);
 
-        // The control: an object the sentence is not printed against is still in hand.
-        Assert.NotNull(Throws("a motorcycle", might: 24, at: RangeBand.Close).State["hero"].Holding);
+        // <b>And the second shot, which the name of this test claimed and its body never drove.</b>
+        // "Broken apart" is only worth the state change if the next page's throw is refused for it,
+        // and this is the assertion that the refusal is reached rather than assumed: nothing is
+        // rolled, and the line is the one p.76 already writes for an empty hand.
+        var again = TheSameThrowTwice("a freight train", might: 24, at: RangeBand.Close).Second;
+
+        Assert.DoesNotContain(again.Lines, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+
+        Assert.Contains(again.Lines, l =>
+            l.Text.Contains("is not holding", StringComparison.Ordinal)
+            || l.Text.Contains("holding nothing", StringComparison.Ordinal));
+
+        // The control: an object the sentence is not printed against is still in hand, and its
+        // second throw resolves.
+        var motorcycle = TheSameThrowTwice("a motorcycle", might: 24, at: RangeBand.Close);
+
+        Assert.NotNull(motorcycle.First.State["hero"].Holding);
+
+        Assert.Contains(motorcycle.Second.Lines, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -975,9 +994,19 @@ public sealed class PlaySceneryTests
 
     /// <summary>One thrown object at a target a given distance away.</summary>
     private (EncounterState State, IReadOnlyList<LedgerLine> Lines) Throws(
+        string item, int might, RangeBand at) => TheSameThrowTwice(item, might, at).First;
+
+    /// <summary>
+    /// One thrown object at a target a given distance away, and then <b>the same object thrown
+    /// again on the next page</b> — which is what p.108's "always breaks apart after the first
+    /// shot" is about, and what nothing drove.
+    /// </summary>
+    private (
+        (EncounterState State, IReadOnlyList<LedgerLine> Lines) First,
+        (EncounterState State, IReadOnlyList<LedgerLine> Lines) Second) TheSameThrowTwice(
         string item, int might, RangeBand at)
     {
-        var dice = new ScriptedDice([.. Enumerable.Repeat(4, 300)]);
+        var dice = new ScriptedDice([.. Enumerable.Repeat(4, 600)]);
         var encounter = new Encounter(_play, dice);
 
         var hero = Combatant.Hero(
@@ -992,9 +1021,21 @@ public sealed class PlaySceneryTests
 
         var state = encounter.Begin([hero, villain], opening: at);
 
-        var step = encounter.Step(state, new Attack(
-            "hero", "villain", "might", DamageKind.Subdual, AttackType.RangedWeapon, Item: item));
+        Attack Throw() => new(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.RangedWeapon, Item: item);
 
-        return (step.State, step.Added);
+        var first = encounter.Step(state, Throw());
+
+        // A page turn between the two, so the second is a turn of the Hero's own rather than a
+        // second action on one page.
+        var next = encounter.Step(
+            encounter.Step(first.State, new EndTurn("villain")).State, new EndPage("villain"));
+
+        // The positive control on the page turn: the Hero is the one to act again.
+        Assert.Equal("hero", next.State.Current.Id);
+
+        var second = encounter.Step(next.State, Throw());
+
+        return ((first.State, first.Added), (second.State, second.Added));
     }
 }
