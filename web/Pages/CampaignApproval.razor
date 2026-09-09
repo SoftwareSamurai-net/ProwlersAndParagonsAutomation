@@ -305,8 +305,8 @@ else
        drawn where the clones are not, and the clones are what the roster above already opens. *@
     <Panel Title="Shared vehicles and bases" Aside="@SharedAside">
         <p class="small muted">
-            A team can pool their allowances on one object (Ch.6, pp.96 and 100). It is written
-            down here, once; each player records what they put in on their own sheet.
+            A team can pool their allowances on one object (Ch.6, pp.96 and 100). Each player
+            records what they put in on their own sheet.
         </p>
 
         @if (_campaign is null)
@@ -426,10 +426,7 @@ else
 
             @if (!draft.IsHeadquarters)
             {
-                <p class="small muted">
-                    The four characteristics are bought <b>from zero</b> (p.96). Control costs two
-                    a rank and may not exceed half the Speed.
-                </p>
+                <VehicleRanksNote />
 
                 <Field Label="Body" For="shared-body">
                     <input id="shared-body" type="number" min="0" value="@draft.Body"

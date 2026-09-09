@@ -268,6 +268,15 @@ public sealed class CampaignSharedBooksTests
         await page.Find("#shared-body").ChangeAsync(new() { Value = "8" });
         await page.Find("#shared-speed").ChangeAsync(new() { Value = "10" });
 
+        // **The books are open while it is being typed**, against what the table has put in — which
+        // for a machine nobody has funded yet is nothing, and that is the ordinary way round: a GM
+        // writes the object down and the table pays for it afterwards.
+        var editor = page.FindAll("section.panel")
+            .Single(s => s.TextContent.Contains("bought from zero", StringComparison.Ordinal))
+            .TextContent;
+
+        Assert.Contains("The Wing — 18/0 Vehicle Points", editor, StringComparison.Ordinal);
+
         await page.FindAll("button").Single(b => b.TextContent.Trim() == "Save")
             .ClickAsync(new MouseEventArgs());
 
