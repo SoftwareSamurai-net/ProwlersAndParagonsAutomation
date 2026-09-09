@@ -150,6 +150,9 @@ air, in the open, against somebody the same size** unless you said otherwise.
   rank has to be **greater** than the Structure or nothing is rolled, and the target may answer with
   the Structure as a **passive** defence, which can be the roll that stops the attack. Leave it out
   to shoot at whatever of the target is exposed and pay the band alone.
+- **Or name the obstacle instead**, as `"cover_scenery"`, and Chapter 7 supplies the figure — see
+  **Scenery** below. Send one or the other and never both: two answers to one question are refused
+  with nothing rolled.
 - **Size** goes on the combatant, as `"size"` — a bare number whose only meaning is the ratio
   between two of them, in whatever unit your fight is using; omit it and everybody is the same size.
   It moves the **defender's active defence rolls and nothing else**: a Toughness, an Armor and a
@@ -357,6 +360,63 @@ bonus does not count towards penetrating cover or harming somebody behind Armor 
 is not, because the entry's own `ambiguity` says both are decided by the very attack roll the bonus
 is granted to and the page offers no mechanism for two totals against one defence roll. A group's
 attack says so on its own ledger line. Do not narrate that narrowing as though it happened.
+
+## Scenery: what is in the way, what you hit, and what you throw (pp.107-108)
+
+**Chapter 7 rates fifty-eight things across three tables, and three Chapter 4 rules that
+needed a number now have one.**
+Wherever a rule below takes a name, it is one of the printed rows in this section — a name none of
+them carries is **refused with nothing rolled and nothing spent**, rather than being given a figure
+no page carries. A bare number is still accepted everywhere it always was, because p.107 lets the GM
+move a Structure by as much as four dice for how thick or how rotten a thing is and no table prints
+every object in a city.
+
+- **Cover**: `"cover_scenery"` on an attack. Its Structure comes off the page, and the ledger cites
+  the table beside p.75's own two lines about the same figure.
+- **Knockback**: `"solid_object"` on a `spend_resolve` of `knockback`. p.78 — the target takes half
+  the blow again on hitting it, **unless their best passive defence exceeds its Structure**, in
+  which case they smash through unharmed. A purchase that names nothing is the rest of the rule and
+  says so; one that names something no page rates is refused and **costs nothing**.
+- **An improvised weapon**: `"item"` on an attack, where Chapter 6 prints no weapon of that name.
+  p.108 gives +1d for swinging it and +1d for throwing it, and caps the attack rank at the object's
+  own rank **plus six**. The Gear Limit still caps the Trait underneath, because the page never says
+  which of the two ceilings wins. The 2d a page of wear is **not applied** — the page scopes it to a
+  "super strong" character and never says what that is.
+- **Throwing something massive**: an object on the Massive Objects table carries a **weight rank**,
+  which is the operand p.74's `throwing rank = Might − the object's weight rank` has never had. A
+  throw at somebody farther off than that reaches is **refused**, because p.74 says how far a throw
+  carries and says nothing about throwing past it. Such an object also **breaks apart after the
+  first shot**, so the thrower is holding nothing afterwards. An object on the Scenery table has a
+  Structure rather than a weight rank, so how far *it* goes is yours.
+
+**A Massive Objects row has no Structure at all** — p.108 gives it a weight rank instead — so it
+cannot be cover and cannot be the thing a knockback slams somebody into. Both are refused by name.
+
+**Materials — p.107's Smashing table, by Structure.** 2: Cloth, Drywall, Glass, Ice, Rope. 4:
+Plastic, Rubber, Wood. 6: Brick, Bulletproof Glass, Hardwood. 8: Asphalt, Concrete, Machinery. 10:
+Iron, Stone. 12: Steel. 14: Diamond, Titanium. 18: Advanced Alloy, Magical Metal. 24: Ozymandium
+Alloy.
+
+**Things — p.108's Scenery table, by Structure.** 4: Post Office Mailbox. 5: Heavy Door, Motorcycle.
+6: Brick Wall, Telephone Pole. 7: Metal Dumpster, Sedan, Statue. 8: Big Statue, Fighter Jet, Humvee.
+9: 747 Airliner, Bus, Huge Tree, Yacht. 10: 18-Wheeler, Giant Statue. 11: Ferris Wheel, Tank. 12:
+Vault Door.
+
+**Too big to rate — p.108's Massive Objects table, by weight rank.** 14: Statue of Liberty. 16:
+Freight Train. 18: Destroyer, Eiffel Tower, Freighter. 19: The London Eye. 21: Aircraft Carrier,
+Ocean Liner. 22: Skyscraper. 23: Empire State Building. 24: Burj Khalifa, Golden Gate Bridge. 26:
+The Great Pyramid. 40: Mount Everest. 63: Moon. 69: Earth.
+
+**Say it in your own words and this server will find the row**: the longest printed name inside your
+phrase wins, so "a bulletproof glass window" is Bulletproof Glass at 6 and not Glass at 2. A phrase
+that names two rows equally is refused rather than resolved one way — which of them you meant is
+yours to say.
+
+**A vehicle is on that Scenery table and is capped like any other mundane equipment.** Ch.6's
+`vehicular_gear_limit` says a vehicle is mundane gear under the ordinary Gear Limit; that entry is in
+the *character* rules, which this engine may not read, so what applies here is the same p.87 ceiling
+every other item gets — which is the same figure by another route. Nothing about a vehicle's own
+ranks is modelled: a Humvee swung at somebody is a heavy object, not a combatant.
 
 ## The Gear Limit
 

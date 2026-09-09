@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
 using ModelContextProtocol.Client;
@@ -6118,6 +6119,188 @@ public sealed class McpPlayServerTests
         fight[0]!["kind"] = "foe";
         return fight;
     }
+
+    // ── Chapter 7's scenery, over the wire ────────────────────────────────
+
+    /// <summary>
+    /// <b>An attack's <c>cover_scenery</c> crosses the wire and the Structure comes off p.108.</b>
+    ///
+    /// <para>Driven over the wire for the reason the <c>team</c> flag was: the policy's spelling
+    /// guard is scoped to tool arguments and the fields of an intent are not among them, so a field
+    /// the reader does not have is a field the SDK drops in silence — and this one would drop the
+    /// obstacle out of the fight altogether while the caller was told <c>ok</c>.</para>
+    ///
+    /// <para>The control is the same attack with nothing in the way: no Chapter 7 line at all, and a
+    /// different defence pool. A dropped argument leaves the two answers identical.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnAttacksCoverSceneryCrossesTheWireAndIsRatedByChapterSeven() =>
+        await WithClient(async client =>
+        {
+            var wall = _play.GetEnvironment("scenery_table").SceneryTable!
+                .Single(r => r.Scenery.Contains("Brick Wall", StringComparer.Ordinal)).Structure;
+
+            var encounter = (await Call(client, "start_encounter", new Dictionary<string, object?>
+            {
+                ["combatants"] = TwoSides(),
+                ["seed"] = 81
+            }))["encounter_id"]!.GetValue<string>();
+
+            var turn = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = encounter,
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack",
+                    ["actor"] = "hero",
+                    ["target"] = "villain",
+                    ["trait_id"] = "might",
+                    ["cover_scenery"] = "a brick wall"
+                }
+            });
+
+            Assert.True(turn["ok"]!.GetValue<bool>());
+
+            var added = turn["added"]!.AsArray();
+
+            var rated = Assert.Single(added, l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "scenery_table", StringComparison.Ordinal));
+
+            Assert.Contains("Brick Wall", rated!["text"]!.GetValue<string>(), StringComparison.Ordinal);
+            Assert.Contains($"Structure {wall}", rated["text"]!.GetValue<string>(), StringComparison.Ordinal);
+
+            // The wall out-ranks the Villain's halved Toughness, so it is what answers the roll.
+            Assert.Contains($"{wall}d", RollLine(turn), StringComparison.Ordinal);
+
+            // The control: the same fight with nothing in the way cites no Chapter 7 table and
+            // answers with the Villain's own defence instead.
+            var open = await Call(client, "take_turn", new Dictionary<string, object?>
+            {
+                ["encounterId"] = (await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = TwoSides(),
+                    ["seed"] = 81
+                }))["encounter_id"]!.GetValue<string>(),
+                ["intent"] = new JsonObject
+                {
+                    ["kind"] = "attack",
+                    ["actor"] = "hero",
+                    ["target"] = "villain",
+                    ["trait_id"] = "might"
+                }
+            });
+
+            Assert.DoesNotContain(open["added"]!.AsArray(), l =>
+                string.Equals(l!["rule"]!.GetValue<string>(), "scenery_table", StringComparison.Ordinal));
+
+            Assert.NotEqual(RollLine(open), RollLine(turn));
+        });
+
+    /// <summary>
+    /// <b>A knockback's <c>solid_object</c> crosses the wire and p.78's last clause is applied.</b>
+    ///
+    /// <para>The blow has to reach the entry's own <c>minimum_damage</c> before the purchase is
+    /// available at all, and this server's rolls are the engine's — so the fixture opens a seeded
+    /// fight per seed until one lands hard enough, and <b>asserts that it found one</b>. A search
+    /// that found nothing would otherwise assert nothing at all, which is this repository's
+    /// commonest guard fault.</para>
+    /// </summary>
+    [Fact]
+    public async Task AKnockbacksSolidObjectCrossesTheWireAndCostsTheTargetHalfTheBlow() =>
+        await WithClient(async client =>
+        {
+            var rule = _play.GetCombat("knockback").Knockback!;
+            var landed = false;
+
+            for (var seed = 1; seed <= 40 && !landed; seed++)
+            {
+                var encounter = (await Call(client, "start_encounter", new Dictionary<string, object?>
+                {
+                    ["combatants"] = TwoSides(),
+                    ["seed"] = seed
+                }))["encounter_id"]!.GetValue<string>();
+
+                var blow = await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = encounter,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "attack",
+                        ["actor"] = "hero",
+                        ["target"] = "villain",
+                        ["trait_id"] = "might",
+                        ["damage"] = "subdual",
+                        ["all_out"] = true
+                    }
+                });
+
+                var hurt = blow["state"]!["combatants"]!.AsArray().Single(c =>
+                    string.Equals(c!["id"]!.GetValue<string>(), "villain", StringComparison.Ordinal));
+
+                var before = hurt!["health"]!.GetValue<int>();
+
+                var spend = await Call(client, "take_turn", new Dictionary<string, object?>
+                {
+                    ["encounterId"] = encounter,
+                    ["intent"] = new JsonObject
+                    {
+                        ["kind"] = "spend_resolve",
+                        ["actor"] = "hero",
+                        ["spend"] = "knockback",
+                        ["solid_object"] = "a brick wall"
+                    }
+                });
+
+                var lines = spend["added"]!.AsArray();
+
+                if (lines.Any(l => l!["text"]!.GetValue<string>()
+                        .Contains("knockback needs", StringComparison.Ordinal)))
+                {
+                    continue;
+                }
+
+                landed = true;
+
+                var struck = Assert.Single(lines, l =>
+                    string.Equals(l!["rule"]!.GetValue<string>(), "knockback", StringComparison.Ordinal)
+                    && l["text"]!.GetValue<string>().Contains("Brick Wall", StringComparison.Ordinal));
+
+                var text = struck!["text"]!.GetValue<string>();
+
+                Assert.Contains(rule.DamageOnStrikingASolidObject, text, StringComparison.Ordinal);
+
+                // <b>The Health is read out of the line rather than off the state</b>, because a
+                // knocked-back target loses their turn and comes out of the order, and the public
+                // state lists combatants in turn order. The line carries all three figures, so the
+                // arithmetic is checked rather than the wording: half of what the blow did, off
+                // what they had left.
+                var figures = new Regex(
+                    @"(\d+) more off the (\d+) the blow did, leaving them on (-?\d+) Health",
+                    RegexOptions.None, TimeSpan.FromSeconds(5))
+                    .Match(text);
+
+                Assert.True(figures.Success,
+                    "the knockback line no longer prints the extra damage, the blow and the Health "
+                    + "it left: " + text);
+
+                var extra = int.Parse(figures.Groups[1].Value, CultureInfo.InvariantCulture);
+                var blowDid = int.Parse(figures.Groups[2].Value, CultureInfo.InvariantCulture);
+                var health = int.Parse(figures.Groups[3].Value, CultureInfo.InvariantCulture);
+
+                Assert.Equal(Rounding.Half(_play, blowDid), extra);
+                Assert.True(extra > 0, "the wall took nothing off, so nothing about it was applied");
+
+                // With Fatal Damage off, Health floors at the figure that defeats a character —
+                // read off the entry rather than assumed to be zero.
+                Assert.Equal(
+                    Math.Max(_play.GetCombat("damage").Damage!.DefeatedAtHealth, before - extra),
+                    health);
+            }
+
+            Assert.True(landed,
+                "no seed in the search landed a blow big enough for p.78's floor, so nothing about "
+                + "the solid object was driven at all.");
+        });
 
     private static JsonArray TwoSides() =>
     [

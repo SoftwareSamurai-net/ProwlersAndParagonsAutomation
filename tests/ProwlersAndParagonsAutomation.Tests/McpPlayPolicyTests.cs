@@ -209,6 +209,72 @@ public sealed class McpPlayPolicyTests
     }
 
     /// <summary>
+    /// <b>Every scenery row a caller may name is named in the document, and the figure beside it is
+    /// the shipped one.</b>
+    ///
+    /// <para>The three tables are what <c>cover_scenery</c>, a knockback's <c>solid_object</c> and
+    /// an improvised weapon's <c>item</c> are matched against, and a name none of them prints is
+    /// refused. So a caller has to be able to find out what the names are — and a list typed into a
+    /// document is a second transcription that will disagree with the first the day somebody
+    /// corrects the data. It is derived here instead: every printed row name, with its own rank
+    /// beside it, has to appear in the served text.</para>
+    ///
+    /// <para><b>The rank is part of the claim on purpose.</b> A document that carried every name
+    /// under one wrong heading would satisfy a check on the names alone, and a caller reading it
+    /// would pick a wall by a Structure the engine does not use.</para>
+    /// </summary>
+    [Fact]
+    public void ThePolicyNamesEveryRowChapterSevenRates()
+    {
+        var missing = new List<string>();
+        var counted = 0;
+
+        foreach (var (name, rank) in SceneryRows())
+        {
+            counted++;
+
+            // The name, and the rank printed for it, in the same run of text — the tables are
+            // written out rank-first, so the group's figure is what precedes its names.
+            if (!Flowed.Contains(name, StringComparison.Ordinal)) missing.Add($"{name} (not named)");
+            else if (!Flowed.Contains($"{rank}: ", StringComparison.Ordinal)) missing.Add($"{name} ({rank})");
+        }
+
+        // The positive control: a document check that had stopped finding rows would report nothing
+        // missing and prove nothing.
+        Assert.True(counted >= 55,
+            $"only {counted} scenery rows were read out of environment.json, and the three object "
+            + "tables print fifty-eight between them — this check is walking a table that has lost "
+            + "most of itself and would pass against a document naming nothing.");
+
+        Assert.True(missing.Count == 0,
+            "mcp-play/PLAY-POLICY.md does not name these rows, or names them under the wrong rank: "
+            + string.Join(", ", missing)
+            + ". A caller can only name what the document lists, and this server refuses a name no "
+            + "table prints.");
+    }
+
+    /// <summary>Every printed row of Chapter 7's three object tables, with the rank beside it.</summary>
+    private IEnumerable<(string Name, int Rank)> SceneryRows()
+    {
+        var smashing = _f.Play.GetEnvironment("smashing_table").SmashingTable!;
+
+        foreach (var row in smashing.Rows)
+        {
+            foreach (var material in row.Materials) yield return (material, row.Structure);
+        }
+
+        foreach (var row in _f.Play.GetEnvironment("scenery_table").SceneryTable!)
+        {
+            foreach (var thing in row.Scenery) yield return (thing, row.Structure);
+        }
+
+        foreach (var row in _f.Play.GetEnvironment("massive_objects_table").MassiveObjectsTable!)
+        {
+            foreach (var thing in row.Objects) yield return (thing, row.WeightRank);
+        }
+    }
+
+    /// <summary>
     /// <b>The policy says no spend refuses by name, and no spend does</b> — driven rather than
     /// listed.
     ///
