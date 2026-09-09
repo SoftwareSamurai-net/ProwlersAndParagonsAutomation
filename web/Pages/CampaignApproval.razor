@@ -353,6 +353,16 @@ else
                             {
                                 <span class="muted small"><br />@Unpriceable</span>
                             }
+
+                            @* **What Chapter 6 says about the object itself**, which is not a
+                               question about its budget at all: a Body below zero pays Vehicle
+                               Points back and reads as a machine comfortably inside what the
+                               table put in. Asked of the engine, because it is a printed rule
+                               and a screen comparing ranks would be a front end holding one. *@
+                            @foreach (var fault in Session.Check(line.Asset))
+                            {
+                                <span class="muted small"><br />@fault.Message</span>
+                            }
                         </Body>
                         <Actions>
                             <button type="button" class="btn small"
@@ -489,6 +499,16 @@ else
                     }
                 </OptionList>
             </Field>
+
+            @* **Said as it is typed, and not only once it is written down**, which is the whole
+               difference between a report and a repair: nothing here refuses the save, and a GM
+               who means to write down an object the book does not allow still can. VehicleRanksNote
+               above states the two Control sentences; this is what says whether this object keeps
+               them. *@
+            @foreach (var fault in Session.Check(draft with { Name = DraftTitle }))
+            {
+                <p class="small muted spaced" role="status">@fault.Message</p>
+            }
 
             <div class="inline">
                 <button type="button" class="btn primary"

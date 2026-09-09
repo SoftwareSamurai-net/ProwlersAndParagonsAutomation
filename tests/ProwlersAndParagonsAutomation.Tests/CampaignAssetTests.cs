@@ -163,6 +163,129 @@ public sealed class CampaignAssetTests
                      _f.Costs.CampaignAssetPointsSpent(odd));
     }
 
+    // ── What Chapter 6 says about the object itself ───────────────────────────
+
+    /// <summary>
+    /// <b>A shared machine is held to p.96's two sentences about Control, exactly as a machine one
+    /// character owns is.</b> They are the same printed rule over the same rates, and the object
+    /// the campaign owns had neither of them: a GM could type Control −20 into the editor and the
+    /// only thing the screen said was that the object was comfortably inside its budget — which it
+    /// was, because a negative Control pays two Vehicle Points back a rank without limit.
+    ///
+    /// <para>The under-the-limit case is the positive control, without which a check that reported
+    /// every machine would pass both halves.</para>
+    /// </summary>
+    [Fact]
+    public void ASharedMachineIsHeldToTheTwoPrintedSentencesAboutControl()
+    {
+        var floor = _f.Rules.Assets.Characteristics.NegativeControlMinimum;
+
+        var below = _f.Validator.CheckSharedAsset(Vehicle() with { Speed = 20, Control = floor - 1 });
+        var above = _f.Validator.CheckSharedAsset(Vehicle() with { Speed = 4, Control = 3 });
+        var legal = _f.Validator.CheckSharedAsset(Vehicle() with { Speed = 20, Control = floor });
+
+        Assert.Equal("VEHICLE_CONTROL_BELOW_MINIMUM", Assert.Single(below).Code);
+        Assert.Equal("VEHICLE_CONTROL_ABOVE_HALF_SPEED", Assert.Single(above).Code);
+        Assert.Empty(legal);
+
+        // Named, so a GM reading a list of objects can tell which one it is about.
+        Assert.Contains("The Wing", below[0].Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A characteristic below zero pays Vehicle Points back, and that is now said.</b> p.96
+    /// opens Body, Speed and Weapons at nothing and you spend upward, so Body −20 buys twenty
+    /// points of features for nothing — the same exploit the character's own collections carry,
+    /// in the one record no sheet walk will ever reach.
+    ///
+    /// <para><b>Measured against the calculator rather than asserted</b>: the point of the finding
+    /// is that the figure beside it is genuinely lower, and a test that only counted findings
+    /// would not notice if it stopped being.</para>
+    /// </summary>
+    [Fact]
+    public void ACharacteristicBelowZeroPaysPointsBackAndIsReported()
+    {
+        var machine = Vehicle() with { Body = -20, Speed = 10 };
+
+        Assert.True(_f.Costs.CampaignAssetPointsSpent(machine)
+                    < _f.Costs.CampaignAssetPointsSpent(Vehicle() with { Body = 0, Speed = 10 }),
+            "a negative Body no longer pays Vehicle Points back, so this fixture proves nothing");
+
+        var found = Assert.Single(_f.Validator.CheckSharedAsset(machine));
+
+        Assert.Equal("NEGATIVE_RANK", found.Code);
+        Assert.Contains("Body -20", found.Message, StringComparison.Ordinal);
+
+        // Reported, never repaired: the figure still answers what the campaign says.
+        Assert.Equal(-10, _f.Costs.CampaignAssetPointsSpent(machine));
+    }
+
+    /// <summary>
+    /// <b>A feature these rules do not have, and one bought no times, are the same two findings a
+    /// machine on a sheet gets</b> — one vocabulary for one printed table. A base is checked off
+    /// pp.100–103's list and a vehicle off pp.96–100's, which is what the kind decides.
+    /// </summary>
+    [Fact]
+    public void AFeatureFaultIsReportedOffWhicheverTableTheKindNames()
+    {
+        var madeUp = Assert.Single(
+            _f.Validator.CheckSharedAsset(Vehicle() with
+            {
+                Features = [new SelectedAssetFeature("warp_nacelles")]
+            }));
+
+        Assert.Equal("UNKNOWN_ASSET_FEATURE", madeUp.Code);
+
+        // A vehicle feature is not a base feature: the same id off the wrong table is unknown.
+        var wrongTable = Assert.Single(
+            _f.Validator.CheckSharedAsset(Base() with
+            {
+                Features = [new SelectedAssetFeature("passengers")]
+            }));
+
+        Assert.Equal("UNKNOWN_ASSET_FEATURE", wrongTable.Code);
+
+        // And the positive control: off the right table it is not reported at all.
+        Assert.Empty(_f.Validator.CheckSharedAsset(Vehicle() with
+        {
+            Features = [new SelectedAssetFeature("passengers") { Units = 1 }]
+        }));
+
+        var nothingBought = Assert.Single(_f.Validator.CheckSharedAsset(Vehicle() with
+        {
+            Features = [new SelectedAssetFeature("passengers") { Units = -4 }]
+        }));
+
+        Assert.Equal("PER_UNIT_WITHOUT_UNITS", nothingBought.Code);
+    }
+
+    /// <summary>
+    /// <b>A headquarters is asked none of the vehicle questions</b>, because pp.100–103 give it no
+    /// characteristics to ask them about — the same reason
+    /// <see cref="CostCalculator.CampaignAssetPointsSpent"/> charges for none of them. A base
+    /// carrying a Body is somebody's payload being odd, not a rule being broken.
+    /// </summary>
+    [Fact]
+    public void ABaseIsAskedNoneOfTheVehicleQuestions() =>
+        Assert.Empty(_f.Validator.CheckSharedAsset(
+            Base() with { Body = -9, Speed = -9, Control = -99, Weapons = -9 }));
+
+    /// <summary>
+    /// <b>An object with no name at all is reported against its id</b> rather than against an
+    /// empty string. A machine on a sheet is refused for having no name, because a sheet
+    /// identifies one by its name; a campaign's object is identified by the id every contribution
+    /// holds, so there is always something to write the sentence about.
+    /// </summary>
+    [Fact]
+    public void AnObjectWithNoNameIsReportedAgainstItsId()
+    {
+        var found = Assert.Single(
+            _f.Validator.CheckSharedAsset(Vehicle() with { Name = "  ", Control = -99 }));
+
+        Assert.Equal(Id, found.SubjectId);
+        Assert.Contains(Id, found.Message, StringComparison.Ordinal);
+    }
+
     // ── The written-down shape ────────────────────────────────────────────────
 
     /// <summary>

@@ -231,6 +231,56 @@ public sealed class CampaignSharedBooksTests
     }
 
     /// <summary>
+    /// <b>What Chapter 6 says about the object itself is on the screen, and it is not a sentence
+    /// about the budget.</b> p.96 floors a negative Control at −3 and caps it at half the Speed,
+    /// and the shared panel prints <c>VehicleRanksNote</c> saying so — while nothing on the page
+    /// ever checked either. A GM could write down a machine with Control −20, which pays forty
+    /// Vehicle Points back, and read a figure comfortably inside the budget with no other word
+    /// said.
+    ///
+    /// <para><b>Both places, because both are where a GM looks.</b> The row is what they scan; the
+    /// editor is where they are typing, and a fault said only after the save is a fault said after
+    /// the mistake was made.</para>
+    ///
+    /// <para>The positive control is the ordinary object above: a page that printed the sentence
+    /// against every machine would satisfy this test and mean nothing.</para>
+    /// </summary>
+    [Fact]
+    public async Task WhatTheBookSaysAboutTheObjectItselfIsOnTheScreen()
+    {
+        await using var ordinary = await AGameWithAFundedObject();
+
+        Assert.DoesNotContain("Control cannot go below",
+            Shared(ordinary.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId))),
+            StringComparison.Ordinal);
+
+        await using var ctx = await AGameWithAFundedObject(asset: Wing with { Control = -20 });
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        var shared = Shared(page);
+
+        Assert.Contains("Control cannot go below", shared, StringComparison.Ordinal);
+        Assert.Contains("The Wing", shared, StringComparison.Ordinal);
+
+        // Reported, never repaired: the books still print what the campaign says, forty points
+        // paid back and all.
+        Assert.Contains($"{8 + 10 - 40}/", shared, StringComparison.Ordinal);
+
+        // And in the editor, where the typing happens rather than where the reading does.
+        await Control(page, "Edit").ClickAsync(new MouseEventArgs());
+
+        var editor = page.FindAll("section.panel")
+            .Single(s => s.TextContent.Contains("bought from zero", StringComparison.Ordinal))
+            .TextContent;
+
+        Assert.Contains("Control cannot go below", editor, StringComparison.Ordinal);
+
+        // It is a report and not a bar: the save is still offered.
+        Assert.NotNull(page.FindAll("button").Single(b => b.TextContent.Trim() == "Save"));
+    }
+
+    /// <summary>
     /// <b>A figure too large for the arithmetic is the same answer as a feature these rules do
     /// not have</b>, and it is reachable by typing rather than by meeting a payload from another
     /// build: the editor prices the draft on every change, so a GM who types a Body and a Speed
