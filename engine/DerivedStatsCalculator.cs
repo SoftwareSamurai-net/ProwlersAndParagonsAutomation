@@ -250,9 +250,18 @@ public sealed class DerivedStatsCalculator
     /// sheet cannot know, and inventing the point would be this engine answering a question only
     /// the campaign can. The campaign slice is where that is answered.</para>
     ///
-    /// <para><b>Two bases with the feature grant two points</b>, which the page neither states nor
-    /// forbids, and which follows from the grant being per headquarters. Nothing says a character
-    /// may not own two, and the arithmetic is the one the entry prints.</para>
+    /// <para><b>Two bases with the feature still grant one point, and the page is why.</b> p.103
+    /// prints a condition and a flat grant — "If you and your teammates have a headquarters with
+    /// this feature, you each gain 1 point of Teamwork at the start of every issue" — and the one
+    /// axis it multiplies on is <em>characters</em>, which is what the entry's own
+    /// <c>granted_to</c> records: "every character who shares the headquarters". Counting the
+    /// bases multiplies on an axis the sentence never mentions, and a rate the book does not print
+    /// is a rule this project would be making up — the same answer the Control cap gets about
+    /// rounding, and the same reason.
+    ///
+    /// <b>It is a silence rather than a settled reading</b>, and it is left as one: a GM who rules
+    /// that a second base pays a second point is not contradicted by anything on the page. What
+    /// the engine must not do is answer as though the page had said so.</para>
     /// </summary>
     public int CalculateTeamwork(CharacterSheet sheet)
     {
@@ -260,9 +269,10 @@ public sealed class DerivedStatsCalculator
 
         var teamwork = _rules.Assets.Teamwork;
 
-        return sheet.Headquarters.Count(hq => hq.Features.Any(
+        return sheet.Headquarters.Any(hq => hq.Features.Any(
                    f => string.Equals(f.FeatureId, teamwork.GrantedByFeature, StringComparison.Ordinal)))
-             * teamwork.PointsPerIssue;
+             ? teamwork.PointsPerIssue
+             : 0;
     }
 
     // ── Baseline rank ─────────────────────────────────────────────────────
