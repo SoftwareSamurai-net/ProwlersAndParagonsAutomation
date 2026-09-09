@@ -1048,6 +1048,11 @@ public sealed class ValidationIssueStructureTests
         ["UNKNOWN_GEAR_FEATURE"]            = [ValidationSubject.GearFeature],
         ["GEAR_FEATURE_NEEDS_GRADE"]        = [ValidationSubject.GearFeature],
         ["GEAR_COST_AT_MINIMUM"]            = [ValidationSubject.Gear],
+
+        // The item, because that is the thing whose id is wrong and the thing a screen can put
+        // in front of somebody. There is no Options list: the right row out of 108 is a question
+        // about what the character carries, not a value to pick — see CheckGear.
+        ["UNKNOWN_GEAR_CATALOGUE_ROW"]      = [ValidationSubject.Gear],
         ["TWO_FISTED_PAIR_WITHOUT_POWER"]   = [ValidationSubject.Gear],
         ["UNKNOWN_PERK"]                    = [ValidationSubject.Character],
         ["GEAR_WITHOUT_NAME"]               = [ValidationSubject.Character],
@@ -1397,6 +1402,21 @@ public sealed class ValidationIssueStructureTests
                     Features = [new("upgraded")],
                     PairedUnderTwoFisted = true
                 });
+
+                // A Chapter 6 catalogue row that does not resolve. Reported, never repaired: the
+                // id is what makes an item a Battle Axe rather than a name somebody typed.
+                sheet.Gear.Add(new SelectedGear("Battle Axe")
+                {
+                    CatalogueId = GearCatalogue.WeaponPrefix + "battel_axe"
+                });
+
+                // And one that does, so the finding above is about a wrong id rather than about
+                // recording an id at all.
+                sheet.Gear.Add(new SelectedGear("Baton")
+                {
+                    CatalogueId = GearCatalogue.WeaponPrefix + "baton"
+                });
+
                 return sheet;
             }
 

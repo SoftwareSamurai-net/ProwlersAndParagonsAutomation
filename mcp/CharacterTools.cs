@@ -95,6 +95,13 @@ public sealed class CharacterTools
 
         _ = _rules.Powers.Count;
         _ = _rules.CreationRules.TraitRankLimits.Minimum;
+
+        // Chapter 6's equipment, which no catalogue above reaches: a character submitted to this
+        // server can name an armour or weapon row, and the validator resolves it. A file the tools
+        // reach only through a submitted character is exactly the one a partial rules directory
+        // would take down mid-conversation rather than at startup.
+        _ = _rules.Catalogue.Rows.Count;
+
         _ = _guide().Length;
     }
 

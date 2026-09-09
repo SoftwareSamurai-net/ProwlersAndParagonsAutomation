@@ -57,6 +57,19 @@ public sealed class RulesLoadingTests
         models.AddRange(_f.Rules.Sources);
         models.Add(_f.Rules.CreationRules);
 
+        // Chapter 6's equipment is one object rather than a list, and its nested models are where
+        // an initialised collection is most likely to come back null: the file leaves most of the
+        // Weapon Features glossary's fields out on most entries.
+        models.Add(_f.Rules.Equipment);
+        models.Add(_f.Rules.Equipment.ArmorTable);
+        models.AddRange(_f.Rules.Equipment.ArmorTable.Rows);
+        models.AddRange(_f.Rules.Equipment.ArmorFeatures);
+        models.AddRange(_f.Rules.Equipment.WeaponFeatures);
+        models.AddRange(_f.Rules.Equipment.WeaponTables);
+        models.AddRange(_f.Rules.Equipment.WeaponTables.SelectMany(t => t.Weapons));
+        models.Add(_f.Rules.Equipment.EquipmentCatalogue);
+        models.AddRange(_f.Rules.Equipment.EquipmentCatalogue.Items);
+
         Assert.NotEmpty(models);
 
         var nulls = new List<string>();
@@ -121,9 +134,10 @@ public sealed class RulesLoadingTests
             _ = _f.Rules.Tiers; _ = _f.Rules.Abilities; _ = _f.Rules.Talents; _ = _f.Rules.Powers;
             _ = _f.Rules.Pros; _ = _f.Rules.Cons; _ = _f.Rules.Flaws; _ = _f.Rules.Perks;
             _ = _f.Rules.GearFeatures; _ = _f.Rules.Sources; _ = _f.Rules.CreationRules;
+            _ = _f.Rules.Equipment;
         });
 
         Assert.Null(exception);
-        Assert.Equal(11, RulesRepository.DataFileNames.Count);
+        Assert.Equal(12, RulesRepository.DataFileNames.Count);
     }
 }

@@ -285,6 +285,25 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   again for the same account key, because `Accounts` answers who is here out of its own memory and
   would go on saying yes. There is no cheaper hook to pull — `IIdentitySource` is one method and
   carries no way to say an answer has gone stale.
+- **Chapter 6's gear catalogue is the third group, and it costs no request.** The 108 rows — nine
+  armour, sixty-three weapons, thirty-six of p.91's items — are matched in the browser out of the
+  rules the app fetched at boot, under a **"Gear from the book"** heading, capped at eight the way
+  the Powers are and counted separately so a word matching eight Powers cannot crowd every weapon
+  off the bottom. The era and the printed features are matched and not shown, exactly as a Power's
+  tags are: somebody hunting for a two-handed weapon should not have to already know which ones
+  are. The book's passages remain the only thing in this app that goes over the network per
+  keystroke.
+- **Choosing a gear row goes to the Gear step and adds nothing to the character.** It is the same
+  request shape as choosing a Power, and this is the case where the rule is easiest to lose: mundane
+  gear is free, so a palette that simply added the axe would look harmless and would still be a
+  second place a character is edited. What arrives on the step is the row's **name in the filter
+  box**, not a list narrowed behind an empty one — a list cut short by something the box does not
+  show reads as broken and cannot be widened again. `OptionList.Query` seeds it, applied on change
+  so typing over it survives the next render.
+- **The group heading is per-run now, and the steps and the Powers still carry none.** They are the
+  app's own controls and were the whole of the palette for a long time; heading them would be
+  furniture on the two things nobody needs told apart. The book's rows are the publisher's words and
+  the gear rows lead somewhere else entirely, so both are marked off.
 - **The rows are appended, never interleaved**, so an answer arriving cannot move the row the
   reader has Enter poised over. One flat list, one index: `aria-activedescendant` names a row by
   its position and the arrow keys move through the same positions, so a second list beside it would
@@ -306,6 +325,50 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   alternative and was refused for now: it needs a query string parsed back out of the address by
   hand, and a second way into a page whose one entry point is its own form, for the one thing it
   buys, which is a link somebody could share.
+
+## The Gear step offers Chapter 6's catalogue beside the box you can type in
+
+Two lists, and the free-text box is not second best: p.91 calls its own list "examples, not a
+catalogue of prices", so a character may carry a letter from their mother and typing one is still
+how that is done. What the catalogue adds is the printed bonus and the printed features, which
+somebody typing "Battle Axe" would otherwise have to look up in the book.
+
+- **Everything on both lists is free, armour and weapons included**, and the page says so in its
+  opening line. Nothing on this step spends a Hero Point except a custom feature or a Pro, which is
+  what it spent before.
+- **An armour row shows the Armor rank it would grant *this* character**, on the picker row and
+  again beside the item once it is chosen. That is the figure neither page prints: p.88 gives the
+  rank as Toughness plus the suit's bonus and p.87 caps the Toughness half at the Gear Limit, so
+  which suit is worth taking depends on the wearer. `DerivedStatsCalculator` answers it and this
+  page prints the answer — **nothing is added to the Powers tab**, because a suit is free mundane
+  kit and an Armor Power costs Hero Points. See [`rules-engine.md`](rules-engine.md).
+- **The chosen row is recorded as an id, and the line is rendered from `gear.json`.** A sheet that
+  stored the bonus would be a second copy of the rulebook's answer.
+- **`ProConPicker`'s gear scope filters now, and used to fall through to everything.** p.93 names
+  twenty-four options for gear and each records that on itself, so the Item Con — which the page
+  pointedly leaves off that list, and which `CostCalculator` refuses to credit — is no longer
+  offered on a sword. Overkill and Weak are on the page's list and are still not offered, because
+  neither has a rank to reduce on a piece of gear.
+- **The right-hand column on a catalogue row is never a price**, since none of it is bought. It
+  carries the printed bonus, or the era where there is no bonus.
+- **Two of p.91's items have a bonus that is only for one kind of roll, and every surface that
+  prints the figure prints the clause.** The Crowbar's +4 is for "Might rolls made to force things
+  open or apart" and the Climbing Claws' +2 for climbing a natural surface; the row has carried
+  `BonusAppliesTo` since the catalogue was built, and while nothing read it a sheet said
+  `Crowbar +4` beside `Battle Axe +3` — a general bonus the book does not grant, offering the
+  crowbar as the better weapon.
+- **The palette's request is taken on `Commands.Changed` as well as in `OnInitialized`**, for the
+  reason the `/rules` bullet further down gives at length: `NavigateTo("build/gear")` from
+  `build/gear` is a no-op, Blazor reuses the instance, and a request read on initialisation alone
+  is never read at all for the likeliest reader of the lot — somebody choosing gear who opens the
+  palette to look a weapon up. The step unsubscribes on dispose, and its guard renders the page
+  **before** the row is chosen and asserts on that same instance.
+
+**The two lists are `.catalogue` and `.customising`**, and the classes are load-bearing for the
+tests rather than for the stylesheet: an unscoped `.options-filter input` on this page now types
+into the first list and reads the rows of both, which is exactly how `AWordOnlyInTheDescriptionFindsTheRow`
+came to assert that thirteen unfiltered rows all contained a word nobody had filtered on.
+
 
 ## The sheet as a document, at `/sheet`
 

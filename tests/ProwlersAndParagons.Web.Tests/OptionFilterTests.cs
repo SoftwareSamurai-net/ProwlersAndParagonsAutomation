@@ -239,14 +239,27 @@ public sealed class OptionFilterTests
         Assert.NotNull(word);
 
         var page = Page(ctx, which);
-        page.Find(".options-filter input").Input(word);
 
-        var rows = page.FindAll(".options .option");
+        // **Scoped, because the Gear step has two lists now** — Chapter 6's catalogue and the
+        // custom features — and an unscoped selector types into the first and reads the rows of
+        // both. That is not a detail: it made this test assert that thirteen unfiltered rows all
+        // contained a word nobody had filtered on.
+        var scope = Scope(which);
+
+        page.Find($"{scope}.options-filter input").Input(word);
+
+        var rows = page.FindAll($"{scope}.options .option");
 
         Assert.NotEmpty(rows);
         Assert.All(rows, row =>
             Assert.Contains(word, row.TextContent, StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// Which list on the page this case is about. Empty for the two tabs that have one; the Gear
+    /// step has two, and the custom features are the list with descriptions on it.
+    /// </summary>
+    private static string Scope(string which) => which == "gear" ? ".customising " : "";
 
     /// <summary>The tab holding one of the filtered lists, driven to where the list exists.</summary>
     private static IRenderedComponent<Microsoft.AspNetCore.Components.IComponent> Page(

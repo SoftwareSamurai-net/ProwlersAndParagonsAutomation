@@ -114,4 +114,49 @@ public sealed class ProConApplicability
     /// <summary>Generic Cons that may be applied to this Power, in rules-file order.</summary>
     public IReadOnlyList<ConModel> ConsFor(PowerModel power) =>
         _rules.Cons.Where(c => IsApplicable(c, power)).ToList();
+
+    // ── Gear ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The <c>applicable_to</c> value a Pro or Con carries when p.93 names it for gear.
+    ///
+    /// <para>The same shape as <c>"abilities"</c>: what an option may be applied to is stated
+    /// inside the option, and this asks the option rather than curating a list here.</para>
+    /// </summary>
+    public const string GearTarget = "gear";
+
+    /// <summary>Generic Pros p.93 names for gear, in rules-file order.</summary>
+    public IReadOnlyList<ProModel> ProsForGear() => [.. _rules.Pros.Where(AppliesToGear)];
+
+    /// <summary>Generic Cons p.93 names for gear, in rules-file order.</summary>
+    public IReadOnlyList<ConModel> ConsForGear() => [.. _rules.Cons.Where(AppliesToGear)];
+
+    /// <summary>
+    /// Whether this option may be applied to a piece of gear.
+    ///
+    /// <para><b>Two rules, and only the first comes from the data.</b> p.93 names twenty-four
+    /// options as the ones commonly applied to gear, and <c>applicable_to</c> records that on each
+    /// one — so the picker filters gear the way it already filters Abilities, instead of falling
+    /// through to the whole list. That fall-through is why the Item Con used to be on offer for an
+    /// item: <c>item</c> is not on p.93's list, and the page's own argument for not crediting it is
+    /// that it is absent from the list. An option nobody may apply is not one to offer.</para>
+    ///
+    /// <para><b>The second rule is that a rate reduction has nothing to reduce here.</b> Overkill
+    /// and Weak <em>are</em> on p.93's list and are marked accordingly, because the data
+    /// transcribes the page. But Ch.2 defines both as a change to a Power's cost <em>per rank</em>,
+    /// a piece of gear has no rank, and <see cref="CostCalculator"/> has always answered 0 for
+    /// either of them on anything rankless. Offering a player a Con that provably costs and
+    /// discounts nothing is offering a decision with no consequence, so it is asked of the price —
+    /// <c>cost_type</c> "special" is exactly the two of them — rather than by naming two ids here.
+    /// The page does not say what either should be worth; when it is decided, this is the one
+    /// place to change.</para>
+    /// </summary>
+    private static bool AppliesToGear(IGenericProCon option) =>
+        option switch
+        {
+            ProModel p => p.ApplicableTo.Contains(GearTarget, StringComparer.Ordinal),
+            ConModel c => c.ApplicableTo.Contains(GearTarget, StringComparer.Ordinal),
+            _ => false
+        }
+        && !string.Equals(option.CostType, "special", StringComparison.Ordinal);
 }

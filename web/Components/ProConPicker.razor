@@ -147,9 +147,11 @@
 
         /// <summary>
         /// A piece of gear. Ch.6: Pros and Cons "cost the same when applied to gear as
-        /// when applied to Powers", and the page names no further constraint, so the
-        /// Power list stands. Gear floors at 0 HP rather than 1, but that is
-        /// CostCalculator's business, not this component's.
+        /// when applied to Powers" — the price is the same, but not the list. p.93 names
+        /// twenty-four options as the ones commonly applied to gear, and each one records
+        /// that on itself, so this filters like the other two rather than falling through
+        /// to everything. Gear floors at 0 HP rather than 1, but that is CostCalculator's
+        /// business, not this component's.
         /// </summary>
         Gear
     }
@@ -204,6 +206,16 @@
                 // Each option's entry says what it may be applied to. Two Cons name
                 // Abilities; no Pro does.
                 Target.Ability => all.Where(NamesAbilities).ToList(),
+
+                // p.93's twenty-four, less the two the engine cannot price on something with
+                // no rank. Asked of ProConApplicability rather than filtered here, for the
+                // reason at the top of this file: which options are on offer is never this
+                // component's answer. This case used to fall through to `all`, and that is
+                // how the Item Con — which p.93 pointedly does not list — came to be
+                // offered on a sword.
+                Target.Gear => IsPro
+                    ? Session.Applicability.ProsForGear().Cast<IGenericProCon>().ToList()
+                    : Session.Applicability.ConsForGear().Cast<IGenericProCon>().ToList(),
 
                 _ => all
             };

@@ -108,7 +108,7 @@ as in scope. **Nothing here is a defect.**
 
 - [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
 
-- [ ] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment become mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle and a headquarters in their own currencies, the sheet prints them, the palette offers them, and the fight reads scenery Structure. Five design questions the reviews raised are in the entry
+- [ ] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment become mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle and a headquarters in their own currencies, the sheet prints them, the palette offers them, and the fight reads scenery Structure. the gear catalogue half landed 2026-09-10 (verified by the orchestrator: the Gear-Limit cap and the budget-silencing flag each went red under mutation); vehicles, headquarters, gadgets, the fight's scenery and the campaign-side pooling remain, and the owner's answers to the design questions are in the entry
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -2114,6 +2114,49 @@ makes it do something. In order of what unblocks the most:
    `scenery_table`; knockback's solid object likewise; throwing's weight rank from
    `massive_objects_table` now that Ch.2 p.17 settles which column it is. A vehicle is mundane gear
    under the Gear Limit (`vehicular_gear_limit`), so the fight reuses the cap it has.
+
+**The owner answered the design questions on 2026-09-09, and they bind steps 3–5**: a shared
+vehicle or headquarters lives *on the campaign*, funded by its members — each sheet records the
+Hero Points it put in and the campaign sums the budget, so a `CharacterSheet` holds a contribution
+and never the pooled object; a Villain's Teamwork from Training Facilities is treated exactly as
+Resolve is — computed, never quoted, never spent; the Gear Limit's default is honoured always and a
+raised one follows Immortality's pattern on the campaign.
+
+**Steps 1 and 2 landed for `gear.json` on 2026-09-10, and the Item Con question is answered in
+code.** The file is on `DataFileNames` and off the exemption list, which `RulesSourceTests`,
+`RulesFileCoverageTests`, `RulesLoadingTests` and `EquipmentDataTests` hold together — removing it
+from either side alone fails five tests. `GearCatalogue` offers every row (armour, shields, the
+weapon-table copy, the thirty-six mundane items); the Gear step in the browser and the terminal
+picks from it; the ⌘-K palette's "Gear from the book" group offers rows under its own cap of eight
+so a word that matches eight Powers cannot push every weapon off the bottom; `OptionList.Query`
+seeds the filter the palette lands on, and a reader already on the Gear step is filtered too, which
+the first cut missed in exactly the way `/rules` once did. **The Item Con is not credited**:
+`GearCost` skips the Con `gear.json` names as `item_con_id`, because p.93 says every piece of gear
+carries it and then leaves it out of the Cons it lists as commonly applied — the Con still prints,
+and a Power's own Item Con is untouched. **p.93's twenty-four generic Pros and Cons** are marked
+`applicable_to: gear` and asserted by id in both directions, since "Area of Effect" is a printed
+name two Pros share. **A worn suit's Armor rank** is p.87's order — the wearer's Toughness or their
+own Armor Power, whichever is higher, capped at the effective Gear Limit, *then* the suit's bonus —
+and `DerivedStatsCalculator.ArmorFromGear` prints it beside the suit rather than buying a Power;
+two suits grant the better one. An unknown catalogue id is `UNKNOWN_GEAR_CATALOGUE_ROW`, an Error,
+kept rather than dropped, and it no longer silences the Hero Point budget check — the review found
+that a misspelled id had bought exactly that silence. The review also found the crowbar's +4 and the
+climbing claws' +2 printed bare on every surface when p.91 qualifies both in the same sentence;
+`BonusAppliesTo` is now read by all of them. The payload grew by 13 KiB over the wire — measured,
+and recorded in item 5's terms rather than as a figure here.
+
+**One question the review raised is left open for the owner, and the code takes reading (a)
+meanwhile**: a wearer whose own Armor Power exceeds the Gear Limit gets *less* from a suit than they
+have without it — Armor 12d in Plate is `min(12, 6) + 2 = 8d`, and the sheet prints 8 beside a Power
+of 12. Reading (a), as built: p.87's cap binds a substituted Power rank too, so a superhuman does
+not benefit from mundane armour. Reading (b): p.88 *grants* a rank and never removes one, so the
+figure floors at the wearer's own Power. The interpretation is recorded on `gear.json`'s armour
+entry, and `ArmourRankTests` pins the 8 so the choice is deliberate and visible.
+
+**Still to do**: steps 3 and 4 (vehicles, headquarters and gadgets on the sheet, and the palette for
+the other three files), step 5 (the fight reads Chapter 7), and then the campaign-side half of the
+owner's pooling answer — the campaign object that sums its members' contributions, on the accounts
+server and the campaign page.
 
 ## Completed work
 

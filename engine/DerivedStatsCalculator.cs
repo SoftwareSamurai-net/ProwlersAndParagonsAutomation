@@ -379,4 +379,101 @@ public sealed class DerivedStatsCalculator
 
         return sheet.GetAbilityRank(source.DefaultRankAbility);
     }
+
+    // ── Armour worn as mundane gear ──────────────────────────────────────────
+
+    /// <summary>
+    /// The Gear Limit in force for this character when nothing has raised it: <b>6d</b>, Ch.6
+    /// p.87.
+    ///
+    /// <para><b>It is a figure and not a switch, and it lives here rather than in a rules file
+    /// this engine can read, which is worth saying plainly.</b> The Gear Limit is extracted, and
+    /// it is extracted in <c>data/rules/play/equipment.json</c> — the play store, which
+    /// <c>engine/</c> may not read and <c>play/</c> cannot do without. The alternative was a
+    /// second transcription of one number in <c>gear.json</c>, which is the duplication the
+    /// weapon-table copy rule already carries for sixty-three rows and would be a poor trade for
+    /// one. So the figure is here and
+    /// <c>ArmourRankTests.TheDefaultGearLimitIsThePlayStoresAndTheBooksSameFigure</c> holds it
+    /// equal to the play store's, which is itself held to p.87 — the same shape as the copy rule,
+    /// a number instead of a table.</para>
+    /// </summary>
+    public const int DefaultGearLimitRank = 6;
+
+    /// <summary>
+    /// The highest effective Trait rank mundane equipment will carry for this character: the
+    /// table's raised limit if it has adopted one, or <see cref="DefaultGearLimitRank"/>.
+    ///
+    /// <para><b>Read the limit through here and nowhere else</b>, for the reason
+    /// <see cref="EffectiveTraitCap"/> is read through one method: the raised limit is a pair —
+    /// a switch and a rank — and a second spelling of
+    /// <c>table.RaisedGearLimit ? table.GearLimitRank : 6</c> is how one surface ends up
+    /// disagreeing with the figure printed beside it. A rank left on the table while the switch
+    /// is off is a figure the table has not adopted; <c>play/</c> reads it that way and so does
+    /// this.</para>
+    /// </summary>
+    public static int EffectiveGearLimit(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        return sheet.CampaignTable is { RaisedGearLimit: true, GearLimitRank: { } rank }
+            ? rank
+            : DefaultGearLimitRank;
+    }
+
+    /// <summary>
+    /// The Armor rank a worn suit grants this character, or null if they are wearing none.
+    ///
+    /// <para><b>p.88 states the rank and p.87 caps it, so the answer is neither page alone.</b>
+    /// p.88: wearing a suit hands you the Armor Power at your Toughness plus the suit's Armor
+    /// Bonus, measured from your own Armor Power instead where you already have one. p.87: the
+    /// Gear Limit is the maximum Trait rank you can apply when using mundane equipment that boosts
+    /// your Traits "(usually armor and weapons)", and its worked example fixes the order of the
+    /// arithmetic at limit-plus-bonus rather than trait-plus-bonus-then-capped. So the rank is
+    /// <c>min(base, gear limit) + bonus</c>, and a 10d-Toughness Hero in Plate is 8d in a standard
+    /// game, not 12d. p.87 says outright that this is what makes mundane armour less useful to a
+    /// superhuman, so the surprising half is the printed intent. See
+    /// <c>docs/guide/rules-engine.md</c>, which carries the whole argument.</para>
+    ///
+    /// <para><b>It is a figure this reports, not a Power it buys.</b> Nothing here touches
+    /// <see cref="CharacterSheet.SelectedPowers"/>: mundane gear is free and untracked, an Armor
+    /// Power on the sheet would cost Hero Points, and the engine does not make design decisions
+    /// about somebody's character. A host prints the rank beside the suit.</para>
+    ///
+    /// <para><b>Only the best suit answers</b>, because a character wearing two is wearing one and
+    /// carrying another, and adding them would pay twice for a thing the page grants once.</para>
+    /// </summary>
+    public int? ArmorFromGear(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var best = sheet.Gear
+            .Select(g => g.CatalogueId is null ? null : _rules.Catalogue.Find(g.CatalogueId))
+            .Where(r => r is { Kind: GearCatalogueKind.Armor })
+            .Select(r => r!.BonusDice ?? 0)
+            .DefaultIfEmpty(-1)
+            .Max();
+
+        return best < 0 ? null : ArmorRankInSuit(sheet, best);
+    }
+
+    /// <summary>
+    /// The rank a suit worth <paramref name="armorBonusDice"/> grants this character.
+    ///
+    /// <para>Public so a host can show what a row would be worth <em>before</em> it is chosen,
+    /// which is the whole use of the figure on a picker. The base is the wearer's Toughness or
+    /// their own Armor Power's effective rank, whichever is higher — p.88's second sentence, so
+    /// "an armoured hero in a borrowed shell is not reduced to an ordinary person's baseline" —
+    /// and a Power's rank substituted in that way is a Trait rank like any other and is capped the
+    /// same.</para>
+    /// </summary>
+    public int ArmorRankInSuit(CharacterSheet sheet, int armorBonusDice)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var toughness = GetTraitRank("toughness", sheet);
+
+        var ownArmor = sheet.GetPower("armor") is { } armor ? GetEffectiveRank(armor, sheet) : 0;
+
+        return Math.Min(Math.Max(toughness, ownArmor), EffectiveGearLimit(sheet)) + armorBonusDice;
+    }
 }

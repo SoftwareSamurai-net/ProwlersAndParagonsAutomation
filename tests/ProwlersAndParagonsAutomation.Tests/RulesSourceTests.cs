@@ -57,18 +57,25 @@ public sealed class RulesSourceTests
     /// entry has to earn its place, because "the list has to match what is shipped" is the whole
     /// point of that check</b> — an exemption is how it stops being one.
     ///
-    /// <para><c>meta.json</c> is provenance rather than rules. The other four are Chapter 6 —
-    /// <c>gear.json</c> pp.88–93, and <c>gadgets.json</c>, <c>vehicles.json</c> and
-    /// <c>headquarters.json</c> pp.94–103 — extracted before anything consumes them: the data is
-    /// verified first and wired up second, which is the order the 141 Powers were done in and the
-    /// order that made them trustworthy. <c>EquipmentDataTests</c> and <c>Chapter6RulesDataTests</c>
-    /// read them meanwhile. Putting one on <see cref="RulesRepository.DataFileNames"/> makes every
-    /// browser fetch it before its first render, so it is a deliberate act by the slice that adds
-    /// a collection for it — at which point its entry comes out, and the guard below fails if only
-    /// one of the two happens.</para>
+    /// <para><c>meta.json</c> is provenance rather than rules. The other three are Chapter 6
+    /// pp.94–103 — <c>gadgets.json</c>, <c>vehicles.json</c> and <c>headquarters.json</c> —
+    /// extracted before anything consumes them: the data is verified first and wired up second,
+    /// which is the order the 141 Powers were done in and the order that made them trustworthy.
+    /// <c>Chapter6RulesDataTests</c> reads them meanwhile. Putting one on
+    /// <see cref="RulesRepository.DataFileNames"/> makes every browser fetch it before its first
+    /// render, so it is a deliberate act by the slice that adds a collection for it — at which
+    /// point its entry comes out, and the guard below fails if only one of the two happens.</para>
+    ///
+    /// <para><b><c>gear.json</c> came off this list, and it is the worked example of that pairing.</b>
+    /// The Gear step picks from its armour, weapon and equipment rows and the palette offers them,
+    /// so <see cref="RulesRepository.Equipment"/> exists and every browser fetches the file — about
+    /// 73 KiB uncompressed and 13 KiB gzipped, on a rules payload that was about 232 KiB, so
+    /// roughly a third more. <b>Approximate on purpose</b>: a figure to the byte in a comment is one
+    /// nothing re-counts, and every data edit moves it. Removing the exemption without adding the
+    /// collection, or the reverse, fails one of the two checks below.</para>
     /// </summary>
     private static readonly string[] NotLoadedByTheRepository =
-        ["meta.json", "gear.json", "gadgets.json", "vehicles.json", "headquarters.json"];
+        ["meta.json", "gadgets.json", "vehicles.json", "headquarters.json"];
 
     /// <summary>
     /// DataFileNames is the contract a self-loading host works from. If a rules file is
@@ -78,7 +85,7 @@ public sealed class RulesSourceTests
     /// <remarks>
     /// <para><b>Two kinds of file are off the list on purpose, and each one is named rather than
     /// filtered by a pattern.</b> <c>meta.json</c> is provenance rather than rules. The three
-    /// Chapter 6 files are <em>extracted but not yet consumed</em>: putting one on the contract
+    /// remaining Chapter 6 files are <em>extracted but not yet consumed</em>: putting one on the contract
     /// makes the browser fetch it before its first render, which is a decision about the payload
     /// and belongs to the slice that teaches <c>CostCalculator</c> what a vehicle or a
     /// headquarters costs — not to the slice that read the pages. <see cref="Chapter6RulesDataTests"/>
@@ -138,6 +145,7 @@ public sealed class RulesSourceTests
         Assert.NotEmpty(rules.GearFeatures);
         Assert.NotEmpty(rules.Sources);
         Assert.NotEmpty(rules.CreationRules.OptionalPackages);
+        Assert.NotEmpty(rules.Equipment.ArmorTable.Rows);
     }
 
     // ── Failure is loud ──────────────────────────────────────────────────────

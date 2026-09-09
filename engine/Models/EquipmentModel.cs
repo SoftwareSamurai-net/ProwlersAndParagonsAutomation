@@ -5,13 +5,17 @@ namespace ProwlersAndParagonsAutomation.Engine.Models;
 /// glossary, the mundane equipment list, Custom Gear and the Pros and Cons rule for gear.
 /// Read from <c>data/rules/gear.json</c>.
 ///
-/// <para><b>Nothing loads this yet, and that is deliberate.</b> The file is not on
-/// <see cref="RulesRepository.DataFileNames"/>, so no host fetches it and
-/// <c>RulesRepository</c> exposes no collection for it. Wiring it up — and deciding what the
-/// Gear step does with an armour row — is the consumer slice's decision. These types exist so
-/// the data is <em>read</em> by something strict: <c>EquipmentDataTests</c> deserializes the
-/// file into them with <c>JsonUnmappedMemberHandling.Disallow</c>, which is what stops a key
-/// nobody models from sitting in a rules file looking like a source of truth.</para>
+/// <para><b>This is loaded now.</b> <c>gear.json</c> is on
+/// <see cref="RulesRepository.DataFileNames"/>, so every self-loading host fetches it before
+/// its first render, and <see cref="RulesRepository.Equipment"/> answers it.
+/// <see cref="GearCatalogue"/> flattens the three pickable tables — armour, weapons, p.91's
+/// items — into rows the Gear step and the command palette offer.</para>
+///
+/// <para>The data is still <em>read</em> by something stricter than the repository:
+/// <c>EquipmentDataTests</c> deserializes the file into these types with
+/// <c>JsonUnmappedMemberHandling.Disallow</c>, which is what stops a key nobody models from
+/// sitting in a rules file looking like a source of truth. The repository stays lenient at
+/// runtime, like it is for every other file.</para>
 ///
 /// <para><b>The three weapons tables here are a copy.</b> The originals are in
 /// <c>data/rules/play/equipment.json</c>, which <c>engine/</c> may not read and which
@@ -55,14 +59,16 @@ public record EquipmentDataModel
 
 /// <summary>
 /// The file's own account of itself: what it holds, why it is here rather than in the play
-/// store, why the weapons tables are duplicated, and what was deliberately left out.
+/// store, why the weapons tables are duplicated, what reads it, and what was deliberately left
+/// out.
 /// </summary>
 public record EquipmentHeaderModel
 {
     public string WhatThisIs { get; init; } = "";
     public string WhyHereAndNotInThePlayStore { get; init; } = "";
     public string TheWeaponTablesAreACopyAndThatIsDeliberate { get; init; } = "";
-    public string NotYetLoaded { get; init; } = "";
+    /// <summary>What reads this file. It was "not_yet_loaded" while nothing did.</summary>
+    public string LoadedBy { get; init; } = "";
     public string WhyItIsCalledGearAndNotEquipment { get; init; } = "";
     public string PlacementNote { get; init; } = "";
     public IReadOnlyList<string> VerifiedFieldsClosedList { get; init; } = [];

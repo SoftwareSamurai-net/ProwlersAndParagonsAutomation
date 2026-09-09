@@ -45,6 +45,9 @@ public sealed class CharacterSession
     public ProConApplicability Applicability { get; }
     public SourceGrouping Grouping { get; }
 
+    /// <summary>Chapter 6's armour, weapons and equipment as pickable rows.</summary>
+    public GearCatalogue Catalogue => Rules.Catalogue;
+
     public CharacterSheet Sheet { get; private set; } = new();
 
     /// <summary>
