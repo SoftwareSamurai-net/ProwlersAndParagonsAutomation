@@ -108,7 +108,8 @@ as in scope. **Nothing here is a defect.**
 
 - [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
 
-- [ ] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment become mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle and a headquarters in their own currencies, the sheet prints them, the palette offers them, and the fight reads scenery Structure. the gear catalogue half landed 2026-09-10 (verified by the orchestrator: the Gear-Limit cap and the budget-silencing flag each went red under mutation); the fight reads Chapter 7's scenery since 2026-09-10 (verified by the orchestrator: the smash-through tie went red under mutation once the review stood a fixture on it); vehicles, headquarters and Gadgets on the sheet since 2026-09-10 (verified by the orchestrator: the headquarters currency and the base-budget boundary each went red under mutation); the campaign-side pooling remains, and the owner's answers to the design questions are in the entry
+- [x] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment became mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle, a base and a Gadget in their own currencies, the sheet prints them, the palette offers them, the fight reads scenery Structure, and a campaign holds the shared objects its members fund. Verified by the orchestrator 2026-09-10 across four pull requests: the Gear-Limit cap and the budget-silencing flag, the knockback's smash-through tie, the headquarters currency and the base-budget boundary, and the shared object's id filter and kind clause each went red under mutation
+- [ ] **[33](#33-decisions-chapter-6-left-to-the-owner)** — twelve design questions the four Chapter 6 reviews raised and nothing in the book settles; each is built one way meanwhile and says which
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -2212,8 +2213,68 @@ checkable; and whether two copies of the same flat feature on one vehicle (two S
 Vehicle Points) is a thing to refuse, where p.96 says "any number of features" and prints no rule
 either way.
 
-**Still to do**: the campaign-side half of the owner's pooling answer — the campaign object that sums
-its members' contributions, on the campaign page.
+**The campaign-side half landed on 2026-09-10, and item 32 is closed.** A shared vehicle or base
+lives inside the campaign's own opaque payload — `Campaign.Assets`, absent when the game owns
+nothing so an older payload round-trips byte-identically — and the server never learns one exists:
+no route, no column, no parse, and a worker test that writes the table handler as a field-by-field
+projection of the seven older fields and requires exactly one test to go red. The GM writes an
+object on the campaign's page (name, kind, the four characteristics, features; renaming keeps the
+id, so nobody's contribution is orphaned; removal leaves every contribution where it is and says
+so). A member reads the game's objects through item 30's scoped live route, not the copy on the
+sheet, and the Vehicles and bases step offers each by name, copying id and kind onto the
+contribution. The GM's page opens the books: the budget is the members' contributions summed from
+approved clones only (a waiting resubmission funds nothing), at 25 Vehicle Points or 3 Base Points
+per Hero Point off the data; the spend is priced by `CostCalculator` in the browser; over-budget and
+no-price are two sentences that never merge; the contributors are listed largest first. A shared
+machine is held to the same printed rules as one a character owns — `CheckSharedAsset` in the
+engine, because a screen comparing Control to Speed is a host holding a rule — and a contribution
+naming an object the campaign no longer has is `UNKNOWN_CAMPAIGN_ASSET`, browser-side, the way
+`UNKNOWN_CAMPAIGN` is. The review's findings worth keeping: an overflow while the GM typed took the
+whole page down between two keystrokes; a shared machine was held to none of the sentences its own
+panel printed, so Control −20 paid points back in silence; a failed read of the players erased the
+game's objects from the screen with Edit and Remove gone with them; every write on that screen
+found its object by position, which one-object fixtures could not see; and two doc comments named
+tests that did not exist, now swept by `RepositoryGuideTests`.
+
+The verified fixture was every one of the ledger's own tests: a contribution naming another object
+funding this one went red in both suites when the id filter was dropped, and the unknown-kind
+clause went red in both when inverted.
+
+### 33. Decisions Chapter 6 left to the owner
+
+**Every one of these is built one way today and says so; none blocks anything.** They are here so
+the owner can answer them in one sitting rather than find them one at a time in item 32's entry.
+
+1. **Does a suit of armour make a superhuman worse?** A wearer whose own Armor Power exceeds the
+   Gear Limit gets less from a suit than they have without it — Armor 12d in Plate prints 8d. As
+   built, p.87's cap binds a substituted Power rank too; the alternative floors the figure at the
+   wearer's own Power, on the ground that p.88 grants a rank and never removes one.
+2. **A structured prerequisite on vehicle features.** p.100's "only vehicles with Swimming can have
+   this feature" is prose nothing checks, so a Submersible with no Swimming validates clean; a
+   `requires_features` field beside the prose would make it and Transforming's two-of-four
+   checkable. Pinned by a test that fails the day the gap closes.
+3. **Two copies of one flat feature** on one vehicle — two Sensors for 20 Vehicle Points — where
+   p.96 says "any number of features" and prints no rule either way. Accepted today.
+4. **A shared base's Training Facilities grant nobody Teamwork.** `CalculateTeamwork` reads the
+   sheet's own bases. Each member, one pool for the team, or nothing?
+5. **A surplus contribution is unreported.** Ten Hero Points into a base that has spent six of the
+   thirty they bought says nothing; over-budget is reported, under-budget is silent, as a character's
+   own machine behaves.
+6. **Only the GM may write a shared object**, because only the GM writes the campaign's payload. A
+   player proposing one would be a membership-side submission of item 26's shape.
+7. **A budget that overflows.** A contribution of a hundred million Hero Points is legal in an
+   unlimited-budget game and the summed budget throws rather than reporting; the spend side is
+   caught. An upper bound on a contribution, or a nullable budget like the spend.
+8. **A contribution whose kind disagrees with the object's** is priced at the object's currency in
+   silence; unreachable through the screen, reachable by a hand-written payload.
+9. **A member who leaves takes their contribution out of the budget**, and nothing says the object
+   lost the funding.
+10. **The editor is one slot**: "Add", or "Edit" on another row, replaces an open draft silently.
+11. **An older build's settings save drops every shared object** — it reads the payload leniently,
+    ignores `Assets`, and writes its own `Campaign` back; the same is already true of the table
+    rules and the Immortality price. A known property, or a guard.
+12. **Two characters from one account in one game** are two memberships and both fund; the
+    contributor list shows two labels with no hint they are one player.
 
 ## Completed work
 
