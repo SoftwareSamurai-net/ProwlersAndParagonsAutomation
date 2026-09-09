@@ -541,4 +541,40 @@ public sealed class CommandPaletteTests
         // on it, and a request left set would drag the list back here every time.
         Assert.Null(CommandsOf(ctx).RequestedGearRowId);
     }
+
+    /// <summary>
+    /// <b>And a reader who was already on the Gear step gets the same answer</b> — which is the
+    /// likeliest reader of all, since the palette is how you look a weapon up while choosing gear.
+    ///
+    /// <para><b>The page is rendered before the row is asked for, and it is the same instance every
+    /// assertion is about.</b> That is the whole drive: <c>NavigateTo("build/gear")</c> from
+    /// <c>build/gear</c> is a no-op, Blazor reuses the instance rather than initialising a second
+    /// one, and a request read in <c>OnInitialized</c> alone is therefore never read at all. This
+    /// repository has shipped that exact defect once, on <c>/rules</c>, and the test that hid it
+    /// rendered a fresh page afterwards — which is a thing the app never does and a test always
+    /// did. See <c>PaletteBookTests.ChoosingAPassageAsksTheRulesReferenceTheSameQuestion</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheGearStepAlreadyOpenIsFilteredToTheRequestedRowToo()
+    {
+        using var ctx = Opened();
+
+        // On the Gear step already, with the palette over it. Nothing renders a second one.
+        var step = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.Gear>();
+
+        // The positive control: with no request made, the box is empty and the whole catalogue is
+        // on offer — so "the list is short" below is a filter and not the page's resting state.
+        Assert.Equal("", step.Find(".catalogue .options-filter input").GetAttribute("value"));
+        Assert.True(step.FindAll(".catalogue .options .option").Count > 1);
+
+        step.InvokeAsync(() => CommandsOf(ctx).RequestGearRow(GearCatalogue.WeaponPrefix + "battle_axe"))
+            .GetAwaiter().GetResult();
+
+        Assert.Equal("Battle Axe", step.Find(".catalogue .options-filter input").GetAttribute("value"));
+
+        var row = Assert.Single(step.FindAll(".catalogue .options .option"));
+        Assert.Contains("Battle Axe", row.TextContent, StringComparison.Ordinal);
+
+        Assert.Null(CommandsOf(ctx).RequestedGearRowId);
+    }
 }
