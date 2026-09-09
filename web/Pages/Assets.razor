@@ -542,10 +542,10 @@
     /// a field saying "this started as a Speedboat" would be a fact about how somebody worked
     /// rather than about the thing they built. The name is left alone for the same reason.</para>
     ///
-    /// <para>The feature line "Rader (Sonar)" is the one row that is not a bare feature name; it
-    /// is the Radar Power taken through Unique Systems, which this screen cannot copy without
-    /// pricing a Power, so it is skipped and the reader adds it. The validator will say the
-    /// machine is under budget rather than over, which is the safe direction.</para>
+    /// <para>Which printed feature lines can be copied, and why "Rader (Sonar)" is not one of
+    /// them, is <see cref="AssetCatalogue.CopyableFeatures"/>'s answer — the same one the terminal
+    /// wizard gets, because this screen used to carry its own copy of that reading and so did
+    /// that step.</para>
     /// </summary>
     private void CopyStock(OwnedVehicle machine, AssetCatalogueRow row)
     {
@@ -557,18 +557,8 @@
             Speed = stock.Speed,
             Control = stock.Control,
             Weapons = stock.Weapons,
-            Features = [.. stock.Features.Select(FeatureFromStockLine).OfType<SelectedAssetFeature>()]
+            Features = Session.Assets.CopyableFeatures(stock)
         });
-    }
-
-    private SelectedAssetFeature? FeatureFromStockLine(string printed)
-    {
-        if (printed.StartsWith("Passengers ", StringComparison.Ordinal)
-            && int.TryParse(printed["Passengers ".Length..], out var extra))
-            return new SelectedAssetFeature("passengers") { Units = Math.Max(1, extra / 4) };
-
-        var id = GearCatalogue.Slug(printed);
-        return Session.Assets.FindVehicleFeature(id) is null ? null : new SelectedAssetFeature(id);
     }
 
     // ── Headquarters ──────────────────────────────────────────────────────

@@ -226,6 +226,9 @@ public sealed class AssetFormatterTests
 
     // ── The figures the sheet cannot reach ────────────────────────────────────
 
+    /// <summary>The three arrays in the JSON export that carry a spend of their own.</summary>
+    private static readonly string[] AssetArrays = ["vehicles", "headquarters", "gadgets"];
+
     /// <summary>
     /// <b>Neither export may throw over a mistake the validator already reports.</b>
     ///
@@ -303,7 +306,7 @@ public sealed class AssetFormatterTests
 
         // And the JSON carries a null spend beside a budget that is still a number.
         var node = System.Text.Json.Nodes.JsonNode.Parse(json)!;
-        var spends = new[] { "vehicles", "headquarters", "gadgets" }
+        var spends = AssetArrays
             .SelectMany(key => node[key]!.AsArray())
             .Select(entry => entry![entry["gadgets"] is null && entry!["complexity"] is not null
                 ? "hero_points_spent"
