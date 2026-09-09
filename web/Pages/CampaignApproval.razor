@@ -315,18 +315,31 @@ else
                 This game's own settings could not be read just now, so nothing shared can be shown.
             </p>
         }
-        else if (_ledger.Count == 0)
+        else if (_ledger.Count == 0 && _rosterRead)
         {
             <EmptyState>Nothing shared yet. Name a vehicle or a base for the table to pool into.</EmptyState>
         }
+        else if (_ledger.Count == 0)
+        {
+            <p class="small muted" role="status">@RosterUnread</p>
+        }
         else
         {
+            @* **A failed read of the players is not a game that owns nothing**, and it is not a
+               game whose objects are all over budget either. The objects came out of the
+               campaign's own payload, which this screen read separately and has; what is missing
+               is the clones the budget is summed from. So they are named and the sums are not. *@
+            @if (!_rosterRead)
+            {
+                <p class="small muted" role="status">@RosterUnread</p>
+            }
+
             <ChosenList>
                 @foreach (var line in _ledger)
                 {
                     <ChosenRow>
                         <Body>
-                            <b>@Books(line)</b>
+                            <b>@(_rosterRead ? Books(line) : Named(line.Asset))</b>
                             <span class="muted small"><br />@Kind(line.Asset)</span>
 
                             @if (line.Asset.Features.Count > 0)
@@ -337,21 +350,26 @@ else
                             @* **Who paid, largest first**, which is the question a GM has about a
                                shared object — and the one thing on this screen that no single
                                player's sheet can answer. *@
-                            <span class="muted small"><br />@Funders(line)</span>
-
-                            @* **Reported, and never repaired.** The remedy is somebody putting
-                               more in or the object losing a feature, and both are decisions about
-                               this table's game rather than arithmetic to do on their behalf. *@
-                            @if (line.IsOverBudget)
+                            @if (_rosterRead)
                             {
-                                <span class="muted small"><br />@OverBudget</span>
-                            }
+                                <span class="muted small"><br />@Funders(line)</span>
 
-                            @* Not the same sentence, and it must never be drawn as the one above:
-                               an object with no price is not an object over its budget. *@
-                            @if (line.Spent is null)
-                            {
-                                <span class="muted small"><br />@Unpriceable</span>
+                                @* **Reported, and never repaired.** The remedy is somebody putting
+                                   more in or the object losing a feature, and both are decisions
+                                   about this table's game rather than arithmetic to do on their
+                                   behalf. *@
+                                @if (line.IsOverBudget)
+                                {
+                                    <span class="muted small"><br />@OverBudget</span>
+                                }
+
+                                @* Not the same sentence, and it must never be drawn as the one
+                                   above: an object with no price is not an object over its
+                                   budget. *@
+                                @if (line.Spent is null)
+                                {
+                                    <span class="muted small"><br />@Unpriceable</span>
+                                }
                             }
 
                             @* **What Chapter 6 says about the object itself**, which is not a
@@ -615,6 +633,20 @@ else
     /// </summary>
     private IReadOnlyList<CampaignAssetLine> _ledger = [];
 
+    /// <summary>
+    /// Whether the members' sheets were read, which is what every figure on a shared object is
+    /// summed from.
+    ///
+    /// <para><b>It is a separate answer from the campaign, and drawing them as one was the
+    /// fault.</b> The objects are in the campaign's payload, which is its own read; the budget is
+    /// summed from the clones behind the memberships, which is another. A failed inbox left the
+    /// ledger empty and the panel said "Nothing shared yet" — a GM told their machines were gone
+    /// on the strength of a request about something else, with Edit and Remove gone too. The same
+    /// shape as the roster telling a GM nobody has joined, and reported here rather than
+    /// repeated.</para>
+    /// </summary>
+    private bool _rosterRead;
+
     /// <summary>Which membership's changes are open, or null.</summary>
     private string? _reading;
 
@@ -714,6 +746,18 @@ else
 
         await Refresh(asked);
     }
+
+    private const string RosterUnread =
+        "This game's players could not be read just now, so nothing can be said about what has "
+        + "been put into these. Nothing has been changed.";
+
+    /// <summary>
+    /// What to call an object where its books cannot be opened: its name, or its id when the
+    /// table has not given it one. <b>The same fallback <c>AssetFormatter</c> makes</b> when it
+    /// prints the pair, so a reader meets one answer either way.
+    /// </summary>
+    private static string Named(CampaignAsset asset) =>
+        string.IsNullOrWhiteSpace(asset.Name) ? asset.Id : asset.Name;
 
     private string SharedAside =>
         _ledger.Count == 1 ? "1 shared object" : $"{_ledger.Count} shared objects";
@@ -1018,6 +1062,10 @@ else
 
         // Null means the inbox could not be read, which is not the same as an empty campaign — so
         // the list stays as it was rather than reporting that everybody has left.
+        _rosterRead = inbox is not null;
+
+        IReadOnlyList<(string MembershipId, string Who, CharacterSheet Sheet)> clones = [];
+
         if (inbox is not null)
         {
             _waiting = [.. inbox.Where(m => m.CampaignId == Id)];
@@ -1029,8 +1077,14 @@ else
             var read = await CampaignRoster.ReadAsync(Memberships, Session, _waiting);
 
             _empty = read.Empty;
-            _ledger = CampaignAssets.Ledger(_campaign, Session.Costs, read.Clones);
+            clones = read.Clones;
         }
+
+        // **Outside the branch, because the objects are not in it.** They come out of the
+        // campaign's own payload, read above; only what has been put into them needs the clones.
+        // Built inside, a failed inbox drew a game that owns nothing over a payload this screen
+        // had already opened the objects out of.
+        _ledger = CampaignAssets.Ledger(_campaign, Session.Costs, clones);
 
         _state = Reading.Read;
     }

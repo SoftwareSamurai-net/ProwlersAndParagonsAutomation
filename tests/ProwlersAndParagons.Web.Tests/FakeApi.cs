@@ -638,6 +638,18 @@ public sealed class FakeApi : HttpMessageHandler
     public bool ManagedAccountsUnavailable { get; set; }
 
     /// <summary>
+    /// Set to have the GM's inbox answer a status this client does not model — a 500.
+    ///
+    /// <para><b>The same shape as <see cref="ManagedAccountsUnavailable"/> and it exists for the
+    /// same fault one screen over.</b> A failed inbox is what the campaign page cannot tell from
+    /// a game nobody has joined, and the shared-objects panel was drawing it as a game that owns
+    /// nothing — over a payload it had already read the objects out of. A knob rather than
+    /// <see cref="Unreachable"/>, because taking the server away refuses the campaign read too
+    /// and the panel is then not drawn at all.</para>
+    /// </summary>
+    public bool InboxUnavailable { get; set; }
+
+    /// <summary>
     /// Answers held until a test lets them go, keyed by the address whose sheets were asked for.
     ///
     /// <para><b>The only way to have two requests in flight at once</b>, which is the state the
@@ -973,6 +985,7 @@ public sealed class FakeApi : HttpMessageHandler
     private Task<HttpResponseMessage> MembershipInbox()
     {
         if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
+        if (InboxUnavailable) return Status(HttpStatusCode.InternalServerError);
 
         return Json($$"""
             {"memberships":[{{string.Join(",", _memberships

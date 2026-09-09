@@ -323,6 +323,42 @@ public sealed class CampaignSharedBooksTests
         Assert.DoesNotContain("/0 Vehicle Points", editor, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// <b>A game whose players could not be read is not a game that owns nothing shared.</b> The
+    /// objects are in the campaign's own payload, which this screen reads separately and had
+    /// already got — so drawing "Nothing shared yet" over a failed inbox told a GM their machines
+    /// were gone, on the strength of a request about something else entirely, and took the Edit
+    /// and Remove controls away with the sentence.
+    ///
+    /// <para>That is the fault <c>ManagedAccountsUnavailable</c> exists for one screen over,
+    /// arriving in a second panel: a reader told a list is empty when what happened is that it
+    /// could not be read.</para>
+    ///
+    /// <para><b>And no figure is invented for it.</b> A budget summed from no clones is nothing,
+    /// and nothing drawn as a budget makes every object on the page over its budget — an
+    /// accusation made out of a request that failed. So the object is named and the sums are
+    /// not.</para>
+    /// </summary>
+    [Fact]
+    public async Task PlayersThatCouldNotBeReadAreNotAGameThatOwnsNothing()
+    {
+        await using var ctx = await AGameWithAFundedObject();
+
+        ctx.Api.InboxUnavailable = true;
+
+        var shared = Shared(ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId)));
+
+        Assert.Contains("The Wing", shared, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nothing shared yet", shared, StringComparison.Ordinal);
+
+        // Not an accusation built out of a read that failed.
+        Assert.DoesNotContain("More has been built", shared, StringComparison.Ordinal);
+        Assert.DoesNotContain("Vehicle Points", shared, StringComparison.Ordinal);
+
+        // And it says which of the two it is.
+        Assert.Contains("could not be read", shared, StringComparison.Ordinal);
+    }
+
     // ── The GM writes one down ────────────────────────────────────────────────
 
     /// <summary>A GM signed in with one campaign that owns nothing shared.</summary>
