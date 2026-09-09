@@ -401,6 +401,61 @@ public sealed class AssetValidationTests
         Assert.NotEmpty(Issues(sheet));
     }
 
+    /// <summary>
+    /// <b>A Gadget's Abilities and Talents are asked about too, and they were not.</b>
+    ///
+    /// <para><c>GadgetIsPriceable</c> walked <see cref="BuiltGadget.Powers"/> alone while its own
+    /// summary said it walked all three, and <c>GadgetSpend</c> skips a rank whose Trait id
+    /// resolves to nothing — the same defensive filter <c>AbilityCost</c> has, which is only
+    /// honest because <c>UNKNOWN_ABILITY</c> reports the character's own. A Gadget's ranks live in
+    /// their own dictionaries and nothing reported those, so a Gadget with <c>"mightt": 99</c>
+    /// spent nothing out of its pool, sat comfortably inside it, and raised no finding.</para>
+    ///
+    /// <para><b>The control is what makes the pool comparison the point</b>: the same Gadget with
+    /// the id spelled right really is over its pool, so the silence being fixed was a finding
+    /// hidden by a typo rather than a Gadget that happened to be legal.</para>
+    /// </summary>
+    [Fact]
+    public void AGadgetCarryingAnUnknownTraitIsReportedAndNotPriced()
+    {
+        var sheet = ABuilder();
+        sheet.Gadgets.Add(new BuiltGadget("Exo-frame")
+        {
+            Complexity   = 3,                       // a pool of six
+            AbilityRanks = new Dictionary<string, int> { ["mightt"] = 99 },
+            TalentRanks  = new Dictionary<string, int> { ["technologee"] = 99 }
+        });
+
+        var ability = Only(sheet, "UNKNOWN_GADGET_ABILITY");
+        Assert.Equal(ValidationSubject.Gadget, ability.SubjectKind);
+        Assert.Equal("Exo-frame", ability.SubjectId);
+        Assert.Equal("mightt", ability.OwnerId);
+        Assert.Contains("might", ability.Options);
+
+        var talent = Only(sheet, "UNKNOWN_GADGET_TALENT");
+        Assert.Equal("technologee", talent.OwnerId);
+        Assert.Contains("technology", talent.Options);
+
+        // Not priced, because the answer cannot be had — the same gate the unknown Power takes.
+        Assert.False(Reports(sheet, "GADGET_OVER_POOL"));
+        Assert.Equal(0, _f.Costs.GadgetSpend(sheet.Gadgets[0]));
+
+        // The control: spelled right, those ranks are 198 Hero Points out of a pool of six, and
+        // the finding the typo was hiding comes back.
+        sheet.Gadgets[0] = sheet.Gadgets[0] with
+        {
+            AbilityRanks = new Dictionary<string, int> { ["might"] = 99 },
+            TalentRanks  = new Dictionary<string, int> { ["technology"] = 99 }
+        };
+
+        Assert.False(Reports(sheet, "UNKNOWN_GADGET_ABILITY"));
+        Assert.False(Reports(sheet, "UNKNOWN_GADGET_TALENT"));
+
+        var over = Only(sheet, "GADGET_OVER_POOL");
+        Assert.Equal(198, over.Value);
+        Assert.Equal(6, over.Limit);
+    }
+
     // ── Shared objects, and the double-count ──────────────────────────────────
 
     /// <summary>

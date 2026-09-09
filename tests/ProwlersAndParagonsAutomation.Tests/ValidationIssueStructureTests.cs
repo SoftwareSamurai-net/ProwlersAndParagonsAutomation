@@ -1087,6 +1087,8 @@ public sealed class ValidationIssueStructureTests
         ["GADGET_BUILDER_BELOW_TECHNOLOGY_MINIMUM"] = [ValidationSubject.Gadget],
         ["GADGET_OVER_POOL"]                        = [ValidationSubject.Gadget],
         ["UNKNOWN_GADGET_POWER"]                    = [ValidationSubject.Gadget],
+        ["UNKNOWN_GADGET_ABILITY"]                  = [ValidationSubject.Gadget],
+        ["UNKNOWN_GADGET_TALENT"]                   = [ValidationSubject.Gadget],
 
         // A contribution to a campaign's shared object belongs to the sheet: what the object is
         // belongs to the campaign, and there is no vehicle or base here to name.
@@ -1140,7 +1142,8 @@ public sealed class ValidationIssueStructureTests
         "UNKNOWN_SOURCE", "UNKNOWN_TRAIT_SOURCE", "POWER_VARIANT_NOT_CHOSEN",
         "PRO_VARIANT_NOT_CHOSEN", "CON_VARIANT_NOT_CHOSEN", "RANKLESS_POWER_WITHOUT_SOURCE",
         "POWER_WITHOUT_SOURCE", "MODIFIER_ON_UNBOUGHT_ABILITY", "FLAW_MIN_NOT_MET",
-        "UNKNOWN_ASSET_FEATURE", "ASSET_FEATURE_NEEDS_GRADE", "UNKNOWN_CAMPAIGN_ASSET_KIND"
+        "UNKNOWN_ASSET_FEATURE", "ASSET_FEATURE_NEEDS_GRADE", "UNKNOWN_CAMPAIGN_ASSET_KIND",
+        "UNKNOWN_GADGET_ABILITY", "UNKNOWN_GADGET_TALENT"
     };
 
     /// <summary>
@@ -1683,7 +1686,13 @@ public sealed class ValidationIssueStructureTests
                 sheet.Gadgets.Add(new BuiltGadget("Whatsit")
                 {
                     Complexity = 3,
-                    Powers = [new SelectedPower("time_ray", 4)]
+                    Powers = [new SelectedPower("time_ray", 4)],
+
+                    // And a Trait id that is not one either. All three collections a Gadget
+                    // carries can name something the rulebook does not have, and only the Powers
+                    // were being asked — the other two silently spent nothing.
+                    AbilityRanks = new Dictionary<string, int> { ["mightt"] = 4 },
+                    TalentRanks  = new Dictionary<string, int> { ["technologee"] = 2 }
                 });
                 sheet.Gadgets.Add(new BuiltGadget("Overreach") { Complexity = 9 });
                 sheet.Gadgets.Add(new BuiltGadget("Freeze Ray")
@@ -2190,8 +2199,12 @@ public sealed class ValidationIssueStructureTests
                 || sheet.Headquarters.Any(h => h.Name == owner)
 
                 // A Gadget's own Power, by id: UNKNOWN_GADGET_POWER names the Gadget as the
-                // subject and the Power it could not price as the owner.
-                || sheet.Gadgets.Any(g => g.Powers.Any(p => p.PowerId == owner));
+                // subject and the Power it could not price as the owner. Its Abilities and
+                // Talents are the same shape — the key on the Gadget's own dictionary is what a
+                // caller repairing UNKNOWN_GADGET_ABILITY writes over.
+                || sheet.Gadgets.Any(g => g.Powers.Any(p => p.PowerId == owner)
+                                          || g.AbilityRanks.ContainsKey(owner)
+                                          || g.TalentRanks.ContainsKey(owner));
 
             Assert.True(findable,
                 $"{issue.Code} says its subject sits on '{owner}', which is not a Power, a piece "
@@ -2299,9 +2312,10 @@ public sealed class ValidationIssueStructureTests
 
         "UNKNOWN_PERK" => _f.Rules.GetPerk(option) is not null,
 
-        "UNKNOWN_ABILITY" or "MODIFIER_ON_UNBOUGHT_ABILITY" => _f.Rules.GetAbility(option) is not null,
+        "UNKNOWN_ABILITY" or "MODIFIER_ON_UNBOUGHT_ABILITY" or "UNKNOWN_GADGET_ABILITY"
+            => _f.Rules.GetAbility(option) is not null,
 
-        "UNKNOWN_TALENT" => _f.Rules.GetTalent(option) is not null,
+        "UNKNOWN_TALENT" or "UNKNOWN_GADGET_TALENT" => _f.Rules.GetTalent(option) is not null,
 
         "UNKNOWN_GEAR_FEATURE" => _f.Rules.GetGearFeature(option) is not null,
 

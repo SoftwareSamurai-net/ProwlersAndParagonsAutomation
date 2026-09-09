@@ -1534,6 +1534,15 @@ public sealed class CharacterValidator
     /// Whether a Gadget's own Powers, Abilities and Talents can be priced at all, reporting each
     /// gap by name. Unknown ids are reported and not charged for, which is the answer
     /// <c>AbilityCost</c> already gives for the character's own.
+    ///
+    /// <para><b>All three collections, and the Abilities and Talents were missed.</b> This method
+    /// walked <see cref="BuiltGadget.Powers"/> alone while its own summary claimed otherwise, and
+    /// <c>GadgetSpend</c> skips a rank whose Trait id resolves to nothing — so a Gadget carrying
+    /// <c>"mightt": 99</c> spent nothing out of its pool, stayed inside it, printed the ranks and
+    /// raised no finding at all. That is the silence a misspelled id bought in <c>gear.json</c>'s
+    /// own review one slice earlier, in a collection nothing was walking. The character's own
+    /// Traits are covered by <c>CheckUnknownTraits</c>; a Gadget's are its own dictionaries and
+    /// were covered by nothing.</para>
     /// </summary>
     private bool GadgetIsPriceable(BuiltGadget gadget, List<ValidationIssue> issues)
     {
@@ -1552,6 +1561,34 @@ public sealed class CharacterValidator
                 SubjectKind = ValidationSubject.Gadget,
                 SubjectId   = gadget.Name,
                 OwnerId     = power.PowerId
+            });
+            priceable = false;
+        }
+
+        foreach (var id in gadget.AbilityRanks.Keys.Where(id => _rules.GetAbility(id) is null))
+        {
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GADGET_ABILITY",
+                $"{gadget.Name} has ranks against '{id}', which is not one of the six Abilities "
+                + "in the rulebook, so what the Gadget spent cannot be worked out.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                OwnerId     = id,
+                Options     = _rules.Abilities.Select(a => a.Id).ToList()
+            });
+            priceable = false;
+        }
+
+        foreach (var id in gadget.TalentRanks.Keys.Where(id => _rules.GetTalent(id) is null))
+        {
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GADGET_TALENT",
+                $"{gadget.Name} has ranks against '{id}', which is not one of the twelve Talents "
+                + "in the rulebook, so what the Gadget spent cannot be worked out.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                OwnerId     = id,
+                Options     = _rules.Talents.Select(t => t.Id).ToList()
             });
             priceable = false;
         }
