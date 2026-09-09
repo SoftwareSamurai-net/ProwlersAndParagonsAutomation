@@ -1640,6 +1640,22 @@ public sealed class CharacterValidator
             ? ValidationSubject.Headquarters
             : ValidationSubject.Vehicle;
 
+        // **A kind that is neither spelling is read as a vehicle and said out loud**, which is
+        // what CampaignAsset.IsHeadquarters' own remarks promise and what nothing was doing: the
+        // reading is silent by design, so that one mistyped field cannot take a campaign page
+        // down, and the whole of that trade is that somebody says so instead. The same code the
+        // contribution's own kind is reported under — one word for one mistake.
+        if (!CampaignAssetContribution.Kinds.Contains(asset.Kind, StringComparer.Ordinal))
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_CAMPAIGN_ASSET_KIND",
+                $"{name} is written down as a '{asset.Kind}', which Chapter 6 does not have. It is "
+                + "priced as a vehicle. Hero Points can be pooled on a vehicle or on a "
+                + "headquarters.")
+            {
+                SubjectKind = kind,
+                SubjectId   = name,
+                Options     = CampaignAssetContribution.Kinds
+            });
+
         // The two feature tables, the same lookup CheckVehicle and CheckHeadquarters make. An
         // unknown id, a graded feature with no grade and a per-unit one bought no times or fewer
         // are all already spelled there, and all three reach a campaign's payload the same way.

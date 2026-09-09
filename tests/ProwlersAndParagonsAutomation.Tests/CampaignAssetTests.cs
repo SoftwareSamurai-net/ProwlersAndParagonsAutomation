@@ -161,6 +161,18 @@ public sealed class CampaignAssetTests
         Assert.False(odd.IsHeadquarters);
         Assert.Equal(_f.Costs.CampaignAssetPointsSpent(Vehicle() with { Body = 4 }),
                      _f.Costs.CampaignAssetPointsSpent(odd));
+
+        // **And the other half of that trade, which was missing.** Reading it as a vehicle rather
+        // than throwing is only defensible if somebody is told, and the record's own remarks said
+        // it was "reported by the host that draws it" while no host did.
+        var said = Assert.Single(_f.Validator.CheckSharedAsset(odd));
+
+        Assert.Equal("UNKNOWN_CAMPAIGN_ASSET_KIND", said.Code);
+        Assert.Equal(CampaignAssetContribution.Kinds, said.Options);
+
+        // The positive control: both spellings the book has are not reported.
+        Assert.Empty(_f.Validator.CheckSharedAsset(Vehicle()));
+        Assert.Empty(_f.Validator.CheckSharedAsset(Base()));
     }
 
     // ── What Chapter 6 says about the object itself ───────────────────────────
