@@ -48,6 +48,12 @@ public sealed class CharacterSession
     /// <summary>Chapter 6's armour, weapons and equipment as pickable rows.</summary>
     public GearCatalogue Catalogue => Rules.Catalogue;
 
+    /// <summary>
+    /// Chapter 6's stock vehicles and its two feature tables as pickable rows, plus the printed
+    /// rates the step shows. Every price here is in a second currency, never Hero Points.
+    /// </summary>
+    public AssetCatalogue Assets => Rules.Assets;
+
     public CharacterSheet Sheet { get; private set; } = new();
 
     /// <summary>

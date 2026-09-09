@@ -58,6 +58,39 @@ public static class SheetFindings
     public static IReadOnlyList<ValidationIssue> ForGear(ValidationResult result, string gearName) =>
         [.. BySubject(result, ValidationSubject.Gear, gearName), .. ByOwner(result, gearName)];
 
+    /// <summary>A vehicle's row: its own findings, plus any feature findings it carries.</summary>
+    public static IReadOnlyList<ValidationIssue> ForVehicle(ValidationResult result, string name) =>
+        [.. BySubject(result, ValidationSubject.Vehicle, name), .. ByOwner(result, name)];
+
+    /// <summary>A headquarters' row, on the same terms.</summary>
+    public static IReadOnlyList<ValidationIssue> ForHeadquarters(ValidationResult result, string name) =>
+        [.. BySubject(result, ValidationSubject.Headquarters, name), .. ByOwner(result, name)];
+
+    /// <summary>
+    /// A Gadget's row.
+    ///
+    /// <para><b>No <see cref="ByOwner"/> half, unlike the two above.</b> A Gadget's own findings
+    /// name it as the subject, and the one that carries an <see cref="ValidationIssue.OwnerId"/>
+    /// puts the Power there rather than the Gadget — so an owner filter here would match nothing
+    /// and read as though it did something.</para>
+    /// </summary>
+    public static IReadOnlyList<ValidationIssue> ForGadget(ValidationResult result, string name) =>
+        BySubject(result, ValidationSubject.Gadget, name);
+
+    /// <summary>
+    /// One feature's row on one vehicle or base.
+    ///
+    /// <para><b>Both halves are needed, and neither is enough.</b> Two machines can carry the same
+    /// feature id, so filtering on the feature alone would show one machine's finding under the
+    /// other's row; and one machine can carry several features, so filtering on the owner alone
+    /// would show every one of them under each. The pair is what identifies the row.</para>
+    /// </summary>
+    public static IReadOnlyList<ValidationIssue> ForAssetFeature(
+        ValidationResult result, string ownerName, string featureId) =>
+        [.. result.Issues.Where(i => i.SubjectKind == ValidationSubject.AssetFeature
+                                  && i.SubjectId == featureId
+                                  && i.OwnerId == ownerName)];
+
     /// <summary>
     /// A Perk's row.
     ///

@@ -1,6 +1,6 @@
 @* The command palette: Ctrl-K from anywhere, type, press Enter.
 
-   It offers the six creation steps, and — once something has been typed — the Powers, and for
+   It offers the seven creation steps, and — once something has been typed — the Powers, and for
    a reader who is signed in the rulebook's own passages. What it offers and in what order is
    decided in the service behind it, not here; this file is the surface.
 
@@ -74,7 +74,7 @@
 
                     <li id="@RowId(index)"
                         role="option"
-                        class="@(index == _active ? "palette-row current" : "palette-row")"
+                        class="@RowClass(index, command)"
                         aria-selected="@(index == _active ? "true" : "false")"
                         @onclick="() => Run(command)">
                         <span class="palette-label">@command.Label</span>
@@ -121,7 +121,8 @@
 
 @code {
     /// <summary>
-    /// The most Powers to offer, and the most gear rows. The six steps are never truncated.
+    /// The most Powers to offer, and the most rows off each of Chapter 6's tables. The seven
+    /// steps are never truncated.
     ///
     /// <para>Counted per kind rather than over the whole list, so a word that matches eight Powers
     /// does not push every weapon off the bottom — and eight of each is still short enough that
@@ -167,6 +168,34 @@
     /// <c>_found</c>. What it says is not load-bearing for a screen reader: every row under it
     /// carries its own detail line.</para>
     /// </summary>
+    /// <summary>
+    /// A row's classes: <c>palette-row</c>, the kind it is, and <c>current</c> when the cursor is
+    /// on it.
+    ///
+    /// <para><b>The kind is on the row because a heading cannot be selected against.</b> A test
+    /// asking for the book's rows used to reach for <c>.palette-group ~ .palette-row</c>, which
+    /// means "every row after <em>any</em> heading" — so the day a third group appeared, that
+    /// instrument started answering about the wrong rows and two waits returned before the thing
+    /// they were waiting for had happened. Nothing here styles on these classes today; they exist
+    /// so a question about one kind of row can be asked precisely.</para>
+    /// </summary>
+    private string RowClass(int index, Command command)
+    {
+        var kind = command.Kind switch
+        {
+            CommandKind.Step     => "kind-step",
+            CommandKind.Power    => "kind-power",
+            CommandKind.GearRow  => "kind-gear",
+            CommandKind.AssetRow => "kind-asset",
+            CommandKind.Passage  => "kind-passage",
+            _                    => "kind-other"
+        };
+
+        return index == _active
+            ? $"palette-row {kind} current"
+            : $"palette-row {kind}";
+    }
+
     private string? GroupHeading(int index)
     {
         var kind = _found[index].Kind;
@@ -177,6 +206,7 @@
         {
             CommandKind.Passage => "In the book",
             CommandKind.GearRow => "Gear from the book",
+            CommandKind.AssetRow => "Vehicles and bases from the book",
             _ => null
         };
     }
@@ -381,6 +411,14 @@
             case CommandKind.GearRow:
                 Commands.RequestGearRow(command.Target);
                 Nav.NavigateTo("build/gear");
+                return;
+
+            // And Chapter 6's other three tables, on the same terms. A stock vehicle is the case
+            // where "adds nothing" is easiest to doubt — it is a whole machine with four ranks on
+            // it — and it is still a row to copy from rather than a purchase the palette makes.
+            case CommandKind.AssetRow:
+                Commands.RequestAssetRow(command.Target);
+                Nav.NavigateTo("build/assets");
                 return;
 
             // A passage is a request too, and for the same reason: the page that can read one is

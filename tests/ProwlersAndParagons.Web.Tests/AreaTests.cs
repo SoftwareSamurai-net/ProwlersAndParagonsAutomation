@@ -9,7 +9,7 @@ namespace ProwlersAndParagons.Web.Tests;
 /// <summary>
 /// One site doing several jobs, and the chrome saying which one you are in.
 ///
-/// <para>The builder is the six creation steps. The rules reference is the book, searchable. The
+/// <para>The builder is the seven creation steps. The rules reference is the book, searchable. The
 /// account pages are who may sign in and the demonstrations kept for showing somebody. The front
 /// door is none of them and offers all of them. The furniture above the page was written for the
 /// builder and means nothing anywhere else.</para>

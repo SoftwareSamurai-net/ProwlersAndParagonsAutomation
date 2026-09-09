@@ -6,7 +6,7 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// <summary>What one row of the palette will do if it is chosen.</summary>
 public enum CommandKind
 {
-    /// <summary>Go to one of the six creation steps.</summary>
+    /// <summary>Go to one of the seven creation steps.</summary>
     Step,
 
     /// <summary>Open a Power in the Powers editor, wherever the reader is now.</summary>
@@ -20,6 +20,16 @@ public enum CommandKind
     /// book's passages are the one thing here that costs a request.</para>
     /// </summary>
     GearRow,
+
+    /// <summary>
+    /// Show a row of Chapter 6's vehicle and headquarters tables on the Vehicles &amp; bases
+    /// step — one of p.96's six stock vehicles, or one of the forty-five features.
+    ///
+    /// <para>Filtered in the browser like the gear rows above it. A stock vehicle is a machine to
+    /// copy the numbers of rather than a thing to buy, so choosing one still adds nothing: the
+    /// step is where a machine is built.</para>
+    /// </summary>
+    AssetRow,
 
     /// <summary>
     /// Read a passage of the rulebook, at <c>/rules</c>, with what was typed carried over.
@@ -84,7 +94,7 @@ public sealed class Commands
     }
 
     /// <summary>
-    /// The six creation steps, in the order the terminal wizard runs them. The band at the top
+    /// The seven creation steps, in the order the terminal wizard runs them. The band at the top
     /// of every page draws this, and so does the palette.
     /// </summary>
     public static readonly IReadOnlyList<Command> Steps =
@@ -93,18 +103,20 @@ public sealed class Commands
         new(CommandKind.Step, "build/characteristics", "Characteristics", "Step 2",
             ["abilities", "talents", "powers", "perks", "flaws"]),
         new(CommandKind.Step, "build/gear", "Gear", "Step 3", ["equipment", "items"]),
-        new(CommandKind.Step, "build/derived", "Derived stats", "Step 4",
+        new(CommandKind.Step, "build/assets", "Vehicles & bases", "Step 4",
+            ["vehicle", "headquarters", "base", "gadget", "features", "teamwork"]),
+        new(CommandKind.Step, "build/derived", "Derived stats", "Step 5",
             ["edge", "health", "resolve"]),
-        new(CommandKind.Step, "build/finishing", "Finishing touches", "Step 5",
+        new(CommandKind.Step, "build/finishing", "Finishing touches", "Step 6",
             ["name", "appearance", "motivation", "quote", "connections"]),
-        new(CommandKind.Step, "build/review", "GM review", "Step 6",
+        new(CommandKind.Step, "build/review", "GM review", "Step 7",
             ["export", "print", "sheet", "validate"]),
     ];
 
     /// <summary>
     /// Where the builder starts, for anything that needs to send somebody to it.
     ///
-    /// <para>Read off the list rather than written out again: the six steps' addresses moved
+    /// <para>Read off the list rather than written out again: the steps' addresses moved
     /// under a prefix once, and every second copy of the first one is a link that will not
     /// move with them next time.</para>
     /// </summary>
@@ -338,6 +350,36 @@ public sealed class Commands
         return id;
     }
 
+    /// <summary>
+    /// The Chapter 6 asset row the reader asked for and has not been shown yet, or nothing.
+    /// The same shape as <see cref="RequestedGearRowId"/>, and it does the same amount to the
+    /// character: nothing.
+    /// </summary>
+    public string? RequestedAssetRowId { get; private set; }
+
+    /// <summary>
+    /// Ask for a vehicle or feature row to be shown on the Vehicles &amp; bases step, and close
+    /// the palette.
+    /// </summary>
+    public void RequestAssetRow(string rowId)
+    {
+        RequestedAssetRowId = rowId;
+        IsOpen = false;
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Take the requested asset row, clearing it so it is acted on once — taken rather than
+    /// peeked for the reason the gear row is: one consumer, and a request left set would
+    /// re-narrow the list over whatever the reader had gone on to type.
+    /// </summary>
+    public string? TakeRequestedAssetRow()
+    {
+        var id = RequestedAssetRowId;
+        RequestedAssetRowId = null;
+        return id;
+    }
+
     /// <summary>Take the requested section, clearing it so it is acted on once.</summary>
     public string? TakeRequestedSection()
     {
@@ -367,7 +409,7 @@ public sealed class Commands
     /// Chapter 6's gear catalogue.
     ///
     /// <para><b>Powers appear only once something has been typed.</b> There are 141 of them and
-    /// six steps; offering all of them to an empty box would bury the steps under a catalogue
+    /// seven steps; offering all of them to an empty box would bury the steps under a catalogue
     /// nobody opened the palette to browse. An empty box is "where do I want to go", and the
     /// answer to that is six rows long.</para>
     ///
@@ -377,8 +419,8 @@ public sealed class Commands
     /// <param name="query">What the reader has typed.</param>
     /// <param name="limit">
     /// The most Powers to offer, and the most gear rows — counted separately, so a query matching
-    /// eight Powers does not crowd out every weapon. The steps are never truncated: there are six
-    /// of them and they are what the palette is mostly for.
+    /// eight Powers does not crowd out every weapon. The steps are never truncated: there are
+    /// seven of them and they are what the palette is mostly for.
     /// </param>
     public IReadOnlyList<Command> Matching(string query, int limit)
     {
@@ -425,7 +467,51 @@ public sealed class Commands
             found.Add(new Command(CommandKind.GearRow, row.Id, row.Name, detail, keywords));
         }
 
+        // Chapter 6's other three tables, counted apart from the gear rows for the same reason
+        // those are counted apart from the Powers: a word matching eight weapons must not push
+        // every base feature off the bottom.
+        foreach (var row in _session.Assets.Rows)
+        {
+            if (found.Count(c => c.Kind == CommandKind.AssetRow) >= limit) break;
+
+            var detail = AssetRowDetail(row);
+
+            if (!OptionFilter.Matches(query, [row.Name, detail, .. row.Keywords])) continue;
+
+            found.Add(new Command(CommandKind.AssetRow, row.Id, row.Name, detail, row.Keywords));
+        }
+
         return found;
+    }
+
+    /// <summary>
+    /// The quiet second line on a Chapter 6 asset row: its price in its own currency, and what it
+    /// is — a stock vehicle's four ranks, a feature's own words.
+    ///
+    /// <para><b>The currency is named on every one of them.</b> Two of these tables are priced in
+    /// Vehicle Points and one in Base Points, and a bare "2" in a list that also holds Hero Point
+    /// prices is the category error this whole area is careful about. A negative price says so
+    /// with its sign, because four vehicle features pay points back.</para>
+    /// </summary>
+    private static string AssetRowDetail(AssetCatalogueRow row)
+    {
+        var currency = row.Kind == AssetRowKind.BaseFeature ? "Base Points" : "Vehicle Points";
+
+        var price = row switch
+        {
+            { Cost: { } flat }           => $"{flat} {currency}",
+            { CostPerUnit: { } rate }    => $"{rate} {currency} per {row.UnitLabel}",
+            { Grades: { } grades }       => $"{grades.Values.Min()}–{grades.Values.Max()} {currency}",
+            _                            => null
+        };
+
+        // **The mechanic's prose is deliberately not in here.** It is the longest text on any of
+        // these rows and it is matched as well as shown, so including it made the palette answer
+        // "kno" with Hidden — whose entry says a route few people *know* — and bury the rulebook
+        // passage the reader was after. A row is found by its name, its price and its restriction;
+        // the step it lands on is where the prose belongs.
+        return string.Join(" · ",
+            new[] { price, row.RestrictedTo }.Where(part => !string.IsNullOrEmpty(part)));
     }
 
     /// <summary>
@@ -454,7 +540,7 @@ public sealed class Commands
     ///
     /// <para>The palette is a way to reach something, not a results page — <c>/rules</c> is the
     /// results page, and the row that gets chosen goes there. Five is the number of rows a reader
-    /// can weigh without scrolling a list that already holds six steps and up to eight Powers
+    /// can weigh without scrolling a list that already holds seven steps and up to eight Powers
     /// above it, and it keeps the book a third of the box rather than the whole of it.</para>
     /// </summary>
     public const int BookLimit = 5;

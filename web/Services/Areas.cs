@@ -14,7 +14,7 @@ public enum Area
     Home,
 
     /// <summary>
-    /// The character builder: the six creation steps. The thing somebody has open while making
+    /// The character builder: the seven creation steps. The thing somebody has open while making
     /// a character.
     /// </summary>
     Play,

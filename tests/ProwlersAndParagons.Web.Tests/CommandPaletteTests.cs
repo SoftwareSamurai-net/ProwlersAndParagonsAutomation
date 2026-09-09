@@ -53,11 +53,11 @@ public sealed class CommandPaletteTests
     }
 
     /// <summary>
-    /// An empty box offers the six steps and no Powers.
+    /// An empty box offers the steps alone and no Powers.
     ///
-    /// <para>141 Powers under six steps would bury the thing the palette is mostly for. The
-    /// count is asserted against the shared step list rather than against the number six, so
-    /// a seventh step does not fail this for the wrong reason.</para>
+    /// <para>141 Powers under seven steps would bury the thing the palette is mostly for. The
+    /// count is asserted against the shared step list rather than against a number, so an
+    /// eighth step does not fail this for the wrong reason.</para>
     /// </summary>
     [Fact]
     public void AnEmptyBoxOffersTheStepsAlone()
@@ -284,7 +284,7 @@ public sealed class CommandPaletteTests
     }
 
     /// <summary>
-    /// The palette and the step band offer the same six steps.
+    /// The palette and the step band offer the same steps.
     ///
     /// <para><b>Two lists would drift, and nothing about them being in different files would
     /// have caught it.</b> A palette offering a step the band does not have — or missing one
@@ -431,7 +431,7 @@ public sealed class CommandPaletteTests
     }
 
     /// <summary>
-    /// <b>An empty box still offers the steps alone.</b> 108 gear rows under six steps would bury
+    /// <b>An empty box still offers the steps alone.</b> 108 gear rows under seven steps would bury
     /// the thing the palette is mostly for, exactly as 141 Powers would — so the catalogue waits
     /// for something to be typed, on the same rule.
     /// </summary>
@@ -511,5 +511,97 @@ public sealed class CommandPaletteTests
         // Read once: rendering the step again is the ordinary consequence of a keystroke anywhere
         // on it, and a request left set would drag the list back here every time.
         Assert.Null(CommandsOf(ctx).RequestedGearRowId);
+    }
+
+    // ── Chapter 6's vehicles, headquarters and bases ─────────────────────────
+
+    /// <summary>
+    /// <b>Typing finds a vehicle feature and a base feature, under a heading of their own.</b>
+    ///
+    /// <para>Their prices are in Vehicle Points and Base Points, and each row says which — a bare
+    /// number in a list that also holds Hero Point prices is the one mistake this whole area is
+    /// careful about.</para>
+    /// </summary>
+    [Fact]
+    public async Task TypingFindsAChapterSixAssetRowWithItsOwnCurrency()
+    {
+        using var ctx = Opened();
+
+        var page = ctx.Render<CommandPalette>();
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "training" }),
+            "the word typed into the box");
+
+        var row = page.FindAll(".palette-row.kind-asset")
+            .Single(r => r.QuerySelector(".palette-label")!.TextContent == "Training Facilities");
+
+        Assert.Contains("2 Base Points", row.QuerySelector(".palette-detail")!.TextContent,
+                        StringComparison.Ordinal);
+
+        Assert.Contains("Vehicles and bases from the book",
+                        page.FindAll(".palette-group").Select(e => e.TextContent));
+
+        // The control on the currency: a vehicle feature says Vehicle Points, so the label above
+        // is about which table the row came off rather than a word printed on every one of them.
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "spaceflight" }),
+            "the second word typed into the box");
+
+        Assert.Contains("Vehicle Points",
+            page.FindAll(".palette-row.kind-asset")
+                .Single(r => r.QuerySelector(".palette-label")!.TextContent == "Spaceflight")
+                .QuerySelector(".palette-detail")!.TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Choosing one goes to the Vehicles &amp; bases step and changes nothing.</b> The rule
+    /// that is easiest to doubt here rather than on a gear row: a stock vehicle is a whole machine
+    /// with four ranks on it, and the palette still only shows it.
+    /// </summary>
+    [Fact]
+    public async Task ChoosingAnAssetRowGoesToTheStepAndAddsNothing()
+    {
+        using var ctx = Opened();
+
+        var page = ctx.Render<CommandPalette>();
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "helicopter" }),
+            "the word typed into the box");
+
+        await Occupying(
+            page,
+            () => page.FindAll(".palette-row")
+                .Single(r => r.QuerySelector(".palette-label")!.TextContent == "Helicopter")
+                .ClickAsync(new MouseEventArgs()),
+            "the row chosen");
+
+        var nav = ctx.Services.GetRequiredService<NavigationManager>();
+
+        Assert.EndsWith("build/assets", nav.Uri, StringComparison.Ordinal);
+        Assert.False(CommandsOf(ctx).IsOpen);
+
+        // Nothing owned, nothing spent: the step is where a machine is built.
+        Assert.Empty(ctx.Session.Sheet.Vehicles);
+        Assert.Equal(AssetCatalogue.StockPrefix + "helicopter", CommandsOf(ctx).RequestedAssetRowId);
+    }
+
+    /// <summary>
+    /// <b>An empty box offers no asset rows either</b>, on the same rule the Powers and the gear
+    /// rows follow: fifty-one more rows under the steps would bury what the palette is mostly for.
+    /// </summary>
+    [Fact]
+    public void AnEmptyBoxOffersNoAssetRows()
+    {
+        using var ctx = Opened();
+
+        var page = ctx.Render<CommandPalette>();
+
+        Assert.Empty(page.FindAll(".palette-row.kind-asset"));
+        Assert.Equal(Commands.Steps.Count, page.FindAll(".palette-row").Count);
     }
 }

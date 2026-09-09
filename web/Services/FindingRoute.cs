@@ -91,6 +91,14 @@ public static class FindingRoute
             case ValidationSubject.GearFeature:
                 return new Destination("build/gear", "Gear", null, null);
 
+            // Chapter 6's four, all on the one step that holds them. No section and no target:
+            // the page is four panels and a finding about a vehicle is above the fold on it.
+            case ValidationSubject.Vehicle:
+            case ValidationSubject.Headquarters:
+            case ValidationSubject.Gadget:
+            case ValidationSubject.AssetFeature:
+                return new Destination("build/assets", "Vehicles & bases", null, null);
+
             case ValidationSubject.Character:
                 return ForCharacterSubject(issue, sheet);
 

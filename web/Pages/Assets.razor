@@ -1,0 +1,720 @@
+@page "/build/assets"
+@inject CharacterSession Session
+@inject Commands Commands
+
+<PageTitle>Vehicles &amp; bases — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Vehicles &amp; bases</h1>
+@* **Three currencies on one page, which is why every figure here says which it is in.** The
+   Unique Vehicle Perk converts a Hero Point into twenty-five Vehicle Points and the Headquarters
+   Perk into three Base Points; a Gadget runs the other way and pays Hero Points out. A bare
+   number in any of the lists below would be the category error the whole area is careful about. *@
+<p class="muted">
+    Chapter 6, pp.94–103. Vehicles and bases are bought in <b>second currencies</b>; a Gadget
+    <em>pays</em> Hero Points into a pool of its own.
+</p>
+
+@* ── Vehicles ─────────────────────────────────────────────────────────────── *@
+
+<Panel Title="Vehicles" Cost="@($"{Session.Costs.TotalAssetPerkCost(Session.Sheet)} HP on all of it")">
+    @if (Session.Sheet.Vehicles.Count == 0)
+    {
+        <EmptyState>No vehicle of your own. A machine the whole team paid for belongs to the campaign.</EmptyState>
+    }
+    else
+    {
+        <ChosenList>
+            @foreach (var vehicle in Session.Sheet.Vehicles.ToList())
+            {
+                <ChosenRow Findings="SheetFindings.ForVehicle(Validation, vehicle.Name)">
+                    <Body>
+                        <b>@Headline(vehicle)</b>
+                        <span class="muted small"> — @Ranks(vehicle)</span>
+                        @if (vehicle.Features.Count > 0)
+                        {
+                            <span class="muted small"><br />@FeatureLine(vehicle)</span>
+                        }
+                    </Body>
+                    <Actions>
+                        <button type="button" class="btn small" @onclick="() => _vehicle = vehicle">Edit</button>
+                        <button type="button" class="btn small danger" @onclick="() => RemoveVehicle(vehicle)">Remove</button>
+                    </Actions>
+                </ChosenRow>
+            }
+        </ChosenList>
+    }
+
+    <div class="inline spaced">
+        <input type="text" placeholder="Name a vehicle" @bind="_newVehicle" @bind:event="oninput"
+               @onkeydown="@(e => { if (e.Key == "Enter") AddVehicle(); })" aria-label="New vehicle" />
+        <button type="button" class="btn" aria-label="Add vehicle"
+                disabled="@string.IsNullOrWhiteSpace(_newVehicle)"
+                @onclick="AddVehicle">Add</button>
+    </div>
+</Panel>
+
+@if (_vehicle is { } machine)
+{
+    <Panel Class="machine" Title="@machine.Name"
+           Cost="@($"{Session.Costs.VehiclePointsSpent(machine)}/{Session.Costs.VehiclePointBudget(machine)} VP")">
+        @* p.96 opens Body, Speed and Control at nothing and gives Weapons no starting value at
+           all, so a machine costs what it is — SelectedGear's free baseline is the wrong
+           precedent. Control is the one at two points a rank, capped at half the Speed, and a
+           negative Control pays two back a rank down to −3. The validator says both. *@
+        <p class="small muted">
+            The four characteristics are bought <b>from zero</b> (p.96). Control costs two a rank
+            and may not exceed half the Speed.
+        </p>
+
+        <Field Label="Hero Points on the Unique Vehicle Perk" For="vehicle-perk">
+            <input id="vehicle-perk" type="number" min="0" value="@machine.PerkHeroPoints"
+                   @onchange="e => SetVehicle(machine, machine with { PerkHeroPoints = Number(e) })" />
+            <span class="muted small">
+                @(Session.Costs.VehiclePointBudget(machine)) Vehicle Points at
+                @(Session.Assets.VehiclePointsPerHeroPoint) each.
+            </span>
+        </Field>
+
+        <Field Label="Body" For="vehicle-body">
+            <input id="vehicle-body" type="number" min="0" value="@machine.Body"
+                   @onchange="e => SetVehicle(machine, machine with { Body = Number(e) })" />
+        </Field>
+        <Field Label="Speed" For="vehicle-speed">
+            <input id="vehicle-speed" type="number" min="0" value="@machine.Speed"
+                   @onchange="e => SetVehicle(machine, machine with { Speed = Number(e) })" />
+        </Field>
+        <Field Label="Control" For="vehicle-control">
+            <input id="vehicle-control" type="number" value="@machine.Control"
+                   @onchange="e => SetVehicle(machine, machine with { Control = Number(e) })" />
+        </Field>
+        <Field Label="Weapons" For="vehicle-weapons">
+            <input id="vehicle-weapons" type="number" min="0" value="@machine.Weapons"
+                   placeholder="unarmed"
+                   @onchange="e => SetVehicle(machine, machine with { Weapons = OptionalNumber(e) })" />
+            <span class="muted small">Leave it empty for a machine with no weapon systems at all.</span>
+        </Field>
+
+        <Field Label="Features (pp.96–100)">
+            @if (machine.Features.Count > 0)
+            {
+                <ChosenList>
+                    @foreach (var f in machine.Features.ToList())
+                    {
+                        <ChosenRow Findings="SheetFindings.ForAssetFeature(Validation, machine.Name, f.FeatureId)">
+                            <Body>@FeatureName(f, onAVehicle: true)</Body>
+                            <Actions>
+                                @if (Session.Assets.FindVehicleFeature(f.FeatureId) is { CostType: "per_unit" })
+                                {
+                                    <input type="number" min="1" value="@f.Units" class="units"
+                                           aria-label="Units"
+                                           @onchange="e => SetVehicleFeature(machine, f, f with { Units = Number(e) })" />
+                                }
+                                <button type="button" class="btn small danger"
+                                        @onclick="() => SetVehicleFeature(machine, f, null)">Remove</button>
+                            </Actions>
+                        </ChosenRow>
+                    }
+                </ChosenList>
+            }
+
+            <OptionList Placeholder="Filter the vehicle features" Query="@_rowQuery">
+                @foreach (var row in VehicleFeatureRows)
+                {
+                    <OptionRow Name="@row.Name" Caveat="@row.Description" Cost="@Price(row)"
+                               Keywords="@row.Keywords"
+                               OnSelect="() => AddVehicleFeature(machine, row)" />
+                }
+            </OptionList>
+        </Field>
+
+        @* p.96's six stock machines. **They seed the numbers and are not a thing to own** — a
+           stock vehicle is a worked example the page prints with its total, so copying one is how
+           somebody starts rather than a purchase with a shape of its own on the sheet. *@
+        <Field Label="Start from a stock vehicle (p.96)">
+            <OptionList Placeholder="Filter the stock vehicles" Query="@_rowQuery">
+                @foreach (var row in StockVehicleRows)
+                {
+                    <OptionRow Name="@row.Name" Caveat="@row.Description"
+                               Cost="@($"{row.Cost} VP")" Keywords="@row.Keywords"
+                               OnSelect="() => CopyStock(machine, row)" />
+                }
+            </OptionList>
+        </Field>
+
+        <div class="inline">
+            <button type="button" class="btn" @onclick="() => _vehicle = null">Done</button>
+        </div>
+    </Panel>
+}
+
+@* ── Headquarters ─────────────────────────────────────────────────────────── *@
+
+<Panel Title="Headquarters">
+    @* p.100 grants "a basic headquarters no larger than an average mansion or warehouse, with
+       whatever ordinary rooms, equipment and facilities the owner wants" for the Perk alone, so a
+       base with no features is not an error and is not free either. The same page gives Villains
+       headquarters, which is why nothing here is conditioned on what kind of character owns it. *@
+    <p class="small muted">
+        The Perk buys the building, already furnished; every Hero Point after that is three Base
+        Points for the features (p.100).
+    </p>
+
+    @if (Session.Sheet.Headquarters.Count == 0)
+    {
+        <EmptyState>No base of your own.</EmptyState>
+    }
+    else
+    {
+        <ChosenList>
+            @foreach (var hq in Session.Sheet.Headquarters.ToList())
+            {
+                <ChosenRow Findings="SheetFindings.ForHeadquarters(Validation, hq.Name)">
+                    <Body>
+                        <b>@Headline(hq)</b>
+                        @if (hq.Features.Count > 0)
+                        {
+                            <span class="muted small"><br />@FeatureLine(hq)</span>
+                        }
+                    </Body>
+                    <Actions>
+                        <button type="button" class="btn small" @onclick="() => _base = hq">Edit</button>
+                        <button type="button" class="btn small danger" @onclick="() => RemoveBase(hq)">Remove</button>
+                    </Actions>
+                </ChosenRow>
+            }
+        </ChosenList>
+    }
+
+    <div class="inline spaced">
+        <input type="text" placeholder="Name a headquarters" @bind="_newBase" @bind:event="oninput"
+               @onkeydown="@(e => { if (e.Key == "Enter") AddBase(); })" aria-label="New headquarters" />
+        <button type="button" class="btn" aria-label="Add headquarters"
+                disabled="@string.IsNullOrWhiteSpace(_newBase)"
+                @onclick="AddBase">Add</button>
+    </div>
+</Panel>
+
+@if (_base is { } house)
+{
+    <Panel Class="base" Title="@house.Name"
+           Cost="@($"{Session.Costs.BasePointsSpent(house)}/{Session.Costs.BasePointBudget(house)} BP")">
+        <Field Label="Hero Points on the Headquarters Perk" For="base-perk">
+            <input id="base-perk" type="number" min="0" value="@house.PerkHeroPoints"
+                   @onchange="e => SetBase(house, house with { PerkHeroPoints = Number(e) })" />
+            <span class="muted small">
+                @(Session.Costs.BasePointBudget(house)) Base Points at
+                @(Session.Assets.BasePointsPerHeroPoint) each.
+            </span>
+        </Field>
+
+        <Field Label="Features (pp.100–103)">
+            @if (house.Features.Count > 0)
+            {
+                <ChosenList>
+                    @foreach (var f in house.Features.ToList())
+                    {
+                        <ChosenRow Findings="SheetFindings.ForAssetFeature(Validation, house.Name, f.FeatureId)">
+                            <Body>@FeatureName(f, onAVehicle: false)</Body>
+                            <Actions>
+                                @if (Session.Assets.FindBaseFeature(f.FeatureId) is { CostRange: { } grades })
+                                {
+                                    <select aria-label="Grade" value="@f.GradeKey"
+                                            @onchange="e => SetBaseFeature(house, f, f with { GradeKey = e.Value?.ToString() })">
+                                        @foreach (var grade in grades.OrderBy(g => g.Value))
+                                        {
+                                            <option value="@grade.Key">@Labels.Humanise(grade.Key) — @grade.Value BP</option>
+                                        }
+                                    </select>
+                                }
+                                @if (Session.Assets.FindBaseFeature(f.FeatureId) is { CostType: "per_unit" })
+                                {
+                                    <input type="number" min="1" value="@f.Units" class="units"
+                                           aria-label="Units"
+                                           @onchange="e => SetBaseFeature(house, f, f with { Units = Number(e) })" />
+                                }
+                                <button type="button" class="btn small danger"
+                                        @onclick="() => SetBaseFeature(house, f, null)">Remove</button>
+                            </Actions>
+                        </ChosenRow>
+                    }
+                </ChosenList>
+            }
+
+            <OptionList Placeholder="Filter the base features" Query="@_rowQuery">
+                @foreach (var row in BaseFeatureRows)
+                {
+                    <OptionRow Name="@row.Name" Caveat="@row.Description" Cost="@Price(row)"
+                               OnSelect="() => AddBaseFeature(house, row)" />
+                }
+            </OptionList>
+        </Field>
+
+        <div class="inline">
+            <button type="button" class="btn" @onclick="() => _base = null">Done</button>
+        </div>
+    </Panel>
+}
+
+@* ── Gadgets ──────────────────────────────────────────────────────────────── *@
+
+<Panel Title="Gadgets">
+    @* p.94's prerequisites, both of which the validator reports: six dice of Technology before
+       the rules open at all, and a Complexity between three and that Technology. The third — no
+       more than half the builder's Intellect in one issue — is about an issue rather than about a
+       sheet, and nothing here knows which issue it is looking at. *@
+    <p class="small muted">
+        p.94. Needs @(Prerequisites.MinimumTechnologyRank)d of Technology — you have
+        @(Session.Sheet.GetTalentRank("technology"))d. A build <b>pays out</b> twice the
+        Complexity, and costs your own budget nothing.
+    </p>
+
+    @if (Session.Sheet.Gadgets.Count == 0)
+    {
+        <EmptyState>Nothing built.</EmptyState>
+    }
+    else
+    {
+        <ChosenList>
+            @foreach (var gadget in Session.Sheet.Gadgets.ToList())
+            {
+                <ChosenRow Findings="SheetFindings.ForGadget(Validation, gadget.Name)">
+                    <Body>
+                        <b>@Headline(gadget)</b>
+                        @if (gadget.Powers.Count > 0)
+                        {
+                            <span class="muted small">
+                                <br />@string.Join(", ", gadget.Powers.Select(PowerLine))
+                            </span>
+                        }
+                    </Body>
+                    <Actions>
+                        <input type="number" min="0" value="@gadget.Complexity" class="units"
+                               aria-label="Complexity"
+                               @onchange="e => SetGadget(gadget, gadget with { Complexity = Number(e) })" />
+                        <button type="button" class="btn small" @onclick="() => _gadget = gadget">Edit</button>
+                        <button type="button" class="btn small danger" @onclick="() => RemoveGadget(gadget)">Remove</button>
+                    </Actions>
+                </ChosenRow>
+            }
+        </ChosenList>
+    }
+
+    <div class="inline spaced">
+        <input type="text" placeholder="Name a Gadget" @bind="_newGadget" @bind:event="oninput"
+               @onkeydown="@(e => { if (e.Key == "Enter") AddGadget(); })" aria-label="New Gadget" />
+        <button type="button" class="btn" aria-label="Add Gadget"
+                disabled="@string.IsNullOrWhiteSpace(_newGadget)"
+                @onclick="AddGadget">Add</button>
+    </div>
+</Panel>
+
+@if (_gadget is { } built)
+{
+    <Panel Class="gadget" Title="@built.Name"
+           Cost="@($"{Session.Costs.GadgetPool(built)} HP paid out")">
+        <Field Label="Powers bought out of the pool">
+            @if (built.Powers.Count > 0)
+            {
+                <ChosenList>
+                    @foreach (var power in built.Powers.ToList())
+                    {
+                        <ChosenRow>
+                            <Body>@PowerLine(power)</Body>
+                            <Actions>
+                                <input type="number" min="0" value="@power.PurchasedRanks" class="units"
+                                       aria-label="Ranks"
+                                       @onchange="e => SetGadgetPower(built, power, power with { PurchasedRanks = Number(e) })" />
+                                <button type="button" class="btn small danger"
+                                        @onclick="() => SetGadgetPower(built, power, null)">Remove</button>
+                            </Actions>
+                        </ChosenRow>
+                    }
+                </ChosenList>
+            }
+
+            @* **Pros and Cons on a Gadget's Power are deliberately not here.** p.94 allows them
+               and the engine prices them; what this screen has no room for is the whole
+               ProConPicker under every Power of every Gadget, and a half-picker that offered some
+               of them would be a rule this page had decided. A payload from `build --from` or the
+               MCP server carries them and is priced correctly — see docs/guide/browser.md. *@
+            <OptionList Placeholder="Filter the Powers">
+                @foreach (var power in Session.Rules.Powers)
+                {
+                    <OptionRow Name="@power.Name" Caveat="@PowerFormatter.StatLine(power)"
+                               Keywords="@power.Tags"
+                               OnSelect="() => AddGadgetPower(built, power.Id)" />
+                }
+            </OptionList>
+        </Field>
+
+        <div class="inline">
+            <button type="button" class="btn" @onclick="() => _gadget = null">Done</button>
+        </div>
+    </Panel>
+}
+
+@* ── The campaign's own ───────────────────────────────────────────────────── *@
+
+<Panel Title="Shared with the campaign">
+    @* Both p.96 and p.100 let Heroes pool their allowances on one object, and a CharacterSheet is
+       one character — so a pooled machine is either unrepresentable on one or double-counted
+       across five. What a character can honestly say is how much they put in; what the object came
+       out as is the campaign's answer, summed from every member. *@
+    <p class="small muted">
+        A team can pool their allowances on one object. Recorded here is <b>what you put in</b>;
+        the object is the campaign's.
+    </p>
+
+    @if (Session.Sheet.CampaignAssets.Count == 0)
+    {
+        <EmptyState>Nothing put into a shared vehicle or base.</EmptyState>
+    }
+    else
+    {
+        <ChosenList>
+            @foreach (var contribution in Session.Sheet.CampaignAssets.ToList())
+            {
+                <ChosenRow>
+                    <Body>@Headline(contribution)</Body>
+                    <Actions>
+                        <input type="number" min="0" value="@contribution.HeroPoints" class="units"
+                               aria-label="Hero Points"
+                               @onchange="e => SetContribution(contribution, contribution with { HeroPoints = Number(e) })" />
+                        <button type="button" class="btn small danger"
+                                @onclick="() => RemoveContribution(contribution)">Remove</button>
+                    </Actions>
+                </ChosenRow>
+            }
+        </ChosenList>
+    }
+</Panel>
+
+<StepButtons Back="build/gear" BackLabel="Gear" Next="build/derived" NextLabel="Derived stats" />
+
+@code {
+    /// <summary>Read fresh on every render — see <c>Review.razor</c>'s own <c>Validation</c>.</summary>
+    private ValidationResult Validation => Session.Validate();
+
+    /// <summary>
+    /// Every line on this page, asked of <c>sheets/</c> rather than built here.
+    ///
+    /// <para><b>They are methods rather than expressions in the markup for two reasons</b>, and
+    /// only one of them is style. The first is that a formatter's name is a type this project
+    /// declares, and a guard scans the visible markup for one — a type name that reaches a player
+    /// is the app talking about itself. The second is the rule the whole page is written under:
+    /// nothing here composes a figure, it only prints one somebody else worked out.</para>
+    /// </summary>
+    private string Headline(OwnedVehicle vehicle) => AssetFormatter.Describe(vehicle, Session.Costs);
+
+    /// <inheritdoc cref="Headline(OwnedVehicle)"/>
+    private static string Ranks(OwnedVehicle vehicle) => AssetFormatter.Characteristics(vehicle);
+
+    /// <inheritdoc cref="Headline(OwnedVehicle)"/>
+    private string Headline(OwnedHeadquarters headquarters) =>
+        AssetFormatter.Describe(headquarters, Session.Costs);
+
+    /// <inheritdoc cref="Headline(OwnedVehicle)"/>
+    private string Headline(BuiltGadget gadget) =>
+        AssetFormatter.Describe(gadget, Session.Costs, Session.Sheet.ImmortalityCost);
+
+    /// <inheritdoc cref="Headline(OwnedVehicle)"/>
+    private static string Headline(CampaignAssetContribution contribution) =>
+        AssetFormatter.Describe(contribution);
+
+    /// <inheritdoc cref="Headline(OwnedVehicle)"/>
+    private string FeatureName(SelectedAssetFeature feature, bool onAVehicle) =>
+        AssetFormatter.Feature(feature, Session.Rules, onAVehicle);
+
+    /// <inheritdoc cref="Headline(OwnedVehicle)"/>
+    private string FeatureLine(OwnedVehicle vehicle) =>
+        string.Join(", ", vehicle.Features.Select(f => FeatureName(f, onAVehicle: true)));
+
+    /// <inheritdoc cref="Headline(OwnedVehicle)"/>
+    private string FeatureLine(OwnedHeadquarters headquarters) =>
+        string.Join(", ", headquarters.Features.Select(f => FeatureName(f, onAVehicle: false)));
+
+    /// <summary>
+    /// The three lists this page offers, split out of the markup rather than filtered inline.
+    ///
+    /// <para><b>A page may not print the name of a type this project declares</b>, and
+    /// <c>AssetRowKind</c> in a <c>@@foreach</c> was doing exactly that — a guard scans the markup
+    /// for it, because a type name that reaches a player is the app talking about itself.</para>
+    /// </summary>
+    private IEnumerable<AssetCatalogueRow> VehicleFeatureRows =>
+        Session.Assets.Rows.Where(r => r.Kind == AssetRowKind.VehicleFeature);
+
+    /// <inheritdoc cref="VehicleFeatureRows"/>
+    private IEnumerable<AssetCatalogueRow> StockVehicleRows =>
+        Session.Assets.Rows.Where(r => r.Kind == AssetRowKind.StockVehicle);
+
+    /// <inheritdoc cref="VehicleFeatureRows"/>
+    private IEnumerable<AssetCatalogueRow> BaseFeatureRows =>
+        Session.Assets.Rows.Where(r => r.Kind == AssetRowKind.BaseFeature);
+
+    private GadgetPrerequisites Prerequisites =>
+        Session.Rules.Gadgets.Entries.Single(e => e.Id == "gadget_prerequisites").Prerequisites!;
+
+    private string _newVehicle = "";
+    private string _newBase = "";
+    private string _newGadget = "";
+
+    private OwnedVehicle? _vehicle;
+    private OwnedHeadquarters? _base;
+    private BuiltGadget? _gadget;
+
+    /// <summary>
+    /// What the row lists hold when the reader arrives from the command palette — the row's
+    /// <em>name</em>, so the box shows why the list is short.
+    ///
+    /// <para>Taken rather than peeked, exactly as the Gear step takes its own: one consumer, and a
+    /// request left set would drag the list back to that row every time anything else on this page
+    /// re-rendered, over whatever the reader had gone on to type.</para>
+    /// </summary>
+    private string? _rowQuery;
+
+    protected override void OnInitialized()
+    {
+        if (Commands.TakeRequestedAssetRow() is { } rowId && Session.Assets.Find(rowId) is { } row)
+        {
+            _rowQuery = row.Name;
+
+            // A row lands on the thing it belongs to, open and ready. Without this the reader
+            // arrives at a page of four panels with a filtered list inside one of them that they
+            // cannot see, which reads as the palette having done nothing.
+            if (row.Kind == AssetRowKind.BaseFeature) _base ??= Session.Sheet.Headquarters.FirstOrDefault();
+            else _vehicle ??= Session.Sheet.Vehicles.FirstOrDefault();
+        }
+    }
+
+    // ── Vehicles ──────────────────────────────────────────────────────────
+
+    private void AddVehicle()
+    {
+        if (string.IsNullOrWhiteSpace(_newVehicle)) return;
+
+        var machine = new OwnedVehicle(_newVehicle.Trim());
+        Session.Sheet.Vehicles.Add(machine);
+        _newVehicle = "";
+        _vehicle = machine;
+        Session.NotifyChanged();
+    }
+
+    private void RemoveVehicle(OwnedVehicle machine)
+    {
+        Session.Sheet.Vehicles.Remove(machine);
+        if (ReferenceEquals(_vehicle, machine)) _vehicle = null;
+        Session.NotifyChanged();
+    }
+
+    private void SetVehicle(OwnedVehicle old, OwnedVehicle updated)
+    {
+        var index = Session.Sheet.Vehicles.IndexOf(old);
+        if (index < 0) return;
+
+        Session.Sheet.Vehicles[index] = updated;
+        _vehicle = updated;
+        Session.NotifyChanged();
+    }
+
+    /// <summary>
+    /// A feature goes on at its cheapest grade, because <c>CostCalculator</c> throws rather than
+    /// guessing one — the same answer the Gear step gives, and the cheapest is the honest default.
+    /// </summary>
+    private void AddVehicleFeature(OwnedVehicle machine, AssetCatalogueRow row)
+    {
+        var id = row.Id[AssetCatalogue.VehicleFeaturePrefix.Length..];
+        if (machine.Features.Any(f => f.FeatureId == id)) return;
+
+        SetVehicle(machine, machine with
+        {
+            Features = [.. machine.Features, new SelectedAssetFeature(id) { GradeKey = CheapestGrade(row) }]
+        });
+    }
+
+    private void SetVehicleFeature(OwnedVehicle machine, SelectedAssetFeature old, SelectedAssetFeature? updated) =>
+        SetVehicle(machine, machine with { Features = Replace(machine.Features, old, updated) });
+
+    /// <summary>
+    /// One of p.96's six stock machines, copied onto the vehicle being edited.
+    ///
+    /// <para><b>Copied, and then it is this character's machine.</b> Nothing records which stock
+    /// row it came from: the page prints stock vehicles as worked examples with their totals, and
+    /// a field saying "this started as a Speedboat" would be a fact about how somebody worked
+    /// rather than about the thing they built. The name is left alone for the same reason.</para>
+    ///
+    /// <para>The feature line "Rader (Sonar)" is the one row that is not a bare feature name; it
+    /// is the Radar Power taken through Unique Systems, which this screen cannot copy without
+    /// pricing a Power, so it is skipped and the reader adds it. The validator will say the
+    /// machine is under budget rather than over, which is the safe direction.</para>
+    /// </summary>
+    private void CopyStock(OwnedVehicle machine, AssetCatalogueRow row)
+    {
+        if (row.Stock is not { } stock) return;
+
+        SetVehicle(machine, machine with
+        {
+            Body = stock.Body,
+            Speed = stock.Speed,
+            Control = stock.Control,
+            Weapons = stock.Weapons,
+            Features = [.. stock.Features.Select(FeatureFromStockLine).OfType<SelectedAssetFeature>()]
+        });
+    }
+
+    private SelectedAssetFeature? FeatureFromStockLine(string printed)
+    {
+        if (printed.StartsWith("Passengers ", StringComparison.Ordinal)
+            && int.TryParse(printed["Passengers ".Length..], out var extra))
+            return new SelectedAssetFeature("passengers") { Units = Math.Max(1, extra / 4) };
+
+        var id = GearCatalogue.Slug(printed);
+        return Session.Assets.FindVehicleFeature(id) is null ? null : new SelectedAssetFeature(id);
+    }
+
+    // ── Headquarters ──────────────────────────────────────────────────────
+
+    private void AddBase()
+    {
+        if (string.IsNullOrWhiteSpace(_newBase)) return;
+
+        var house = new OwnedHeadquarters(_newBase.Trim());
+        Session.Sheet.Headquarters.Add(house);
+        _newBase = "";
+        _base = house;
+        Session.NotifyChanged();
+    }
+
+    private void RemoveBase(OwnedHeadquarters house)
+    {
+        Session.Sheet.Headquarters.Remove(house);
+        if (ReferenceEquals(_base, house)) _base = null;
+        Session.NotifyChanged();
+    }
+
+    private void SetBase(OwnedHeadquarters old, OwnedHeadquarters updated)
+    {
+        var index = Session.Sheet.Headquarters.IndexOf(old);
+        if (index < 0) return;
+
+        Session.Sheet.Headquarters[index] = updated;
+        _base = updated;
+        Session.NotifyChanged();
+    }
+
+    private void AddBaseFeature(OwnedHeadquarters house, AssetCatalogueRow row)
+    {
+        var id = row.Id[AssetCatalogue.BaseFeaturePrefix.Length..];
+        if (house.Features.Any(f => f.FeatureId == id)) return;
+
+        SetBase(house, house with
+        {
+            Features = [.. house.Features, new SelectedAssetFeature(id) { GradeKey = CheapestGrade(row) }]
+        });
+    }
+
+    private void SetBaseFeature(OwnedHeadquarters house, SelectedAssetFeature old, SelectedAssetFeature? updated) =>
+        SetBase(house, house with { Features = Replace(house.Features, old, updated) });
+
+    // ── Gadgets ───────────────────────────────────────────────────────────
+
+    private void AddGadget()
+    {
+        if (string.IsNullOrWhiteSpace(_newGadget)) return;
+
+        // Opened at the floor rather than at zero: a Gadget at Complexity 0 is reported by the
+        // validator the instant it exists, and greeting somebody with a finding for pressing Add
+        // is the app telling them off for using it.
+        var gadget = new BuiltGadget(_newGadget.Trim())
+        {
+            Complexity = Session.Assets.MinimumGadgetComplexity
+        };
+
+        Session.Sheet.Gadgets.Add(gadget);
+        _newGadget = "";
+        _gadget = gadget;
+        Session.NotifyChanged();
+    }
+
+    private void RemoveGadget(BuiltGadget gadget)
+    {
+        Session.Sheet.Gadgets.Remove(gadget);
+        if (ReferenceEquals(_gadget, gadget)) _gadget = null;
+        Session.NotifyChanged();
+    }
+
+    private void SetGadget(BuiltGadget old, BuiltGadget updated)
+    {
+        var index = Session.Sheet.Gadgets.IndexOf(old);
+        if (index < 0) return;
+
+        Session.Sheet.Gadgets[index] = updated;
+        _gadget = updated;
+        Session.NotifyChanged();
+    }
+
+    private void AddGadgetPower(BuiltGadget gadget, string powerId)
+    {
+        if (gadget.Powers.Any(p => p.PowerId == powerId)) return;
+
+        SetGadget(gadget, gadget with
+        {
+            Powers = [.. gadget.Powers, new SelectedPower(powerId, 1)]
+        });
+    }
+
+    private void SetGadgetPower(BuiltGadget gadget, SelectedPower old, SelectedPower? updated) =>
+        SetGadget(gadget, gadget with { Powers = Replace(gadget.Powers, old, updated) });
+
+    private string PowerLine(SelectedPower power) =>
+        $"{Session.Rules.GetPower(power.PowerId)?.Name ?? power.PowerId} {power.PurchasedRanks}d";
+
+    // ── The campaign's own ────────────────────────────────────────────────
+
+    private void SetContribution(CampaignAssetContribution old, CampaignAssetContribution updated)
+    {
+        var index = Session.Sheet.CampaignAssets.IndexOf(old);
+        if (index < 0) return;
+
+        Session.Sheet.CampaignAssets[index] = updated;
+        Session.NotifyChanged();
+    }
+
+    private void RemoveContribution(CampaignAssetContribution contribution)
+    {
+        Session.Sheet.CampaignAssets.Remove(contribution);
+        Session.NotifyChanged();
+    }
+
+    // ── Shared ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The right-hand column: what the row costs, <b>with its currency</b>. A bare number in a
+    /// list beside a Hero Point budget is the category error this whole page is careful about.
+    /// </summary>
+    private static string Price(AssetCatalogueRow row)
+    {
+        var unit = row.Kind == AssetRowKind.BaseFeature ? "BP" : "VP";
+
+        return row switch
+        {
+            { Cost: { } flat }        => $"{flat} {unit}",
+            { CostPerUnit: { } rate } => $"{rate} {unit} each",
+            { Grades: { } grades }    => $"{grades.Values.Min()}–{grades.Values.Max()} {unit}",
+            _                         => ""
+        };
+    }
+
+    private static string? CheapestGrade(AssetCatalogueRow row) =>
+        row.Grades is { } grades ? grades.OrderBy(g => g.Value).First().Key : null;
+
+    private static IReadOnlyList<T> Replace<T>(IReadOnlyList<T> list, T old, T? updated) where T : class =>
+        [.. list.SelectMany(item => ReferenceEquals(item, old)
+            ? (updated is null ? Array.Empty<T>() : [updated])
+            : new[] { item })];
+
+    private static int Number(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var value) ? value : 0;
+
+    private static int? OptionalNumber(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var value) ? value : null;
+}

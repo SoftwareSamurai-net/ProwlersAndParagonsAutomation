@@ -12,7 +12,7 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// the banner should print — so a <c>palette.js</c> that
 /// 404s or fails to parse would throw out of <c>OnAfterRenderAsync</c> on <em>every</em> render
 /// of the layout, which is every page. A missing keyboard shortcut would take the app with it,
-/// and the shortcut is a convenience: the six steps are all still one click away in the band at
+/// and the shortcut is a convenience: every step is still one click away in the band at
 /// the top, and every Power is still in the list on its own step.</para>
 ///
 /// <para><b>It is a class rather than a <c>try</c> at each call site</b> for the reason

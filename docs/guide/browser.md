@@ -45,7 +45,7 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 ## Four areas, and the address decides which
 
 **`Areas.Of` reads the first path segment and every band of chrome follows it.** `""` is the front
-door, `build` the six creation steps, `rules` the reference, and `admin` (with `signin`) the account
+door, `build` the seven creation steps, `rules` the reference, and `admin` (with `signin`) the account
 pages. `MainLayout` draws the step list and the budget strip in `Play` alone.
 
 - **The builder is under `/build` and `/` is a chooser, which reverses the old shape.** The tier page
@@ -1445,7 +1445,7 @@ Two more of the same family. **A zero width is not a visible edge** — `border-
 - **The count lags its own render by one pass and `OnAfterRender` catches it up**, guarded by comparing against what was drawn. Remove the guard and it is an endless render loop rather than a count.
 - **The "nothing matches" line appears only when a filter is the reason.** A list that is empty for its own reasons says so in its own words — "None yet." — and answering an unasked question would contradict it.
 
-**The budget is chrome, not content.** `HpBudgetBar` is a sticky strip with a 3px rail on its own bottom edge, not a panel in the column — as a panel it cost ~110px above every one of six steps, most of it a table consulted occasionally. Three things it has already been got wrong on:
+**The budget is chrome, not content.** `HpBudgetBar` is a sticky strip with a 3px rail on its own bottom edge, not a panel in the column — as a panel it cost ~110px above every one of the creation steps, most of it a table consulted occasionally. Three things it has already been got wrong on:
 
 - **There is no negative-margin bleed any more, and this bullet used to say there must be one.** The strip *was* pulled out of `.shell`'s padding by `calc(-1 * var(--space-6))` in three places, with a matching pair in the ≤620px query that had to be kept in step or the band ran 8px past the page — measured once as `scrollWidth` 368 against `clientWidth` 360. **The strip is a sibling of `<main class="shell">` now**, not a child of it, so it is already the width of the window and there is nothing to escape; the mechanism is gone and the guard that watched it went with it. `app.css` records this above `.budget`. Do not reintroduce a pull to "line the strip up" — check where it sits in `MainLayout` first.
 - **`aria-valuenow` is clamped to `aria-valuemax` and `aria-valuetext` carries the truth.** An over-budget character spends more than the budget, and a `progressbar` reporting 132 of 125 is out of range; the fill was already clamped in the same block while the announced value was not. The bar also carries its own `aria-label` — the one on the enclosing `<section>` names the section, not the bar.

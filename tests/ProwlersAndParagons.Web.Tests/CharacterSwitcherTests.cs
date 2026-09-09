@@ -11,7 +11,7 @@ namespace ProwlersAndParagons.Web.Tests;
 /// Which character is open, and the way to another one, from every step of the builder.
 ///
 /// <para><b>Swapping used to mean walking back to step one.</b> <c>CharacterManager</c> is a panel
-/// on the tier page, so a reader six steps in who wanted their other character had to navigate to
+/// on the tier page, so a reader several steps in who wanted their other character had to navigate to
 /// the start of a wizard to reach it. The manager keeps everything else it does; this is the one
 /// act worth having from everywhere.</para>
 /// </summary>

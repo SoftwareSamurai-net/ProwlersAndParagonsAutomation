@@ -67,8 +67,18 @@ public sealed class PaletteBookTests
     /// shape of their detail line would be asking the test to know the citation format, which is
     /// one of the things under test.</para>
     /// </summary>
+    /// <summary>
+    /// The book's own rows.
+    ///
+    /// <para><b>Asked for by the row's kind, not by "after a heading".</b> This used to be
+    /// <c>.palette-group ~ .palette-row</c> — every row following <em>any</em> heading — which was
+    /// correct for exactly as long as the book was the only group. When Chapter 6's vehicles and
+    /// bases became a second one, three waits in this file started returning before the request
+    /// they were waiting for had been made, because a base feature had matched the query and
+    /// satisfied "the book answered".</para>
+    /// </summary>
     private static List<string> BookRows(IRenderedComponent<CommandPalette> page) =>
-        [.. page.FindAll(".palette-group ~ .palette-row")
+        [.. page.FindAll(".palette-row.kind-passage")
                .Select(r => r.QuerySelector(".palette-label")!.TextContent.Trim())];
 
     /// <summary>
@@ -244,10 +254,10 @@ public sealed class PaletteBookTests
         Assert.Equal("knock", layout.Find(".palette-box").GetAttribute("value"));
 
         await layout.WaitForAssertionAsync(
-            () => Assert.NotEmpty(layout.FindAll(".palette-group")), Patient);
+            () => Assert.NotEmpty(layout.FindAll(".palette-row.kind-passage")), Patient);
 
         Assert.Contains("KNOCKBACK",
-            layout.FindAll(".palette-group ~ .palette-row")
+            layout.FindAll(".palette-row.kind-passage")
                   .Select(r => r.QuerySelector(".palette-label")!.TextContent.Trim()));
 
         Assert.Single(Searches(ctx));
@@ -324,10 +334,10 @@ public sealed class PaletteBookTests
         // book's threshold and "kno" is not, so a book row at all is a row that only the forwarded
         // press could have produced — which is why those two lengths were chosen.
         await layout.WaitForAssertionAsync(
-            () => Assert.NotEmpty(layout.FindAll(".palette-group")), Patient);
+            () => Assert.NotEmpty(layout.FindAll(".palette-row.kind-passage")), Patient);
 
         Assert.Contains("KNOCKBACK",
-            layout.FindAll(".palette-group ~ .palette-row")
+            layout.FindAll(".palette-row.kind-passage")
                   .Select(r => r.QuerySelector(".palette-label")!.TextContent.Trim()));
 
         // One request, for the last word. The burst collapses in `AskTheBookAsync`'s pause, so a
@@ -392,10 +402,10 @@ public sealed class PaletteBookTests
 
         // The book answered, for a word that was typed before anything here knew it could be asked.
         await layout.WaitForAssertionAsync(
-            () => Assert.NotEmpty(layout.FindAll(".palette-group")), Patient);
+            () => Assert.NotEmpty(layout.FindAll(".palette-row.kind-passage")), Patient);
 
         Assert.Contains("KNOCKBACK",
-            layout.FindAll(".palette-group ~ .palette-row")
+            layout.FindAll(".palette-row.kind-passage")
                   .Select(r => r.QuerySelector(".palette-label")!.TextContent.Trim()));
 
         // And the sentence that is what the reader actually sees when this is broken is not up.
