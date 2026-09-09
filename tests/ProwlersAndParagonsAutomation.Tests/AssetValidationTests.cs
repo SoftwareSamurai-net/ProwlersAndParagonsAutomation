@@ -155,10 +155,11 @@ public sealed class AssetValidationTests
     /// <b>p.96's Control rules, both ends.</b> Control may not exceed half the Speed, and a
     /// negative Control stops paying back at −3.
     ///
-    /// <para>The comparison is doubled Control against Speed rather than half of Speed against
-    /// Control, because the page prints no rounding rule for this sentence and inventing one would
-    /// be this project making up a rule. Speed 10 with Control 5 is therefore legal, which is what
-    /// the Jet Fighter on the same page is.</para>
+    /// <para><b>Half rounds up</b>, per p.7's glossary — "always round up, regardless of the
+    /// context" — which p.96 works on its own page when it calls 4 "half of 7". Speed 10 with
+    /// Control 5 is legal, which is what the Jet Fighter on the same page is; so is Speed 7 with
+    /// Control 4, and that case has a test of its own because this fixture's even Speed cannot
+    /// tell the two roundings apart — see <see cref="AnOddSpeedRoundsItsHalfUp"/>.</para>
     /// </summary>
     [Fact]
     public void ControlIsHeldToHalfTheSpeedAndToItsFloor()
@@ -183,6 +184,69 @@ public sealed class AssetValidationTests
 
         // Never repaired: −4 still pays back eight Vehicle Points, which is what the sheet says.
         Assert.Equal(-8, _f.Costs.VehiclePointsSpent(sheet.Vehicles[0] with { Speed = 0 }));
+    }
+
+    /// <summary>
+    /// <b>The boundary the fixture above straddles without ever touching: an odd Speed.</b>
+    ///
+    /// <para>"Control ... can't exceed half the vehicle's Speed" was compared as
+    /// <c>Control * 2 &gt; Speed</c>, which is <c>Control &gt; floor(Speed / 2)</c> — right at
+    /// every even Speed and a rank too tight at every odd one. Speed 10 cannot see the
+    /// difference, so the check above was green while this one rejected machines the book prints:
+    /// p.97's Helicopter (Military), Helicopter (Personal) and Jet Pack are each Speed 7d with
+    /// Control +4d.</para>
+    ///
+    /// <para><b>p.7 settles it and p.96 demonstrates it.</b> The glossary: half of an odd number
+    /// "always round[s] up, regardless of the context". p.96, a few paragraphs above the sentence
+    /// under test: a Foe-piloted sedan with 7d Body is disabled after "4 points of damage (half
+    /// of 7)". So half of 7 is 4, Control 4 against Speed 7 is legal, and 5 is not.</para>
+    ///
+    /// <para>The printed machines are driven off the shipped data rather than typed here, so a
+    /// corrected transcription moves this test rather than leaving it asserting a stale pair —
+    /// and the sweep asserts what it found before asserting anything about it, because an empty
+    /// sweep would satisfy every claim in the loop trivially.</para>
+    /// </summary>
+    [Fact]
+    public void AnOddSpeedRoundsItsHalfUp()
+    {
+        var sheet = _f.LegalSheet();
+
+        // Legal: 4 is half of 7 the way the book halves.
+        sheet.Vehicles.Add(new OwnedVehicle("Whirlybird") { PerkHeroPoints = 2, Speed = 7, Control = 4 });
+        Assert.False(Reports(sheet, "VEHICLE_CONTROL_ABOVE_HALF_SPEED"));
+
+        // And one past it is not, with the cap quoted as the same 4 the comparison used.
+        sheet.Vehicles[0] = sheet.Vehicles[0] with { Control = 5 };
+        var above = Only(sheet, "VEHICLE_CONTROL_ABOVE_HALF_SPEED");
+        Assert.Equal(5, above.Value);
+        Assert.Equal(4, above.Limit);
+
+        // The second witness: every mundane vehicle the book prints has a Control this rule
+        // allows. They are not bought with Vehicle Points, but they are the book's own statement
+        // of what a Control against a Speed looks like — and three of them are the case above.
+        var printed = _f.Rules.Vehicles.Entries
+            .Where(e => e.Vehicles is not null)
+            .SelectMany(e => e.Vehicles!)
+            .Where(v => v.Control > 0)
+            .ToList();
+
+        Assert.True(printed.Count > 20,
+            $"Only {printed.Count} printed vehicles with a positive Control were found — the "
+            + "sweep below would hold of almost nothing.");
+
+        Assert.Contains(printed, v => v.Speed % 2 == 1 && v.Control == (v.Speed + 1) / 2);
+
+        foreach (var row in printed)
+        {
+            var machine = new CharacterSheet();
+            machine.Vehicles.Add(new OwnedVehicle(row.Name)
+            {
+                PerkHeroPoints = 99, Speed = row.Speed, Control = row.Control
+            });
+
+            Assert.DoesNotContain(_f.Validator.Validate(machine).Issues,
+                i => i.Code == "VEHICLE_CONTROL_ABOVE_HALF_SPEED");
+        }
     }
 
     // ── Features the rulebook does not have ───────────────────────────────────

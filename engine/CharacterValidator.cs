@@ -1304,11 +1304,17 @@ public sealed class CharacterValidator
 
         var rates = _rules.Assets.Characteristics;
 
-        // p.96: "Control may not exceed half the vehicle's Speed." Compared as doubled Control
-        // against Speed rather than by halving Speed, because that needs no rounding rule — and
-        // the book prints none for this sentence. A rounding rule invented here would be this
-        // project making one up, which is the one thing data/rules/ exists to prevent.
-        if (vehicle.Control > 0 && vehicle.Control * 2 > vehicle.Speed)
+        // p.96: "Control ... can't exceed half the vehicle's Speed." **Half rounds up**, because
+        // p.7's glossary settles every halving in the book that way — "always round up, regardless
+        // of the context" — and p.96 works that rule on this very page: a Foe-piloted sedan with
+        // 7d Body is disabled after "4 points of damage (half of 7)".
+        //
+        // This was written `Control * 2 > Speed`, which is `Control > floor(Speed / 2)` and so
+        // rejects a legal machine at every odd Speed. p.97 prints three of them — Helicopter
+        // (Military), Helicopter (Personal) and Jet Pack, each Speed 7d with Control +4d.
+        var controlCap = HalfRoundedUp(vehicle.Speed);
+
+        if (vehicle.Control > 0 && vehicle.Control > controlCap)
             issues.Add(new(ValidationSeverity.Error, "VEHICLE_CONTROL_ABOVE_HALF_SPEED",
                 $"{vehicle.Name} has Control {vehicle.Control} against Speed {vehicle.Speed}. "
                 + "A vehicle's Control may not exceed half its Speed.")
@@ -1316,7 +1322,7 @@ public sealed class CharacterValidator
                 SubjectKind = ValidationSubject.Vehicle,
                 SubjectId   = vehicle.Name,
                 Value       = vehicle.Control,
-                Limit       = vehicle.Speed / 2
+                Limit       = controlCap
             });
 
         // p.96: a negative Control pays two points back a rank, down to −3 and no further.
@@ -1353,6 +1359,21 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
+    /// Half of a rank, the way the rulebook means it: p.7's glossary, "Whenever we refer to half
+    /// of an odd number (or half of an odd number of dice), always round up, regardless of the
+    /// context."
+    ///
+    /// <para><b>It is here because a cap and a floor do not round the same way when the halving is
+    /// open-coded, and only one of the two open codings was right.</b> A floor written
+    /// <c>units * 2 &gt;= body</c> is exactly <c>units &gt;= ceil(body / 2)</c> over the integers,
+    /// so the Mecha check was correct by luck. The same trick on a cap,
+    /// <c>control * 2 &gt; speed</c>, is <c>control &gt; floor(speed / 2)</c> — a rank tighter at
+    /// every odd Speed, and it rejected three machines p.97 prints. Both call this now, so there
+    /// is one halving to be wrong about rather than two.</para>
+    /// </summary>
+    private static int HalfRoundedUp(int rank) => (rank + 1) / 2;
+
+    /// <summary>
     /// p.99's Mecha, the one vehicle feature that prints a floor beside its price: "A vehicle's
     /// Might may not be lower than half its Body."
     ///
@@ -1365,7 +1386,7 @@ public sealed class CharacterValidator
         var mecha = vehicle.Features.FirstOrDefault(
             f => string.Equals(f.FeatureId, AssetCatalogue.MechaFeatureId, StringComparison.Ordinal));
 
-        if (mecha is null || mecha.Units * 2 >= vehicle.Body) return;
+        if (mecha is null || mecha.Units >= HalfRoundedUp(vehicle.Body)) return;
 
         issues.Add(new(ValidationSeverity.Error, "MECHA_MIGHT_BELOW_HALF_BODY",
             $"{vehicle.Name} is a Mecha with Might {mecha.Units} against Body {vehicle.Body}. "
@@ -1376,9 +1397,9 @@ public sealed class CharacterValidator
             OwnerId     = vehicle.Name,
             Value       = mecha.Units,
 
-            // Half the Body, rounded up, which is the smallest whole Might that satisfies the
-            // sentence — derived from the comparison above rather than from a rounding rule.
-            Limit       = (vehicle.Body + 1) / 2
+            // Half the Body, which p.7 rounds up like every other half in the book — the same
+            // call the comparison above makes, so the figure quoted is the figure tested.
+            Limit       = HalfRoundedUp(vehicle.Body)
         });
     }
 
