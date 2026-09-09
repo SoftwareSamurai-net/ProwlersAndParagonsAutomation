@@ -246,6 +246,66 @@ public sealed class PlaySceneryTests
     }
 
     /// <summary>
+    /// <b>"Half as much damage as the original attack inflicted" is halved the Glossary's way, and
+    /// only an odd blow can say so.</b>
+    ///
+    /// <para>Every other knockback fixture here does exactly the entry's <c>minimum_damage</c> of
+    /// six, which halves to three whichever way it is rounded — so substituting an
+    /// <c>inflicted / 2</c> for the <c>Rounding.Half</c> that reads <c>play_meta</c>'s
+    /// <c>half_rounds_up</c> left the whole suite green. That is the mutation
+    /// <see cref="Rounding"/>'s own doc comment says this project keeps being caught by: a second
+    /// transcription of p.7's convention agrees with the file exactly until somebody corrects the
+    /// file.</para>
+    ///
+    /// <para>Seven points is the smallest blow above the floor that separates the two directions,
+    /// and the fixture asserts that it does before it asserts which way this engine went.</para>
+    /// </summary>
+    [Fact]
+    public void HalfOfAnOddBlowIsRoundedTheGlossarysWay()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+
+        var vault = _play.GetEnvironment("scenery_table").SceneryTable!
+            .Single(r => r.Scenery.Contains("Vault Door", StringComparer.Ordinal)).Structure;
+
+        const int Blow = 7;
+        const int Toughness = 8;
+
+        Assert.True(Blow >= rule.MinimumDamage, "the blow is under p.78's own floor, so nothing is bought");
+        Assert.True(Toughness < vault, "the target out-ranks the vault door, so nothing is halved at all");
+
+        Assert.NotEqual(Blow / 2, Rounding.Half(_play, Blow));
+
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8 },
+            []);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = Toughness },
+            ["toughness"]);
+
+        // Three sixes and a four is seven successes on p.67's map, and nothing on the defence.
+        var dice = new ScriptedDice(
+            [6, 6, 6, 4, .. Enumerable.Repeat(1, 4), .. Enumerable.Repeat(1, Toughness)]);
+
+        var encounter = new Encounter(_play, dice);
+        var blow = encounter.Step(encounter.Begin([hero, villain]), new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        // The positive control: the blow really was the odd one this fixture is about.
+        Assert.Contains(blow.Added, l =>
+            l.Text.Contains($"might 8d for {Blow} successes", StringComparison.Ordinal));
+
+        Assert.Equal(12 - Blow, blow.State["villain"].CurrentHealth);
+        Assert.Equal(0, dice.Remaining);
+
+        var spent = encounter.Step(blow.State, new SpendResolve(
+            "hero", ResolveSpend.Knockback, SolidObject: "a vault door"));
+
+        Assert.Equal(12 - Blow - Rounding.Half(_play, Blow), spent.State["villain"].CurrentHealth);
+    }
+
+    /// <summary>
     /// <b>A passive defence exactly equal to the Structure does not smash through, and the page is
     /// what says so.</b>
     ///
