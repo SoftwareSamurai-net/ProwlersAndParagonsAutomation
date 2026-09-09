@@ -4,17 +4,15 @@ namespace ProwlersAndParagonsAutomation.Engine.Models;
 /// The three Chapter 6 stores this project extracted for pp.94-104 — <c>gadgets.json</c>,
 /// <c>vehicles.json</c> and <c>headquarters.json</c> — as models.
 ///
-/// <para><b>None of them is on <see cref="RulesRepository.DataFileNames"/>, deliberately.</b> That
-/// list is the contract for a host which fetches the character rules over HTTP, and adding a file
-/// to it is a decision about what the browser downloads on its first page load. The slice that
-/// teaches <c>CostCalculator</c> and the sheet what a vehicle or a headquarters costs is the slice
-/// that gets to make it. Until then these models exist so the data can be held to the rulebook by a
-/// test, which is the whole reason a rules file is worth having: unread data reads like a source of
-/// truth and is not one, and a file with no model is a file
-/// <c>JsonUnmappedMemberHandling.Disallow</c> can say nothing about.</para>
+/// <para><b>All three are on <see cref="RulesRepository.DataFileNames"/></b>, put there by the
+/// slice that taught <c>CostCalculator</c> and the sheet what a vehicle, a base and a Gadget cost.
+/// <see cref="RulesRepository.Vehicles"/>, <c>Headquarters</c> and <c>Gadgets</c> load them, and
+/// <see cref="AssetCatalogue"/> is what flattens the pickable tables into rows a host can offer —
+/// the same relationship <see cref="GearCatalogue"/> has to <c>gear.json</c>.</para>
 ///
-/// <para>Every csproj's <c>data\rules\*.json</c> glob copies the three files to every host's output
-/// directory already, so the consumer slice has to add a loader and nothing else.</para>
+/// <para><b>The models came first and the loader second</b>, which is the order the 141 Powers were
+/// done in: unread data reads like a source of truth and is not one, and a file with no model is a
+/// file <c>JsonUnmappedMemberHandling.Disallow</c> can say nothing about.</para>
 ///
 /// <para><b>Two currencies, and neither is Hero Points.</b> A vehicle is bought in Vehicle Points at
 /// 25 per Hero Point of the Unique Vehicle Perk; a headquarters in Base Points at 3 per Hero Point

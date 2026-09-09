@@ -1,15 +1,17 @@
+using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Components;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using ProwlersAndParagonsAutomation.Web.Pages;
+using ProwlersAndParagonsAutomation.Web.Services;
 
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
 /// One site doing several jobs, and the chrome saying which one you are in.
 ///
-/// <para>The builder is the six creation steps. The rules reference is the book, searchable. The
+/// <para>The builder is the seven creation steps. The rules reference is the book, searchable. The
 /// account pages are who may sign in and the demonstrations kept for showing somebody. The front
 /// door is none of them and offers all of them. The furniture above the page was written for the
 /// builder and means nothing anywhere else.</para>
@@ -190,5 +192,63 @@ public sealed class AreaTests
 
         // ...and the control that does belong to building is still there.
         Assert.Contains("Start a new character", tier, StringComparison.Ordinal);
+    }
+
+    // ── The step list against the pages it names ──────────────────────────────
+
+    /// <summary>
+    /// <b><c>Commands.Steps</c> is the only list of steps in the app, and nothing held it to the
+    /// pages.</b>
+    ///
+    /// <para>Its own summary says the steps live there "rather than in the step list component,
+    /// because two lists of steps would drift — a palette that offers a step the band above it
+    /// does not have, or misses one it does, is worse than no palette". One list is a good answer
+    /// to two lists disagreeing. It is <em>not</em> an answer to the list disagreeing with the
+    /// pages, and that was unchecked: <b>deleting any entry from <c>Steps</c> — the newest one or
+    /// the oldest — passed all 6,231 tests in both suites</b>, leaving a page that still routes
+    /// and is reachable from neither the band nor the palette.</para>
+    ///
+    /// <para><b>Both directions, because only one of them is the interesting failure.</b> A step
+    /// naming a page that does not exist is a dead row a reader clicks into nothing; a page no
+    /// step names is a screen that has quietly fallen out of the builder, which is what the
+    /// mutation above produces. <c>Roster</c> is the one <c>/build</c> page that is deliberately
+    /// not a step — it is where characters are chosen, reached from the switcher — and it is named
+    /// here so that the exemption is a decision rather than a gap.</para>
+    /// </summary>
+    [Fact]
+    public void EveryStepNamesAPageAndEveryBuilderPageIsAStep()
+    {
+        var pages = Directory
+            .EnumerateFiles(Path.Combine(RepoRoot(), "web", "Pages"), "*.razor")
+            .SelectMany(file => Regex.Matches(
+                File.ReadAllText(file), """^@page "/([^"]*)"\s*$""",
+                RegexOptions.Multiline, TimeSpan.FromSeconds(5)))
+            .Select(m => m.Groups[1].Value)
+            .Where(route => route == "build" || route.StartsWith("build/", StringComparison.Ordinal))
+            .ToHashSet(StringComparer.Ordinal);
+
+        // The positive control on the scan: a path that has moved leaves this reading nothing and
+        // agreeing with nothing, which is how a guard of this shape passes while saying nothing.
+        Assert.True(pages.Count > 5, $"only {pages.Count} builder pages were found under web/Pages");
+
+        var steps = Commands.Steps.Select(s => s.Target).ToHashSet(StringComparer.Ordinal);
+
+        // Every step is a page.
+        Assert.Empty(steps.Except(pages));
+
+        // And every builder page is a step, bar the one that is deliberately not.
+        Assert.Equal<IEnumerable<string>>(["build/characters"], pages.Except(steps).Order());
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root.");
     }
 }

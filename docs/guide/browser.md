@@ -45,7 +45,7 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 ## Four areas, and the address decides which
 
 **`Areas.Of` reads the first path segment and every band of chrome follows it.** `""` is the front
-door, `build` the six creation steps, `rules` the reference, and `admin` (with `signin`) the account
+door, `build` the seven creation steps, `rules` the reference, and `admin` (with `signin`) the account
 pages. `MainLayout` draws the step list and the budget strip in `Play` alone.
 
 - **The builder is under `/build` and `/` is a chooser, which reverses the old shape.** The tier page
@@ -293,6 +293,20 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   tags are: somebody hunting for a two-handed weapon should not have to already know which ones
   are. The book's passages remain the only thing in this app that goes over the network per
   keystroke.
+- **Chapter 6's vehicles and bases are the fourth group, and every row names its currency.** The six
+  stock vehicles and the forty-five features are matched in the browser too, under a **"Vehicles and
+  bases from the book"** heading, capped at eight and counted apart from the gear rows for the same
+  reason those are counted apart from the Powers. A row's detail line is its price and any
+  restriction — **the feature's own prose is deliberately not matched**, which is not a taste
+  question: it is the longest text on any of these rows and it made the palette answer "kno" with
+  Hidden, whose entry says a route few people *know*, burying the rulebook passage the reader was
+  after. The step it lands on is where the prose belongs.
+- **A row carries its kind as a class — `kind-step`, `kind-power`, `kind-gear`, `kind-asset`,
+  `kind-passage` — and nothing styles on them.** They exist so a question about one kind of row can
+  be asked precisely. `PaletteBookTests` used to reach for `.palette-group ~ .palette-row`, which
+  means "every row after *any* heading": correct for exactly as long as the book was the only
+  group, and the day a second one appeared three waits in that file started returning before the
+  request they were waiting for had been made.
 - **Choosing a gear row goes to the Gear step and adds nothing to the character.** It is the same
   request shape as choosing a Power, and this is the case where the rule is easiest to lose: mundane
   gear is free, so a palette that simply added the axe would look harmless and would still be a
@@ -325,6 +339,38 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   alternative and was refused for now: it needs a query string parsed back out of the address by
   hand, and a second way into a page whose one entry point is its own form, for the one thing it
   buys, which is a link somebody could share.
+
+## The Vehicles & bases step is three currencies on one page
+
+`build/assets` is step 4 of seven, between Gear and the derived stats: Ch.6 pp.94–103. A vehicle is
+bought in **Vehicle Points**, a headquarters in **Base Points**, and a Gadget's build **pays Hero
+Points out**. The Perks convert at twenty-five and three to one and are the only Hero Points on the
+page, so **every figure in every list carries its unit** — a bare number beside the budget strip at
+the top of every step reads as a Hero Point price, and that is the one mistake the whole chapter is
+careful about.
+
+- **The page decides nothing.** Every figure is asked of `CostCalculator`, every list comes off
+  `AssetCatalogue`, and every finding beside a row was routed there by the engine through
+  `SheetFindings.ForVehicle`, `ForHeadquarters`, `ForGadget` and `ForAssetFeature`. A number worked
+  out here would be the browser deciding a rule.
+- **`ForAssetFeature` needs both halves and neither is enough**: two machines can carry the same
+  feature id, so the feature alone shows one machine's finding under the other's row; one machine
+  carries several features, so the owner alone shows every finding under each.
+- **A graded feature arrives at its cheapest grade** rather than at none, because `CostCalculator`
+  throws rather than guessing one — the same answer the Gear step's custom features get, and the
+  cheapest is the honest default to offer.
+- **A Gadget opens at the minimum Complexity**, not at zero. Opening at zero greets somebody with a
+  validation finding for pressing Add, which is the app telling them off for using it.
+- **A stock vehicle is copied and then forgotten.** p.96 prints its six as worked examples with
+  their totals; copying one is how somebody starts, and nothing records which row it came from
+  because after that it is their machine. The name is left alone for the same reason. The one
+  printed feature line that is not a bare feature name — the Submersible's "Rader (Sonar)", which is
+  the Radar Power taken through Unique Systems — is skipped rather than guessed at, so the machine
+  comes out under budget rather than over.
+- **Pros and Cons on a Gadget's Power are not on this page**, and that is a stopping point rather
+  than a gap: it would be the whole `ProConPicker` under every Power of every Gadget. A payload from
+  `build --from` or the MCP server carries them and is priced correctly. A half-picker offering some
+  of them would be a rule this page had decided.
 
 ## The Gear step offers Chapter 6's catalogue beside the box you can type in
 
@@ -1457,7 +1503,7 @@ Two more of the same family. **A zero width is not a visible edge** — `border-
 - **The count lags its own render by one pass and `OnAfterRender` catches it up**, guarded by comparing against what was drawn. Remove the guard and it is an endless render loop rather than a count.
 - **The "nothing matches" line appears only when a filter is the reason.** A list that is empty for its own reasons says so in its own words — "None yet." — and answering an unasked question would contradict it.
 
-**The budget is chrome, not content.** `HpBudgetBar` is a sticky strip with a 3px rail on its own bottom edge, not a panel in the column — as a panel it cost ~110px above every one of six steps, most of it a table consulted occasionally. Three things it has already been got wrong on:
+**The budget is chrome, not content.** `HpBudgetBar` is a sticky strip with a 3px rail on its own bottom edge, not a panel in the column — as a panel it cost ~110px above every one of the creation steps, most of it a table consulted occasionally. Three things it has already been got wrong on:
 
 - **There is no negative-margin bleed any more, and this bullet used to say there must be one.** The strip *was* pulled out of `.shell`'s padding by `calc(-1 * var(--space-6))` in three places, with a matching pair in the ≤620px query that had to be kept in step or the band ran 8px past the page — measured once as `scrollWidth` 368 against `clientWidth` 360. **The strip is a sibling of `<main class="shell">` now**, not a child of it, so it is already the width of the window and there is nothing to escape; the mechanism is gone and the guard that watched it went with it. `app.css` records this above `.budget`. Do not reintroduce a pull to "line the strip up" — check where it sits in `MainLayout` first.
 - **`aria-valuenow` is clamped to `aria-valuemax` and `aria-valuetext` carries the truth.** An over-budget character spends more than the budget, and a `progressbar` reporting 132 of 125 is out of range; the fill was already clamped in the same block while the announced value was not. The bar also carries its own `aria-label` — the one on the enclosing `<section>` names the section, not the bar.

@@ -240,6 +240,15 @@ it**, and follow it through:
   cap still binds — it is the table's rule about how strong an NPC may be, and on a Villain it
   is doing validation work with the Resolve half of it noise.
 
+**Teamwork is Resolve's twin and takes the same silence.** Ch.6 p.103's Training Facilities
+grants a point of Teamwork an issue to everybody sharing the base, and the rulebook says it "works
+like Resolve" — spendable only to assist an ally. The engine computes it for anybody, because it is
+never told which kind of character it has, so the `.txt` and `.json` exports carry a `teamwork`
+figure on a Villain exactly as they carry a Resolve one. **It is noise. Do not quote it**, and do
+not price a base's Training Facilities as though the Villain were buying the point — 2 Base Points
+buys the room, and on a Villain that is all it buys. This is the owner's ruling of 2026-09-09:
+computed, never quoted, never spent.
+
 **A Villain's Flaws are the players' handles — choose them for that and nothing else.** For a
 Hero a Flaw is a bargain: a drawback bought with the Resolve it pays out. A Villain gets no
 Resolve, so that half is gone and the drawback is all that is left — which makes the Flaw slots

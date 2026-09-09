@@ -22,7 +22,7 @@ wrong on both figures and contradicted the resume marker four lines below it.)
 |---|---|
 | **Text extraction** | **DONE for the whole book, and regenerable.** All ten chapters are in `data/rulebook/`, printed pp.5–188, 1525 sections, each carrying its printed page. Rebuild with `dotnet run --project tools/RulebookExtractor -- <pdf> data/rulebook` |
 | **Do not trust the first extraction's reputation** | The corpus shipped once with every chapter opening scrambled, 135 empty sections and 83 doubled page numbers in mid-sentence, and the tests passed. See the completed entry in `PROGRESS.md`. **The damaged prose still read as English**, so judge a change here by re-running the extractor and the corpus tests, not by reading a paragraph and finding it plausible |
-| **Rules extraction** | Ch.1–2 complete. **Ch.3, Ch.4, Ch.5, Ch.6 pp.87–90 and the whole of Ch.7 are extracted as *play* rules**, into `data/rules/play/` — see their rows below and [`docs/guide/play-rules.md`](guide/play-rules.md) — and **Ch.6 pp.88–104 as creation-side data**: `data/rules/gear.json` (pp.88–93, beside `gear_features.json`) and `gadgets.json`, `vehicles.json`, `headquarters.json` (pp.94–103), read by nothing yet — see the Chapter 6 sections below |
+| **Rules extraction** | Ch.1–2 complete. **Ch.3, Ch.4, Ch.5, Ch.6 pp.87–90 and the whole of Ch.7 are extracted as *play* rules**, into `data/rules/play/` — see their rows below and [`docs/guide/play-rules.md`](guide/play-rules.md) — and **Ch.6 pp.88–104 as creation-side data**: `data/rules/gear.json` (pp.88–93, beside `gear_features.json`) and `gadgets.json`, `vehicles.json`, `headquarters.json` (pp.94–103), all four loaded and consumed — see the Chapter 6 sections below |
 | **Next to read for *rules*** | **Chapter 8, printed p.111** — the NPC, animal and Extra stat blocks are GM material, so decide whether it is in scope at all. Chapters 3–7 are extracted in full: pp.87–93 and pp.94–104 of Ch.6 each have a section below; p.104 carries no chapter text |
 | **Then** | Ch.9 pp.167–188 (printed 189 is the blank Hero Sheet form, not chapter text). **Ch.7 is done**: pp.105–109 are `data/rules/play/environment.json` and p.110 carries no chapter text |
 | **Reading it is now cheap** | The prose is in `data/rulebook/`, so a sweep no longer needs the PDF — grep the corpus, and open the page only to check a table |
@@ -60,7 +60,7 @@ wrong on both figures and contradicted the resume marker four lines below it.)
 | 3 | Action | 67–72 | **EXTRACTED as play rules** — every mechanic on pp.67–71 is in `data/rules/play/`, locked by `PlayRulesDataTests` against `CanonicalChallengeRules`. Still NOT APPLICABLE to *character creation*, which is the question the rest of this column answers |
 | 4 | Combat | 73–82 | **EXTRACTED as play rules** — every mechanic on pp.73–79 is in `data/rules/play/combat.json` and the ten optional Gritty Combat Rules on pp.79–81 are in `gritty.json`, both locked by `PlayRulesDataTests` against `CanonicalCombatRules` and `CanonicalGrittyRules`. The Example of Combat on p.81 is not an entry; it is the fixture the entries are made to resolve. Still NOT APPLICABLE to *character creation*, except that the Edge and Health formulas it prints are the ones `DerivedStatsCalculator` already implements — tests now hold each pair to the same answer |
 | 5 | Resolve and Adversity | 83–86 | **EXTRACTED as play rules** — every mechanic on pp.83–85 is in `data/rules/play/resolve.json`, locked by `PlayRulesDataTests` against `CanonicalResolveRules`; p.86 carries no chapter text. Still NOT APPLICABLE to *character creation*, except that the starting-Resolve table it prints is what `DerivedStatsCalculator.CalculateResolve` already implements — a test now holds the two to the same answer |
-| 6 | Equipment | 87–104 | **EXTRACTED.** pp.87–90 are `data/rules/play/equipment.json` (the Gear Limit and the three weapons tables, for the fight engine); pp.88–93 are `data/rules/gear.json` (armour, shields, the Weapon Features glossary, the equipment list, Custom Gear, Pros and Cons on gear), locked by `EquipmentDataTests`; pp.94–103 are `data/rules/gadgets.json`, `vehicles.json` and `headquarters.json`, locked by `Chapter6RulesDataTests`; p.104 carries no chapter text; p.93's twelve custom features have been `gear_features.json` since long before any of them. See the two per-page tables below |
+| 6 | Equipment | 87–104 | **EXTRACTED.** pp.87–90 are `data/rules/play/equipment.json` (the Gear Limit and the three weapons tables, for the fight engine); pp.88–93 are `data/rules/gear.json` (armour, shields, the Weapon Features glossary, the equipment list, Custom Gear, Pros and Cons on gear), locked by `EquipmentDataTests`; pp.94–103 are `data/rules/gadgets.json`, `vehicles.json` and `headquarters.json`, locked by `Chapter6RulesDataTests` and priced by `CostCalculator`; p.104 carries no chapter text; p.93's twelve custom features have been `gear_features.json` since long before any of them. See the two per-page tables below |
 | 7 | Environment | 105–110 | **EXTRACTED as play rules** — every mechanic on pp.105–109 is in `data/rules/play/environment.json` as twenty-seven entries, locked by `PlayRulesDataTests` against `CanonicalEnvironmentRules` and against the corpus; p.110 carries no chapter text. Toxins (p.108) name three Pros and Cons that stay priced in `data/rules/powers.json`. **The fight applies its three object tables** — pp.107–108's materials, scenery and massive objects are what p.75's cover, p.78's knockback and p.74's throw are answered off. Still NOT APPLICABLE to *character creation* |
 
 | 8 | Friends and Foes | 111–166 | PARTIAL — pp.111–125 UNREAD |
@@ -155,21 +155,28 @@ question has to come here and change one:
   feature comes out free — which is exactly the outcome that comment gives as the reason not to
   credit it.
 
-### Chapter 6, printed 94–104 — extracted
+### Chapter 6, printed 94–104 — extracted and consumed
 
-Three files under `data/rules/`, **none of them on `RulesRepository.DataFileNames`**. That list is
-the contract for a host which fetches the character rules over HTTP, so putting a file on it makes
-the browser download it before its first render — a decision about the payload that belongs to the
-slice which teaches `CostCalculator` what a vehicle or a headquarters costs, not to the slice that
-read the pages. `RulesSourceTests.DataFileNamesListsEveryShippedRulesFile` names the three
-exclusions and requires each one to still exist, and `Chapter6RulesDataTests` holds all three to the
-rulebook meanwhile — so they are extracted data rather than unread data.
+Three files under `data/rules/`, **all three on `RulesRepository.DataFileNames`** since the slice
+that taught `CostCalculator` what a vehicle, a base and a Gadget cost. Every host fetches them
+before its first render, `AssetCatalogue` flattens the pickable tables into rows, and the sheet
+carries `Vehicles`, `Headquarters`, `Gadgets` and `CampaignAssets`. `Chapter6RulesDataTests` still
+holds all three to the rulebook, which is a different claim from being loaded: a loader proves a
+file parses, not that it says what the book says.
 
 **Two currencies, and neither is Hero Points.** A vehicle is bought in **Vehicle Points** at 25 per
 Hero Point of the Unique Vehicle Perk; a headquarters in **Base Points** at 3 per Hero Point of the
 Headquarters Perk. Every price in those two files is in the second currency. A **Gadget** is the
 exception in the other direction: it is not bought at all — a successful build *pays out* Hero
 Points equal to twice its Complexity.
+
+**What is enforced and what is not.** The validator reports a machine or a base over its budget, a
+Control above half the Speed or below −3, a Mecha's Might below half its Body, a Gadget over its
+pool or below the Technology its builder has. Two printed rules are **not** checked and each is
+recorded here rather than left to be rediscovered: an alternate headquarters "can't cost more Base
+Points than your primary" — nothing on a sheet says what an alternate base contains — and a Gadget
+ceiling of half the builder's Intellect *per issue*, which is a fact about an issue and not about a
+sheet.
 
 | Pages | What is there | Status |
 |---|---|---|

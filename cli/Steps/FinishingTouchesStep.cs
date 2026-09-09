@@ -11,7 +11,7 @@ public sealed class FinishingTouchesStep : IWizardStep
     public void Execute(CharacterSheet sheet, RulesRepository rules,
         CostCalculator costs, DerivedStatsCalculator derived)
     {
-        AnsiConsole.Write(new Rule("[bold yellow]Step 5 — Finishing Touches[/]").LeftJustified());
+        AnsiConsole.Write(new Rule("[bold yellow]Step 6 — Finishing Touches[/]").LeftJustified());
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]Optional fields — press Enter to keep the existing value or skip.[/]");
         AnsiConsole.WriteLine();

@@ -25,7 +25,7 @@ public sealed class GmReviewStep : IWizardStep
     public void Execute(CharacterSheet sheet, RulesRepository rules,
         CostCalculator costs, DerivedStatsCalculator derived)
     {
-        AnsiConsole.Write(new Rule("[bold yellow]Step 6 — GM Review[/]").LeftJustified());
+        AnsiConsole.Write(new Rule("[bold yellow]Step 7 — GM Review[/]").LeftJustified());
         AnsiConsole.WriteLine();
 
         RenderAbilities(sheet, rules);

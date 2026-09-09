@@ -227,6 +227,54 @@ public sealed class DerivedStatsCalculator
         return ResolveAffectedByPower(power);
     }
 
+    // ── Teamwork, from a base's Training Facilities ───────────────────────────
+
+    /// <summary>
+    /// Points of Teamwork this character opens each issue with: one for every headquarters they
+    /// share that has Training Facilities (Ch.6 p.103).
+    ///
+    /// <para><b>It behaves exactly like Resolve, and the data says so in that word</b> — the
+    /// entry's own <c>behaves_like</c> is <c>resolve</c> — except that it may only be spent
+    /// assisting an ally. So it is handled exactly as Resolve is: <b>computed for anybody, quoted
+    /// for a Hero.</b> Only Heroes hold Resolve, the GM gets Adversity instead, and this engine
+    /// has no way of telling which kind of character it has been handed — nor should it, since
+    /// that flag is presentation and a rule branching on it would be the browser deciding a rule.
+    /// A host that knows it is showing a Villain does not print this figure, the same silence it
+    /// keeps about Resolve.</para>
+    ///
+    /// <para><b>Only bases this character owns are counted, and that is a real gap rather than a
+    /// simplification.</b> The grant is to "every character who shares the headquarters", and a
+    /// shared base belongs to a campaign — a <c>CampaignAssetContribution</c> records the Hero
+    /// Points this character put in and nothing about what the base turned out to have. So a team
+    /// member who paid into a base with Training Facilities gets nothing here, correctly: the
+    /// sheet cannot know, and inventing the point would be this engine answering a question only
+    /// the campaign can. The campaign slice is where that is answered.</para>
+    ///
+    /// <para><b>Two bases with the feature still grant one point, and the page is why.</b> p.103
+    /// prints a condition and a flat grant — "If you and your teammates have a headquarters with
+    /// this feature, you each gain 1 point of Teamwork at the start of every issue" — and the one
+    /// axis it multiplies on is <em>characters</em>, which is what the entry's own
+    /// <c>granted_to</c> records: "every character who shares the headquarters". Counting the
+    /// bases multiplies on an axis the sentence never mentions, and a rate the book does not print
+    /// is a rule this project would be making up — the same answer the Control cap gets about
+    /// rounding, and the same reason.
+    ///
+    /// <b>It is a silence rather than a settled reading</b>, and it is left as one: a GM who rules
+    /// that a second base pays a second point is not contradicted by anything on the page. What
+    /// the engine must not do is answer as though the page had said so.</para>
+    /// </summary>
+    public int CalculateTeamwork(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var teamwork = _rules.Assets.Teamwork;
+
+        return sheet.Headquarters.Any(hq => hq.Features.Any(
+                   f => string.Equals(f.FeatureId, teamwork.GrantedByFeature, StringComparison.Ordinal)))
+             ? teamwork.PointsPerIssue
+             : 0;
+    }
+
     // ── Baseline rank ─────────────────────────────────────────────────────
 
     /// <summary>

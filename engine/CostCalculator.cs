@@ -508,7 +508,7 @@ public sealed class CostCalculator
     {
         ArgumentNullException.ThrowIfNull(gear);
 
-        var itemConId = _rules.Equipment.GearProsAndCons.GearProsAndCons?.ItemConId;
+        var itemConId = ItemConId;
 
         var features = gear.Features.Sum(FeatureCost);
         var modifiers = gear.Pros.Sum(ResolveProCost)
@@ -554,11 +554,228 @@ public sealed class CostCalculator
     /// </summary>
     public int TotalGearCost(CharacterSheet sheet) => sheet.Gear.Sum(GearCost);
 
+    // ── Vehicles, headquarters and gadgets (Ch.6 pp.94-103) ───────────────
+
+    /// <summary>
+    /// <b>Hero Points spent on things a character owns beside their own body</b>: the Unique
+    /// Vehicle and Headquarters Perks on every machine and base on the sheet, plus whatever was
+    /// put into a campaign's shared object.
+    ///
+    /// <para><b>This is the only figure in this section that is in Hero Points, and the only one
+    /// <see cref="TotalCost"/> charges.</b> Everything else below is Vehicle Points or Base Points,
+    /// which are a second currency the Perk buys and which no tier has a budget for.</para>
+    ///
+    /// <para><b>A Perk entry in <see cref="CharacterSheet.Perks"/> is charged as well</b>, because
+    /// it is a spend somebody wrote down. Recording the same machine both ways is therefore paid
+    /// for twice, which is why <c>CharacterValidator</c> says so — reported, never repaired, like
+    /// everything else.</para>
+    /// </summary>
+    public int TotalAssetPerkCost(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        checked
+        {
+            return sheet.Vehicles.Sum(v => v.PerkHeroPoints)
+                 + sheet.Headquarters.Sum(h => h.PerkHeroPoints)
+                 + sheet.CampaignAssets.Sum(c => c.HeroPoints);
+        }
+    }
+
+    /// <summary>
+    /// The Vehicle Points a machine has to spend: p.96's twenty-five for each Hero Point of the
+    /// Unique Vehicle Perk put into it. Read off <c>vehicles.json</c>, never spelled here.
+    /// </summary>
+    public int VehiclePointBudget(OwnedVehicle vehicle)
+    {
+        ArgumentNullException.ThrowIfNull(vehicle);
+        return checked(vehicle.PerkHeroPoints * _rules.Assets.VehiclePointsPerHeroPoint);
+    }
+
+    /// <summary>
+    /// What a machine costs in Vehicle Points: p.96's four characteristics at their printed rates,
+    /// plus its features.
+    ///
+    /// <para><b>Bought from zero, all four.</b> The entry opens Body, Speed and Control at nothing
+    /// and gives Weapons no starting value at all, so nothing here is free. Control is the one at
+    /// two points a rank, and a negative Control pays two back a rank — the same multiplication,
+    /// which is why there is no second branch for it. The floor of −3 is a rule about what is
+    /// legal rather than about what it costs, so it is the validator's and not this method's.</para>
+    ///
+    /// <para><b>A negative total is possible and is not floored.</b> Four features pay points
+    /// back, and the chapter says so in as many words while printing no floor. A Power's minimum of
+    /// 1 HP and gear's of 0 are both printed rules; inventing a third here would be this project
+    /// making one up.</para>
+    /// </summary>
+    public int VehiclePointsSpent(OwnedVehicle vehicle)
+    {
+        ArgumentNullException.ThrowIfNull(vehicle);
+
+        var rates = _rules.Assets.Characteristics;
+
+        checked
+        {
+            return vehicle.Body * rates.BodyCostPerRank
+                 + vehicle.Speed * rates.SpeedCostPerRank
+                 + vehicle.Control * rates.ControlCostPerRank
+                 + (vehicle.Weapons ?? 0) * rates.WeaponsCostPerRank
+                 + vehicle.Features.Sum(VehicleFeatureCost);
+        }
+    }
+
+    /// <summary>What one vehicle feature costs, in Vehicle Points. Negative for the four that pay back.</summary>
+    public int VehicleFeatureCost(SelectedAssetFeature selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var feature = _rules.Assets.FindVehicleFeature(selection.FeatureId)
+            ?? throw new InvalidOperationException($"Unknown vehicle feature id '{selection.FeatureId}'.");
+
+        return FeaturePrice(feature.Name, feature.CostType, feature.Cost, feature.CostRange,
+                            feature.CostPerUnit, selection);
+    }
+
+    /// <summary>
+    /// The Base Points a headquarters has to spend: p.100's three for each Hero Point of the
+    /// Headquarters Perk put into it.
+    ///
+    /// <para>The building itself is not among them. The Perk grants "a basic headquarters no
+    /// larger than an average mansion or warehouse" for nothing, so a base with no features spends
+    /// none of this and is still a base.</para>
+    /// </summary>
+    public int BasePointBudget(OwnedHeadquarters headquarters)
+    {
+        ArgumentNullException.ThrowIfNull(headquarters);
+        return checked(headquarters.PerkHeroPoints * _rules.Assets.BasePointsPerHeroPoint);
+    }
+
+    /// <summary>What a headquarters costs in Base Points: its features and nothing else.</summary>
+    public int BasePointsSpent(OwnedHeadquarters headquarters)
+    {
+        ArgumentNullException.ThrowIfNull(headquarters);
+        return headquarters.Features.Sum(BaseFeatureCost);
+    }
+
+    /// <summary>What one base feature costs, in Base Points.</summary>
+    public int BaseFeatureCost(SelectedAssetFeature selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var feature = _rules.Assets.FindBaseFeature(selection.FeatureId)
+            ?? throw new InvalidOperationException($"Unknown base feature id '{selection.FeatureId}'.");
+
+        return FeaturePrice(feature.Name, feature.CostType, feature.Cost, feature.CostRange,
+                            feature.CostPerUnit, selection);
+    }
+
+    /// <summary>
+    /// <b>The one calculation in this engine that runs the other way</b>: what a successful Gadget
+    /// build hands the builder, which is twice its Complexity in Hero Points (p.94).
+    ///
+    /// <para>The multiplier is read off <c>gadgets.json</c>, so the figure has one home.</para>
+    /// </summary>
+    public int GadgetPool(BuiltGadget gadget)
+    {
+        ArgumentNullException.ThrowIfNull(gadget);
+        return checked(gadget.Complexity * _rules.Assets.GadgetBuild.HeroPointsGrantedMultiplier);
+    }
+
+    /// <summary>
+    /// What has been spent out of a Gadget's pool: its Powers priced exactly as a character's own
+    /// are, plus a Hero Point for each rank of Ability and Talent.
+    ///
+    /// <para><b>The Item Con is on the Gadget and is not credited.</b> p.94 puts it there by
+    /// default, and a statement of what a thing is is not a discount to claim — the same answer
+    /// <see cref="GearCost"/> gives, off the same id in <c>gear.json</c>. Every other Pro and Con
+    /// is priced normally, which the page allows in as many words.</para>
+    /// </summary>
+    /// <param name="gadget">The Gadget.</param>
+    /// <param name="houseImmortalityCost">
+    /// The table's price for Immortality, if it has one — the same argument
+    /// <see cref="PowerCost"/> takes, because a Gadget's Powers are priced by the same rules as
+    /// anybody else's.
+    /// </param>
+    public int GadgetSpend(BuiltGadget gadget, int? houseImmortalityCost = null)
+    {
+        ArgumentNullException.ThrowIfNull(gadget);
+
+        var itemConId = ItemConId;
+
+        checked
+        {
+            return gadget.Powers.Sum(power => PowerCost(
+                       power with
+                       {
+                           Cons = [.. power.Cons.Where(
+                               c => !string.Equals(c.Id, itemConId, StringComparison.Ordinal))]
+                       },
+                       houseImmortalityCost))
+                 + gadget.AbilityRanks.Where(e => _rules.GetAbility(e.Key) is not null).Sum(e => e.Value)
+                 + gadget.TalentRanks.Where(e => _rules.GetTalent(e.Key) is not null).Sum(e => e.Value);
+        }
+    }
+
+    /// <summary>
+    /// One of the three price shapes both feature tables use: a flat number, a keyed grade, or a
+    /// rate per unit. Written once because the two tables differ only in their currency, and a
+    /// second copy would be a second thing to get the graded case wrong in.
+    /// </summary>
+    private static int FeaturePrice(
+        string name,
+        string costType,
+        int? cost,
+        IReadOnlyDictionary<string, int>? grades,
+        int? perUnit,
+        SelectedAssetFeature selection)
+    {
+        switch (costType)
+        {
+            case "flat":
+                return cost ?? throw new InvalidOperationException(
+                    $"Feature '{name}' has cost_type 'flat' but no cost.");
+
+            case "per_unit":
+                return checked((perUnit ?? throw new InvalidOperationException(
+                    $"Feature '{name}' has cost_type 'per_unit' but no rate.")) * selection.Units);
+
+            case "flat_variable":
+                var keyed = grades ?? throw new InvalidOperationException(
+                    $"Feature '{name}' has cost_type 'flat_variable' but no cost_range.");
+
+                var key = selection.GradeKey ?? throw new InvalidOperationException(
+                    $"Feature '{name}' is graded and needs a grade. "
+                    + $"Valid keys: {string.Join(", ", keyed.Keys)}");
+
+                if (keyed.TryGetValue(key, out var graded)) return graded;
+
+                throw new InvalidOperationException(
+                    $"Feature '{name}' has no grade '{key}'. "
+                    + $"Valid keys: {string.Join(", ", keyed.Keys)}");
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unknown cost_type '{costType}' on feature '{name}'.");
+        }
+    }
+
+    /// <summary>
+    /// The id of the Con every physical object carries, off <c>gear.json</c>'s own field rather
+    /// than spelled here. Two callers now — gear and Gadgets — and the rule is the same for both:
+    /// it prints, because it is true of the thing, and it is worth nothing.
+    /// </summary>
+    private string? ItemConId => _rules.Equipment.GearProsAndCons.GearProsAndCons?.ItemConId;
+
     // ── Total ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Grand total HP spend: package + abilities + talents + powers + perks + gear.
-    /// This is compared against the tier's HeroPoints budget by CharacterValidator.
+    /// Grand total HP spend: package + abilities + talents + powers + perks + gear + the Perks
+    /// on any vehicle, headquarters or campaign asset. This is compared against the tier's
+    /// HeroPoints budget by CharacterValidator.
+    ///
+    /// <para><b>Vehicle Points, Base Points and a Gadget's pool are deliberately not here.</b> The
+    /// first two are a second currency the Perk already paid for, so adding them would charge the
+    /// same machine twice in two units; the third runs the other way and would report a Hero who
+    /// had built three Gadgets as cheaper than the same Hero on the page.</para>
     /// </summary>
     /// <remarks>
     /// <b>Checked, because unchecked it wrapped to a negative total and the budget check then
@@ -581,7 +798,8 @@ public sealed class CostCalculator
                  + TalentCost(sheet)
                  + TotalPowersCost(sheet)
                  + TotalPerksCost(sheet)
-                 + TotalGearCost(sheet);
+                 + TotalGearCost(sheet)
+                 + TotalAssetPerkCost(sheet);
         }
     }
 

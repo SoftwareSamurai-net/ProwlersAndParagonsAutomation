@@ -11,7 +11,7 @@ public sealed class CalculateDerivedStep : IWizardStep
     public void Execute(CharacterSheet sheet, RulesRepository rules,
         CostCalculator costs, DerivedStatsCalculator derived)
     {
-        AnsiConsole.Write(new Rule("[bold yellow]Step 4 — Derived Stats[/]").LeftJustified());
+        AnsiConsole.Write(new Rule("[bold yellow]Step 5 — Derived Stats[/]").LeftJustified());
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]These are calculated automatically from your trait ranks.[/]");
         AnsiConsole.WriteLine();

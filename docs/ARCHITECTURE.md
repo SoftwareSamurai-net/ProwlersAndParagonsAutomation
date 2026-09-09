@@ -129,7 +129,7 @@ ProwlersAndParagonsAutomation/
 │
 ├── web/                          # Blazor WebAssembly front end — the engine, in a browser
 │   ├── Program.cs                # Fetches the rules over HTTP into an InMemoryRulesSource
-│   ├── Pages/                    # The six creation steps, mirroring the CLI; plus the replay,
+│   ├── Pages/                    # The seven creation steps, mirroring the CLI; plus the replay,
 │   │                              # sign-in, the character/campaign manager, campaign approval,
 │   │                              # the rulebook reader, the portfolio and the admin page —
 │   │                              # this list is illustrative, not exhaustive; see the directory

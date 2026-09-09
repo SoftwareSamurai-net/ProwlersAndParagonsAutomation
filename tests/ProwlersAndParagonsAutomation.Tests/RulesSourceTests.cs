@@ -53,29 +53,24 @@ public sealed class RulesSourceTests
 
     /// <summary>
     /// Files in <c>data/rules/</c> that <see cref="RulesRepository"/> deliberately does not load, so
-    /// the check below is a check and not a running total. <b>It is an allowlist of five and every
-    /// entry has to earn its place, because "the list has to match what is shipped" is the whole
-    /// point of that check</b> — an exemption is how it stops being one.
+    /// the check below is a check and not a running total. <b>It is an allowlist of one now, and
+    /// every entry has to earn its place, because "the list has to match what is shipped" is the
+    /// whole point of that check</b> — an exemption is how it stops being one.
     ///
-    /// <para><c>meta.json</c> is provenance rather than rules. The other three are Chapter 6
-    /// pp.94–103 — <c>gadgets.json</c>, <c>vehicles.json</c> and <c>headquarters.json</c> —
-    /// extracted before anything consumes them: the data is verified first and wired up second,
-    /// which is the order the 141 Powers were done in and the order that made them trustworthy.
-    /// <c>Chapter6RulesDataTests</c> reads them meanwhile. Putting one on
-    /// <see cref="RulesRepository.DataFileNames"/> makes every browser fetch it before its first
-    /// render, so it is a deliberate act by the slice that adds a collection for it — at which
-    /// point its entry comes out, and the guard below fails if only one of the two happens.</para>
+    /// <para><c>meta.json</c> is provenance rather than rules, and is the last one left.</para>
     ///
-    /// <para><b><c>gear.json</c> came off this list, and it is the worked example of that pairing.</b>
-    /// The Gear step picks from its armour, weapon and equipment rows and the palette offers them,
-    /// so <see cref="RulesRepository.Equipment"/> exists and every browser fetches the file — about
-    /// 73 KiB uncompressed and 13 KiB gzipped, on a rules payload that was about 232 KiB, so
-    /// roughly a third more. <b>Approximate on purpose</b>: a figure to the byte in a comment is one
-    /// nothing re-counts, and every data edit moves it. Removing the exemption without adding the
-    /// collection, or the reverse, fails one of the two checks below.</para>
+    /// <para><b>The four Chapter 6 files came off this list, and they are the worked example of
+    /// the pairing this guard enforces.</b> <c>gear.json</c> went first: the Gear step picks from
+    /// its armour, weapon and equipment rows. <c>gadgets.json</c>, <c>vehicles.json</c> and
+    /// <c>headquarters.json</c> followed when the sheet learned to own a vehicle, a base and a
+    /// Gadget, so <see cref="RulesRepository.Vehicles"/>, <c>Headquarters</c> and <c>Gadgets</c>
+    /// exist and every browser fetches all four. The rules payload was about 230 KiB uncompressed
+    /// before any of them and is roughly 390 KiB with all four — about 80 KiB gzipped, which is
+    /// what actually crosses the wire. <b>Approximate on purpose</b>: a figure to the byte in a
+    /// comment is one nothing re-counts, and every data edit moves it. Removing an exemption
+    /// without adding the collection, or the reverse, fails one of the two checks below.</para>
     /// </summary>
-    private static readonly string[] NotLoadedByTheRepository =
-        ["meta.json", "gadgets.json", "vehicles.json", "headquarters.json"];
+    private static readonly string[] NotLoadedByTheRepository = ["meta.json"];
 
     /// <summary>
     /// DataFileNames is the contract a self-loading host works from. If a rules file is
@@ -83,13 +78,9 @@ public sealed class RulesSourceTests
     /// the list has to match what is actually shipped, bar the files named above.
     /// </summary>
     /// <remarks>
-    /// <para><b>Two kinds of file are off the list on purpose, and each one is named rather than
-    /// filtered by a pattern.</b> <c>meta.json</c> is provenance rather than rules. The three
-    /// remaining Chapter 6 files are <em>extracted but not yet consumed</em>: putting one on the contract
-    /// makes the browser fetch it before its first render, which is a decision about the payload
-    /// and belongs to the slice that teaches <c>CostCalculator</c> what a vehicle or a
-    /// headquarters costs — not to the slice that read the pages. <see cref="Chapter6RulesDataTests"/>
-    /// holds them to the rulebook meanwhile, which is what stops them being unread data.</para>
+    /// <para><b>One file is off the list on purpose, and it is named rather than filtered by a
+    /// pattern.</b> <c>meta.json</c> is provenance rather than rules. Everything else in
+    /// <c>data/rules/</c> is fetched before the browser's first render, Chapter 6 included.</para>
     ///
     /// <para><b>Each exclusion has to still exist</b>, or an exemption for something that is no
     /// longer there sits here permitting a name for nothing — the shape this repository has been
@@ -146,6 +137,9 @@ public sealed class RulesSourceTests
         Assert.NotEmpty(rules.Sources);
         Assert.NotEmpty(rules.CreationRules.OptionalPackages);
         Assert.NotEmpty(rules.Equipment.ArmorTable.Rows);
+        Assert.NotEmpty(rules.Gadgets.Entries);
+        Assert.NotEmpty(rules.Vehicles.Entries);
+        Assert.NotEmpty(rules.Headquarters.Entries);
     }
 
     // ── Failure is loud ──────────────────────────────────────────────────────

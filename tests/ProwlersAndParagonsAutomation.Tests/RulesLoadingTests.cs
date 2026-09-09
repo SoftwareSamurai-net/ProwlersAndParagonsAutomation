@@ -135,9 +135,10 @@ public sealed class RulesLoadingTests
             _ = _f.Rules.Pros; _ = _f.Rules.Cons; _ = _f.Rules.Flaws; _ = _f.Rules.Perks;
             _ = _f.Rules.GearFeatures; _ = _f.Rules.Sources; _ = _f.Rules.CreationRules;
             _ = _f.Rules.Equipment;
+            _ = _f.Rules.Gadgets; _ = _f.Rules.Vehicles; _ = _f.Rules.Headquarters;
         });
 
         Assert.Null(exception);
-        Assert.Equal(12, RulesRepository.DataFileNames.Count);
+        Assert.Equal(15, RulesRepository.DataFileNames.Count);
     }
 }

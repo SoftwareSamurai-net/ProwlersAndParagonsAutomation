@@ -582,13 +582,36 @@ public sealed class CampaignApprovalTests
 
         Assert.True(diff.Rows.Count > 6, $"only {diff.Rows.Count} rows to inspect");
 
+        // **A property name that is also something's printed name is dropped, and the exclusion is
+        // computed rather than listed.** `CharacterSheet.Headquarters` is a collection of bases;
+        // "Headquarters" is also what `perks.json` calls the Perk that buys one, so a diff row
+        // reading "Perk: Headquarters" is a correct lookup and not a leaked field name — and no
+        // check on the string can tell the two apart. Asking the rules data which names collide
+        // keeps this from becoming a hand-list somebody can widen to silence a real leak: a name
+        // only comes off when the book really does print it.
+        var printed = Rules.Perks.Select(x => x.Name)
+            .Concat(Rules.Powers.Select(x => x.Name))
+            .Concat(Rules.Abilities.Select(x => x.Name))
+            .Concat(Rules.Talents.Select(x => x.Name))
+            .Concat(Rules.Flaws.Select(x => x.Name))
+            .Concat(Rules.Tiers.Select(x => x.Name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         var fields = typeof(CharacterSheet)
             .GetProperties()
             .Select(p => p.Name)
             .Where(n => n.Length > 4)
+            .Where(n => !printed.Contains(n))
             .ToList();
 
         Assert.True(fields.Count > 8, $"reflection found only {fields.Count} properties");
+
+        // The control on that exclusion: it really does drop something, and it drops the one thing
+        // it was written for. A filter that matched nothing would leave this test unchanged and
+        // this paragraph explaining a step that had stopped happening.
+        Assert.Contains("Headquarters", printed);
+        Assert.DoesNotContain("Headquarters", fields);
+        Assert.Contains("AbilityRanks", fields);
 
         // Every visible string in the diff, which is what a reader actually sees.
         var visible = string.Join(" ",

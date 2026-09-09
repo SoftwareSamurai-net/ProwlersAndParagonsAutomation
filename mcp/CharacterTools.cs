@@ -102,6 +102,13 @@ public sealed class CharacterTools
         // would take down mid-conversation rather than at startup.
         _ = _rules.Catalogue.Rows.Count;
 
+        // And Chapter 6's other three files, for the same reason: a submitted character can own a
+        // vehicle, a headquarters or a Gadget, and every one of those is priced out of a file
+        // nothing above this line touches. AssetCatalogue.Rows reaches vehicles.json and
+        // headquarters.json; the Gadget rules are their own entry.
+        _ = _rules.Assets.Rows.Count;
+        _ = _rules.Assets.MinimumGadgetComplexity;
+
         _ = _guide().Length;
     }
 

@@ -310,7 +310,49 @@ public sealed class McpServerTests
             Assert.Equal(_f.Costs.TotalPowersCost(sheet), spending["powers"]!.GetValue<int>());
             Assert.Equal(_f.Costs.TotalPerksCost(sheet), spending["perks"]!.GetValue<int>());
             Assert.Equal(_f.Costs.TotalGearCost(sheet), spending["gear"]!.GetValue<int>());
+            Assert.Equal(_f.Costs.TotalAssetPerkCost(sheet), spending["assets"]!.GetValue<int>());
         }
+    }
+
+    /// <summary>
+    /// <b>The breakdown adds up to the figure beside it, and nothing was checking that.</b>
+    ///
+    /// <para>Every assertion above compares one category against the calculator that produced it,
+    /// which cannot see a category that is simply <em>missing</em>: adding vehicles and
+    /// headquarters to <c>TotalCost</c> without adding a line for them left a report whose parts
+    /// came to less than its own total, with the whole suite green.</para>
+    ///
+    /// <para><b>Driven by the keys the report writes</b> rather than by a list here, so a seventh
+    /// category has to be summed or deliberately excluded — a list would go stale the same way the
+    /// missing line did. The two keys skipped are the two that are not money: the per-Power and
+    /// per-Perk breakdowns, and the note explaining why Super Senses does not add up.</para>
+    /// </summary>
+    [Fact]
+    public void TheSpendingCategoriesAddUpToWhatTheCharacterCost()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.Perks.Add(new SelectedPerk("contacts", 2));
+        sheet.Gear.Add(new SelectedGear("Pistol") { Features = [new SelectedGearFeature("bonded")] });
+        sheet.Vehicles.Add(new OwnedVehicle("The Wing") { PerkHeroPoints = 2, Body = 10 });
+        sheet.Headquarters.Add(new OwnedHeadquarters("The Loft") { PerkHeroPoints = 1 });
+        sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-1")
+        {
+            Name = "The Aerie", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 3
+        });
+
+        var report = Check(sheet);
+        var spending = report["spending"]!.AsObject();
+
+        var parts = spending
+            .Where(kv => kv.Key is not ("by_power" or "by_perk" or "note"))
+            .Sum(kv => kv.Value!.GetValue<int>());
+
+        Assert.Equal(report["hero_points"]!["spent"]!.GetValue<int>(), parts);
+
+        // Two positive controls: the character really does spend something, and the machines
+        // really do contribute — an equality over a character who owns nothing proves nothing.
+        Assert.True(parts > 0);
+        Assert.Equal(6, spending["assets"]!.GetValue<int>());
     }
 
     /// <summary>

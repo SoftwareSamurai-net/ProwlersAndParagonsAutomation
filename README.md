@@ -18,7 +18,7 @@ runs `CostCalculator` and `CharacterValidator` as *the same compiled code*, a he
 `build --from character.json`, and an MCP server. None of them holds a second copy of a rule.
 
 **A front door, a builder, and the whole rulebook searchable.** `/` offers the two things this site
-does; `/build` is the six creation steps; `/rules` searches the printed text of all ten chapters and
+does; `/build` is the seven creation steps; `/rules` searches the printed text of all ten chapters and
 **cites the page it came from**, so an answer is checkable against the book on the table. Matching is
 word by word with a shared-prefix rule rather than by substring — a plausible wrong match is worse
 than none — and the flags on a result say *how* it matched and never what to conclude.

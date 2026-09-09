@@ -1590,6 +1590,58 @@ public sealed class HeadlessBuildTests : IDisposable
     }
 
     /// <summary>
+    /// <b>Every category adds up to the total, and nothing was checking that.</b>
+    ///
+    /// <para>The block is a breakdown, so its parts are a claim about the figure beside them —
+    /// and asserting each one against the calculator that produced it cannot see a category that
+    /// is simply missing. Adding vehicles and headquarters to <c>TotalCost</c> without adding the
+    /// line for them left a report whose parts came to less than its own total, with every
+    /// assertion above green.</para>
+    ///
+    /// <para><b>Driven by the keys the report actually writes</b>, rather than by a list here, so
+    /// a seventh category has to be either summed or deliberately excluded — a list would go stale
+    /// the same way the missing line did.</para>
+    /// </summary>
+    [Fact]
+    public void EveryCategoryInTheBreakdownAddsUpToTheTotal()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.Name = "The Motor Pool";
+        sheet.Perks.Add(new SelectedPerk("contacts", 2));
+        sheet.Gear.Add(new SelectedGear("Pistol") { Features = [new SelectedGearFeature("bonded")] });
+        sheet.Vehicles.Add(new OwnedVehicle("The Wing") { PerkHeroPoints = 2, Body = 10 });
+        sheet.Headquarters.Add(new OwnedHeadquarters("The Loft") { PerkHeroPoints = 1 });
+        sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-1")
+        {
+            Name = "The Aerie", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 3
+        });
+
+        // Two characters, because the roster block — and so the breakdown — is what a run over
+        // more than one produces.
+        var other = _f.LegalSheet();
+        other.Name = "On Foot";
+
+        var run = Invoke(
+            "--from", CharacterFile(CharacterSheetJson.Write(sheet)),
+            "--from", CharacterFile(CharacterSheetJson.Write(other)),
+            "--no-export");
+
+        var totals = run.Report["roster"]!["spending"]!
+            .AsArray()
+            .Single(r => (string?)r!["name"] == "The Motor Pool")!["totals"]!
+            .AsObject();
+
+        var parts = totals.Where(kv => kv.Key != "total").Sum(kv => (int)kv.Value!);
+
+        Assert.Equal((int)totals["total"]!, parts);
+
+        // Two positive controls, because the equality above is satisfied by a character who
+        // spends nothing at all and by one whose Perks on machines happen to be zero.
+        Assert.True((int)totals["total"]! > 0);
+        Assert.Equal(6, (int)totals["assets"]!);
+    }
+
+    /// <summary>
     /// <b>The per-category totals are the engine's, one call each.</b> Asserted against
     /// <see cref="CostCalculator"/> rather than against literals, because a figure this
     /// program worked out itself is the one thing the whole command exists not to produce.
@@ -1614,6 +1666,7 @@ public sealed class HeadlessBuildTests : IDisposable
             Assert.Equal(_f.Costs.TotalPowersCost(sheet), (int)totals["powers"]!);
             Assert.Equal(_f.Costs.TotalPerksCost(sheet),  (int)totals["perks"]!);
             Assert.Equal(_f.Costs.TotalGearCost(sheet),   (int)totals["gear"]!);
+            Assert.Equal(_f.Costs.TotalAssetPerkCost(sheet), (int)totals["assets"]!);
             Assert.Equal(_f.Costs.TotalCost(sheet),       (int)totals["total"]!);
         }
 

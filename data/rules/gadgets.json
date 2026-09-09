@@ -1,7 +1,7 @@
 {
   "header": {
     "what_this_is": "Chapter 6's Gadget rules, printed p.94, as data: what a character needs before they can build one, how a Gadget's Complexity is chosen, the roll that builds it, the pool of Hero Points a successful build hands you, how long it takes, how a Gadget fails, and which Talents can make one. A Gadget is the one thing in this chapter that pays Hero Points out rather than charging them.",
-    "not_logic": "Data only. Nothing here decides what a character costs today: RulesRepository.DataFileNames deliberately does not list this file, because the consumer slice - the one that teaches CostCalculator and the sheet about Gadgets, vehicles and headquarters - is the slice that gets to decide how it is loaded. The csproj globs copy it to every host's output directory regardless, which is where the consumer will find it.",
+    "not_logic": "Data only. RulesRepository.DataFileNames lists this file and RulesRepository.Gadgets loads it, so every host - the browser included - has it before its first render. Nothing here decides a cost by itself: what a Gadget's pool is worth is CostCalculator.GadgetPool, which reads the multiplier below rather than spelling it in C#.",
     "deliberately_omitted": "p.94's Vehicles material is in vehicles.json and p.100's is in headquarters.json, so that each file answers one question. The chapter's printed range is pp.87-104; this file is p.94 alone, and the source_ref on every entry says so.",
     "verified_fields_closed_list": [
       "cost",

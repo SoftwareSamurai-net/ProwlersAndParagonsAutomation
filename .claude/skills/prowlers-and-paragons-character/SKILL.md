@@ -253,9 +253,9 @@ this as applies, and this is what you act on — **do not parse the message**:
 
 | field | what it is |
 |---|---|
-| `subject_kind` | `character`, `tier`, `ability`, `talent`, `power`, `gear`, `gear_feature`, `flaw` |
-| `subject_id` | the id to change — or the item's name, for gear |
-| `owner_id` | the piece of gear a feature sits on |
+| `subject_kind` | `character`, `tier`, `ability`, `talent`, `power`, `gear`, `gear_feature`, `flaw`, `vehicle`, `headquarters`, `gadget`, `asset_feature` |
+| `subject_id` | the id to change — or the item's name, for gear, a vehicle, a base or a Gadget |
+| `owner_id` | the piece of gear, vehicle or base a feature sits on; the Power a Gadget could not price |
 | `value` | what the character has |
 | `limit` | what the rules allow, in the same unit |
 | `options` | the values the fix must be chosen from, where the rules fix the set |

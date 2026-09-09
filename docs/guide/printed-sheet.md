@@ -81,3 +81,24 @@ Rasterising the result needs a PDF library, and none is installed for either run
 - **`SampleCharacterTests` holds them to the rules** — legal, inside budget, fully priceable, every section filled, at least one Source heading, and both exports rendering. Writing them caught three real mistakes: ranks bought on rankless Powers (`invisibility`, `lightning_reflexes` are `max_rank: 0`), and Danger Sense and Resistance pushed over the Trait Cap because both take a **baseline equal to** an Ability rather than half it. Check `rank_type` and `prerequisite` before adding ranks to a sample.
 - The Villain deliberately leaves one Power without a Source, so the sheet shows the plain `POWERS` fallback heading and the review step shows a warning. Both are things a preview should exercise; it is not an oversight.
 
+
+## The printed sheet has no Vehicles or Bases box, and that is a decision
+
+Chapter 6's vehicles, headquarters and Gadgets are on the character (`CharacterSheet.Vehicles`,
+`.Headquarters`, `.Gadgets`, `.CampaignAssets`) and in both exports — `RenderText` writes a
+**VEHICLES, BASES & GADGETS** block and `RenderJson` four arrays — but `SheetView` draws none of
+them.
+
+**Two reasons, and the first is the page.** The sheet is one page and stays one page: three columns
+of equal height with one `fill` box in each absorbing the difference. A fifth section on a page
+already balanced that way is not a box to slot in, it is a re-layout — and it would be an empty box
+on nearly every character in the game, because most own no vehicle and no base.
+
+**The second is that a machine is not a character.** A vehicle has four ranks, a feature list and a
+budget of its own; it is closer to a second stat block than to a line on somebody's sheet, and
+squeezing it into a ruled box would print the name and lose everything that makes it a machine. A
+sheet for a vehicle is its own thing if it is ever wanted.
+
+**What a reader gets meanwhile** is the `.txt` export, which prints all of it, and the browser's
+Vehicles & bases step, which is where it is built. If this changes, the constraint to design against
+is the one at the top of this file: it has to still be one page for a character who owns nothing.

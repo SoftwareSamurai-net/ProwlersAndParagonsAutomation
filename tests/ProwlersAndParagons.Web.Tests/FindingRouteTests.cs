@@ -11,7 +11,7 @@ namespace ProwlersAndParagons.Web.Tests;
 ///
 /// <para><b>The gap this closes was recorded in <c>PROGRESS.md</c> item 2</b>, found by an
 /// adversarial audit: the review step listed findings with no route back. A reader on the last of
-/// six steps was told which rule was broken and left to work out which earlier step holds the
+/// the creation steps was told which rule was broken and left to work out which earlier step holds the
 /// thing that broke it.</para>
 ///
 /// <para><b>The routing is asserted against real findings the validator actually produced, never
