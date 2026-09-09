@@ -785,4 +785,54 @@ public sealed class AssetValidationTests
         sheet.TalentRanks["technology"] = 6;
         return sheet;
     }
+
+    // ── The constraint nothing checks ─────────────────────────────────────────
+
+    /// <summary>
+    /// <b>A vehicle feature that names another feature is not enforced, and this is the record of
+    /// it.</b>
+    ///
+    /// <para>p.100's Submersible says "Only vehicles with Swimming can have this feature" and
+    /// p.100's Transforming says it applies to "vehicles with two or more of the following
+    /// features". Both are constraints on a list this engine holds — p.96's stock Submersible
+    /// carries both features, so the book satisfies its own rule in its own worked example — and
+    /// <c>VehicleFeatureRow.Requires</c> is read by exactly one caller, which turns it into
+    /// keywords for the command palette.</para>
+    ///
+    /// <para><b>Why this is a pinned gap rather than a fix.</b> The field is a sentence, not a
+    /// list of ids: Spaceflight's entry reads "flight, to fly in an atmosphere", which is a
+    /// <em>caveat</em> and not a prerequisite — a ship that never enters an atmosphere needs no
+    /// Flight. Telling the two apart means parsing that prose, which is the one thing
+    /// <c>data/rules/</c> exists to prevent, so the shape of the field is the owner's decision.
+    /// <c>docs/guide/rules-engine.md</c> carries the argument.</para>
+    ///
+    /// <para><b>This test fails when the gap closes</b>, which is the point: whoever adds the
+    /// check finds the record of why it was not there and deletes it deliberately, rather than
+    /// finding nothing and wondering whether the silence was meant.</para>
+    /// </summary>
+    [Fact]
+    public void AFeatureThatNamesAnotherFeatureIsNotYetChecked()
+    {
+        // The positive control on the fixture: the rulebook really does print the requirement,
+        // and it really is a bare id rather than the prose the other two carry.
+        var submersible = _f.Rules.Assets.FindVehicleFeature("submersible")!;
+        Assert.Contains("swimming", submersible.Requires);
+
+        var sheet = _f.LegalSheet();
+        sheet.Vehicles.Add(new OwnedVehicle("The Diver")
+        {
+            PerkHeroPoints = 1,
+            Body = 9,
+            Features = [new SelectedAssetFeature("submersible")]
+        });
+
+        // No Swimming, and the sheet is reported clean of any finding about this machine.
+        Assert.DoesNotContain(Issues(sheet),
+            i => i.SubjectId == "The Diver" || i.OwnerId == "The Diver");
+
+        // And the control that the machine is otherwise a machine the validator does look at, so
+        // the silence above is about this rule rather than about a vehicle nothing examines.
+        sheet.Vehicles[0] = sheet.Vehicles[0] with { Body = 40 };
+        Assert.True(Reports(sheet, "VEHICLE_OVER_BUDGET"));
+    }
 }
