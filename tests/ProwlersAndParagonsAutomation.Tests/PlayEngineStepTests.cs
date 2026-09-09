@@ -4677,11 +4677,14 @@ public sealed class PlayEngineStepTests
             string.Equals(l.Rule, "pages_and_turns", StringComparison.Ordinal)
             && l.Text.Contains("forfeited a turn", StringComparison.Ordinal)));
 
-        // The clause this engine cannot apply is named rather than left to be assumed.
+        // <b>The clause nobody named an object for is still named rather than left to be
+        // assumed.</b> The object itself is Chapter 7's now — see <see cref="PlaySceneryTests"/> —
+        // but a knockback into nothing in particular is the whole rule minus its last sentence, and
+        // a reader should not have to guess whether the extra damage was rolled.
         Assert.Contains(pending.Ledger.Lines, l =>
             string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
             && l.Text.Contains(rule.DamageOnStrikingASolidObject, StringComparison.Ordinal)
-            && l.Text.Contains("no scenery", StringComparison.Ordinal));
+            && l.Text.Contains("nothing was named", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -4937,7 +4940,7 @@ public sealed class PlayEngineStepTests
     [Theory]
     [InlineData(true, 3, "beat that attack by")]
     [InlineData(false, 1, "passive defence")]
-    [InlineData(true, 1, "no scenery")]
+    [InlineData(true, 1, "nothing here gives an object Health")]
     public void ALureIsRefusedWithoutAnActiveDefenceAMarginAndSomebodyToLureItOnto(
         bool dodges, int attackSuccesses, string why)
     {
@@ -4970,7 +4973,7 @@ public sealed class PlayEngineStepTests
 
         var refused = encounter.Step(state, new SpendResolve(
             "hero", ResolveSpend.Luring,
-            Target: string.Equals(why, "no scenery", StringComparison.Ordinal) ? null : "bystander"));
+            Target: why.StartsWith("nothing here gives", StringComparison.Ordinal) ? null : "bystander"));
 
         var line = Assert.Single(refused.Added);
 

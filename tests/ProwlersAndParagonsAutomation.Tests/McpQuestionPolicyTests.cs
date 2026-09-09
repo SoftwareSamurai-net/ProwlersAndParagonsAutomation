@@ -209,6 +209,50 @@ public sealed class McpQuestionPolicyTests
     }
 
     /// <summary>
+    /// <b>Teamwork is Resolve's twin, and the owner ruled it gets Resolve's treatment: computed,
+    /// never quoted, never spent.</b>
+    ///
+    /// <para>The ruling had nowhere to live. Ch.6 p.103's Training Facilities grants a point an
+    /// issue to everybody sharing the base, the rulebook says it "works like Resolve", and
+    /// <c>DerivedStatsCalculator.CalculateTeamwork</c> answers for anybody because the engine is
+    /// never told which kind of character it has — so both exports carry a <c>teamwork</c> figure
+    /// on a Villain. The engine side of the ruling landed and the guidance side did not, and the
+    /// guidance <em>is</em> the mechanism: for Resolve, the silence is produced by this document
+    /// and the skill and by nothing in code at all.</para>
+    ///
+    /// <para>The purchase consequence is the half worth stating, exactly as Determination is for
+    /// Resolve: 2 Base Points on Training Facilities buys a Villain a room and nothing else.</para>
+    /// </summary>
+    [Fact]
+    public void TheGuideSaysAVillainsTeamworkIsNoiseToo()
+    {
+        Assert.Contains("Teamwork", Flowed, StringComparison.Ordinal);
+        Assert.Contains("Training Facilities", Flowed, StringComparison.Ordinal);
+
+        // The instruction, asserted on phrases only this paragraph has. "Do not quote it" is not
+        // one of them — the Resolve paragraph above already says it, so a Teamwork section that
+        // named the figure and said nothing about it would have satisfied that assertion, which
+        // is the gap this test closed, restated inside the test.
+        Assert.Contains("Teamwork is Resolve's twin and takes the same silence", Flowed,
+            StringComparison.Ordinal);
+        Assert.Contains("computed, never quoted, never spent", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // The purchase consequence, which is Teamwork's Determination.
+        Assert.Contains("2 Base Points buys the room", Flowed, StringComparison.Ordinal);
+
+        // The control: the engine really does answer a figure for a character the document is
+        // telling a model to ignore, which is what makes the instruction load-bearing.
+        var sheet = new CharacterSheet { IsVillain = true };
+        sheet.Headquarters.Add(new OwnedHeadquarters("The Lair")
+        {
+            PerkHeroPoints = 1,
+            Features = [new SelectedAssetFeature("training_facilities")]
+        });
+
+        Assert.Equal(1, _f.Derived.CalculateTeamwork(sheet));
+    }
+
+    /// <summary>
     /// <b>Expertise is the cheapest high number on a sheet, so what it costs in Resolve has to be
     /// stated exactly.</b> Ch.5 p.83 exempts it "except for combat skills", and the four Abilities
     /// that counts as here are Ch.4 p.75's — Might, Agility, Toughness and Willpower. The document

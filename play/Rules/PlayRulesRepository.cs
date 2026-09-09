@@ -124,12 +124,13 @@ public sealed class PlayRulesRepository
     /// Chapter 7 Environment, pp.105-109 — disasters, falling, hostile environments, suffocation,
     /// swimming, leaping, lifting, scorching, smashing, cover, scenery, massive objects and toxins.
     ///
-    /// <para><b>Nothing here applies any of it yet.</b> The file is loaded and its models cover
-    /// every key, which is what holds it to the rulebook; no rule reads a figure out of it.
+    /// <para><b>Three of its tables are applied and the rest is loaded and not.</b>
     /// <c>modifier_cover</c>, <c>knockback</c> and <c>throwing_range</c> are the three Chapter 4
-    /// entries that already name what this chapter supplies — the cover's Structure, an object
-    /// tougher than the target, an object's weight rank — and wiring them to it is a slice of its
-    /// own.</para>
+    /// entries that name what this chapter supplies — the cover's Structure, an object tougher than
+    /// the target, an object's weight rank — and <c>Encounter.Scenery</c> reads
+    /// <c>smashing_table</c>, <c>scenery_table</c> and <c>massive_objects_table</c> to answer them.
+    /// The rest of the chapter is a mechanic this engine has no intent for; the file is loaded and
+    /// its models cover every key, which is what holds all of it to the rulebook.</para>
     /// </summary>
     public PlayFile<EnvironmentEntry> Environment => _environment ??= Load<EnvironmentEntry>(EnvironmentFile);
 

@@ -222,6 +222,47 @@ public sealed class AssetCatalogue
         return rows;
     }
 
+    /// <summary>
+    /// <b>One of p.96's stock machines' printed feature lines, as selections a host can copy.</b>
+    ///
+    /// <para>The page prints a list of names, and two of the lines are not bare names. "Passengers
+    /// 4" is four <em>extra</em> passengers, which is the unit the feature is priced per — the
+    /// entry's own interpretation block says so. <b>"Rader (Sonar)" is not a feature at all</b>:
+    /// it is the Radar Power carrying the Sonar Con printed inside its own Ch.2 entry, taken
+    /// through Unique Systems, and copying it would mean pricing a Power to work out how many
+    /// Vehicle Points of Unique Systems to record.</para>
+    ///
+    /// <para><b>So it is skipped, and the reader adds it.</b> The copied Submersible comes out at
+    /// twelve Vehicle Points against a printed fourteen — under its budget rather than over, which
+    /// is the safe direction for a decision a host makes on somebody's behalf. Never repaired into
+    /// something else: a <c>SelectedAssetFeature("rader_(sonar)")</c> would be an id nothing has,
+    /// which makes the whole machine unpriceable and is a worse answer than a system the reader
+    /// can see is missing.</para>
+    ///
+    /// <para><b>It lives here because two hosts wanted it.</b> The browser's assets step and the
+    /// terminal wizard each carried a private copy of this reading, one of them with the decision
+    /// written down and one without — which is the second flattening this class exists to
+    /// prevent, and the half that had no comment is the half a reader would have called a bug.</para>
+    /// </summary>
+    public IReadOnlyList<SelectedAssetFeature> CopyableFeatures(StockVehicleRow stock)
+    {
+        ArgumentNullException.ThrowIfNull(stock);
+
+        return [.. stock.Features.Select(Read).OfType<SelectedAssetFeature>()];
+
+        SelectedAssetFeature? Read(string printed)
+        {
+            if (printed.StartsWith(PassengersLine, StringComparison.Ordinal)
+                && int.TryParse(printed[PassengersLine.Length..], out var extra))
+                return new SelectedAssetFeature("passengers") { Units = Math.Max(1, extra / 4) };
+
+            var id = GearCatalogue.Slug(printed);
+            return FindVehicleFeature(id) is null ? null : new SelectedAssetFeature(id);
+        }
+    }
+
+    private const string PassengersLine = "Passengers ";
+
     private static IReadOnlyList<string> Keywords(string? restrictedTo, IReadOnlyList<string> requires) =>
         restrictedTo is null ? requires : [restrictedTo, .. requires];
 }

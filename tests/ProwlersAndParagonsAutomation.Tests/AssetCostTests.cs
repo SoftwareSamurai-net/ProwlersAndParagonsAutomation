@@ -310,6 +310,43 @@ public sealed class AssetCostTests
         Assert.Equal(1, _f.Derived.CalculateTeamwork(sheet));
     }
 
+    /// <summary>
+    /// <b>A second base with the feature does not pay a second point, because the page prints no
+    /// rate to multiply.</b>
+    ///
+    /// <para>p.103 is a condition and a flat grant: "If you and your teammates have a
+    /// headquarters with this feature, you each gain 1 point of Teamwork at the start of every
+    /// issue." The only axis it multiplies on is <em>characters</em> — the entry's own
+    /// <c>granted_to</c> is "every character who shares the headquarters" — and this was counting
+    /// bases, an axis the sentence never mentions. A rate the book does not print is a rule this
+    /// project would be inventing.</para>
+    ///
+    /// <para><b>The control is the first base</b>: an assertion that two bases grant one point
+    /// would hold just as well of a calculator that had stopped granting anything, so the figure
+    /// has to be seen to arrive before it is seen not to double.</para>
+    /// </summary>
+    [Fact]
+    public void ASecondBaseWithTrainingFacilitiesDoesNotPayASecondPoint()
+    {
+        var sheet = _f.LegalSheet();
+
+        OwnedHeadquarters WithTheFeature(string name) => new(name)
+        {
+            PerkHeroPoints = 1,
+            Features = [new SelectedAssetFeature("training_facilities")]
+        };
+
+        sheet.Headquarters.Add(WithTheFeature("The Gym"));
+        Assert.Equal(1, _f.Derived.CalculateTeamwork(sheet));
+
+        sheet.Headquarters.Add(WithTheFeature("The Annexe"));
+        sheet.Headquarters.Add(WithTheFeature("The Bunker"));
+        Assert.Equal(1, _f.Derived.CalculateTeamwork(sheet));
+
+        // And the figure is the entry's own, not a 1 written here.
+        Assert.Equal(_f.Rules.Assets.Teamwork.PointsPerIssue, _f.Derived.CalculateTeamwork(sheet));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>

@@ -259,7 +259,9 @@ public sealed class PlayTools
             + "\"mecha\", \"trait_id\": \"blast\", \"type\": \"physical_power\"}. An attack also "
             + "takes \"cover\" (none, light, heavy, almost_full, complete) and, where the shot goes "
             + "through the obstacle rather than at the exposed part of the target, "
-            + "\"cover_structure\" — the obstacle's Structure rank — \"vulnerable_part\", "
+            + "\"cover_structure\" — the obstacle's Structure rank — or \"cover_scenery\", "
+            + "which names the obstacle instead and takes its Structure off Chapter 7's own "
+            + "tables; pass one or the other, never both. \"vulnerable_part\", "
             + "which under the hard_targets setting costs four dice and cancels the target's "
             + "doubled passive defence, and \"close_range_only\" for an ordinary thrown weapon or "
             + "anything else that only works up close, which the close_range_penalty setting "
@@ -273,7 +275,18 @@ public sealed class PlayTools
             + "\"ranged_weapon\" row is capped at the Gear Limit (6d unless the table raised it) "
             + "and then collects the weapon's own bonus dice, so a 10d Might swinging a sword "
             + "rolls 8d; a Power row and \"unarmed\" are never capped, and \"unarmed\" with the "
-            + "weapon still in hand is how p.87's close-combat exception is taken.")]
+            + "weapon still in hand is how p.87's close-combat exception is taken. An \"item\" "
+            + "Chapter 6 prints no weapon for and Chapter 7 does rate is an improvised weapon "
+            + "under p.108 instead: a die for swinging it, a die for throwing it, and an attack "
+            + "rank capped at the object's own rank plus six. A \"spend_resolve\" of "
+            + "\"knockback\" also takes a \"solid_object\" — what the target is thrown into, "
+            + "which costs them half the blow again unless their passive defence beats its "
+            + "Structure — and so does a \"spend_adversity\" of \"anything_resolve_can\" buying "
+            + "that same knockback for an NPC. **Every one of those names, and every \"cover_scenery\", is a printed "
+            + "row of Chapter 7's three object tables — `smashing_table` (materials, p.107), "
+            + "`scenery_table` (things, p.108) and `massive_objects_table` (p.108); combat_guide "
+            + "lists all of them.** A name none of the three prints is refused with nothing "
+            + "rolled and nothing spent, rather than being given a figure no page carries.")]
         JsonElement intent)
     {
         if (string.IsNullOrWhiteSpace(encounterId) || !_encounters.TryGetValue(encounterId, out var held))
@@ -2395,7 +2408,12 @@ public sealed class PlayTools
                     // <b>And it is what p.87's Gear Limit bites on</b>, on the two weapon rows of
                     // p.75's table: the Trait is capped and the item's Weapon Bonus added to what
                     // is left. See Encounter.GearLimited.
-                    Text(entry, "item") is { Length: > 0 } wielded ? wielded : null);
+                    Text(entry, "item") is { Length: > 0 } wielded ? wielded : null,
+                    // Ch.7 pp.107-108, the other way of saying what is in the way: a printed row
+                    // name rather than a figure. Both at once is refused on the ledger rather than
+                    // here, because which of two answers to one question a caller meant is a rule's
+                    // refusal and not a malformed argument.
+                    Text(entry, "cover_scenery") is { Length: > 0 } behind ? behind.Trim() : null);
                 return true;
 
             case "move":
@@ -2429,7 +2447,12 @@ public sealed class PlayTools
                 if (!TryReadEnum<ResolveSpend>(entry, "spend", null, out var spend, out problem)) return false;
                 read = new SpendResolve(
                     actor, spend, Number(entry, "points") ?? 1,
-                    Text(entry, "target") is { Length: > 0 } lured ? lured.Trim() : null);
+                    Text(entry, "target") is { Length: > 0 } lured ? lured.Trim() : null,
+                    // p.78's knockback: what the target hits on the way, by the name Chapter 7
+                    // prints for it. A purchase naming nothing is the rule minus its last clause
+                    // and says so on the ledger; one naming something no page rates is refused
+                    // with nothing spent.
+                    Text(entry, "solid_object") is { Length: > 0 } into ? into.Trim() : null);
                 return true;
 
             case "spend_adversity":
@@ -2451,7 +2474,9 @@ public sealed class PlayTools
                     // nothing here read it. The spelling guard over that document is scoped to tool
                     // arguments and the fields of an intent are not among them, so each of these is
                     // driven over the wire in McpPlayServerTests instead.
-                    Text(entry, "narration") is { Length: > 0 } said ? said.Trim() : null);
+                    Text(entry, "narration") is { Length: > 0 } said ? said.Trim() : null,
+                    // The same field p.85's first purchase needs to buy a knockback for an NPC.
+                    Text(entry, "solid_object") is { Length: > 0 } struck ? struck.Trim() : null);
                 return true;
 
             case "stabilise":

@@ -18,7 +18,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
 | Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **A sixth thing drives the assembled application and is deliberately not one of the five**: `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the deploy pins, and drives real Chrome. **How many checks it runs, what each is worth without its positive control, and which of them a given driver can reach are not written down here either** — run it, and read [`docs/guide/testing.md`](docs/guide/testing.md), which is where that account is kept up. This cell has already recorded that figure wrong once. It reports verdicts rather than a test count, so `count-tests.sh` does not know about it; see [item 10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) for what it does and does not reach. |
-| Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
+| Wizard | All seven creation steps working — the seventh, Vehicles and bases, added 2026-09-10 for Chapter 6 — with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions, which applies pending D1 migrations before the Pages upload and refuses rather than guesses. **What the deploy last did is not written down here** — it moves when somebody deploys rather than when somebody edits this file, which is how this cell went stale while nobody was looking at it. The workflow's own runs are the record. [`docs/guide/hosting.md`](docs/guide/hosting.md) carries the mechanism, the two failures that built it and what each token permission was proved by; `./scripts/test-deploy-gate.sh` drives the decision it makes |
 | Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. **Which migrations exist, and which of them the remote database has, are not written down here**: `ls d1/migrations/` answers the first, `wrangler d1 migrations list prowlers-and-paragons --remote` answers the second, and the deploy asks that same question before every upload. This cell used to carry both figures and was wrong about each in turn — it named a migration as still to be applied and was right when it was written, then went stale the moment somebody did the thing the gate exists to automate, which is the ordinary way a measured figure in this file stops being true. The `DB` binding is in place, `/api/me` answers `401` with JSON — checked by the deploy after every upload — and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link; until now the admin page said an address "can sign in now" and nothing ever told them so |
@@ -108,7 +108,7 @@ as in scope. **Nothing here is a defect.**
 
 - [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
 
-- [ ] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment become mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle and a headquarters in their own currencies, the sheet prints them, the palette offers them, and the fight reads scenery Structure. the gear catalogue half landed 2026-09-10 (verified by the orchestrator: the Gear-Limit cap and the budget-silencing flag each went red under mutation); vehicles, headquarters, gadgets, the fight's scenery and the campaign-side pooling remain, and the owner's answers to the design questions are in the entry
+- [ ] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment become mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle and a headquarters in their own currencies, the sheet prints them, the palette offers them, and the fight reads scenery Structure. the gear catalogue half landed 2026-09-10 (verified by the orchestrator: the Gear-Limit cap and the budget-silencing flag each went red under mutation); the fight reads Chapter 7's scenery since 2026-09-10 (verified by the orchestrator: the smash-through tie went red under mutation once the review stood a fixture on it); vehicles, headquarters and Gadgets on the sheet since 2026-09-10 (verified by the orchestrator: the headquarters currency and the base-budget boundary each went red under mutation); the campaign-side pooling remains, and the owner's answers to the design questions are in the entry
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -2153,10 +2153,67 @@ not benefit from mundane armour. Reading (b): p.88 *grants* a rank and never rem
 figure floors at the wearer's own Power. The interpretation is recorded on `gear.json`'s armour
 entry, and `ArmourRankTests` pins the 8 so the choice is deliberate and visible.
 
-**Still to do**: steps 3 and 4 (vehicles, headquarters and gadgets on the sheet, and the palette for
-the other three files), step 5 (the fight reads Chapter 7), and then the campaign-side half of the
-owner's pooling answer — the campaign object that sums its members' contributions, on the accounts
-server and the campaign page.
+**Step 5 landed on 2026-09-10: the fight reads Chapter 7.** An attack can name a piece of scenery
+for its cover (`cover_scenery`) and the Structure comes off p.107's materials or p.108's scenery
+table rather than the caller's word — a row *and* a stated figure together are refused, because
+p.107 lets a GM thicken a wall and the caller who has done so states the number. A knockback can
+name what the target flies into (`solid_object`, on the Resolve spend and the Adversity one): p.78's
+half the original blow, rounded up by p.7, unless the target's best *passive* defence exceeds the
+Structure, in which case they smash through unharmed — a tie belongs to the object, and the fixture
+now stands on that tie because the orchestrator's `>=` mutation walked straight through the one that
+only straddled it. A Massive Objects row has a weight rank and no Structure, so naming one for
+either is refused with nothing spent. A thrown or swung object is priced off p.108 with p.87's Gear
+Limit on the Trait and p.108's row-rank-plus-six ceiling on the sum, both applied because the page
+does not say which replaces which; a massive object's throw reaches as far as p.74's table says off
+its weight rank and no further; an object breaks apart after one shot. Chapter 6 is asked before
+Chapter 7 when a name matches both. `EntriesNotYetApplied` stays empty. The review found fourteen
+things, the shape of most being a claim nothing measured: the Adversity knockback's object was read
+by nothing end to end, the published policy did not tie a row's name to its rank, the ledger offered
+a knockback sixteen rows it would then refuse, the swung-versus-thrown halves of p.108 were
+indistinguishable, and p.80's stray round dropping the obstacle was unasserted in both fields.
+`vehicular_gear_limit` is not read and does not need to be — it sits in the character rules, and
+a fight caps a named vehicle by p.87 exactly as it caps a sword; `play-engine.md` records that.
+
+**Steps 1, 3 and 4 landed on 2026-09-10: vehicles, headquarters and Gadgets on the sheet.**
+`gadgets.json`, `vehicles.json` and `headquarters.json` are on `DataFileNames` and off the
+exemption list — five guards fail if only one happens — and `AssetCatalogue` offers their rows; the
+palette offers vehicle and base features under a cap of their own, and `Commands.Steps` is now
+held to the pages it names in both directions, which nothing did before a seventh entry was added
+to it. A sheet owns `Vehicles` (the Perk's Hero Points, Body, Speed, Control and a nullable Weapons
+— an unarmed machine prints the page's em dash, not a rank of nothing — all bought from zero, and
+features with a count or a grade), `Headquarters`, `Gadgets` (Complexity, Powers, Ability and
+Talent ranks), and `CampaignAssets` — a contribution of Hero Points to a named object the campaign
+holds, which is the sheet-side half of the owner's pooling answer. `CostCalculator` prices a vehicle
+at 25 Vehicle Points per Hero Point of the Perk (p.96), a base at 3 Base Points (p.100), Control at
+two a rank and the rest at one with negative Control refunding to a floor of −3, and a Gadget's
+pool at twice its Complexity (p.94) spent through the ordinary Power rules with the Item Con
+applied and not credited; only the Perks and the contributions reach `TotalCost()`. The six stock
+vehicles come out at their printed totals through two independent derivations, the Submersible's
+14 via Radar's Sonar Con. The validator reports a budget overspent in any of the three currencies,
+Mecha's Might below half its Body, Control above half its Speed — rounded up, as p.7 rounds every
+half, which is what makes three of p.97's own machines legal — a Complexity under 3, the 6d
+Technology prerequisite, an unknown feature, grade, Power, Ability or Talent id, and the same Perk
+recorded twice as a Warning. Training Facilities grant one point of Teamwork however many bases
+carry them, and on a Villain it is treated exactly as Resolve is — computed and never quoted, the
+owner's ruling, with a guard on the guide that records it. Both exports print the block and four
+arrays plus `derived.teamwork`; the browser's seventh step, the terminal's `ChooseAssetsStep`, the
+MCP server's and the headless build's spending breakdowns all carry it; the printed one-page sheet
+deliberately does not. The review's findings worth keeping: a Gadget's Powers were walked by nothing,
+so a misspelled Con inside one took `Validate` out with an exception and a negative unit count priced
+a 12d Nullify inside a Complexity-3 pool with no finding at all; two fixtures straddled their
+boundary rather than standing on it; both exports threw over mistakes the validator already
+reports; a vehicle feature's printed prerequisite (Submersible needs Swimming, p.100) is prose
+nothing checks, pinned by a test that fails the day it is. The payload grew by 20 KiB over the wire,
+measured.
+
+**Two questions the review left for the owner**: whether `vehicles.json` should gain a structured
+prerequisite beside the prose so Submersible → Swimming and Transforming's two-of-four become
+checkable; and whether two copies of the same flat feature on one vehicle (two Sensors for 20
+Vehicle Points) is a thing to refuse, where p.96 says "any number of features" and prints no rule
+either way.
+
+**Still to do**: the campaign-side half of the owner's pooling answer — the campaign object that sums
+its members' contributions, on the campaign page.
 
 ## Completed work
 

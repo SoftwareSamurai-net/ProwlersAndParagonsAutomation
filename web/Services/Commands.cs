@@ -62,7 +62,7 @@ public sealed record Command(
 /// palette offers, in what order, and how many — those are answerable without a browser, and
 /// keeping them here is what makes them testable without rendering anything.</para>
 ///
-/// <para><b>The six steps live here rather than in the step list component, because two lists
+/// <para><b>The steps live here rather than in the step list component, because two lists
 /// of steps would drift.</b> A palette that offers a step the band above it does not have —
 /// or misses one it does — is worse than no palette, and nothing about the two being in
 /// different files would have caught it. The band now reads this.</para>
@@ -411,7 +411,9 @@ public sealed class Commands
     /// <para><b>Powers appear only once something has been typed.</b> There are 141 of them and
     /// seven steps; offering all of them to an empty box would bury the steps under a catalogue
     /// nobody opened the palette to browse. An empty box is "where do I want to go", and the
-    /// answer to that is six rows long.</para>
+    /// answer to that is the step list and nothing else — <see cref="Steps"/> long, which
+    /// <c>AnEmptyBoxOffersNoAssetRows</c> asserts against that list rather than against a
+    /// number written here.</para>
     ///
     /// <para>Matching is <see cref="OptionFilter.Matches"/> — the same rule the five pickable
     /// lists use, so what a reader has learnt about finding things here holds there.</para>

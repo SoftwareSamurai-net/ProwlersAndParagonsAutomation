@@ -136,4 +136,88 @@ public sealed class AssetCatalogueTests
         var ex = Assert.Throws<InvalidOperationException>(() => assets.VehiclePointsPerHeroPoint);
         Assert.Contains("unique_vehicle_perk", ex.Message, StringComparison.Ordinal);
     }
+
+    // ── Copying a stock machine ───────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>The one printed feature line a host cannot copy, and the five it can.</b>
+    ///
+    /// <para>p.96's Submersible lists "Rader (Sonar)", which is not a feature: it is the Radar
+    /// Power with the Sonar Con printed inside its own Ch.2 entry, taken through Unique Systems.
+    /// Copying it would mean pricing a Power to work out the Vehicle Points, so
+    /// <see cref="AssetCatalogue.CopyableFeatures"/> skips it — and the copied machine comes out
+    /// <b>under</b> its printed total rather than over, which is the safe direction for a decision
+    /// a host makes on somebody's behalf.</para>
+    ///
+    /// <para><b>This was two private copies in two hosts and a test in neither.</b> The browser's
+    /// step wrote the decision down and the terminal wizard's did not, and the only stock-copy
+    /// test in the repository copies the Helicopter — whose five feature lines are all ordinary
+    /// names, so the line that is dropped was exercised nowhere. A "fix" that recorded
+    /// <c>rader_(sonar)</c> as a feature id would make the whole machine unpriceable and nothing
+    /// would have failed.</para>
+    /// </summary>
+    [Fact]
+    public void TheOneStockFeatureLineThatIsNotAFeatureIsSkippedRatherThanInvented()
+    {
+        var submersible = Assets.StockVehicles.Single(v => v.Name == "Submersible");
+
+        // The positive control on the fixture: the printed line really is still there, spelled the
+        // way the book misspells it. A corrected transcription moves this test rather than
+        // silently making its subject disappear.
+        Assert.Contains("Rader (Sonar)", submersible.Features);
+        Assert.Equal(5, submersible.Features.Count);
+
+        var copied = Assets.CopyableFeatures(submersible);
+
+        // Four of the five, and the missing one is the Radar line — not some other.
+        Assert.Equal(4, copied.Count);
+        Assert.DoesNotContain(copied, f => f.FeatureId.Contains("rader", StringComparison.OrdinalIgnoreCase));
+        Assert.All(copied, f => Assert.NotNull(Assets.FindVehicleFeature(f.FeatureId)));
+
+        // "Passengers 8" is eight extra passengers, and the feature is priced per four of them.
+        var passengers = Assert.Single(copied, f => f.FeatureId == "passengers");
+        Assert.Equal(2, passengers.Units);
+
+        // Under the printed total by exactly the Radar system, and priceable — which is the whole
+        // of why the line is skipped rather than recorded as an id nothing has.
+        var machine = new OwnedVehicle(submersible.Name)
+        {
+            Body = submersible.Body, Speed = submersible.Speed,
+            Control = submersible.Control, Weapons = submersible.Weapons,
+            Features = copied
+        };
+
+        var radar = _f.Costs.PowerCost(new SelectedPower("radar", 0, [], [new SelectedProCon("sonar")]));
+
+        Assert.Equal(submersible.VehiclePoints - radar, _f.Costs.VehiclePointsSpent(machine));
+        Assert.True(_f.Costs.VehiclePointsSpent(machine) < submersible.VehiclePoints,
+            "the copy has to land under the printed total, not over it");
+    }
+
+    /// <summary>
+    /// <b>The control: the other five stock machines copy whole.</b> A <c>CopyableFeatures</c>
+    /// that dropped everything it could not be bothered with would satisfy the test above.
+    /// </summary>
+    [Theory]
+    [InlineData("Helicopter")]
+    [InlineData("Jet Fighter")]
+    [InlineData("Motorcycle")]
+    [InlineData("Speedboat")]
+    [InlineData("Sports Car")]
+    public void EveryOtherStockMachineCopiesEveryLineAndItsPrintedTotal(string name)
+    {
+        var stock = Assets.StockVehicles.Single(v => v.Name == name);
+        var copied = Assets.CopyableFeatures(stock);
+
+        Assert.Equal(stock.Features.Count, copied.Count);
+
+        var machine = new OwnedVehicle(stock.Name)
+        {
+            Body = stock.Body, Speed = stock.Speed,
+            Control = stock.Control, Weapons = stock.Weapons,
+            Features = copied
+        };
+
+        Assert.Equal(stock.VehiclePoints, _f.Costs.VehiclePointsSpent(machine));
+    }
 }

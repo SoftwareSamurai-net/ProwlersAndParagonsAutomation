@@ -154,21 +154,6 @@
     private string Prompt => Commands.Prompt;
 
     /// <summary>
-    /// The heading this row wants above it, or null — set on the first row of a run of the same
-    /// kind, and only for the kinds that are worth marking off.
-    ///
-    /// <para><b>The steps and the Powers carry none, deliberately.</b> They are the app's own
-    /// controls and they were the whole of the palette for a long time; heading them would be
-    /// furniture on the two things nobody needs told apart. The book's passages are the
-    /// publisher's words rather than a control, and Chapter 6's rows lead somewhere else entirely
-    /// — nothing on the page should leave the three looking like one voice.</para>
-    ///
-    /// <para><c>role="presentation"</c> and no id, so the listbox's children stay options alone,
-    /// <c>aria-activedescendant</c> keeps naming a row and the indices stay the indices of
-    /// <c>_found</c>. What it says is not load-bearing for a screen reader: every row under it
-    /// carries its own detail line.</para>
-    /// </summary>
-    /// <summary>
     /// A row's classes: <c>palette-row</c>, the kind it is, and <c>current</c> when the cursor is
     /// on it.
     ///
@@ -196,6 +181,21 @@
             : $"palette-row {kind}";
     }
 
+    /// <summary>
+    /// The heading this row wants above it, or null — set on the first row of a run of the same
+    /// kind, and only for the kinds that are worth marking off.
+    ///
+    /// <para><b>The steps and the Powers carry none, deliberately.</b> They are the app's own
+    /// controls and they were the whole of the palette for a long time; heading them would be
+    /// furniture on the two things nobody needs told apart. The book's passages are the
+    /// publisher's words rather than a control, and Chapter 6's rows lead somewhere else entirely
+    /// — nothing on the page should leave the three looking like one voice.</para>
+    ///
+    /// <para><c>role="presentation"</c> and no id, so the listbox's children stay options alone,
+    /// <c>aria-activedescendant</c> keeps naming a row and the indices stay the indices of
+    /// <c>_found</c>. What it says is not load-bearing for a screen reader: every row under it
+    /// carries its own detail line.</para>
+    /// </summary>
     private string? GroupHeading(int index)
     {
         var kind = _found[index].Kind;

@@ -652,6 +652,14 @@ public sealed class CharacterValidator
     /// <para>The ranks cannot be exploited the same way — costs floor at zero — but a Trait at
     /// −50d is not a character, and reporting it legal is the same wrong answer in a quieter
     /// voice. The wizard cannot produce any of this: it counts upwards from a menu.</para>
+    ///
+    /// <para><b>And it happened again the moment Chapter 6 added four collections.</b> A Perk
+    /// allowance, a vehicle's three bought characteristics and a Gadget's Trait ranks are all the
+    /// same unbounded field, and only <c>CampaignAssetContribution.HeroPoints</c> — the one that
+    /// looks most like a spend — was checked. The other three each fund something for nothing.
+    /// <b>The pattern to take from this is that a new collection needs a clause here</b>, and the
+    /// way it stays true is that nothing here is derived: each clause is written out, so an
+    /// absent one is visible.</para>
     /// </summary>
     private void CheckQuantities(CharacterSheet sheet, List<ValidationIssue> issues)
     {
@@ -690,6 +698,72 @@ public sealed class CharacterValidator
                 $"{owner}'s '{choice.Id}' is applied {choice.Units} times, which would "
                 + "discount it rather than charge for it.", choice.Units!.Value));
 
+        // Chapter 6's four collections, which arrived after every clause above and were bounded
+        // by none of them. Each is the same exploit in a new field:
+        //
+        //  • a vehicle's Body/Speed/Weapons below zero **pays Vehicle Points back**, and a machine
+        //    with Body −20 buys twenty points of features for nothing, inside its budget, silent.
+        //    Control is the one that may be negative — p.96 says so and floors it at −3, which
+        //    CheckVehicle reports — so it is deliberately not here.
+        //  • a Perk allowance below zero is Hero Points *paid to the character*: PerkHeroPoints
+        //    −1000 took a legal sheet from 18 HP to −982, reported only as a Vehicle Point budget
+        //    finding that says nothing about the thousand Hero Points. CampaignAssets' own
+        //    HeroPoints was already checked; these two are the same field and were not.
+        //  • a Gadget's Trait ranks below zero pay its pool back: `might: -50` beside a 20d Blast
+        //    spends −30 out of a pool of six, which is inside it.
+        //
+        // Reported, never repaired, like every other quantity here: the totals stay what the sheet
+        // says, which is what makes the finding worth printing beside them.
+        foreach (var vehicle in sheet.Vehicles.Where(v => v.Name is not null))
+        {
+            foreach (var (what, rank) in new[]
+                     { ("Body", vehicle.Body), ("Speed", vehicle.Speed), ("Weapons", vehicle.Weapons ?? 0) }
+                         .Where(c => c.Item2 < 0))
+                issues.Add(Negative("NEGATIVE_RANK", ValidationSubject.Vehicle, vehicle.Name,
+                    $"{vehicle.Name} has {what} {rank}d. A vehicle's characteristics are bought "
+                    + "from nothing, and a rank below that pays Vehicle Points back rather than "
+                    + "costing them. Only Control may be negative.", rank));
+
+            if (vehicle.PerkHeroPoints < 0)
+                issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Vehicle, vehicle.Name,
+                    $"{vehicle.Name} records {vehicle.PerkHeroPoints} Hero Points of the Unique "
+                    + "Vehicle Perk, which would pay the character rather than cost them.",
+                    vehicle.PerkHeroPoints));
+        }
+
+        foreach (var hq in sheet.Headquarters.Where(h => h.Name is not null && h.PerkHeroPoints < 0))
+            issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Headquarters, hq.Name,
+                $"{hq.Name} records {hq.PerkHeroPoints} Hero Points of the Headquarters Perk, "
+                + "which would pay the character rather than cost them.", hq.PerkHeroPoints));
+
+        foreach (var gadget in sheet.Gadgets.Where(g => g.Name is not null))
+        {
+            // A Gadget's Powers are the same two quantity fields the character's own Powers
+            // carry, one budget down, and the clauses above walk `sheet.SelectedPowers` alone.
+            foreach (var sp in gadget.Powers.Where(p => p.PurchasedRanks < 0))
+                issues.Add(Negative("NEGATIVE_RANK", ValidationSubject.Gadget, gadget.Name,
+                    $"{GadgetPowerName(gadget, sp)} has {sp.PurchasedRanks} purchased ranks. A "
+                    + "Power cannot have fewer than no ranks.", sp.PurchasedRanks));
+
+            foreach (var sp in gadget.Powers.Where(p => p.Units < 0))
+                issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Gadget, gadget.Name,
+                    $"{GadgetPowerName(gadget, sp)} is bought {sp.Units} times. A Power cannot "
+                    + "be bought fewer than no times.", sp.Units));
+
+            foreach (var (id, rank) in gadget.AbilityRanks.Concat(gadget.TalentRanks).Where(e => e.Value < 0))
+                issues.Add(new(ValidationSeverity.Error, "NEGATIVE_RANK",
+                    $"{gadget.Name} has {rank}d of '{id}'. A Trait cannot have fewer than no "
+                    + "ranks, and a negative one pays the Gadget's pool back rather than "
+                    + "spending it.")
+                {
+                    SubjectKind = ValidationSubject.Gadget,
+                    SubjectId   = gadget.Name,
+                    OwnerId     = id,
+                    Value       = rank,
+                    Limit       = 0
+                });
+        }
+
         // Zero is not a purchase. A per-unit Perk or Power at no units costs nothing and does
         // nothing, so it is a line on the sheet the character did not buy.
         foreach (var perk in sheet.Perks.Where(p => p.Units == 0 && Perk(p.PerkId)?.CostType == "per_unit"))
@@ -717,7 +791,7 @@ public sealed class CharacterValidator
 
     /// <summary>
     /// Every Pro and Con on the character with the name of whatever carries it, so a check that
-    /// applies to all of them does not have to walk three collections itself.
+    /// applies to all of them does not have to walk four collections itself.
     /// </summary>
     private IEnumerable<(string Owner, SelectedProCon Choice)> EveryModifier(CharacterSheet sheet)
     {
@@ -725,6 +799,18 @@ public sealed class CharacterValidator
         {
             foreach (var p in sp.Pros.Concat(sp.Cons))
                 if (p is not null) yield return (PowerName(sp.PowerId), p);
+        }
+
+        // A Gadget's Powers carry the same quantity field, and it buys the same discount one
+        // budget down: `also_x` at −1000 units on a 12d Nullify inside a Gadget priced 24 Hero
+        // Points of Power at 6, which is exactly a Complexity-3 pool, so the Gadget was inside
+        // its pool with nothing said. The character's own Powers have reported this since the
+        // per-rank-per-unit exploit was found; this collection arrived after that clause.
+        foreach (var gadget in sheet.Gadgets)
+        {
+            foreach (var sp in gadget.Powers)
+                foreach (var p in sp.Pros.Concat(sp.Cons))
+                    if (p is not null) yield return (GadgetPowerName(gadget, sp), p);
         }
 
         foreach (var gear in sheet.Gear)
@@ -739,6 +825,14 @@ public sealed class CharacterValidator
                 if (p is not null) yield return (_rules.GetAbility(abilityId)?.Name ?? abilityId, p);
         }
     }
+
+    /// <summary>
+    /// What to call a Power that is inside a Gadget: the Gadget names it, because "Nullify" alone
+    /// in a finding is indistinguishable from the character's own and the two have separate
+    /// budgets.
+    /// </summary>
+    private string GadgetPowerName(BuiltGadget gadget, SelectedPower power) =>
+        $"{gadget.Name}'s {PowerName(power.PowerId)}";
 
     private static ValidationIssue Negative(
         string code, ValidationSubject kind, string id, string message, int value) =>
@@ -782,8 +876,9 @@ public sealed class CharacterValidator
 
     /// <summary>
     /// Every Pro and Con on the character, wherever it sits — on a Power, on a piece of gear,
-    /// or on an Ability. They are priced the same way in all three places, so they go wrong
-    /// the same way in all three, and an unknown id threw out of the middle of the total.
+    /// on an Ability, or on a Power inside a Gadget. They are priced the same way in all four
+    /// places, so they go wrong the same way in all four, and an unknown id threw out of the
+    /// middle of the total.
     ///
     /// <para>A Pro or Con printed inside a Power's own entry takes precedence over a generic
     /// one of the same name, exactly as <c>CostCalculator</c> resolves it. Checking only the
@@ -806,6 +901,23 @@ public sealed class CharacterValidator
             resolvable &= CheckModifierList(gear.Pros, isPro: true, null, gear.Name, gear.Name, issues);
             resolvable &= CheckModifierList(gear.Cons, isPro: false, null, gear.Name, gear.Name, issues);
         }
+
+        // <b>A Gadget's Powers are the fourth place, and they were nowhere.</b> They are ordinary
+        // SelectedPowers — p.94 buys them with the same rules as the character's own — so
+        // GadgetSpend prices them through PowerCost, and PowerCost throws on an id the rulebook
+        // does not have. Nothing walked them, so `modifiersResolvable` was true whatever they
+        // carried and CheckGadget went straight on to price them: a submitted sheet with one
+        // misspelled Con inside a Gadget took `Validate` out with an InvalidOperationException,
+        // which is the one thing a validator may never do.
+        foreach (var gadget in sheet.Gadgets)
+            foreach (var sp in gadget.Powers)
+            {
+                var power = Power(sp.PowerId);
+                var name  = GadgetPowerName(gadget, sp);
+
+                resolvable &= CheckModifierList(sp.Pros, isPro: true, power, sp.PowerId, name, issues);
+                resolvable &= CheckModifierList(sp.Cons, isPro: false, power, sp.PowerId, name, issues);
+            }
 
         foreach (var (abilityId, modifiers) in sheet.AbilityModifiers)
         {
@@ -1326,6 +1438,21 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
+    /// Half of a rank, the way the rulebook means it: p.7's glossary, "Whenever we refer to half
+    /// of an odd number (or half of an odd number of dice), always round up, regardless of the
+    /// context."
+    ///
+    /// <para><b>It is here because a cap and a floor do not round the same way when the halving is
+    /// open-coded, and only one of the two open codings was right.</b> A floor written
+    /// <c>units * 2 &gt;= body</c> is exactly <c>units &gt;= ceil(body / 2)</c> over the integers,
+    /// so the Mecha check was correct by luck. The same trick on a cap,
+    /// <c>control * 2 &gt; speed</c>, is <c>control &gt; floor(speed / 2)</c> — a rank tighter at
+    /// every odd Speed, and it rejected three machines p.97 prints. Both call this now, so there
+    /// is one halving to be wrong about rather than two.</para>
+    /// </summary>
+    private static int HalfRoundedUp(int rank) => (rank + 1) / 2;
+
+    /// <summary>
     /// p.99's Mecha, the one vehicle feature that prints a floor beside its price: "A vehicle's
     /// Might may not be lower than half its Body."
     ///
@@ -1338,7 +1465,7 @@ public sealed class CharacterValidator
         var mecha = vehicle.Features.FirstOrDefault(
             f => string.Equals(f.FeatureId, AssetCatalogue.MechaFeatureId, StringComparison.Ordinal));
 
-        if (mecha is null || mecha.Units * 2 >= vehicle.Body) return;
+        if (mecha is null || mecha.Units >= HalfRoundedUp(vehicle.Body)) return;
 
         issues.Add(new(ValidationSeverity.Error, "MECHA_MIGHT_BELOW_HALF_BODY",
             $"{vehicle.Name} is a Mecha with Might {mecha.Units} against Body {vehicle.Body}. "
@@ -1349,9 +1476,9 @@ public sealed class CharacterValidator
             OwnerId     = vehicle.Name,
             Value       = mecha.Units,
 
-            // Half the Body, rounded up, which is the smallest whole Might that satisfies the
-            // sentence — derived from the comparison above rather than from a rounding rule.
-            Limit       = (vehicle.Body + 1) / 2
+            // Half the Body, which p.7 rounds up like every other half in the book — the same
+            // call the comparison above makes, so the figure quoted is the figure tested.
+            Limit       = HalfRoundedUp(vehicle.Body)
         });
     }
 
@@ -1372,11 +1499,17 @@ public sealed class CharacterValidator
     {
         var rates = _rules.Assets.Characteristics;
 
-        // p.96: "Control may not exceed half the vehicle's Speed." Compared as doubled Control
-        // against Speed rather than by halving Speed, because that needs no rounding rule — and
-        // the book prints none for this sentence. A rounding rule invented here would be this
-        // project making one up, which is the one thing data/rules/ exists to prevent.
-        if (control > 0 && control * 2 > speed)
+        // p.96: "Control ... can't exceed half the vehicle's Speed." **Half rounds up**, because
+        // p.7's glossary settles every halving in the book that way — "always round up, regardless
+        // of the context" — and p.96 works that rule on this very page: a Foe-piloted sedan with
+        // 7d Body is disabled after "4 points of damage (half of 7)".
+        //
+        // This was written `Control * 2 > Speed`, which is `Control > floor(Speed / 2)` and so
+        // rejects a legal machine at every odd Speed. p.97 prints three of them — Helicopter
+        // (Military), Helicopter (Personal) and Jet Pack, each Speed 7d with Control +4d.
+        var controlCap = HalfRoundedUp(speed);
+
+        if (control > 0 && control > controlCap)
             issues.Add(new(ValidationSeverity.Error, "VEHICLE_CONTROL_ABOVE_HALF_SPEED",
                 $"{name} has Control {control} against Speed {speed}. "
                 + "A vehicle's Control may not exceed half its Speed.")
@@ -1384,7 +1517,7 @@ public sealed class CharacterValidator
                 SubjectKind = ValidationSubject.Vehicle,
                 SubjectId   = name,
                 Value       = control,
-                Limit       = speed / 2
+                Limit       = controlCap
             });
 
         // p.96: a negative Control pays two points back a rank, down to −3 and no further.
@@ -1531,6 +1664,15 @@ public sealed class CharacterValidator
     /// Whether a Gadget's own Powers, Abilities and Talents can be priced at all, reporting each
     /// gap by name. Unknown ids are reported and not charged for, which is the answer
     /// <c>AbilityCost</c> already gives for the character's own.
+    ///
+    /// <para><b>All three collections, and the Abilities and Talents were missed.</b> This method
+    /// walked <see cref="BuiltGadget.Powers"/> alone while its own summary claimed otherwise, and
+    /// <c>GadgetSpend</c> skips a rank whose Trait id resolves to nothing — so a Gadget carrying
+    /// <c>"mightt": 99</c> spent nothing out of its pool, stayed inside it, printed the ranks and
+    /// raised no finding at all. That is the silence a misspelled id bought in <c>gear.json</c>'s
+    /// own review one slice earlier, in a collection nothing was walking. The character's own
+    /// Traits are covered by <c>CheckUnknownTraits</c>; a Gadget's are its own dictionaries and
+    /// were covered by nothing.</para>
     /// </summary>
     private bool GadgetIsPriceable(BuiltGadget gadget, List<ValidationIssue> issues)
     {
@@ -1538,7 +1680,11 @@ public sealed class CharacterValidator
 
         foreach (var power in gadget.Powers)
         {
-            if (power.PowerId is not null && _rules.GetPower(power.PowerId) is not null) continue;
+            if (power.PowerId is not null && _rules.GetPower(power.PowerId) is { } model)
+            {
+                priceable &= CheckPowerIsPriceable(power, model, gadget.Name, issues);
+                continue;
+            }
 
             issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GADGET_POWER",
                 power.PowerId is null
@@ -1549,6 +1695,34 @@ public sealed class CharacterValidator
                 SubjectKind = ValidationSubject.Gadget,
                 SubjectId   = gadget.Name,
                 OwnerId     = power.PowerId
+            });
+            priceable = false;
+        }
+
+        foreach (var id in gadget.AbilityRanks.Keys.Where(id => _rules.GetAbility(id) is null))
+        {
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GADGET_ABILITY",
+                $"{gadget.Name} has ranks against '{id}', which is not one of the six Abilities "
+                + "in the rulebook, so what the Gadget spent cannot be worked out.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                OwnerId     = id,
+                Options     = _rules.Abilities.Select(a => a.Id).ToList()
+            });
+            priceable = false;
+        }
+
+        foreach (var id in gadget.TalentRanks.Keys.Where(id => _rules.GetTalent(id) is null))
+        {
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GADGET_TALENT",
+                $"{gadget.Name} has ranks against '{id}', which is not one of the twelve Talents "
+                + "in the rulebook, so what the Gadget spent cannot be worked out.")
+            {
+                SubjectKind = ValidationSubject.Gadget,
+                SubjectId   = gadget.Name,
+                OwnerId     = id,
+                Options     = _rules.Talents.Select(t => t.Id).ToList()
             });
             priceable = false;
         }
@@ -1991,6 +2165,70 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
+    /// <b>The two things about a Power's own selection that make <c>CostCalculator</c> throw</b>:
+    /// a cost variant that is absent or resolves to nothing, and a missing nomination on a Power
+    /// whose rate comes from the nominated Trait. Both are absent-and-unknown together, because
+    /// the repair is the same and the second reached the calculator where the first was reported.
+    ///
+    /// <para><b>Shared, because a Gadget's Powers are Powers.</b> p.94 buys them under the
+    /// ordinary rules and <c>GadgetSpend</c> prices them through <c>PowerCost</c>, so they throw
+    /// in exactly these two places — and <c>GadgetIsPriceable</c> checked the Power id alone. An
+    /// Omni-Power inside a Gadget with a cost variant the rulebook does not have took
+    /// <c>Validate</c> out with an <c>InvalidOperationException</c>. A second copy of these two
+    /// clauses would be a second thing to fix one of; this is the one.</para>
+    /// </summary>
+    /// <param name="insideGadget">The Gadget carrying this Power, or null on the character's own.</param>
+    /// <returns>False when the Power cannot be priced at all.</returns>
+    private bool CheckPowerIsPriceable(
+        SelectedPower sp, PowerModel power, string? insideGadget, List<ValidationIssue> issues)
+    {
+        var resolvable = true;
+
+        // The owner clause, and nothing at all when the Power is the character's own: "Omni-Power"
+        // alone in a finding does not say which of two budgets it is against.
+        var whose = insideGadget is null ? "" : $"On the Gadget {insideGadget}: ";
+
+        if (power.CostType is "per_rank_variable" or "flat_variable"
+            && (sp.CostVariantKey is null || power.CostVariants?.ContainsKey(sp.CostVariantKey) != true))
+        {
+            issues.Add(new(ValidationSeverity.Error, "POWER_VARIANT_NOT_CHOSEN",
+                $"{whose}{power.Name} costs a different amount depending on which version you "
+                + $"take, and none the rulebook lists has been chosen. "
+                + $"Pick one of: {Names(power.CostVariants?.Keys)}.")
+            {
+                SubjectKind = ValidationSubject.Power,
+                SubjectId   = sp.PowerId,
+                OwnerId     = insideGadget,
+                Options     = Keys(power.CostVariants?.Keys)
+            });
+            resolvable = false;
+        }
+
+        // An unknown nomination threw for Boost, whose cost comes from the nominated Trait, and
+        // silently gave Expertise a baseline of nothing — two wrong answers to the one mistake.
+        if (power.Prerequisite?.Relationship == "baseline_selected_trait"
+            && (sp.BaselineTraitId is null || !IsATrait(sp.BaselineTraitId)))
+        {
+            issues.Add(new(ValidationSeverity.Error, "POWER_BASELINE_TRAIT_NOT_CHOSEN",
+                $"{whose}Power '{power.Name}' derives its baseline rank from a Trait the player " +
+                "nominates, and no Trait the rulebook has is recorded.")
+            {
+                // The nomination may be any ability, talent or power, so there is no short
+                // list to offer — which is itself the answer, and the code says which
+                // field is missing.
+                SubjectKind = ValidationSubject.Power,
+                SubjectId   = sp.PowerId,
+                OwnerId     = insideGadget
+            });
+
+            // Boost also takes its cost per rank from that Trait.
+            if (power.CostType == "special") resolvable = false;
+        }
+
+        return resolvable;
+    }
+
+    /// <summary>
     /// Powers whose cost or baseline depends on a player choice are unresolvable until
     /// that choice is recorded on the selection.
     /// </summary>
@@ -2024,43 +2262,7 @@ public sealed class CharacterValidator
                 continue;
             }
 
-            // Absent and present-but-unknown are one finding: the repair is the same, and the
-            // second reached CostCalculator and threw where the first was reported.
-            if (power.CostType is "per_rank_variable" or "flat_variable"
-                && (sp.CostVariantKey is null || power.CostVariants?.ContainsKey(sp.CostVariantKey) != true))
-            {
-                issues.Add(new(ValidationSeverity.Error, "POWER_VARIANT_NOT_CHOSEN",
-                    $"{power.Name} costs a different amount depending on which version you "
-                    + $"take, and none the rulebook lists has been chosen. "
-                    + $"Pick one of: {Names(power.CostVariants?.Keys)}.")
-                {
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId,
-                    Options     = Keys(power.CostVariants?.Keys)
-                });
-                resolvable = false;
-            }
-
-            // Again absent and unknown together. An unknown nomination threw for Boost, whose
-            // cost comes from the nominated Trait, and silently gave Expertise a baseline of
-            // nothing — two different wrong answers to the same mistake.
-            if (power.Prerequisite?.Relationship == "baseline_selected_trait"
-                && (sp.BaselineTraitId is null || !IsATrait(sp.BaselineTraitId)))
-            {
-                issues.Add(new(ValidationSeverity.Error, "POWER_BASELINE_TRAIT_NOT_CHOSEN",
-                    $"Power '{power.Name}' derives its baseline rank from a Trait the player " +
-                    "nominates, and no Trait the rulebook has is recorded.")
-                {
-                    // The nomination may be any ability, talent or power, so there is no short
-                    // list to offer — which is itself the answer, and the code says which
-                    // field is missing.
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId
-                });
-
-                // Boost also takes its cost per rank from that Trait.
-                if (power.CostType == "special") resolvable = false;
-            }
+            resolvable &= CheckPowerIsPriceable(sp, power, insideGadget: null, issues);
 
             // A nomination that is missing or unresolvable is the finding above; one that resolves
             // to a *Power* is this one, and only on Expertise. Ch.2 p.28 narrows that Power alone

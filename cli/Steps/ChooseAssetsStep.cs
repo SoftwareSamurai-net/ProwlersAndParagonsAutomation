@@ -184,8 +184,12 @@ public sealed class ChooseAssetsStep : IWizardStep
             // "Rader (Sonar)" is the one printed feature line that is not a bare feature name — it
             // is the Radar Power taken through Unique Systems — so it is skipped rather than
             // guessed at, and the machine comes out under budget rather than over.
-            Features = [.. stock.Features.Select(line => FeatureFromStockLine(line, rules))
-                                         .OfType<SelectedAssetFeature>()]
+            // Which printed lines can be copied, and why "Rader (Sonar)" is not one of them, is
+            // AssetCatalogue.CopyableFeatures' answer — the same one the browser's assets step
+            // gets. This step used to carry its own copy of that reading, without the comment
+            // the browser's copy had, so the one host where the decision looked like a bug was
+            // the one nothing explained it in.
+            Features = rules.Assets.CopyableFeatures(stock)
         };
     }
 
@@ -194,16 +198,6 @@ public sealed class ChooseAssetsStep : IWizardStep
     {
         ArgumentNullException.ThrowIfNull(row);
         return $"{row.Name} — {row.Cost} Vehicle Points · {row.Description}";
-    }
-
-    private static SelectedAssetFeature? FeatureFromStockLine(string printed, RulesRepository rules)
-    {
-        if (printed.StartsWith("Passengers ", StringComparison.Ordinal)
-            && int.TryParse(printed["Passengers ".Length..], out var extra))
-            return new SelectedAssetFeature("passengers") { Units = Math.Max(1, extra / 4) };
-
-        var id = GearCatalogue.Slug(printed);
-        return rules.Assets.FindVehicleFeature(id) is null ? null : new SelectedAssetFeature(id);
     }
 
     private static void EditVehicle(CharacterSheet sheet, RulesRepository rules, CostCalculator costs)

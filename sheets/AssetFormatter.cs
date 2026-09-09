@@ -30,8 +30,8 @@ public static class AssetFormatter
         ArgumentNullException.ThrowIfNull(vehicle);
         ArgumentNullException.ThrowIfNull(costs);
 
-        return $"{vehicle.Name} — {N(costs.VehiclePointsSpent(vehicle))}/"
-             + $"{N(costs.VehiclePointBudget(vehicle))} Vehicle Points "
+        return $"{vehicle.Name} — {Spend(() => costs.VehiclePointsSpent(vehicle),
+                                          costs.VehiclePointBudget(vehicle), "Vehicle Points")} "
              + $"({N(vehicle.PerkHeroPoints)} HP)";
     }
 
@@ -59,8 +59,8 @@ public static class AssetFormatter
         ArgumentNullException.ThrowIfNull(headquarters);
         ArgumentNullException.ThrowIfNull(costs);
 
-        return $"{headquarters.Name} — {N(costs.BasePointsSpent(headquarters))}/"
-             + $"{N(costs.BasePointBudget(headquarters))} Base Points "
+        return $"{headquarters.Name} — {Spend(() => costs.BasePointsSpent(headquarters),
+                                               costs.BasePointBudget(headquarters), "Base Points")} "
              + $"({N(headquarters.PerkHeroPoints)} HP)";
     }
 
@@ -77,8 +77,8 @@ public static class AssetFormatter
         ArgumentNullException.ThrowIfNull(costs);
 
         return $"{gadget.Name} (Complexity {N(gadget.Complexity)}) — "
-             + $"{N(costs.GadgetSpend(gadget, houseImmortalityCost))}/{N(costs.GadgetPool(gadget))} "
-             + "Hero Points the build paid out";
+             + Spend(() => costs.GadgetSpend(gadget, houseImmortalityCost),
+                     costs.GadgetPool(gadget), "Hero Points the build paid out");
     }
 
     /// <summary>
@@ -203,6 +203,44 @@ public static class AssetFormatter
     private static string GradeName(string gradeKey) =>
         string.Join(" ", gradeKey.Split('_')
             .Select(w => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..]));
+
+    /// <summary>
+    /// <b>Whether a figure this sheet wants can be reached at all.</b>
+    ///
+    /// <para><c>CostCalculator</c> throws on a feature it cannot price, a Pro or Con the rulebook
+    /// does not have and a variant key that resolves to nothing — deliberately, because a price is
+    /// not a thing to guess at. Every one of those is a mistake the validator already
+    /// <em>reports</em>, so a sheet is being asked to print the finding and the figure beside it,
+    /// and an exception takes the whole report down over one mistyped id instead.</para>
+    ///
+    /// <para><b>Asked here rather than answered structurally.</b> The JSON export's Gadget gate
+    /// checked the Power ids alone and let an unknown Con through, which is the shape of every
+    /// partial answer to this question: the calculator knows what it can price and nothing
+    /// else does.</para>
+    /// </summary>
+    public static int? Reachable(Func<int> figure)
+    {
+        ArgumentNullException.ThrowIfNull(figure);
+
+        try
+        {
+            return figure();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A spend against the budget it comes out of — <c>24/25 Vehicle Points</c> — or the sentence
+    /// that says the spend could not be worked out, with the budget kept because that half is
+    /// knowable and a reader still wants it.
+    /// </summary>
+    private static string Spend(Func<int> spent, int budget, string currency) =>
+        Reachable(spent) is { } figure
+            ? $"{N(figure)}/{N(budget)} {currency}"
+            : $"spend cannot be worked out, out of {N(budget)} {currency}";
 
     private static string N(int value) => value.ToString(CultureInfo.InvariantCulture);
 }

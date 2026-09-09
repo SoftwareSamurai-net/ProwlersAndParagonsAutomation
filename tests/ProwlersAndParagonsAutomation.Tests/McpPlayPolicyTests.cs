@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.McpPlay;
@@ -42,6 +43,18 @@ public sealed class McpPlayPolicyTests
     /// </summary>
     private static string Flowed =>
         new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(Text, " ");
+
+    /// <summary>
+    /// The three bold headings the document publishes Chapter 7's object tables under. They are the
+    /// anchors <see cref="PublishedRows"/> parses from, so a heading somebody reworded fails loudly
+    /// rather than leaving a paragraph unchecked.
+    /// </summary>
+    private static readonly string[] SceneryParagraphs =
+    [
+        "**Materials — p.107's Smashing table, by Structure.**",
+        "**Things — p.108's Scenery table, by Structure.**",
+        "**Too big to rate — p.108's Massive Objects table, by weight rank.**"
+    ];
 
     /// <summary>
     /// The document as the tool serves it, compared with the file in the repository. Both halves
@@ -206,6 +219,114 @@ public sealed class McpPlayPolicyTests
         Assert.Equal(
             Encounter.EntriesNotYetApplied.Order(StringComparer.Ordinal),
             ListedUnder("**`Encounter.EntriesNotYetApplied`**").Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>Every scenery row a caller may name is named in the document, and the figure beside it is
+    /// the shipped one.</b>
+    ///
+    /// <para>The three tables are what <c>cover_scenery</c>, a knockback's <c>solid_object</c> and
+    /// an improvised weapon's <c>item</c> are matched against, and a name none of them prints is
+    /// refused. So a caller has to be able to find out what the names are — and a list typed into a
+    /// document is a second transcription that will disagree with the first the day somebody
+    /// corrects the data. It is derived here instead: every printed row name, with its own rank
+    /// beside it, has to appear in the served text.</para>
+    ///
+    /// <para><b>The rank is part of the claim on purpose, and the row it is written under is what
+    /// carries it.</b> This check used to ask two independent questions — is the name anywhere in
+    /// the document, and does the string "12: " occur anywhere in it — which is satisfied by a
+    /// document listing the Vault Door at Structure 4, because some other group is a 12. That
+    /// mutation was applied and stayed green. So the document's own three paragraphs are parsed
+    /// back into rows and compared with the shipped tables as a <em>set of pairs</em>, in both
+    /// directions: a name under the wrong rank fails, and so does a name the tables do not
+    /// print.</para>
+    /// </summary>
+    [Fact]
+    public void ThePolicyNamesEveryRowChapterSevenRates()
+    {
+        var shipped = SceneryRows().OrderBy(r => r.Name, StringComparer.Ordinal).ThenBy(r => r.Rank).ToList();
+
+        var published = SceneryParagraphs
+            .SelectMany(PublishedRows)
+            .OrderBy(r => r.Name, StringComparer.Ordinal)
+            .ThenBy(r => r.Rank)
+            .ToList();
+
+        // The positive controls, on both halves: a walk that had stopped finding rows on either side
+        // would report nothing missing and prove nothing.
+        Assert.True(shipped.Count >= 55,
+            $"only {shipped.Count} scenery rows were read out of environment.json, and the three "
+            + "object tables print fifty-eight between them — this check is walking a table that has "
+            + "lost most of itself and would pass against a document naming nothing.");
+
+        Assert.True(published.Count >= 55,
+            $"only {published.Count} rows were parsed out of mcp-play/PLAY-POLICY.md's three scenery "
+            + "paragraphs. Either the document has lost most of its rows or the parse below has "
+            + "stopped finding them, and a parse that finds nothing agrees with nothing perfectly.");
+
+        Assert.Equal(shipped, published);
+    }
+
+    /// <summary>
+    /// The rows one of the document's three scenery paragraphs publishes, read back out of it —
+    /// "<c>6: Brick Wall, Telephone Pole.</c>" is two rows at 6.
+    ///
+    /// <para>The paragraph runs from its bold heading to the next bold run, and each group starts at
+    /// a figure and a colon that follows a sentence break, which is what keeps "747 Airliner" and
+    /// "18-Wheeler" from being read as ranks of their own.</para>
+    /// </summary>
+    private static IEnumerable<(string Name, int Rank)> PublishedRows(string heading)
+    {
+        var at = Flowed.IndexOf(heading, StringComparison.Ordinal);
+
+        Assert.True(at >= 0,
+            $"mcp-play/PLAY-POLICY.md no longer carries the paragraph headed '{heading}', so the "
+            + "rows a caller may name are published nowhere.");
+
+        var from = at + heading.Length;
+        var to = Flowed.IndexOf("**", from, StringComparison.Ordinal);
+        var paragraph = to < 0 ? Flowed[from..] : Flowed[from..to];
+
+        var groups = new Regex(@"(?:(?<=^)|(?<=\.\s))(\d+):\s", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(paragraph.Trim())
+            .ToList();
+
+        Assert.NotEmpty(groups);
+
+        var body = paragraph.Trim();
+
+        for (var i = 0; i < groups.Count; i++)
+        {
+            var start = groups[i].Index + groups[i].Length;
+            var end = i + 1 < groups.Count ? groups[i + 1].Index : body.Length;
+            var rank = int.Parse(groups[i].Groups[1].Value, CultureInfo.InvariantCulture);
+
+            foreach (var name in body[start..end].Trim().TrimEnd('.').Split(", ", StringSplitOptions.RemoveEmptyEntries))
+            {
+                yield return (name.Trim(), rank);
+            }
+        }
+    }
+
+    /// <summary>Every printed row of Chapter 7's three object tables, with the rank beside it.</summary>
+    private IEnumerable<(string Name, int Rank)> SceneryRows()
+    {
+        var smashing = _f.Play.GetEnvironment("smashing_table").SmashingTable!;
+
+        foreach (var row in smashing.Rows)
+        {
+            foreach (var material in row.Materials) yield return (material, row.Structure);
+        }
+
+        foreach (var row in _f.Play.GetEnvironment("scenery_table").SceneryTable!)
+        {
+            foreach (var thing in row.Scenery) yield return (thing, row.Structure);
+        }
+
+        foreach (var row in _f.Play.GetEnvironment("massive_objects_table").MassiveObjectsTable!)
+        {
+            foreach (var thing in row.Objects) yield return (thing, row.WeightRank);
+        }
     }
 
     /// <summary>
