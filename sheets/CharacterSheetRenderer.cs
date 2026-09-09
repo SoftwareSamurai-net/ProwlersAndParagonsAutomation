@@ -67,6 +67,7 @@ public static class CharacterSheetRenderer
         WritePerks(sb, sheet, rules, costs);
         WriteFlaws(sb, sheet, rules);
         WriteGear(sb, sheet, rules, costs);
+        WriteAssets(sb, sheet, rules, costs);
         WriteDerived(sb, sheet, derived);
         WriteNarrative(sb, sheet);
         WriteValidation(sb, validation, generatedAt);
@@ -298,6 +299,54 @@ public static class CharacterSheetRenderer
         sb.AppendLine();
     }
 
+    /// <summary>
+    /// Chapter 6's vehicles, headquarters and Gadgets, plus what this character put into a
+    /// campaign's shared object.
+    ///
+    /// <para><b>The whole block is skipped when there is nothing in it</b>, unlike Gear, which
+    /// prints "(none)". Nearly every character in the game owns no vehicle and no base, and a
+    /// heading over four empty lines on every sheet would be furniture.</para>
+    /// </summary>
+    private static void WriteAssets(StringBuilder sb, CharacterSheet sheet,
+        RulesRepository rules, CostCalculator costs)
+    {
+        if (sheet.Vehicles.Count == 0 && sheet.Headquarters.Count == 0
+            && sheet.Gadgets.Count == 0 && sheet.CampaignAssets.Count == 0) return;
+
+        sb.AppendLine("─── VEHICLES, BASES & GADGETS ──────────────────────────────");
+
+        foreach (var vehicle in sheet.Vehicles)
+        {
+            sb.AppendLine($"  • {AssetFormatter.Describe(vehicle, costs)}");
+            sb.AppendLine($"      {AssetFormatter.Characteristics(vehicle)}");
+
+            foreach (var feature in vehicle.Features)
+                sb.AppendLine($"      - {AssetFormatter.Feature(feature, rules, onAVehicle: true)}");
+        }
+
+        foreach (var headquarters in sheet.Headquarters)
+        {
+            sb.AppendLine($"  • {AssetFormatter.Describe(headquarters, costs)}");
+
+            foreach (var feature in headquarters.Features)
+                sb.AppendLine($"      - {AssetFormatter.Feature(feature, rules, onAVehicle: false)}");
+        }
+
+        foreach (var gadget in sheet.Gadgets)
+            sb.AppendLine($"  • {AssetFormatter.Describe(gadget, costs, sheet.ImmortalityCost)}");
+
+        foreach (var contribution in sheet.CampaignAssets)
+            sb.AppendLine($"  • {AssetFormatter.Describe(contribution)}");
+
+        // The Hero Points, which are the only figure above that a tier has a budget for. The
+        // Vehicle Points and Base Points beside them are a second currency the Perks already
+        // bought, and a Gadget's pool runs the other way entirely.
+        var perks = costs.TotalAssetPerkCost(sheet);
+        if (perks > 0) sb.AppendLine($"  Perks total: {perks} HP");
+
+        sb.AppendLine();
+    }
+
     private static void WriteDerived(StringBuilder sb, CharacterSheet sheet, DerivedStatsCalculator derived)
     {
         sb.AppendLine("─── DERIVED STATS ──────────────────────────────────────────");
@@ -310,6 +359,16 @@ public static class CharacterSheetRenderer
         // over for free, capped by p.87's Gear Limit, and nothing was spent on it.
         if (derived.ArmorFromGear(sheet) is { } armor)
             sb.AppendLine($"  Armor:   {armor}d (worn, under the Gear Limit)");
+
+        // **Only when a base grants it**, for the reason Armor prints only when a suit is worn:
+        // a line reading "Teamwork: 0" on every sheet in the game is a figure nobody has.
+        //
+        // **And only a Hero holds it, which this file cannot know.** It behaves exactly like
+        // Resolve — the rules data says so in that word — so it is computed for anybody and quoted
+        // by whoever knows which kind of character they are showing. sheets/ is rules code and may
+        // not read the palette flag; there is a test that it does not.
+        if (derived.CalculateTeamwork(sheet) is > 0 and var teamwork)
+            sb.AppendLine($"  Teamwork: {teamwork} at the start of each issue (Training Facilities)");
 
         sb.AppendLine();
     }
@@ -557,11 +616,87 @@ public static class CharacterSheetRenderer
                 ["pros"] = new JsonArray(g.Pros.Select(p => (JsonNode)JsonValue.Create(p.Id)!).ToArray()),
                 ["cons"] = new JsonArray(g.Cons.Select(c => (JsonNode)JsonValue.Create(c.Id)!).ToArray())
             }).ToArray()),
+            // Chapter 6's vehicles, headquarters and Gadgets. **Every figure says which currency
+            // it is in**, because three of the four are not Hero Points: a reader summing
+            // vehicle_points_spent into a Hero Point total has made the category error this whole
+            // section is careful about.
+            ["vehicles"] = new JsonArray(sheet.Vehicles.Select(v => (JsonNode)new JsonObject
+            {
+                ["name"]                  = v.Name,
+                ["perk_hero_points"]      = v.PerkHeroPoints,
+                ["vehicle_points_budget"] = costs.VehiclePointBudget(v),
+                ["vehicle_points_spent"]  = Priceable(v, costs) ? costs.VehiclePointsSpent(v) : null,
+                ["body"]                  = v.Body,
+                ["speed"]                 = v.Speed,
+                ["control"]               = v.Control,
+
+                // Null rather than zero on an unarmed machine, which is what the printed tables'
+                // em dash says: no rank at all, not a rank of nothing.
+                ["weapons"]               = v.Weapons,
+                ["features"] = new JsonArray(v.Features.Select(f => (JsonNode)new JsonObject
+                {
+                    ["id"]    = f.FeatureId,
+                    ["name"]  = rules.Assets.FindVehicleFeature(f.FeatureId)?.Name ?? f.FeatureId,
+                    ["units"] = f.Units,
+                    ["grade"] = f.GradeKey
+                }).ToArray())
+            }).ToArray()),
+
+            ["headquarters"] = new JsonArray(sheet.Headquarters.Select(h => (JsonNode)new JsonObject
+            {
+                ["name"]               = h.Name,
+                ["perk_hero_points"]   = h.PerkHeroPoints,
+                ["base_points_budget"] = costs.BasePointBudget(h),
+                ["base_points_spent"]  = Priceable(h, costs) ? costs.BasePointsSpent(h) : null,
+                ["features"] = new JsonArray(h.Features.Select(f => (JsonNode)new JsonObject
+                {
+                    ["id"]    = f.FeatureId,
+                    ["name"]  = rules.Assets.FindBaseFeature(f.FeatureId)?.Name ?? f.FeatureId,
+                    ["units"] = f.Units,
+                    ["grade"] = f.GradeKey
+                }).ToArray())
+            }).ToArray()),
+
+            // **The one block whose Hero Points were paid out rather than in.** A reader netting
+            // hero_points_granted off the total has a cheaper character than the one on the page.
+            ["gadgets"] = new JsonArray(sheet.Gadgets.Select(g => (JsonNode)new JsonObject
+            {
+                ["name"]                 = g.Name,
+                ["complexity"]           = g.Complexity,
+                ["hero_points_granted"]  = costs.GadgetPool(g),
+                ["hero_points_spent"]    = GadgetPriceable(g, rules)
+                    ? costs.GadgetSpend(g, sheet.ImmortalityCost)
+                    : null,
+                ["powers"] = new JsonArray(g.Powers
+                    .Select(p => (JsonNode)JsonValue.Create(p.PowerId)!).ToArray()),
+                ["ability_ranks"] = new JsonObject(g.AbilityRanks
+                    .Select(e => KeyValuePair.Create(e.Key, (JsonNode?)JsonValue.Create(e.Value)))),
+                ["talent_ranks"] = new JsonObject(g.TalentRanks
+                    .Select(e => KeyValuePair.Create(e.Key, (JsonNode?)JsonValue.Create(e.Value))))
+            }).ToArray()),
+
+            // What this character put into a campaign's shared object, and nothing about the
+            // object: the campaign sums these, and a copy of the machine on each member's sheet
+            // would be five copies to disagree.
+            ["campaign_assets"] = new JsonArray(sheet.CampaignAssets.Select(c => (JsonNode)new JsonObject
+            {
+                ["asset_id"]    = c.AssetId,
+                ["name"]        = c.Name,
+                ["kind"]        = c.Kind,
+                ["hero_points"] = c.HeroPoints
+            }).ToArray()),
+
             ["derived"] = new JsonObject
             {
                 ["edge"]    = derived.CalculateEdge(sheet),
                 ["health"]  = derived.CalculateHealth(sheet),
                 ["resolve"] = derived.CalculateResolve(sheet),
+
+                // Resolve's twin: computed for anybody, quoted for a Hero. Written whether or not
+                // it is greater than zero, unlike the text sheet's line, because a machine reader
+                // wants a field rather than a silence — the same reason armor_from_gear is a key
+                // with a null in it rather than an absence.
+                ["teamwork"] = derived.CalculateTeamwork(sheet),
 
                 // Null unless a suit is being worn. See WriteDerived: it is a figure p.88 grants
                 // and p.87 caps, and nothing was spent on it.
@@ -645,4 +780,38 @@ public static class CharacterSheetRenderer
     /// </summary>
     private static GearCatalogueRow? CatalogueRow(SelectedGear gear, RulesRepository rules) =>
         gear.CatalogueId is null ? null : rules.Catalogue.Find(gear.CatalogueId);
+
+    /// <summary>
+    /// Whether a machine or a base can be priced at all — every feature resolving to a row the
+    /// rulebook has, and every graded one carrying a grade.
+    ///
+    /// <para><b>Asked rather than caught.</b> <c>CostCalculator</c> throws on a feature it cannot
+    /// price, deliberately, and this document is written for a reader who will act on it: a
+    /// <c>null</c> against <c>vehicle_points_spent</c> beside the validator's own
+    /// <c>UNKNOWN_ASSET_FEATURE</c> says what happened, where an exception would take the whole
+    /// report down over one mistyped id.</para>
+    /// </summary>
+    private static bool Priceable(OwnedVehicle vehicle, CostCalculator costs) =>
+        CanPrice(() => costs.VehiclePointsSpent(vehicle));
+
+    /// <inheritdoc cref="Priceable(OwnedVehicle, CostCalculator)"/>
+    private static bool Priceable(OwnedHeadquarters headquarters, CostCalculator costs) =>
+        CanPrice(() => costs.BasePointsSpent(headquarters));
+
+    /// <summary>Whether every Power on a Gadget is one the rulebook has.</summary>
+    private static bool GadgetPriceable(BuiltGadget gadget, RulesRepository rules) =>
+        gadget.Powers.All(p => p.PowerId is not null && rules.GetPower(p.PowerId) is not null);
+
+    private static bool CanPrice(Func<int> price)
+    {
+        try
+        {
+            _ = price();
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
 }

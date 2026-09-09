@@ -93,7 +93,14 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
             // heard of the field", so the keys are written either way.
             "campaign_table", "immortality_cost",
             "abilities", "talents",
-            "source_groups", "powers", "perks", "flaws", "gear", "derived", "narrative",
+            "source_groups", "powers", "perks", "flaws", "gear",
+
+            // Chapter 6's four, written whether or not the character owns any. A reader has to be
+            // able to tell "this character has no vehicle" from "this build had not heard of
+            // vehicles", which is the same reason campaign_table is a key with a null in it.
+            "vehicles", "headquarters", "gadgets", "campaign_assets",
+
+            "derived", "narrative",
             "validation"
         ];
 
@@ -661,13 +668,245 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
 
     // ── Derived stats and narrative ───────────────────────────────────────────
 
+    // ── Chapter 6's vehicles, headquarters and Gadgets ───────────────────────
+
+    /// <summary>
+    /// <b>A vehicle exports its two currencies apart</b>: the Hero Points its Perk cost, and the
+    /// Vehicle Points those bought and spent. A document that gave one number would be one a
+    /// reader had to guess the unit of.
+    /// </summary>
+    [Fact]
+    public void AVehicleExportsBothCurrenciesAndItsFourRanks()
+    {
+        var sheet = SampleCharacters.Hero();
+        sheet.Vehicles.Add(new OwnedVehicle("The Wing")
+        {
+            PerkHeroPoints = 2,
+            Body = 8, Speed = 10, Control = 5, Weapons = 12,
+            Features =
+            [
+                new SelectedAssetFeature("flight"),
+                new SelectedAssetFeature("passengers") { Units = 3 },
+                new SelectedAssetFeature("hidden_compartments") { GradeKey = "large" }
+            ]
+        });
+
+        var vehicle = FirstOf(Render(sheet)["vehicles"]!.AsArray());
+
+        AssertKeys(vehicle, "name", "perk_hero_points", "vehicle_points_budget",
+            "vehicle_points_spent", "body", "speed", "control", "weapons", "features");
+
+        Assert.Equal("The Wing", vehicle["name"]!.GetValue<string>());
+        Assert.Equal(2,  vehicle["perk_hero_points"]!.GetValue<int>());
+        Assert.Equal(50, vehicle["vehicle_points_budget"]!.GetValue<int>());
+        Assert.Equal(_f.Costs.VehiclePointsSpent(sheet.Vehicles[0]),
+                     vehicle["vehicle_points_spent"]!.GetValue<int>());
+        Assert.Equal(12, vehicle["weapons"]!.GetValue<int>());
+
+        var features = vehicle["features"]!.AsArray();
+        Assert.Equal(3, features.Count);
+        AssertKeys(FirstOf(features), "id", "name", "units", "grade");
+
+        // The name comes off the rules data, never off the character — a price or a name
+        // corrected in vehicles.json corrects every sheet that names the row.
+        Assert.Equal("Flight", FirstOf(features)["name"]!.GetValue<string>());
+        Assert.Equal("large", features[2]!["grade"]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// <b>An unarmed machine exports null Weapons, not zero.</b> The printed tables give it an em
+    /// dash, which is a different claim from a rank of nothing — and a reader summing weapon ranks
+    /// across a fleet would count a zero.
+    /// </summary>
+    [Fact]
+    public void AnUnarmedVehicleExportsNullWeapons()
+    {
+        var sheet = SampleCharacters.Hero();
+        sheet.Vehicles.Add(new OwnedVehicle("The Van") { PerkHeroPoints = 1, Body = 6, Speed = 6 });
+
+        var vehicle = FirstOf(Render(sheet)["vehicles"]!.AsArray());
+
+        // A present-but-JSON-null property is the key existing with a null CLR reference, not a
+        // JsonValue wrapping null — so the presence and the null-ness are two assertions.
+        Assert.True(vehicle.ContainsKey("weapons"));
+        Assert.Null(vehicle["weapons"]);
+
+        // The control: an armed one really does carry a number, so the null above is about this
+        // machine and not about the key being unwritten.
+        sheet.Vehicles[0] = sheet.Vehicles[0] with { Weapons = 4 };
+        Assert.Equal(4, FirstOf(Render(sheet)["vehicles"]!.AsArray())["weapons"]!.GetValue<int>());
+    }
+
+    /// <summary>
+    /// <b>A feature the rulebook does not have leaves the spend null rather than taking the whole
+    /// report down.</b> The id is kept and the validator names it — reported, never repaired — and
+    /// a reader gets every other figure on the sheet.
+    /// </summary>
+    [Fact]
+    public void AnUnpriceableVehicleExportsANullSpendAndKeepsTheId()
+    {
+        var sheet = SampleCharacters.Hero();
+        sheet.Vehicles.Add(new OwnedVehicle("The Mystery")
+        {
+            PerkHeroPoints = 1,
+            Features = [new SelectedAssetFeature("teleport_bay")]
+        });
+
+        var document = Render(sheet);
+        var vehicle = FirstOf(document["vehicles"]!.AsArray());
+
+        Assert.True(vehicle.ContainsKey("vehicle_points_spent"));
+        Assert.Null(vehicle["vehicle_points_spent"]);
+        Assert.Equal("teleport_bay", FirstOf(vehicle["features"]!.AsArray())["id"]!.GetValue<string>());
+
+        // And the report still says what is wrong, which is the half that makes the null readable.
+        var errors = document["validation"]!["errors"]!.AsArray().Select(e => e!.GetValue<string>());
+        Assert.Contains(errors, e => e.Contains("UNKNOWN_ASSET_FEATURE", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A headquarters exports Base Points, and a Gadget exports a pool that was paid out.</b>
+    /// The Gadget's key is <c>hero_points_granted</c> rather than a cost, because a reader who
+    /// netted it off the total would have a cheaper character than the one on the page.
+    /// </summary>
+    [Fact]
+    public void AHeadquartersAndAGadgetExportTheirOwnCurrencies()
+    {
+        var sheet = SampleCharacters.Hero();
+        sheet.TalentRanks["technology"] = 6;
+
+        sheet.Headquarters.Add(new OwnedHeadquarters("The Loft")
+        {
+            PerkHeroPoints = 2,
+            Features = [new SelectedAssetFeature("training_facilities")]
+        });
+        sheet.Gadgets.Add(new BuiltGadget("Freeze Ray")
+        {
+            Complexity = 5,
+            Powers = [new SelectedPower("blast", 4)],
+            AbilityRanks = new Dictionary<string, int> { ["might"] = 1 }
+        });
+
+        var document = Render(sheet);
+
+        var headquarters = FirstOf(document["headquarters"]!.AsArray());
+        AssertKeys(headquarters, "name", "perk_hero_points", "base_points_budget",
+            "base_points_spent", "features");
+        Assert.Equal(6, headquarters["base_points_budget"]!.GetValue<int>());
+        Assert.Equal(2, headquarters["base_points_spent"]!.GetValue<int>());
+
+        var gadget = FirstOf(document["gadgets"]!.AsArray());
+        AssertKeys(gadget, "name", "complexity", "hero_points_granted", "hero_points_spent",
+            "powers", "ability_ranks", "talent_ranks");
+        Assert.Equal(10, gadget["hero_points_granted"]!.GetValue<int>());
+        Assert.Equal(_f.Costs.GadgetSpend(sheet.Gadgets[0]), gadget["hero_points_spent"]!.GetValue<int>());
+        Assert.Equal(["blast"], gadget["powers"]!.AsArray().Select(p => p!.GetValue<string>()));
+        Assert.Equal(1, gadget["ability_ranks"]!["might"]!.GetValue<int>());
+
+        // Teamwork travels beside Resolve, computed for anybody: the engine is never told which
+        // kind of character it has, and a host that knows keeps the silence.
+        Assert.Equal(1, document["derived"]!["teamwork"]!.GetValue<int>());
+    }
+
+    /// <summary>
+    /// <b>A contribution to a campaign's shared object exports what went in and nothing about the
+    /// object.</b> That is the whole shape: the campaign sums these, and a copy of the machine on
+    /// each member's sheet would be five copies to disagree.
+    /// </summary>
+    [Fact]
+    public void AContributionExportsWhatWentInAndNothingElse()
+    {
+        var sheet = SampleCharacters.Hero();
+        sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-1")
+        {
+            Name = "The Aerie", Kind = CampaignAssetContribution.Headquarters, HeroPoints = 3
+        });
+
+        var contribution = FirstOf(Render(sheet)["campaign_assets"]!.AsArray());
+
+        AssertKeys(contribution, "asset_id", "name", "kind", "hero_points");
+        Assert.Equal("asset-1", contribution["asset_id"]!.GetValue<string>());
+        Assert.Equal("headquarters", contribution["kind"]!.GetValue<string>());
+        Assert.Equal(3, contribution["hero_points"]!.GetValue<int>());
+    }
+
+    /// <summary>
+    /// <b>All four collections survive a round trip through the strict reader</b>, and a character
+    /// stored before any of them existed still reads — which is why nothing here bumped a stored
+    /// character's version.
+    ///
+    /// <para><b>They are not absent from a fresh payload, and an earlier draft of this test claimed
+    /// they were.</b> An empty list is written as <c>[]</c>, not omitted — <c>WhenWritingNull</c>
+    /// does not skip one — so what makes the old payload safe is the reader, not the writer.</para>
+    /// </summary>
+    [Fact]
+    public void TheFourNewCollectionsRoundTripAndAnOlderPayloadStillReads()
+    {
+        var sheet = SampleCharacters.Hero();
+        sheet.TalentRanks["technology"] = 6;
+        sheet.Vehicles.Add(new OwnedVehicle("The Wing")
+        {
+            PerkHeroPoints = 2, Body = 8, Speed = 10, Control = 5, Weapons = 12,
+            Features = [new SelectedAssetFeature("passengers") { Units = 3 }]
+        });
+        sheet.Headquarters.Add(new OwnedHeadquarters("The Loft")
+        {
+            PerkHeroPoints = 2,
+            Features = [new SelectedAssetFeature("science_labs") { GradeKey = "advanced" }]
+        });
+        sheet.Gadgets.Add(new BuiltGadget("Freeze Ray")
+        {
+            Complexity = 5,
+            Powers = [new SelectedPower("blast", 4)],
+            TalentRanks = new Dictionary<string, int> { ["vehicles"] = 1 }
+        });
+        sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-1")
+        {
+            Name = "The Aerie", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 3
+        });
+
+        var read = CharacterSheetJson.Read(CharacterSheetJson.Write(sheet), strict: true)!;
+
+        Assert.Equal(12, read.Vehicles[0].Weapons);
+        Assert.Equal(3,  read.Vehicles[0].Features[0].Units);
+        Assert.Equal("advanced", read.Headquarters[0].Features[0].GradeKey);
+        Assert.Equal(5,  read.Gadgets[0].Complexity);
+        Assert.Equal("blast", read.Gadgets[0].Powers[0].PowerId);
+        Assert.Equal(1,  read.Gadgets[0].TalentRanks["vehicles"]);
+        Assert.Equal("asset-1", read.CampaignAssets[0].AssetId);
+
+        // The totals agree either side, which is the claim a key-by-key comparison would not make.
+        Assert.Equal(_f.Costs.TotalCost(sheet), _f.Costs.TotalCost(read));
+
+        // **A character stored before any of this existed still reads**, which is why nothing here
+        // bumped a stored character's version. Absent means empty on all four, and the strict
+        // reader — the one that refuses a field it does not know — is the harder of the two to
+        // satisfy, so it is the one asked.
+        var old = CharacterSheetJson.Read(
+            """{"Name":"Nobody","SelectedTierId":"standard","AbilityRanks":{"might":3}}""",
+            strict: true)!;
+
+        Assert.Empty(old.Vehicles);
+        Assert.Empty(old.Headquarters);
+        Assert.Empty(old.Gadgets);
+        Assert.Empty(old.CampaignAssets);
+        Assert.Equal(3, old.GetAbilityRank("might"));
+
+        // The control on that: the four really are written when there is something in them, so
+        // the emptiness above is about the payload rather than about four properties nothing
+        // serialises.
+        var full = CharacterSheetJson.Write(sheet);
+        Assert.Contains("\"Vehicles\":", full, StringComparison.Ordinal);
+        Assert.Contains("\"CampaignAssets\":", full, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void DerivedCarriesEdgeHealthAndResolveAndTheyAgreeWithTheEngine()
     {
         var sheet = SampleCharacters.Hero();
         var derived = Render(sheet)["derived"]!.AsObject();
 
-        AssertKeys(derived, "edge", "health", "resolve", "armor_from_gear");
+        AssertKeys(derived, "edge", "health", "resolve", "armor_from_gear", "teamwork");
         Assert.Equal(_f.Derived.CalculateEdge(sheet), derived["edge"]!.GetValue<int>());
         Assert.Equal(_f.Derived.CalculateHealth(sheet), derived["health"]!.GetValue<int>());
         Assert.Equal(_f.Derived.CalculateResolve(sheet), derived["resolve"]!.GetValue<int>());
