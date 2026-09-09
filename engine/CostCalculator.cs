@@ -611,15 +611,29 @@ public sealed class CostCalculator
     {
         ArgumentNullException.ThrowIfNull(vehicle);
 
+        return checked(Characteristics(vehicle.Body, vehicle.Speed, vehicle.Control, vehicle.Weapons)
+                     + vehicle.Features.Sum(VehicleFeatureCost));
+    }
+
+    /// <summary>
+    /// p.96's four characteristics at their printed rates, for whichever record is carrying them.
+    ///
+    /// <para><b>One home for the four multiplications, because there are two records that hold
+    /// them</b>: a machine one character owns and one the campaign does. They are priced by the
+    /// identical printed table, so a second copy of this expression is a second place to miss a
+    /// correction in <c>vehicles.json</c> — and the failure would be silent, since the two would
+    /// still agree on every value the rates happen to share.</para>
+    /// </summary>
+    private int Characteristics(int body, int speed, int control, int? weapons)
+    {
         var rates = _rules.Assets.Characteristics;
 
         checked
         {
-            return vehicle.Body * rates.BodyCostPerRank
-                 + vehicle.Speed * rates.SpeedCostPerRank
-                 + vehicle.Control * rates.ControlCostPerRank
-                 + (vehicle.Weapons ?? 0) * rates.WeaponsCostPerRank
-                 + vehicle.Features.Sum(VehicleFeatureCost);
+            return body * rates.BodyCostPerRank
+                 + speed * rates.SpeedCostPerRank
+                 + control * rates.ControlCostPerRank
+                 + (weapons ?? 0) * rates.WeaponsCostPerRank;
         }
     }
 
@@ -666,6 +680,88 @@ public sealed class CostCalculator
 
         return FeaturePrice(feature.Name, feature.CostType, feature.Cost, feature.CostRange,
                             feature.CostPerUnit, selection);
+    }
+
+    // ── A campaign's own shared object (Ch.6 p.96 and p.100, which let Heroes pool) ────────
+
+    /// <summary>
+    /// The second-currency budget a campaign's shared object has to spend: every Hero Point its
+    /// members put in, at p.96's twenty-five to the Vehicle Point or p.100's three to the Base
+    /// Point.
+    ///
+    /// <para><b>The contributions are handed in rather than looked up, and that is the whole of
+    /// why this method can live in the engine.</b> Joining a shared object to the sheets that paid
+    /// for it means reading storage, which is asynchronous in a browser and is what
+    /// <see cref="IRulesSource"/> is synchronous to forbid — the reason
+    /// <c>web/Services/CampaignJoin.cs</c> exists one layer up. What is left here is arithmetic
+    /// over what a caller already has, which is exactly what this class is.</para>
+    ///
+    /// <para><b>Every contribution is charged on its own member's sheet as well</b>, by
+    /// <see cref="TotalAssetPerkCost"/>, and that is not a double charge: the Hero Points came out
+    /// of five budgets and bought one object. This figure is what the object may spend, in a
+    /// currency no tier has a budget for.</para>
+    ///
+    /// <para><b>A contribution naming a different object is skipped in silence here</b>, because
+    /// it is not silent anywhere it matters: a contribution naming <em>nothing</em> in the
+    /// campaign is the orphan a host reports, and this method is handed whatever set the caller
+    /// collected. Filtering on the id rather than trusting the caller's filter is what stops one
+    /// object's budget from quietly counting another's.</para>
+    /// </summary>
+    /// <param name="asset">The shared object.</param>
+    /// <param name="contributions">
+    /// Every contribution the caller has collected, from any member. Those naming another object
+    /// are ignored.
+    /// </param>
+    public int CampaignAssetBudget(
+        CampaignAsset asset, IEnumerable<CampaignAssetContribution> contributions)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        ArgumentNullException.ThrowIfNull(contributions);
+
+        checked
+        {
+            return contributions
+                .Where(c => string.Equals(c.AssetId, asset.Id, StringComparison.Ordinal))
+                .Sum(c => c.HeroPoints) * CampaignAssetPointsPerHeroPoint(asset);
+        }
+    }
+
+    /// <summary>
+    /// What one Hero Point buys in this object's own currency: twenty-five Vehicle Points, or
+    /// three Base Points. Read off the rules data, never spelled here.
+    /// </summary>
+    public int CampaignAssetPointsPerHeroPoint(CampaignAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        return asset.IsHeadquarters
+            ? _rules.Assets.BasePointsPerHeroPoint
+            : _rules.Assets.VehiclePointsPerHeroPoint;
+    }
+
+    /// <summary>
+    /// What a campaign's shared object costs, in its own currency: a vehicle's four
+    /// characteristics plus its features, or a headquarters' features alone.
+    ///
+    /// <para><b>The same two calculations <see cref="VehiclePointsSpent"/> and
+    /// <see cref="BasePointsSpent"/> make</b>, over the same rates and the same feature prices —
+    /// <see cref="Characteristics"/> is shared with the first, and the feature costs are the very
+    /// same methods. What differs is only which of the two shapes the record is, which
+    /// <see cref="CampaignAsset.IsHeadquarters"/> answers.</para>
+    ///
+    /// <para><b>A base's characteristics are not charged even when somebody has set them.</b>
+    /// pp.100–103 give a headquarters no Body, Speed, Control or Weapons at all, so there is no
+    /// printed rate to charge them at — inventing one would be this project making a rule up. A
+    /// host that lets somebody type them is reporting a mistake, not pricing one.</para>
+    /// </summary>
+    public int CampaignAssetPointsSpent(CampaignAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (asset.IsHeadquarters) return asset.Features.Sum(BaseFeatureCost);
+
+        return checked(Characteristics(asset.Body, asset.Speed, asset.Control, asset.Weapons)
+                     + asset.Features.Sum(VehicleFeatureCost));
     }
 
     /// <summary>

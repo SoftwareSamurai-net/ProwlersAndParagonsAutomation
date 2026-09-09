@@ -90,6 +90,26 @@ namespace ProwlersAndParagonsAutomation.Engine;
 /// route the cap takes and for the same reason — a character is portable and has to price itself
 /// with no campaign in front of it.</para>
 /// </param>
+/// <param name="Assets">
+/// The shared vehicles and headquarters this table owns, or null for a game that has none.
+///
+/// <para><b>This one is not copied onto a character, and that is the difference from every
+/// setting above it.</b> The tier, the cap, the switches and the price are copied on joining
+/// because a character has to price itself with no campaign in front of it. A shared object is the
+/// opposite: it exists precisely because it is <em>not</em> one character's, so copying it onto
+/// five sheets is the double-counting the whole design avoids. What a sheet carries is a
+/// <see cref="CampaignAssetContribution"/> naming an <see cref="CampaignAsset.Id"/> from this
+/// list, and reading the object back is a host's job — a member does it through their own
+/// membership row, which is the one server read scoped to a player.</para>
+///
+/// <para><b>Null is a game with no shared object</b>, the same way <see cref="Table"/>'s null is
+/// the book — so a campaign written before this existed reads back byte-identically rather than as
+/// a table that has decided to own nothing. <c>CampaignAsset.On</c> is the reading of that null,
+/// and the one every host should use: it lives over there rather than as a property here because
+/// this file is a bare record declaration on purpose — see
+/// <c>PresentationFlagsTests.TheOnlyOtherSkippedFileHasNoLogicInItAtAll</c>, which is what stops
+/// the skip this file gets from the presentation-flag scan becoming a place to hide a rule.</para>
+/// </param>
 public sealed record Campaign(
     string Id,
     string Name,
@@ -97,4 +117,5 @@ public sealed record Campaign(
     int? TraitCapRank,
     bool UnlimitedBudget,
     CampaignTable? Table = null,
-    int? ImmortalityCost = null);
+    int? ImmortalityCost = null,
+    IReadOnlyList<CampaignAsset>? Assets = null);
