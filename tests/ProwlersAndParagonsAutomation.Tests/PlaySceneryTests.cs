@@ -188,6 +188,140 @@ public sealed class PlaySceneryTests
             string.Equals(l.Rule, "scenery_table", StringComparison.Ordinal));
     }
 
+    // ── p.78's knockback, into something the page rates ──────────────────────
+
+    /// <summary>
+    /// <b>p.78's last sentence is applied, and both sides of its one test are driven.</b>
+    ///
+    /// <para>"They suffer half as much damage as the original attack inflicted, assuming the object
+    /// they strike is tougher than they are (if the target's passive defense exceeds the object's
+    /// Structure, they smash though unharmed)." The parenthesis is what defines the assumption, so
+    /// there is one comparison and not two — and the fixture holds the fight, the blow and the
+    /// target's Toughness fixed and moves <em>only</em> the object: a brick wall the target
+    /// out-ranks, and a vault door it does not.</para>
+    ///
+    /// <para><b>The instrument is Health and not the ledger's wording.</b> Half of the six points
+    /// the blow did is three, rounded the Glossary's way, and the two runs have to differ by exactly
+    /// that — a clause that had gone back to being announced rather than applied would leave both on
+    /// the same total, which is the shape of defect the adversarial pass over this engine found
+    /// seven of.</para>
+    /// </summary>
+    [Fact]
+    public void AKnockbackIntoANamedObjectCostsHalfTheBlowUnlessTheTargetOutRanksIt()
+    {
+        var rule = _play.GetCombat("knockback").Knockback!;
+        var rows = _play.GetEnvironment("scenery_table").SceneryTable!;
+
+        var wall = rows.Single(r => r.Scenery.Contains("Brick Wall", StringComparer.Ordinal)).Structure;
+        var vault = rows.Single(r => r.Scenery.Contains("Vault Door", StringComparer.Ordinal)).Structure;
+
+        // The fixture's own control: the target's passive defence has to sit between the two, or
+        // "one either side of the threshold" would be a claim about nothing.
+        const int Toughness = 8;
+        Assert.True(wall < Toughness && Toughness < vault,
+            "the two objects no longer straddle the target's passive defence, so this fixture is "
+            + "driving one side of the test twice");
+
+        var through = Knocked("a brick wall", Toughness);
+        var into = Knocked("a vault door", Toughness);
+
+        // The positive control: the blow itself did what the entry's floor asks for, in both runs.
+        Assert.Equal(12 - rule.MinimumDamage, through.State["villain"].CurrentHealth);
+
+        var half = Rounding.Half(_play, rule.MinimumDamage);
+        Assert.True(half > 0, "half the blow is nothing, so the two runs could not differ by it");
+
+        Assert.Equal(12 - rule.MinimumDamage - half, into.State["villain"].CurrentHealth);
+
+        Assert.Contains(through.Lines, l =>
+            string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+            && l.Text.Contains(rule.APassiveDefenseAboveTheObjectsStructure, StringComparison.Ordinal));
+
+        var hit = Assert.Single(into.Lines, l =>
+            string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
+            && l.Text.Contains("Vault Door", StringComparison.Ordinal));
+
+        Assert.Contains(rule.DamageOnStrikingASolidObject, hit.Text, StringComparison.Ordinal);
+        Assert.Contains($"Structure {vault}", hit.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>An object no page rates refuses the purchase rather than charging for it.</b>
+    ///
+    /// <para>The extra damage is priced off a Structure. A knockback into "a pile of cardboard" has
+    /// no figure behind it, so a point taken for one would buy a state change nothing could
+    /// receive — which is the same refusal p.79's lure that names nobody makes, and the reason it is
+    /// a refusal rather than a shrug. The proof is the pool: the buyer still holds every point they
+    /// started with.</para>
+    ///
+    /// <para>p.108's Massive Objects rows are the second case and the more interesting one, because
+    /// they <em>are</em> printed: the page gives them a weight rank in place of a Structure, so
+    /// there is nothing to compare a passive defence with and the refusal says which figure is
+    /// missing.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("a pile of cardboard", "prints nothing called")]
+    [InlineData("the Golden Gate Bridge", "no Structure at all")]
+    public void AKnockbackIntoSomethingNoPageRatesIsRefusedWithNothingSpent(string named, string says)
+    {
+        var opening = Knocked(null, 8).State["hero"].Resolve;
+
+        var refused = Knocked(named, 8, expectSpend: false);
+
+        Assert.Equal(opening + _play.GetCombat("knockback").Knockback!.CostResolve,
+            refused.State["hero"].Resolve);
+
+        // Nothing was thrown either: the target is where the blow left them.
+        Assert.Equal(RangeBand.Close, refused.State.RangeBetween("hero", "villain"));
+
+        Assert.Contains(refused.Lines, l => l.Text.Contains(says, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Six points of subdual damage — the entry's own floor — and then the point spent, optionally
+    /// naming what the target is thrown into.
+    /// </summary>
+    private (EncounterState State, IReadOnlyList<LedgerLine> Lines) Knocked(
+        string? solidObject, int targetToughness, bool expectSpend = true)
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 10, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 4 },
+            ["toughness"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = targetToughness },
+            ["toughness"]);
+
+        // Three sixes for six successes on the attack, and nothing at all on the defence.
+        var dice = new ScriptedDice(
+            [6, 6, 6, .. Enumerable.Repeat(1, 5), .. Enumerable.Repeat(1, targetToughness)]);
+
+        var encounter = new Encounter(_play, dice);
+        var state = encounter.Begin([hero, villain]);
+
+        var blow = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.Unarmed));
+
+        state = blow.State;
+
+        Assert.Contains(blow.Added, l =>
+            l.Text.Contains("might 8d for 6 successes", StringComparison.Ordinal)
+            && l.Text.Contains($"toughness {targetToughness}d for 0", StringComparison.Ordinal));
+
+        Assert.Equal(0, dice.Remaining);
+
+        var spent = encounter.Step(state, new SpendResolve(
+            "hero", ResolveSpend.Knockback, SolidObject: solidObject));
+
+        // The purchase rolls nothing, whichever way it goes.
+        Assert.Equal(0, dice.Remaining);
+
+        var cost = _play.GetCombat("knockback").Knockback!.CostResolve;
+        Assert.Equal(expectSpend ? 3 - cost : 3, spent.State["hero"].Resolve);
+
+        return (spent.State, spent.Added);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>

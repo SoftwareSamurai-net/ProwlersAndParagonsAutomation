@@ -4677,11 +4677,14 @@ public sealed class PlayEngineStepTests
             string.Equals(l.Rule, "pages_and_turns", StringComparison.Ordinal)
             && l.Text.Contains("forfeited a turn", StringComparison.Ordinal)));
 
-        // The clause this engine cannot apply is named rather than left to be assumed.
+        // <b>The clause nobody named an object for is still named rather than left to be
+        // assumed.</b> The object itself is Chapter 7's now — see <see cref="PlaySceneryTests"/> —
+        // but a knockback into nothing in particular is the whole rule minus its last sentence, and
+        // a reader should not have to guess whether the extra damage was rolled.
         Assert.Contains(pending.Ledger.Lines, l =>
             string.Equals(l.Rule, "knockback", StringComparison.Ordinal)
             && l.Text.Contains(rule.DamageOnStrikingASolidObject, StringComparison.Ordinal)
-            && l.Text.Contains("no scenery", StringComparison.Ordinal));
+            && l.Text.Contains("nothing was named", StringComparison.Ordinal));
     }
 
     /// <summary>

@@ -406,8 +406,24 @@ public sealed record BreakFree(string Actor, string TraitId, int Threshold) : In
 /// engine cannot reach — p.79's Resolve spent on damage inflicted on somebody else — is a note
 /// about exactly that.</para>
 /// </param>
+/// <param name="SolidObject">
+/// What a knocked-back target hits, by the name Chapter 7 prints for it — p.78's "if the target
+/// hits a solid object, they suffer half as much damage as the original attack inflicted".
+///
+/// <para><b>It is optional and the clause is what turns on it.</b> p.78 knocks a target across the
+/// room whether or not there is anything in the way, so a purchase that names nothing is the whole
+/// rule minus its last sentence, and the ledger says which clause was not applied. Naming something
+/// is what turns that sentence on.</para>
+///
+/// <para><b>An object no page rates is refused with nothing spent</b>, the shape p.79's lure that
+/// names nobody is refused in: the extra damage is priced off the object's Structure, and a figure
+/// invented for it would be damage on the ledger with no page behind it. p.108's Massive Objects
+/// rows are refused for the same reason — the page gives them a weight rank instead of a
+/// Structure.</para>
+/// </param>
 public sealed record SpendResolve(
-    string Actor, ResolveSpend Kind, int Points = 1, string? Target = null) : Intent(Actor);
+    string Actor, ResolveSpend Kind, int Points = 1, string? Target = null,
+    string? SolidObject = null) : Intent(Actor);
 
 /// <summary>One of the GM's purchases out of the Adversity pool.</summary>
 /// <param name="Actor">The NPC the point is spent on behalf of.</param>
@@ -437,13 +453,20 @@ public sealed record SpendResolve(
 /// as having happened and nothing said about what it was is a line nobody can narrate from and
 /// nobody can audit. It is the same refusal p.79's luring makes of a lure that names nobody.</para>
 /// </param>
+/// <param name="SolidObject">
+/// What a knocked-back target hits, for the same reason <paramref name="Target"/> is here: p.85's
+/// first purchase is the Resolve purchases with the GM's money behind them, so a knockback bought
+/// out of the pool has to be able to say what the NPC's victim was thrown into. See
+/// <see cref="SpendResolve.SolidObject"/>.
+/// </param>
 public sealed record SpendAdversity(
     string Actor,
     AdversitySpend Kind,
     int Points = 1,
     ResolveSpend? AsResolve = null,
     string? Target = null,
-    string? Narration = null) : Intent(Actor);
+    string? Narration = null,
+    string? SolidObject = null) : Intent(Actor);
 
 /// <summary>
 /// p.79's Fatal Damage rule: spending a turn steadying somebody who is bleeding out, rolling the

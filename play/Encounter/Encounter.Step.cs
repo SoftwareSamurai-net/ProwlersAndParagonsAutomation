@@ -2712,7 +2712,7 @@ public sealed partial class Encounter
             ResolveSpend.Stabilise => StabiliseWithResolve(state, actor, lines),
             ResolveSpend.InstantRecovery => InstantRecovery(state, actor, lines),
             ResolveSpend.KeepingHold => KeepHold(state, actor, lines),
-            ResolveSpend.Knockback => Knockback(state, actor, lines),
+            ResolveSpend.Knockback => Knockback(state, actor, spend.SolidObject, lines),
             ResolveSpend.Luring => Lure(state, actor, spend.Target, lines),
             ResolveSpend.TeamAttack => ExplodeTheSixes(state, actor, lines),
             var other => throw new ArgumentOutOfRangeException(
@@ -3031,15 +3031,25 @@ public sealed partial class Encounter
     /// character a weight rank, so this reads the throwing rank as the attack rank itself, which is
     /// the longest throw the sentence can mean. The ledger line says so.</para>
     ///
-    /// <para><b>What is not applied is the object.</b>
-    /// <c>damage_on_striking_a_solid_object</c>, <c>the_object_must_be_tougher_than_the_target</c>
-    /// and <c>a_passive_defense_above_the_objects_structure</c> all need a piece of scenery with a
-    /// Structure, and this engine has no scenery and no Structure — there is nothing to hit and
-    /// nothing to compare a passive defence with. The line names the clause rather than leaving a
-    /// reader to assume the extra damage was rolled.</para>
+    /// <para><b>The object is Chapter 7's now, and it is the caller who says whether there is
+    /// one.</b> <c>damage_on_striking_a_solid_object</c>,
+    /// <c>the_object_must_be_tougher_than_the_target</c> and
+    /// <c>a_passive_defense_above_the_objects_structure</c> all need a thing with a Structure, and
+    /// pp.107-108 rate ninety-four of them — so <see cref="SpendResolve.SolidObject"/> names one and
+    /// the clause is applied for real. The two conditions are <em>one</em> test read from both
+    /// sides: p.78's parenthesis defines what "tougher than they are" means, so the extra damage
+    /// lands unless the target's passive defence exceeds the Structure, and where it does they smash
+    /// through unharmed.</para>
+    ///
+    /// <para><b>A purchase naming nothing keeps the line it always had</b>, because a knockback with
+    /// no wall behind it is the whole rule minus its last sentence and a reader should not have to
+    /// guess whether the extra damage was rolled. A purchase naming something no page rates is
+    /// <em>refused with nothing spent</em>: the extra damage is priced off a Structure, and an
+    /// invented one would be damage on the ledger with no page behind it.</para>
     /// </summary>
     private EncounterState Knockback(
-        EncounterState state, Combatant actor, List<LedgerLine> lines, bool fromAdversity = false)
+        EncounterState state, Combatant actor, string? solidObject, List<LedgerLine> lines,
+        bool fromAdversity = false)
     {
         var entry = _play.GetCombat("knockback");
         var rule = entry.Knockback!;
@@ -3082,6 +3092,18 @@ public sealed partial class Encounter
                 $"that blow did {inflicted} damage and knockback needs {rule.MinimumDamage}");
         }
 
+        // <b>Before the pool is touched, because an object no page rates is a refusal.</b> The
+        // clause the object turns on is priced off a Structure, so a purchase that cannot reach one
+        // is refused rather than charged for — the same shape as p.79's lure that names nobody.
+        SceneryRow? struck = null;
+
+        if (solidObject is { Length: > 0 } named
+            && SceneryStructure(state, actor.Id, named.Trim(), entry.Id, entry.SourceRef, lines,
+                out struck) is { } unrated)
+        {
+            return unrated;
+        }
+
         if (!fromAdversity
             && CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines))
         {
@@ -3107,12 +3129,106 @@ public sealed partial class Encounter
             + (past ? ", further than this engine's outermost range class" : "")
             + $", leaving them at {landed} Range"
             + (rule.TargetFallsProne ? ", prone" : "")
-            + (rule.TargetLosesTheirNextTurnToAct ? " and out of their next turn to act" : "")
-            + $". Striking something solid would cost them {rule.DamageOnStrikingASolidObject}, and "
-            + "that is not applied: this engine has no scenery and nothing in it has a Structure to "
-            + "measure a passive defence against"));
+            + (rule.TargetLosesTheirNextTurnToAct ? " and out of their next turn to act" : "")));
+
+        after = TheyHitSomethingSolid(after, actor, target, struck, inflicted, entry, lines);
 
         return Charge(after, actor, rule.CostResolve, fromAdversity);
+    }
+
+    /// <summary>
+    /// p.78's last sentence: "if the target hits a solid object, they suffer half as much damage as
+    /// the original attack inflicted, assuming the object they strike is tougher than they are (if
+    /// the target's passive defense exceeds the object's Structure, they smash though unharmed)."
+    ///
+    /// <para><b>The two conditions the entry records are one test, and the parenthesis is what
+    /// defines the other.</b> <c>the_object_must_be_tougher_than_the_target</c> says the damage is
+    /// conditional and <c>a_passive_defense_above_the_objects_structure</c> says when it is not met:
+    /// so "tougher than they are" is exactly "their passive defence does not exceed its Structure",
+    /// and this engine applies one comparison rather than inventing a second sense of tough.</para>
+    ///
+    /// <para><b>Which figure is "the target's passive defense" is derived and not listed.</b>
+    /// <c>active_and_passive_defenses</c>' own <c>common_active_traits</c> names the active ones, so
+    /// the passive ones are the defences on this combatant that are not among them, and the greatest
+    /// of those is the one that answers — the same derivation
+    /// <see cref="TheImpactComesBack"/> makes for a charger's own passive roll. <b>Nothing is
+    /// halved.</b> p.75's halvings are properties of an attack's row and of lethal damage, and this
+    /// is neither: it is a rank compared with a Structure, and a knockback is bought off subdual
+    /// damage in any case, which p.75 answers with the whole of a Toughness.</para>
+    ///
+    /// <para><b>The rate is read out of the entry and required to say "half".</b> The field is a
+    /// sentence rather than a number, so an entry that had stopped saying it is a rule this engine
+    /// cannot apply and it throws rather than halving against a page that no longer prints a half —
+    /// the same discipline <c>seize_initiative_gm_alternative</c>'s printed "doubles" is held to.
+    /// The direction is the Glossary's book-wide round-up (p.7), through the same
+    /// <see cref="Rounding"/> every other half in this engine goes through.</para>
+    /// </summary>
+    private EncounterState TheyHitSomethingSolid(
+        EncounterState state, Combatant actor, Combatant target, SceneryRow? struck, int inflicted,
+        CombatEntry entry, List<LedgerLine> lines)
+    {
+        var rule = entry.Knockback!;
+
+        if (struck is null)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, target.Id, entry.Id, entry.SourceRef,
+                $"nothing was named for {target.Name} to hit on the way, so p.78's last clause is "
+                + $"not applied: striking something solid would have cost them "
+                + $"{rule.DamageOnStrikingASolidObject}, and what they flew into is the GM's. "
+                + "Chapter 7 pp.107-108 rate ninety-four things a purchase can name instead"));
+
+            return state;
+        }
+
+        if (!rule.DamageOnStrikingASolidObject.Contains("half", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"knockback now says striking a solid object costs '{rule.DamageOnStrikingASolidObject}', "
+                + "and this engine halves the original blow because the entry said half. A different "
+                + "rate is a rule it cannot apply, so it will not guess one. See "
+                + "docs/guide/play-engine.md's readings table.");
+        }
+
+        var defenses = _play.GetCombat("active_and_passive_defenses").Defenses!;
+        var actives = defenses.CommonActiveTraits.Select(Normalise).ToHashSet(StringComparer.Ordinal);
+
+        var passive = target.Defences
+            .Where(d => !actives.Contains(d))
+            .Select(d => (Trait: d, Rank: target.Rank(d)))
+            .OrderByDescending(d => d.Rank)
+            .ThenBy(d => d.Trait, StringComparer.Ordinal)
+            .FirstOrDefault();
+
+        var structure = struck.Structure!.Value;
+        var smashesThrough = passive.Rank > structure;
+
+        var extra = smashesThrough ? 0 : Halve(inflicted);
+
+        var health = Math.Max(
+            state.Table.FatalDamage ? int.MinValue : _play.GetCombat("damage").Damage!.DefeatedAtHealth,
+            state[target.Id].CurrentHealth - extra);
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{target.Name} hits {struck.Name}, which {struck.Entry} rates at Structure "
+            + $"{structure}, and their best passive defence is "
+            + $"{(passive.Trait is null ? "nothing at all" : $"{passive.Trait} at {passive.Rank}d")}: "
+            + (smashesThrough
+                ? $"that exceeds the Structure, so {rule.APassiveDefenseAboveTheObjectsStructure} "
+                  + $"and the object is not tougher than they are "
+                  + $"({nameof(rule.TheObjectMustBeTougherThanTheTarget)} is "
+                  + $"{rule.TheObjectMustBeTougherThanTheTarget})"
+                : $"it does not exceed the Structure, so the object is tougher than they are and "
+                  + $"they take {rule.DamageOnStrikingASolidObject} — {extra} more off the "
+                  + $"{inflicted} the blow did, leaving them on {health} Health")));
+
+        if (extra == 0) return state;
+
+        var thrownInto = state[target.Id];
+        var hurt = thrownInto.WithHealth(health);
+
+        return state.With(AnyDamageAtAllPutsThemDown(state, thrownInto, extra, lines) ? hurt.Overcome() : hurt);
     }
 
     /// <summary>
@@ -3958,7 +4074,7 @@ public sealed partial class Encounter
             ResolveSpend.AvoidFatalDamage => AvoidFatalDamage(state, npc, lines, fromAdversity: true),
             ResolveSpend.Stabilise => StabiliseWithResolve(state, npc, lines, fromAdversity: true),
             ResolveSpend.KeepingHold => KeepHold(state, npc, lines, fromAdversity: true),
-            ResolveSpend.Knockback => Knockback(state, npc, lines, fromAdversity: true),
+            ResolveSpend.Knockback => Knockback(state, npc, spend.SolidObject, lines, fromAdversity: true),
             ResolveSpend.Luring => Lure(state, npc, spend.Target, lines, fromAdversity: true),
             ResolveSpend.TeamAttack => ExplodeTheSixes(state, npc, lines, fromAdversity: true),
             var other => throw new ArgumentOutOfRangeException(
