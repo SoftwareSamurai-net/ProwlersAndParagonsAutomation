@@ -610,8 +610,14 @@ public sealed class PlaySceneryTests
         var underTheCeiling = Swings("a brick", new TableRules());
         Assert.Equal(6 + rule.CloseCombatBonusDice, underTheCeiling.Rank);
 
+        // The line has to say which of p.108's two prices it charged. The two printed bonuses are
+        // both a die, so nothing in the arithmetic tells a swung car from a thrown one — reading
+        // every attack as a close-combat swing is a mutation the whole suite survived, and what it
+        // leaves behind is a ledger line that names the wrong half of the rule.
         Assert.Contains(swungRope.Lines, l =>
             string.Equals(l.Rule, "scenery_as_weapons", StringComparison.Ordinal)
+            && l.Text.Contains("swung in close combat", StringComparison.Ordinal)
+            && !l.Text.Contains(rule.ThrownAttackIs, StringComparison.Ordinal)
             && l.Text.Contains($"+{rule.CloseCombatBonusDice}d", StringComparison.Ordinal)
             && l.Text.Contains(rule.DegradationAppliesTo, StringComparison.Ordinal));
 
@@ -722,8 +728,12 @@ public sealed class PlaySceneryTests
 
         Assert.Contains($"weight rank of {weight}", line.Text, StringComparison.Ordinal);
         Assert.Contains($"of 22 less {weight} is {22 - weight}", line.Text, StringComparison.Ordinal);
+        // And the other half of the same classification: p.75's Ranged Weapon row is the object
+        // being thrown, and the line says so rather than pricing it as a swing at the same figure.
         Assert.Contains(thrown.Lines, l =>
             string.Equals(l.Rule, "scenery_as_weapons", StringComparison.Ordinal)
+            && l.Text.Contains($"thrown, which is {scenery.ThrownAttackIs}", StringComparison.Ordinal)
+            && !l.Text.Contains("swung in close combat", StringComparison.Ordinal)
             && l.Text.Contains($"+{scenery.ThrownAttackBonusDice}d", StringComparison.Ordinal));
 
         // The positive control: that throw actually resolved.
