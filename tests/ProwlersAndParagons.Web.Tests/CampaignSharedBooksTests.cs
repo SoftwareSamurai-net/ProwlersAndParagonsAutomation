@@ -230,6 +230,49 @@ public sealed class CampaignSharedBooksTests
         Assert.Contains("Ninefold", page.Find(".campaign-list").TextContent, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// <b>A figure too large for the arithmetic is the same answer as a feature these rules do
+    /// not have</b>, and it is reachable by typing rather than by meeting a payload from another
+    /// build: the editor prices the draft on every change, so a GM who types a Body and a Speed
+    /// that overflow together took the whole page down between two keystrokes.
+    ///
+    /// <para><b><c>CostCalculator</c> multiplies inside <c>checked</c> deliberately</b> — a
+    /// wrapped total is a price that is wrong and says nothing — so what was missing was the
+    /// catch, which named <see cref="InvalidOperationException"/> alone. Both are the engine
+    /// refusing to answer, and a screen that survives one and not the other survives the one that
+    /// needs a second build to reach.</para>
+    ///
+    /// <para>The positive control is the editor still being on screen with its name in it: a page
+    /// that had thrown would satisfy "the sentence about being over budget is absent" by having no
+    /// sentences at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task AFigureTooLargeToPriceIsSaidRatherThanThrown()
+    {
+        await using var ctx = AGameOwningNothing();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        await page.Find("input[aria-label='Name a shared vehicle or base']")
+            .InputAsync(new() { Value = "The Wing" });
+
+        await page.Find("button[aria-label='Add a shared vehicle or base']")
+            .ClickAsync(new MouseEventArgs());
+
+        await page.Find("#shared-body").ChangeAsync(new() { Value = "2000000000" });
+        await page.Find("#shared-speed").ChangeAsync(new() { Value = "2000000000" });
+
+        var editor = page.FindAll("section.panel")
+            .Single(s => s.TextContent.Contains("bought from zero", StringComparison.Ordinal))
+            .TextContent;
+
+        // The no-price line, which is the one that carries what was put in and stops — and not
+        // the pair, which would be a figure these rules cannot work out printed as though they
+        // had.
+        Assert.Contains("The Wing — 0 Vehicle Points put in", editor, StringComparison.Ordinal);
+        Assert.DoesNotContain("/0 Vehicle Points", editor, StringComparison.Ordinal);
+    }
+
     // ── The GM writes one down ────────────────────────────────────────────────
 
     /// <summary>A GM signed in with one campaign that owns nothing shared.</summary>

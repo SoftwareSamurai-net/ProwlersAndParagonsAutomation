@@ -29,7 +29,7 @@ public sealed record AssetContributor(string MembershipId, string Who, int HeroP
 /// <param name="Spent">
 /// What has been built with it, in the same currency, or <b>null for an object these rules cannot
 /// price at all</b> — a feature id no table in <c>vehicles.json</c> or <c>headquarters.json</c>
-/// has, or a graded feature carrying no grade.
+/// has, a graded feature carrying no grade, or a figure too large for the arithmetic to hold.
 ///
 /// <para><b>Asked rather than caught by the caller, and the null is the whole point.</b>
 /// <see cref="CostCalculator"/> throws on a feature it cannot price, deliberately — and a campaign
@@ -222,7 +222,7 @@ public static class CampaignAssets
         {
             return costs.CampaignAssetPointsSpent(asset);
         }
-        catch (InvalidOperationException)
+        catch (Exception e) when (e is InvalidOperationException or OverflowException)
         {
             return null;
         }
