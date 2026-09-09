@@ -127,6 +127,27 @@ public static class StoredCampaign
     }
 
     /// <summary>
+    /// <c>a_</c> plus 22 URL-safe characters, for one of the campaign's shared vehicles or bases.
+    ///
+    /// <para><b>Its own letter, and it is minted rather than derived from the name</b>, because
+    /// the name is what a reader sees and is re-typed the first time somebody dislikes it — while
+    /// every member's sheet is holding this id as the record of what they paid for. A key that
+    /// moved when the object was renamed would orphan five contributions at once.</para>
+    ///
+    /// <para><b>It never reaches the server as a key</b>, unlike <c>c_</c> and <c>g_</c>: an
+    /// object lives inside the campaign's payload, which the server stores as an opaque string and
+    /// never parses. The shape mirrors the other two anyway, so anybody meeting one in a payload
+    /// can see what kind of thing it is.</para>
+    /// </summary>
+    public static string NewAssetId()
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        RandomNumberGenerator.Fill(bytes);
+        var text = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        return $"a_{text}";
+    }
+
+    /// <summary>
     /// The name to list a campaign under. Trimmed, and never empty — an unnamed game is an
     /// ordinary state and a blank row reads as broken rather than as unnamed. The same rule
     /// <see cref="SavedCharacters.LabelFor"/> applies to a character, and the server's own default
