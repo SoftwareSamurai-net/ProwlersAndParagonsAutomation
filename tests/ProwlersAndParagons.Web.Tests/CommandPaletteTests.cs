@@ -490,6 +490,35 @@ public sealed class CommandPaletteTests
     }
 
     /// <summary>
+    /// <b>The gear rows are capped, and the cap is counted per kind rather than over the list.</b>
+    ///
+    /// <para>That is the claim <c>PowerLimit</c>'s own doc comment makes — "counted per kind
+    /// rather than over the whole list, so a word that matches eight Powers does not push every
+    /// weapon off the bottom" — and nothing held it: a shared counter left every assertion in this
+    /// file green while a query matching the cap in Powers offered <em>no</em> gear at all. So the
+    /// two halves are asserted together, at a limit small enough that both kinds reach it.</para>
+    /// </summary>
+    [Fact]
+    public void TheGearRowsAreCappedAndTheCapIsNotSharedWithThePowers()
+    {
+        using var ctx = Opened();
+        var commands = CommandsOf(ctx);
+
+        // "a" reaches most of the Powers and most of the catalogue, so both kinds hit the cap.
+        var found = commands.Matching("a", 3);
+
+        Assert.Equal(3, found.Count(c => c.Kind == CommandKind.Power));
+        Assert.Equal(3, found.Count(c => c.Kind == CommandKind.GearRow));
+
+        // The positive control: the cap is a cap and not the number of rows there are, so a query
+        // matching fewer than the limit gets all of them and the assertion above is a truncation.
+        var few = commands.Matching("battle axe", 3);
+
+        Assert.NotEmpty(few.Where(c => c.Kind == CommandKind.GearRow));
+        Assert.True(few.Count(c => c.Kind == CommandKind.GearRow) < 3);
+    }
+
+    /// <summary>
     /// <b>And the Gear step it lands on has the row in front of the reader, with the word in the
     /// box.</b> A list narrowed by something the box does not show is a list that looks broken and
     /// cannot be widened again.
