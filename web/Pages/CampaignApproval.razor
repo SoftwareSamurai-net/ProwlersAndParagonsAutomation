@@ -337,7 +337,12 @@ else
             <ChosenList>
                 @foreach (var line in _ledger)
                 {
-                    <ChosenRow>
+                    @* **The findings go through the row's own slot**, which is where every other
+                       list in this app puts them: it leads with the word Error or Warning and
+                       differs in style as well as in colour, because a colour difference alone
+                       fails WCAG 1.4.1 — see `RowFinding`. A sentence hand-drawn into the body
+                       would be the same information with that half taken off it. *@
+                    <ChosenRow Findings="Session.Check(line.Asset)">
                         <Body>
                             <b>@(_rosterRead ? Books(line) : Named(line.Asset))</b>
                             <span class="muted small"><br />@Kind(line.Asset)</span>
@@ -372,15 +377,6 @@ else
                                 }
                             }
 
-                            @* **What Chapter 6 says about the object itself**, which is not a
-                               question about its budget at all: a Body below zero pays Vehicle
-                               Points back and reads as a machine comfortably inside what the
-                               table put in. Asked of the engine, because it is a printed rule
-                               and a screen comparing ranks would be a front end holding one. *@
-                            @foreach (var fault in Session.Check(line.Asset))
-                            {
-                                <span class="muted small"><br />@fault.Message</span>
-                            }
                         </Body>
                         <Actions>
                             <button type="button" class="btn small"

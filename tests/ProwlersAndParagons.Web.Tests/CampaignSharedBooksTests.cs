@@ -106,6 +106,17 @@ public sealed class CampaignSharedBooksTests
             .Single(b => b.TextContent.Trim() == word);
 
     /// <summary>
+    /// The same, scoped to the row for one object. <b>Needed the moment a game owns two</b>, which
+    /// is the state every test here was one object short of.
+    /// </summary>
+    private static IElement Control(
+        IRenderedComponent<CampaignApproval> page, string named, string word) =>
+        SharedPanel(page).QuerySelectorAll("li")
+            .Single(row => row.TextContent.Contains(named, StringComparison.Ordinal))
+            .QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == word);
+
+    /// <summary>
     /// <b>The budget is the members' Hero Points, converted at the rate the rules data carries,
     /// and the spend is what has been built.</b>
     ///
@@ -262,6 +273,12 @@ public sealed class CampaignSharedBooksTests
 
         Assert.Contains("Control cannot go below", shared, StringComparison.Ordinal);
         Assert.Contains("The Wing", shared, StringComparison.Ordinal);
+
+        // **Through the row's own finding slot**, which is what leads the sentence with the word
+        // Error and marks it in style as well as in colour — a colour difference alone fails WCAG
+        // 1.4.1, which is the whole argument RowFinding is written under. Hand-drawn into the body
+        // it would be the same information with that half taken off it.
+        Assert.NotNull(SharedPanel(page).QuerySelector("li.finding.error"));
 
         // Reported, never repaired: the books still print what the campaign says, forty points
         // paid back and all.
@@ -540,6 +557,74 @@ public sealed class CampaignSharedBooksTests
         // And their own screen is what says the object is gone.
         Assert.Equal(CampaignAssets.UnknownAsset,
                      Assert.Single(CampaignAssets.Orphaned(clone, game)).Code);
+    }
+
+    /// <summary>
+    /// <b>A second object is a second object, and every write finds the one it is about by id.</b>
+    ///
+    /// <para><c>SaveAsset</c>'s own remarks say "the object is replaced by id, never by position —
+    /// a list rewritten in order would put one object's features on another the moment two were
+    /// written down in the same sitting", and nothing held it to that: every fixture on this
+    /// screen owned exactly one object, so a save that wrote to <c>assets[0]</c> whatever it had
+    /// been handed passed the whole class. The two-object case is the only one where the claim
+    /// means anything, and it is the ordinary state of a table with a jet and a base.</para>
+    ///
+    /// <para>All three writes, because they pick their object three different ways: the save that
+    /// appends, the save that replaces, and the removal that filters.</para>
+    /// </summary>
+    [Fact]
+    public async Task EveryWriteFindsItsObjectByIdRatherThanByPosition()
+    {
+        await using var ctx = await AGameWithAFundedObject();
+
+        var store = ctx.Services.GetRequiredService<AccountCampaignStore>();
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        // A second one, written down beside the first rather than over it.
+        await page.Find("select[aria-label='A vehicle or a headquarters']")
+            .ChangeAsync(new() { Value = CampaignAssetContribution.Headquarters });
+
+        await page.Find("input[aria-label='Name a shared vehicle or base']")
+            .InputAsync(new() { Value = "The Roost" });
+
+        await page.Find("button[aria-label='Add a shared vehicle or base']")
+            .ClickAsync(new MouseEventArgs());
+
+        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Save")
+            .ClickAsync(new MouseEventArgs());
+
+        var both = CampaignAsset.On(await store.LoadAsync(GameId));
+
+        Assert.Equal(2, both.Count);
+        Assert.Equal([TheWing], [.. both.Where(a => a.Id == TheWing).Select(a => a.Id)]);
+        Assert.Equal(8, both.Single(a => a.Id == TheWing).Body);
+
+        // Editing the second writes to the second. The first keeps its name and its ranks, which
+        // is what every member's contribution is counting on.
+        await Control(page, "The Roost", "Edit").ClickAsync(new MouseEventArgs());
+        await page.Find("#shared-name").InputAsync(new() { Value = "The Eyrie" });
+
+        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Save")
+            .ClickAsync(new MouseEventArgs());
+
+        var edited = CampaignAsset.On(await store.LoadAsync(GameId));
+
+        Assert.Equal(2, edited.Count);
+        Assert.Equal("The Wing", edited.Single(a => a.Id == TheWing).Name);
+        Assert.Equal(8, edited.Single(a => a.Id == TheWing).Body);
+        Assert.Equal("The Eyrie", edited.Single(a => a.Id != TheWing).Name);
+
+        // And removing the second removes the second.
+        await Control(page, "The Eyrie", "Remove").ClickAsync(new MouseEventArgs());
+        await Control(page, "The Eyrie", "Remove for good").ClickAsync(new MouseEventArgs());
+
+        var left = Assert.Single(CampaignAsset.On(await store.LoadAsync(GameId)));
+
+        Assert.Equal(TheWing, left.Id);
+        Assert.Equal("The Wing", left.Name);
+
+        // The books on the survivor still add up, which is what a lost id would have emptied.
+        Assert.Contains("Ninefold 2 HP", Shared(page), StringComparison.Ordinal);
     }
 
     /// <summary>
