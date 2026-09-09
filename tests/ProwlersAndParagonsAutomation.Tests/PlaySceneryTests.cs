@@ -322,6 +322,137 @@ public sealed class PlaySceneryTests
         return (spent.State, spent.Added);
     }
 
+    // ── p.108's improvised weapons, and p.74's throw ─────────────────────────
+
+    /// <summary>
+    /// <b>Something Chapter 7 rates and Chapter 6 does not is priced by p.108, and the object is its
+    /// own ceiling.</b>
+    ///
+    /// <para>Before this, a motorcycle in somebody's hands was an item the weapons tables printed no
+    /// row for: the Gear Limit capped the Trait, nothing was added, and the ledger said what a bonus
+    /// for it would be was the GM's. p.108 prices it — a die for swinging it, and an attack rank
+    /// capped at the object's own rank plus six.</para>
+    ///
+    /// <para><b>Both sides of the ceiling are driven, because a cap that fired on every object would
+    /// be indistinguishable from one that fired on none.</b> Under a raised Gear Limit a rope
+    /// (Structure 2, so 8) binds and a brick wall (6, so 12) does not, and the two answers have to
+    /// differ by exactly what the two ceilings differ by. The control at the bottom is p.87 alone: a
+    /// battle axe is a printed weapon, so Chapter 7 never answers for it.</para>
+    /// </summary>
+    [Fact]
+    public void AnObjectChapterSevenRatesIsPricedByPageOneOhEightAndCappedByItself()
+    {
+        var rule = _play.GetEnvironment("scenery_as_weapons").SceneryAsWeapons!;
+        var rows = _play.GetEnvironment("smashing_table").SmashingTable!.Rows;
+
+        var rope = rows.Single(r => r.Materials.Contains("Rope", StringComparer.Ordinal)).Structure;
+        var brick = rows.Single(r => r.Materials.Contains("Brick", StringComparer.Ordinal)).Structure;
+
+        // Under the default limit the object's own ceiling cannot bind — 6 plus a die is under every
+        // row's rank plus six — so the raised one is what makes this fixture about p.108's cap.
+        var table = new TableRules { RaisedGearLimit = true, GearLimitRank = 12 };
+
+        var swungRope = Swings("a length of rope", table);
+        var swungBrick = Swings("a brick", table);
+
+        Assert.Equal(rope + rule.CapBonusDice, swungRope.Rank);
+        Assert.Equal(brick + rule.CapBonusDice, swungBrick.Rank);
+
+        // The bonus is applied where the ceiling does not bind: 12 capped, plus the printed die.
+        var underTheCeiling = Swings("a brick", new TableRules());
+        Assert.Equal(6 + rule.CloseCombatBonusDice, underTheCeiling.Rank);
+
+        Assert.Contains(swungRope.Lines, l =>
+            string.Equals(l.Rule, "scenery_as_weapons", StringComparison.Ordinal)
+            && l.Text.Contains($"+{rule.CloseCombatBonusDice}d", StringComparison.Ordinal)
+            && l.Text.Contains(rule.DegradationAppliesTo, StringComparison.Ordinal));
+
+        // The control: a weapon Chapter 6 prints is Chapter 6's, and p.108 never answers for it.
+        Assert.DoesNotContain(Swings("a battle axe", table).Lines, l =>
+            string.Equals(l.Rule, "scenery_as_weapons", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>A thrown object costs the other printed die, and p.74 finally has the operand it wants.</b>
+    ///
+    /// <para><c>throwing_range.rank_formula</c> is "throwing rank = Might - the object's weight rank"
+    /// and nothing in Chapters 3-5 has ever had a weight rank — which is why p.78's knockback reads
+    /// a thrown character's throwing rank as the attack rank instead. p.108's Massive Objects table
+    /// prints one, and Ch.2 p.17 is what settles that the column is on that scale at all.</para>
+    ///
+    /// <para><b>The reach is a limit, and both sides of it are driven.</b> A Might of 22 throwing the
+    /// Statue of Liberty is 22 less 14, which p.74's table puts in its Distant Range row; the same
+    /// throw with a Might of 15 is a 1, which is under the rank the table is used from at all and so
+    /// reaches Close Range, and a target at Distant Range is then out of reach and the attack is
+    /// refused with nothing rolled.</para>
+    /// </summary>
+    [Fact]
+    public void AThrownMassiveObjectReachesAsFarAsPageSeventyFourSaysAndNoFurther()
+    {
+        var scenery = _play.GetEnvironment("scenery_as_weapons").SceneryAsWeapons!;
+        var weight = _play.GetEnvironment("massive_objects_table").MassiveObjectsTable!
+            .Single(r => r.Objects.Contains("Statue of Liberty", StringComparer.Ordinal)).WeightRank;
+
+        var thrown = Throws("the Statue of Liberty", might: 22, at: RangeBand.Distant);
+
+        var line = Assert.Single(thrown.Lines, l =>
+            string.Equals(l.Rule, "throwing_range", StringComparison.Ordinal));
+
+        Assert.Contains($"weight rank of {weight}", line.Text, StringComparison.Ordinal);
+        Assert.Contains($"of 22 less {weight} is {22 - weight}", line.Text, StringComparison.Ordinal);
+        Assert.Contains(thrown.Lines, l =>
+            string.Equals(l.Rule, "scenery_as_weapons", StringComparison.Ordinal)
+            && l.Text.Contains($"+{scenery.ThrownAttackBonusDice}d", StringComparison.Ordinal));
+
+        // The positive control: that throw actually resolved.
+        Assert.Contains(thrown.Lines, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+
+        // And the other side of the threshold: too weak to get it that far, so nothing is rolled.
+        var short_ = Throws("the Statue of Liberty", might: 15, at: RangeBand.Distant);
+
+        Assert.DoesNotContain(short_.Lines, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+
+        Assert.Contains(short_.Lines, l =>
+            string.Equals(l.Rule, "throwing_range", StringComparison.Ordinal)
+            && l.Text.Contains("farther than that", StringComparison.Ordinal));
+
+        // The same weak throw at Close Range is inside the reach, which is the control that the
+        // refusal is about the distance and not about the object.
+        Assert.Contains(Throws("the Statue of Liberty", might: 15, at: RangeBand.Close).Lines, l =>
+            string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>"Whatever you hit with a mountain, you hit once", and the second swing is refused.</b>
+    ///
+    /// <para><c>massive_objects.always_breaks_apart_after</c> is "the first shot", and this engine
+    /// already has somewhere for that to land: p.76's page turn drops an object nobody used, so a
+    /// thrown freight train is one nobody is holding afterwards. Naming the clause and leaving the
+    /// train in place would let it be thrown again every page for the rest of the fight, which is
+    /// exactly the "announced but never applied" this ledger exists to prevent.</para>
+    ///
+    /// <para>The control is a motorcycle, which is on the Scenery table rather than this one and
+    /// stays in the wielder's hands — so the drop is the rule and not the engine forgetting.</para>
+    /// </summary>
+    [Fact]
+    public void AMassiveObjectBreaksApartAfterOneShotAndTheSecondIsRefused()
+    {
+        var entry = _play.GetEnvironment("massive_objects");
+
+        var first = Throws("a freight train", might: 24, at: RangeBand.Close);
+
+        Assert.Contains(first.Lines, l =>
+            string.Equals(l.Rule, entry.Id, StringComparison.Ordinal)
+            && l.Text.Contains(entry.MassiveObjects!.AlwaysBreaksApartAfter, StringComparison.Ordinal));
+
+        Assert.Null(first.State["hero"].Holding);
+
+        // The control: an object the sentence is not printed against is still in hand.
+        Assert.NotNull(Throws("a motorcycle", might: 24, at: RangeBand.Close).State["hero"].Holding);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -384,4 +515,66 @@ public sealed class PlaySceneryTests
             new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 1 },
             ["toughness"], side: "villains")
     ];
+
+    /// <summary>
+    /// One close-combat swing with a held object, and the attack rank it brought to bear — read off
+    /// the dice thrown less the defence's own, which is the instrument every modifier fixture here
+    /// uses.
+    /// </summary>
+    private (int Rank, IReadOnlyList<LedgerLine> Lines) Swings(string item, TableRules table)
+    {
+        const int Plenty = 300;
+        const int Defence = 1;
+
+        var dice = new ScriptedDice([.. Enumerable.Repeat(4, Plenty)]);
+        var encounter = new Encounter(_play, dice, table);
+
+        var hero = Combatant.Hero(
+            "hero", "the Hero", edge: 9, health: 12, resolve: 1,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 12 },
+            [], side: "heroes").Carrying(item);
+
+        var villain = Combatant.Villain(
+            "villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = Defence * 2 },
+            ["toughness"], side: "villains");
+
+        var state = encounter.Begin([hero, villain]);
+
+        var step = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.MeleeWeapon, Item: item));
+
+        // The Villain's Toughness answers a melee weapon at half, so the defence throws exactly one
+        // die and the rest of what was thrown is the attack's own rank.
+        var thrown = Plenty - dice.Remaining;
+
+        Assert.True(thrown > Defence, "the swing was refused rather than resolved");
+
+        return (thrown - Defence, step.Added);
+    }
+
+    /// <summary>One thrown object at a target a given distance away.</summary>
+    private (EncounterState State, IReadOnlyList<LedgerLine> Lines) Throws(
+        string item, int might, RangeBand at)
+    {
+        var dice = new ScriptedDice([.. Enumerable.Repeat(4, 300)]);
+        var encounter = new Encounter(_play, dice);
+
+        var hero = Combatant.Hero(
+            "hero", "the Hero", edge: 9, health: 12, resolve: 1,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = might },
+            [], side: "heroes").Carrying(item);
+
+        var villain = Combatant.Villain(
+            "villain", "the Villain", edge: 7, health: 12,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2 },
+            ["toughness"], side: "villains");
+
+        var state = encounter.Begin([hero, villain], opening: at);
+
+        var step = encounter.Step(state, new Attack(
+            "hero", "villain", "might", DamageKind.Subdual, AttackType.RangedWeapon, Item: item));
+
+        return (step.State, step.Added);
+    }
 }

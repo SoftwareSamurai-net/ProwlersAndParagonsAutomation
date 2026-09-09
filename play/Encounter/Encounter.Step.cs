@@ -108,6 +108,16 @@ public sealed partial class Encounter
             if (UsingWhatTheyDoNotHold(state, actor, attack.Item.Trim(), lines) is { } empty) return empty;
 
             rank = GearLimited(state, actor, attack, attack.Item.Trim(), rank, lines);
+
+            // Ch.7 p.108's thrown object, and p.74's own limit on how far one goes. It is a
+            // refusal, so it belongs beside p.76's two and before p.75's — and after the cap,
+            // because the ledger should say what the throw would have brought to bear before it
+            // says the throw could not be made.
+            if (ImprovisedFrom(attack.Item.Trim()) is { } improvised
+                && TheThrowFallsShort(state, actor, attack, improvised, lines) is { } beyond)
+            {
+                return beyond;
+            }
         }
 
         // Ch.7 pp.107-108, where the caller named the obstacle instead of rating it: the Structure
@@ -168,6 +178,10 @@ public sealed partial class Encounter
         if (attack.Team) after = after with { TeamAttacked = [.. after.TeamAttacked, target.Id] };
 
         after = ApplyAttackOutcome(after, attack, resolved, lines);
+
+        // Ch.7 p.108: "whatever you hit with a mountain, you hit once." After the outcome, because
+        // it is a consequence of the shot rather than a condition on it.
+        after = TheMassiveObjectBreaksApart(after, actor, attack, lines);
 
         if (attack.Charge && !defenceIsActive)
         {

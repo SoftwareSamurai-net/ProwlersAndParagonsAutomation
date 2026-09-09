@@ -278,4 +278,200 @@ public sealed partial class Encounter
 
         return null;
     }
+
+    /// <summary>
+    /// The Chapter 7 row an item is priced off, or null where Chapter 6 already prices it.
+    ///
+    /// <para><b>A printed weapon wins, and that is a reading rather than an ordering
+    /// convenience.</b> p.108's improvised weapons are "a heavy object or a vehicle" picked up and
+    /// swung; Chapter 6's tables are things made to be swung. Where both could match — a wooden
+    /// club is p.89's <c>Club</c> and p.107 rates <c>Wood</c> — the manufactured weapon is what the
+    /// caller is holding and the material is what it happens to be made of. So Chapter 6 is asked
+    /// first, and Chapter 7 answers only for what Chapter 6 does not print. An item Chapter 6 prints
+    /// ambiguously stays ambiguous rather than falling through to a different chapter's figure.
+    /// </para>
+    /// </summary>
+    private SceneryRow? ImprovisedFrom(string item)
+    {
+        var (weapon, _, ambiguous) = WeaponFor(item);
+
+        if (weapon is not null || ambiguous.Count > 0) return null;
+
+        return SceneryFor(item).Row;
+    }
+
+    /// <summary>
+    /// p.108's Scenery as Weapons, applied to an attack made with something Chapter 7 rates and
+    /// Chapter 6 does not: the printed bonus die, and the ceiling the object itself puts on the
+    /// attack rank.
+    ///
+    /// <para><b>Which bonus is p.75's row, the same classification p.87's Gear Limit is read
+    /// through.</b> p.108 prices a swung object at <c>close_combat_bonus_dice</c> and a thrown one at
+    /// <c>thrown_attack_bonus_dice</c>, and the Attack and Defense table's own type column is the
+    /// only thing here that says which an attack is. A Melee Weapon row is the car being swung and a
+    /// Ranged Weapon row is the car being thrown; the two Power rows and the Unarmed row never reach
+    /// this method at all, because <see cref="GearLimited"/> returns before it for each of them.</para>
+    ///
+    /// <para><b>Both ceilings apply, and the entry's own <c>ambiguity</c> is why that is written
+    /// down.</b> "Whether the six-dice cap replaces Chapter 6's ceiling or sits beside it is not
+    /// stated" — so this engine applies both: p.87 caps the <em>Trait</em> before the bonus is added
+    /// and p.108 caps the <em>attack rank</em> after it, and neither can hand out more than its own
+    /// page allows. Taking one alone would have to be a choice about which page to ignore.</para>
+    ///
+    /// <para><b>What is named and not applied is the wear.</b> <c>degradation_dice_per_page</c> is
+    /// two dice a page and <c>degradation_applies_to</c> scopes it to "an everyday object used as a
+    /// weapon by a super strong character" — and the entry's <c>ambiguity</c> says "super strong" is
+    /// never given a rank, drawn by contrast with normal human strength rather than by a number. A
+    /// threshold this engine invented would be a threshold nobody could argue with, so the line
+    /// names the rate and hands the question back.</para>
+    /// </summary>
+    private int ImprovisedWeapon(
+        EncounterState state, Combatant actor, Attack attack, SceneryRow row, int capped,
+        List<LedgerLine> lines)
+    {
+        var entry = _play.GetEnvironment("scenery_as_weapons");
+        var rule = entry.SceneryAsWeapons!;
+
+        var thrown = attack.Type == AttackType.RangedWeapon;
+        var bonus = thrown ? rule.ThrownAttackBonusDice : rule.CloseCombatBonusDice;
+        var ceiling = ImprovisedCeiling(row);
+        var brought = Math.Min(capped + bonus, ceiling);
+
+        var trait = Normalise(rule.ThrownAttackTrait);
+
+        var rolled = thrown && !string.Equals(attack.TraitId, trait, StringComparison.Ordinal)
+            ? $" p.108 rolls a thrown object on {rule.ThrownAttackTrait} and this attack rolls "
+              + $"{attack.TraitId}; the Trait a caller declares is theirs and no figure of it is "
+              + "substituted here."
+            : "";
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{row.Name} is {rule.AppliesTo} rather than a weapon Chapter 6 prints, so p.108 prices "
+            + $"it: {(thrown ? $"thrown, which is {rule.ThrownAttackIs}" : "swung in close combat")} "
+            + $"at +{bonus}d, capped at {rule.AttackRankCapsAt} — {row.Rank} plus "
+            + $"{rule.CapBonusDice}, so {ceiling}d. {actor.Name} brings {brought}d to bear."
+            + rolled
+            + $" The {rule.DegradationDicePerPage}d a page of wear is not applied: it is scoped to "
+            + $"{rule.DegradationAppliesTo}, and {entry.Ambiguity}"));
+
+        return brought;
+    }
+
+    /// <summary>
+    /// p.74's throwing range, with the object's weight rank supplied by p.108's Massive Objects
+    /// table — and the attack refused where the target is farther off than the throw reaches.
+    ///
+    /// <para><b>This is the operand p.74 has never had.</b> <c>throwing_range.rank_formula</c> is
+    /// "throwing rank = Might - the object's weight rank" and Chapters 3-5 give nothing a weight
+    /// rank, which is why p.78's knockback reads the throwing rank as the attack rank instead. The
+    /// Massive Objects table is where the book prints one, and Ch.2 p.17 is what settles that its
+    /// first column is on the weight scale at all — the entry's own <c>corroborated_by</c> points
+    /// there.</para>
+    ///
+    /// <para><b>The reach is a limit and not a penalty, which is a reading.</b> p.74 says what a
+    /// throw reaches and prints nothing at all about throwing farther, so the two honest answers are
+    /// to refuse the throw or to report the reach and let it fly. Refusing is the one that never
+    /// resolves an attack the page has no rules for; the ledger line names the figure and the
+    /// formula, so a caller can see how far it would have gone. <c>docs/guide/play-engine.md</c>
+    /// records it.</para>
+    ///
+    /// <para><b>An object with no weight rank is reported and not refused</b>, because p.108 plainly
+    /// allows a motorcycle to be thrown and no page says how far. That silence is the GM's, and the
+    /// line says so rather than this engine reading a Structure as a weight.</para>
+    /// </summary>
+    private EncounterState? TheThrowFallsShort(
+        EncounterState state, Combatant actor, Attack attack, SceneryRow row, List<LedgerLine> lines)
+    {
+        if (attack.Type != AttackType.RangedWeapon) return null;
+
+        var entry = _play.GetCombat("throwing_range");
+        var throwing = entry.Throwing!;
+        var scenery = _play.GetEnvironment("scenery_as_weapons");
+
+        if (row.WeightRank is not { } weight)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"{row.Name} is thrown, and p.74 works a throw's distance out as "
+                + $"\"{throwing.RankFormula}\": {row.Entry} rates it at {row.Rank} and that figure "
+                + $"is a Structure rather than a weight rank, so there is nothing here to subtract. "
+                + "Only p.108's Massive Objects table prints a weight rank, so how far this one goes "
+                + "is the GM's and the throw is not limited here"));
+
+            return null;
+        }
+
+        if (!throwing.RankFormula.Contains("Might", StringComparison.OrdinalIgnoreCase)
+            || !throwing.RankFormula.Contains("weight rank", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"throwing_range now works a throw out as '{throwing.RankFormula}'. This engine "
+                + "subtracts an object's weight rank from the thrower's Might because the entry said "
+                + "so; a different formula is a rule it cannot apply, and it will not guess at the "
+                + "operands. See docs/guide/play-engine.md's readings table.");
+        }
+
+        var might = actor.Rank(Normalise(scenery.SceneryAsWeapons!.ThrownAttackTrait));
+        var rank = Math.Max(throwing.MinimumRank, might - weight);
+        var (band, printed, past) = ThrowReach(rank);
+        var here = state.RangeBetween(actor.Id, attack.Target);
+
+        var reach = $"p.108 gives {row.Name} a weight rank of {weight} and p.74 works the throw out "
+                    + $"as \"{throwing.RankFormula}\": {actor.Name}'s "
+                    + $"{scenery.SceneryAsWeapons.ThrownAttackTrait} of {might} less {weight} is "
+                    + $"{rank}, which reaches {printed}"
+                    + (past ? ", further than this engine's outermost range class" : "");
+
+        if ((int)here <= (int)band)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"{reach}, and {state[attack.Target].Name} is at {here} Range"));
+
+            return null;
+        }
+
+        return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+            $"{reach} — and {state[attack.Target].Name} is at {here} Range, which is farther than "
+            + "that. p.74 says how far a throw carries and says nothing about throwing past it, so "
+            + "this one is refused rather than resolved under a rule the page does not print. "
+            + "Nothing was rolled.");
+    }
+
+    /// <summary>
+    /// p.108's one printed cost of picking up something that big:
+    /// <c>always_breaks_apart_after</c> is "the first shot".
+    ///
+    /// <para><b>It is applied rather than announced, because there is somewhere for it to land.</b>
+    /// This engine already has a state for an object leaving somebody's hands —
+    /// <see cref="Combatant.Dropped"/>, which p.76's page turn uses — so a mountain that has been
+    /// swung once is a mountain nobody is holding, and an attack naming it again is refused by the
+    /// guard that already refuses an attack made with what its actor does not hold. Naming the
+    /// clause and leaving the object in place would let one freight train be thrown every page for
+    /// the rest of the fight.</para>
+    ///
+    /// <para><b>Only the Massive Objects table, because only it prints the sentence.</b> A
+    /// motorcycle is on p.108's Scenery table and wears out at the rate the entry above scopes to
+    /// "super strong" characters and never says what that is; the break-apart is printed flat,
+    /// against the rows that have a weight rank instead of a Structure.</para>
+    /// </summary>
+    private EncounterState TheMassiveObjectBreaksApart(
+        EncounterState state, Combatant actor, Attack attack, List<LedgerLine> lines)
+    {
+        if (attack.Item is not { Length: > 0 } item) return state;
+        if (ImprovisedFrom(item.Trim()) is not { WeightRank: not null } row) return state;
+        if (state[actor.Id].Holding is null) return state;
+
+        var entry = _play.GetEnvironment("massive_objects");
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{row.Name} is on p.108's Massive Objects table, and one of those always breaks apart "
+            + $"after {entry.MassiveObjects!.AlwaysBreaksApartAfter}: {actor.Name} is holding "
+            + "nothing now, and an attack naming it again is refused for the same reason any attack "
+            + "made with what its actor does not hold is"));
+
+        return state.With(state[actor.Id].Dropped());
+    }
 }
