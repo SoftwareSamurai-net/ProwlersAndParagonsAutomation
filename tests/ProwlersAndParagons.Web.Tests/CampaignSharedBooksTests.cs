@@ -657,6 +657,37 @@ public sealed class CampaignSharedBooksTests
     }
 
     /// <summary>
+    /// <b>And a removal that went nowhere says so too</b>, which is the same rule and was the
+    /// branch nobody had driven: the sentence was written and no test had ever rendered it, so it
+    /// could have been spelled anything at all.
+    ///
+    /// <para>The object surviving is the positive control. A page that had removed the row while
+    /// the request failed would satisfy "a sentence is on screen" and be the exact failure the
+    /// sentence exists to report.</para>
+    /// </summary>
+    [Fact]
+    public async Task ARemovalThatWentNowhereSaysSoAndKeepsTheObject()
+    {
+        await using var ctx = await AGameWithAFundedObject();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        await Control(page, "Remove").ClickAsync(new MouseEventArgs());
+
+        ctx.Api.Unreachable = true;
+
+        await Control(page, "Remove for good").ClickAsync(new MouseEventArgs());
+
+        Assert.Contains("could not be removed", Shared(page), StringComparison.Ordinal);
+        Assert.Contains("The Wing", Shared(page), StringComparison.Ordinal);
+
+        ctx.Api.Unreachable = false;
+
+        Assert.Single(CampaignAsset.On(
+            await ctx.Services.GetRequiredService<AccountCampaignStore>().LoadAsync(GameId)));
+    }
+
+    /// <summary>
     /// <b>A game that owns nothing shared says what to do about it</b>, rather than restating the
     /// emptiness — the rule every empty state in this app is held to.
     /// </summary>
