@@ -402,6 +402,104 @@ public sealed class AssetValidationTests
     }
 
     /// <summary>
+    /// <b>A Gadget's Powers are a fourth place a Pro or Con can sit, and nothing walked them.</b>
+    ///
+    /// <para><c>CheckModifiers</c> walked the character's Powers, their gear and their Abilities,
+    /// and <c>modifiersResolvable</c> — the gate <c>CheckGadget</c> takes before pricing anything
+    /// — was therefore true whatever a Gadget's Powers carried. p.94 buys a Gadget's Powers with
+    /// the ordinary rules, so <c>GadgetSpend</c> prices them through <c>PowerCost</c>, and
+    /// <c>ResolveConCost</c> <em>throws</em> on an id the rulebook does not have. One misspelled
+    /// Con inside a Gadget took the whole of <c>Validate</c> out with an
+    /// <c>InvalidOperationException</c>, which is the one answer a validator may never give: this
+    /// is the failure <c>modifiersResolvable</c> exists to prevent, in the collection it did not
+    /// cover.</para>
+    ///
+    /// <para><b>The control is the same Gadget with the id spelled right</b>, which prices and
+    /// reports an ordinary finding — so what is being fixed is the crash, not a Gadget that was
+    /// never priceable.</para>
+    /// </summary>
+    [Fact]
+    public void AGadgetPowerCarryingAnUnknownModifierIsReportedRatherThanThrowing()
+    {
+        var sheet = ABuilder();
+        sheet.Gadgets.Add(new BuiltGadget("Exo-frame")
+        {
+            Complexity = 3,
+            Powers     = [new SelectedPower("blast", 20, [], [new SelectedProCon("nonexistant_con")])]
+        });
+
+        Assert.True(Reports(sheet, "UNKNOWN_CON"));
+
+        // Not priced, because the answer cannot be had — the same gate an unknown Power takes.
+        Assert.False(Reports(sheet, "GADGET_OVER_POOL"));
+
+        // The Gadget is named in the finding, because "Blast" alone does not say whose.
+        Assert.Contains(Issues(sheet), i => i.Code == "UNKNOWN_CON" && i.Message.Contains("Exo-frame"));
+
+        // The control: spelled right, it prices, and the finding it was hiding comes back.
+        sheet.Gadgets[0] = sheet.Gadgets[0] with
+        {
+            Powers = [new SelectedPower("blast", 20, [], [new SelectedProCon("item")])]
+        };
+
+        Assert.False(Reports(sheet, "UNKNOWN_CON"));
+        Assert.True(Reports(sheet, "GADGET_OVER_POOL"));
+    }
+
+    /// <summary>
+    /// <b>The quantity exploit, one budget down.</b> <c>CheckQuantities</c>' own comment records
+    /// a per-rank-per-unit Pro at −1000 driving a Power's rate negative until the rulebook floor
+    /// caught it at half a point a rank, so 24 Hero Points of Power cost 6 in silence.
+    /// <c>EveryModifier</c> walked three collections and a Gadget's Powers were a fourth: the
+    /// same 12d Nullify inside a Gadget priced at 6, which is exactly a Complexity-3 pool, and
+    /// the sheet reported <b>nothing at all</b>.
+    ///
+    /// <para>The Power's own two quantity fields are here for the same reason — a negative rank
+    /// or a negative unit count on a Gadget's Power was reported on the character's own Powers
+    /// and nowhere else.</para>
+    ///
+    /// <para><b>Reported, never repaired</b>: the assertions on <c>GadgetSpend</c> pin the price
+    /// the sheet actually says, so a future fix that clamped the quantity instead of reporting it
+    /// fails here.</para>
+    /// </summary>
+    [Fact]
+    public void ANegativeQuantityInsideAGadgetIsReported()
+    {
+        var sheet = ABuilder();
+        sheet.Gadgets.Add(new BuiltGadget("Exo-frame")
+        {
+            Complexity = 3,
+            Powers     = [new SelectedPower("nullify", 12,
+                             [new SelectedProCon("also_x") { Units = -1000 }], []) { SourceId = "magic" }]
+        });
+
+        var discount = Only(sheet, "NEGATIVE_UNITS");
+        Assert.Equal("also_x", discount.SubjectId);
+        Assert.Equal(-1000, discount.Value);
+        Assert.Contains("Exo-frame", discount.Message);
+
+        // Never repaired: the discount is still applied, which is what makes it worth reporting.
+        // Six out of a pool of six is inside the pool, so nothing else would have said a word.
+        Assert.Equal(6, _f.Costs.GadgetSpend(sheet.Gadgets[0]));
+        Assert.Equal(6, _f.Costs.GadgetPool(sheet.Gadgets[0]));
+        Assert.False(Reports(sheet, "GADGET_OVER_POOL"));
+
+        // And the Power's own two quantities, which had the same silence.
+        sheet.Gadgets[0] = sheet.Gadgets[0] with
+        {
+            Powers = [new SelectedPower("blast", -100), new SelectedPower("immunity", 0) { Units = -20 }]
+        };
+
+        var rank = Only(sheet, "NEGATIVE_RANK");
+        Assert.Equal(ValidationSubject.Gadget, rank.SubjectKind);
+        Assert.Equal(-100, rank.Value);
+
+        var units = Only(sheet, "NEGATIVE_UNITS");
+        Assert.Equal(ValidationSubject.Gadget, units.SubjectKind);
+        Assert.Equal(-20, units.Value);
+    }
+
+    /// <summary>
     /// <b>A Gadget's Abilities and Talents are asked about too, and they were not.</b>
     ///
     /// <para><c>GadgetIsPriceable</c> walked <see cref="BuiltGadget.Powers"/> alone while its own

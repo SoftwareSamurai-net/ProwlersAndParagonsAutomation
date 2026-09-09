@@ -737,6 +737,19 @@ public sealed class CharacterValidator
                 + "which would pay the character rather than cost them.", hq.PerkHeroPoints));
 
         foreach (var gadget in sheet.Gadgets.Where(g => g.Name is not null))
+        {
+            // A Gadget's Powers are the same two quantity fields the character's own Powers
+            // carry, one budget down, and the clauses above walk `sheet.SelectedPowers` alone.
+            foreach (var sp in gadget.Powers.Where(p => p.PurchasedRanks < 0))
+                issues.Add(Negative("NEGATIVE_RANK", ValidationSubject.Gadget, gadget.Name,
+                    $"{GadgetPowerName(gadget, sp)} has {sp.PurchasedRanks} purchased ranks. A "
+                    + "Power cannot have fewer than no ranks.", sp.PurchasedRanks));
+
+            foreach (var sp in gadget.Powers.Where(p => p.Units < 0))
+                issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Gadget, gadget.Name,
+                    $"{GadgetPowerName(gadget, sp)} is bought {sp.Units} times. A Power cannot "
+                    + "be bought fewer than no times.", sp.Units));
+
             foreach (var (id, rank) in gadget.AbilityRanks.Concat(gadget.TalentRanks).Where(e => e.Value < 0))
                 issues.Add(new(ValidationSeverity.Error, "NEGATIVE_RANK",
                     $"{gadget.Name} has {rank}d of '{id}'. A Trait cannot have fewer than no "
@@ -749,6 +762,7 @@ public sealed class CharacterValidator
                     Value       = rank,
                     Limit       = 0
                 });
+        }
 
         // Zero is not a purchase. A per-unit Perk or Power at no units costs nothing and does
         // nothing, so it is a line on the sheet the character did not buy.
@@ -777,7 +791,7 @@ public sealed class CharacterValidator
 
     /// <summary>
     /// Every Pro and Con on the character with the name of whatever carries it, so a check that
-    /// applies to all of them does not have to walk three collections itself.
+    /// applies to all of them does not have to walk four collections itself.
     /// </summary>
     private IEnumerable<(string Owner, SelectedProCon Choice)> EveryModifier(CharacterSheet sheet)
     {
@@ -785,6 +799,18 @@ public sealed class CharacterValidator
         {
             foreach (var p in sp.Pros.Concat(sp.Cons))
                 if (p is not null) yield return (PowerName(sp.PowerId), p);
+        }
+
+        // A Gadget's Powers carry the same quantity field, and it buys the same discount one
+        // budget down: `also_x` at −1000 units on a 12d Nullify inside a Gadget priced 24 Hero
+        // Points of Power at 6, which is exactly a Complexity-3 pool, so the Gadget was inside
+        // its pool with nothing said. The character's own Powers have reported this since the
+        // per-rank-per-unit exploit was found; this collection arrived after that clause.
+        foreach (var gadget in sheet.Gadgets)
+        {
+            foreach (var sp in gadget.Powers)
+                foreach (var p in sp.Pros.Concat(sp.Cons))
+                    if (p is not null) yield return (GadgetPowerName(gadget, sp), p);
         }
 
         foreach (var gear in sheet.Gear)
@@ -799,6 +825,14 @@ public sealed class CharacterValidator
                 if (p is not null) yield return (_rules.GetAbility(abilityId)?.Name ?? abilityId, p);
         }
     }
+
+    /// <summary>
+    /// What to call a Power that is inside a Gadget: the Gadget names it, because "Nullify" alone
+    /// in a finding is indistinguishable from the character's own and the two have separate
+    /// budgets.
+    /// </summary>
+    private string GadgetPowerName(BuiltGadget gadget, SelectedPower power) =>
+        $"{gadget.Name}'s {PowerName(power.PowerId)}";
 
     private static ValidationIssue Negative(
         string code, ValidationSubject kind, string id, string message, int value) =>
@@ -842,8 +876,9 @@ public sealed class CharacterValidator
 
     /// <summary>
     /// Every Pro and Con on the character, wherever it sits — on a Power, on a piece of gear,
-    /// or on an Ability. They are priced the same way in all three places, so they go wrong
-    /// the same way in all three, and an unknown id threw out of the middle of the total.
+    /// on an Ability, or on a Power inside a Gadget. They are priced the same way in all four
+    /// places, so they go wrong the same way in all four, and an unknown id threw out of the
+    /// middle of the total.
     ///
     /// <para>A Pro or Con printed inside a Power's own entry takes precedence over a generic
     /// one of the same name, exactly as <c>CostCalculator</c> resolves it. Checking only the
@@ -866,6 +901,23 @@ public sealed class CharacterValidator
             resolvable &= CheckModifierList(gear.Pros, isPro: true, null, gear.Name, gear.Name, issues);
             resolvable &= CheckModifierList(gear.Cons, isPro: false, null, gear.Name, gear.Name, issues);
         }
+
+        // <b>A Gadget's Powers are the fourth place, and they were nowhere.</b> They are ordinary
+        // SelectedPowers — p.94 buys them with the same rules as the character's own — so
+        // GadgetSpend prices them through PowerCost, and PowerCost throws on an id the rulebook
+        // does not have. Nothing walked them, so `modifiersResolvable` was true whatever they
+        // carried and CheckGadget went straight on to price them: a submitted sheet with one
+        // misspelled Con inside a Gadget took `Validate` out with an InvalidOperationException,
+        // which is the one thing a validator may never do.
+        foreach (var gadget in sheet.Gadgets)
+            foreach (var sp in gadget.Powers)
+            {
+                var power = Power(sp.PowerId);
+                var name  = GadgetPowerName(gadget, sp);
+
+                resolvable &= CheckModifierList(sp.Pros, isPro: true, power, sp.PowerId, name, issues);
+                resolvable &= CheckModifierList(sp.Cons, isPro: false, power, sp.PowerId, name, issues);
+            }
 
         foreach (var (abilityId, modifiers) in sheet.AbilityModifiers)
         {
