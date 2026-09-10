@@ -240,6 +240,32 @@ public sealed class CampaignAssetTests
     /// machine on a sheet gets</b> — one vocabulary for one printed table. A base is checked off
     /// pp.100–103's list and a vehicle off pp.96–100's, which is what the kind decides.
     /// </summary>
+    /// <summary>
+    /// <b>A shared vehicle is held to p.100's prerequisites exactly as an owned one is.</b> This
+    /// exists because the orchestrator's mutation — dropping the prerequisite call from
+    /// <c>CheckSharedAsset</c> alone — left every test green: the owned-vehicle path was driven
+    /// and the shared path was not, which is the "reached by the wrong route" fault
+    /// <c>CLAUDE.md</c> names. The same Submersible without Swimming, off the campaign's copy.
+    /// </summary>
+    [Fact]
+    public void ASharedVehicleIsHeldToTheFeaturePrerequisitesToo()
+    {
+        var unsupported = Assert.Single(_f.Validator.CheckSharedAsset(Vehicle() with
+        {
+            Features = [new SelectedAssetFeature("submersible")]
+        }));
+
+        Assert.Equal("VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM", unsupported.Code);
+        Assert.Equal(ValidationSeverity.Warning, unsupported.Severity);
+        Assert.Equal("submersible", unsupported.SubjectId);
+
+        // The positive control: with Swimming aboard, nothing is said.
+        Assert.Empty(_f.Validator.CheckSharedAsset(Vehicle() with
+        {
+            Features = [new SelectedAssetFeature("submersible"), new SelectedAssetFeature("swimming")]
+        }));
+    }
+
     [Fact]
     public void AFeatureFaultIsReportedOffWhicheverTableTheKindNames()
     {
