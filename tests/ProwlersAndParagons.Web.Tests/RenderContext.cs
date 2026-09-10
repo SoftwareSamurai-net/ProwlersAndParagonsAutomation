@@ -112,6 +112,7 @@ public sealed class RenderContext : BunitContext
         // should decide. Leaving it out made every render test in the project fail at once, which
         // is at least the loud kind of wrong.
         Services.AddScoped<SavedCharacters>();
+        Services.AddScoped<DismissedFindings>();
         Services.AddScoped<ApiCharacterStore>();
         Services.AddScoped<CharacterImport>();
         Services.AddScoped<AccountCharacterStore>();

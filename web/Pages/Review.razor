@@ -4,6 +4,7 @@
 @inject IJSRuntime Js
 @inject Commands Commands
 @inject NavigationManager Nav
+@inject DismissedFindings Dismissed
 
 @* The character's name leads the title because the browser prints the document title in
    its own page header, which is the one thing that reliably repeats on every printed page.
@@ -61,6 +62,20 @@
                 still checked.
             </p>
         }
+
+        @* **The undo for every dismissal on the sheet, in one place.** A Warning waved off on a
+           Trait or a Power row is invisible everywhere from that point on, including here — this
+           note is the only trace that anything was hidden, and "Show them" is the only way back.
+           `DismissedCount` reads live against `Validation.Issues`, not against however many keys
+           storage holds, so a stale dismissal for a Trait that has since changed away and back
+           is never counted here either. *@
+        @if (DismissedCount > 0)
+        {
+            <p class="small muted">
+                @DismissedCount @(DismissedCount == 1 ? "warning" : "warnings") dismissed.
+                <button type="button" class="btn small" @onclick="ShowDismissed">Show them</button>
+            </p>
+        }
     </ChildContent>
 </Panel>
 
@@ -97,22 +112,50 @@
     /// bar in the shell and left an over-budget finding sitting on this list, with the
     /// explanation of why budget findings are hidden not shown.
     /// </summary>
-    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += OnSessionChanged;
+        await Dismissed.LoadAsync(CharacterId);
+    }
 
-    public void Dispose() => Session.Changed -= StateHasChanged;
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
+    /// <summary>
+    /// A character switch is a change in which <em>id's</em> dismissals apply, not only in what
+    /// the sheet says — so this reloads before redrawing rather than only redrawing, the same
+    /// reasoning <c>ChosenRow</c>'s own copy of this pattern carries.
+    /// </summary>
+    private void OnSessionChanged() => _ = InvokeAsync(async () =>
+    {
+        await Dismissed.LoadAsync(CharacterId);
+        StateHasChanged();
+    });
 
     private ValidationResult Validation => Session.Validate();
 
+    private string CharacterId => DismissedFindings.CharacterKey(Session);
+
     /// <summary>
     /// Budget findings are hidden in Villain mode because a Villain has no budget to
-    /// exceed. This filters the display and nothing else — the validator is not told
-    /// about the mode, so the rules stay in one place and the JSON export still records
-    /// every issue.
+    /// exceed, and a dismissed Warning is hidden here on the same terms it is hidden on its own
+    /// tab — see <c>DismissedFindings</c>. Both filter the display and nothing else — the
+    /// validator is not told about either, so the rules stay in one place and the JSON export
+    /// still records every issue.
     /// </summary>
     private List<ValidationIssue> Issues =>
         Validation.Issues
             .Where(i => Session.ShowBudget || i.Code != "HP_BUDGET_EXCEEDED")
+            .Where(i => !Dismissed.IsDismissed(CharacterId, i))
             .ToList();
+
+    /// <summary>How many of the sheet's current Warnings are hidden by a dismissal right now.</summary>
+    private int DismissedCount => Dismissed.VisibleCount(CharacterId, Validation.Issues);
+
+    private async Task ShowDismissed()
+    {
+        await Dismissed.ClearAsync(CharacterId);
+        StateHasChanged();
+    }
 
     /// <summary>
     /// Take the reader to the step a finding belongs to, and open the right section when it has
