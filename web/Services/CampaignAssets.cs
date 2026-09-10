@@ -132,6 +132,60 @@ public static class CampaignAssets
     public const string UnknownAsset = "UNKNOWN_CAMPAIGN_ASSET";
 
     /// <summary>
+    /// The campaign's shared objects a character may count towards Teamwork — PROGRESS.md item
+    /// 33.4, the owner's 2026-09-10 ruling that a shared base's Training Facilities grants the
+    /// point to every <em>approved</em> member of the campaign, the way an owner gets it from
+    /// their own base.
+    ///
+    /// <para><b>Live for a member, unconditional for the GM.</b> <see cref="CampaignReach.Owned"/>
+    /// is a GM reading their own game directly — there is no membership row to be pending or
+    /// rejected on, so the whole list counts, the same way the GM's own characters are simply
+    /// "at the table". <see cref="CampaignReach.Live"/> is the opposite: a player's browser, read
+    /// through <c>GET /api/memberships/{id}/table</c>, and that row can be pending or rejected —
+    /// which is exactly the membership this checks before trusting it, off the same
+    /// <paramref name="playing"/> list <see cref="CampaignReaches.LiveAsync"/> used to find the
+    /// row in the first place.</para>
+    ///
+    /// <para><b>Recommended over reading the copy taken at join, and this is the argument for
+    /// it.</b> A base the GM adds to the campaign after a member joined should grant that member
+    /// the point without asking them to leave and rejoin — the same reasoning
+    /// <see cref="CampaignReaches"/>'s own doc comment gives for reading the table live rather
+    /// than the character's stale settings. <b>Offline, this answers no grant and no error</b>:
+    /// <see cref="CampaignReach.Live"/> is null for a laptop with no network exactly as it is for
+    /// a deleted game or an unreadable payload, and <see cref="CalculateTeamwork"/> below treats
+    /// an empty list as "count only what the character owns", which is the same figure this
+    /// character's sheet has always been able to answer on its own.</para>
+    ///
+    /// <para><b>Approval is <see cref="MembershipSummary.HasApproved"/> alone, not
+    /// <see cref="MembershipSummary.Standing"/>.</b> A member who has been approved once and has a
+    /// new snapshot pending is still an approved member sitting at the table today — the pending
+    /// edit is a question about their <em>next</em> sheet, not about whether the party's shared
+    /// base currently covers them. Only a membership that has never been approved — pending its
+    /// first decision, or turned down outright — grants nothing, which is
+    /// <c>!HasApproved</c> exactly.</para>
+    /// </summary>
+    /// <param name="reach">
+    /// The campaign, read whichever way this account could — see <see cref="CampaignReaches.ForAsync"/>.
+    /// </param>
+    /// <param name="playing">
+    /// The memberships this account holds, or null for a list that failed to read — the same list
+    /// <see cref="CampaignReaches.ForAsync"/> takes, so a caller that already fetched it for the
+    /// reach does not fetch it twice.
+    /// </param>
+    /// <param name="campaignId">The character's own <see cref="CharacterSheet.CampaignId"/>.</param>
+    public static IReadOnlyList<CampaignAsset> TeamworkBases(
+        CampaignReach reach, IReadOnlyList<MembershipSummary>? playing, string? campaignId)
+    {
+        if (reach.Owned is not null) return CampaignAsset.On(reach.Owned);
+        if (reach.Live is null || campaignId is null) return [];
+
+        var approved = playing?.Any(m =>
+            m.HasApproved && string.Equals(m.CampaignId, campaignId, StringComparison.Ordinal)) ?? false;
+
+        return approved ? CampaignAsset.On(reach.Live) : [];
+    }
+
+    /// <summary>
     /// Every shared object the campaign has, with what its members put in and what it cost.
     ///
     /// <para><b>The sheets are handed in rather than fetched, so this stays synchronous and

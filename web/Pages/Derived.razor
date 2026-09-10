@@ -1,5 +1,7 @@
 @page "/build/derived"
 @inject CharacterSession Session
+@inject AccountCampaignStore Campaigns
+@inject ApiMembershipStore Memberships
 
 <PageTitle>Derived stats — Prowlers &amp; Paragons</PageTitle>
 
@@ -74,6 +76,20 @@
             <li>Determination, bought for @DeterminationResolve more.</li>
         }
     </ul>
+
+    @* **Only when a base grants it** — the same rule the exports and the terminal wizard follow:
+       a "Teamwork: 0" line on every sheet in the game is a figure nobody has. Teamwork is
+       Resolve's twin (Ch.6 p.103) and is quoted for a Hero only, which this page has no way to
+       enforce and does not try to — see `DerivedStatsCalculator.CalculateTeamwork`'s own doc
+       comment for why that silence is kept by whoever is reading, not by a flag in the engine. *@
+    @if (Teamwork > 0)
+    {
+        <h3>Teamwork</h3>
+        <p class="small muted">
+            @Teamwork at the start of each issue, for a Hero — a headquarters with
+            Training Facilities (p.103), owned or shared with this campaign.
+        </p>
+    }
 </Panel>
 
 <StepButtons Back="build/gear" BackLabel="Gear" Next="build/finishing" NextLabel="Finishing touches" />
@@ -96,4 +112,28 @@
     /// <summary>"1 flaw", "2 flaws". Never "flaw(s)", which is a form field, not a sentence.</summary>
     private static string Plural(int count, string one, string many) =>
         $"{count} {(count == 1 ? one : many)}";
+
+    // ── Teamwork, from the campaign's shared bases — PROGRESS.md item 33.4 ────────────────
+
+    /// <summary>
+    /// The campaign's shared bases this character may count, resolved once when the step opens —
+    /// the same read <c>Assets.razor</c> makes for the same reason: a page full of derived figures
+    /// re-reading a live campaign on every render would be a request per keystroke on whatever
+    /// this step redraws for.
+    /// </summary>
+    private IReadOnlyList<CampaignAsset> _sharedBases = [];
+
+    private int Teamwork => Session.Derived.CalculateTeamwork(Session.Sheet, _sharedBases);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Nothing is asked for a character in no game, which is most of them — see
+        // `Assets.razor`'s own copy of this guard.
+        if (Session.Sheet.CampaignId is null) return;
+
+        var playing = await Memberships.MineAsync();
+        var reach = await CampaignReaches.ForAsync(Campaigns, Memberships, Session.Sheet, playing);
+
+        _sharedBases = CampaignAssets.TeamworkBases(reach, playing, Session.Sheet.CampaignId);
+    }
 }
