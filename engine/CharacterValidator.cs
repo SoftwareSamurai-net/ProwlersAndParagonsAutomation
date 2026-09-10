@@ -1418,6 +1418,8 @@ public sealed class CharacterValidator
 
         CheckMechaMight(vehicle, issues);
 
+        CheckVehicleFeaturePrerequisites(vehicle.Name, vehicle.Features, issues);
+
         if (!priceable) return;
 
         var spent  = _costs.VehiclePointsSpent(vehicle);
@@ -1480,6 +1482,50 @@ public sealed class CharacterValidator
             // call the comparison above makes, so the figure quoted is the figure tested.
             Limit       = HalfRoundedUp(vehicle.Body)
         });
+    }
+
+    /// <summary>
+    /// <b>Ruling 2 (owner, 2026-09-10; PROGRESS.md item 33): a vehicle feature's structured
+    /// prerequisite, checked.</b> Submersible needs Swimming and Transforming needs two of four
+    /// movement features — both p.100, both stated in <c>vehicles.json</c>'s
+    /// <c>requires_features</c> now that the owner has said the prose should be enforced.
+    ///
+    /// <para><b>A Warning, not an Error</b> — the owner's ruling — and reported rather than
+    /// repaired: this engine does not decide which feature the player meant to add or drop. A base
+    /// feature never reaches here, because <c>BaseFeatureRow</c> carries no such field: nothing on
+    /// pp.100-103 prints a prerequisite of this shape (see <c>docs/guide/rules-engine.md</c>).</para>
+    /// </summary>
+    private void CheckVehicleFeaturePrerequisites(
+        string vehicleName, IReadOnlyList<SelectedAssetFeature> features, List<ValidationIssue> issues)
+    {
+        var owned = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var selected in features)
+            if (selected?.FeatureId is { } ownedId) owned.Add(ownedId);
+
+        foreach (var selection in features)
+        {
+            if (selection?.FeatureId is not { } featureId) continue;
+            if (_rules.Assets.FindVehicleFeature(featureId) is not { RequiresFeatures: { } need } feature)
+                continue;
+
+            var have = need.AnyOf.Count(id => owned.Contains(id));
+            if (have >= need.Min) continue;
+
+            var names = string.Join(", ",
+                need.AnyOf.Select(id => _rules.Assets.FindVehicleFeature(id)?.Name ?? id));
+
+            issues.Add(new(ValidationSeverity.Warning, "VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM",
+                $"{vehicleName}'s {feature.Name} needs at least {need.Min} of: {names} "
+                + $"(Ch.6 p.{feature.PrintedPage}), and this vehicle has "
+                + $"{(have == 0 ? "none of them" : $"only {have}")}.")
+            {
+                SubjectKind = ValidationSubject.AssetFeature,
+                SubjectId   = selection.FeatureId,
+                OwnerId     = vehicleName,
+                Value       = have,
+                Limit       = need.Min
+            });
+        }
     }
 
     /// <summary>
@@ -1893,8 +1939,13 @@ public sealed class CharacterValidator
             issues);
 
         // pp.100-103 give a headquarters no characteristics at all, so there is nothing below to
-        // say about one — CampaignAssetPointsSpent charges none of them for the same reason.
+        // say about one — CampaignAssetPointsSpent charges none of them for the same reason. The
+        // structured prerequisite is the same story: BaseFeatureRow carries no such field, because
+        // nothing on those pages prints one, so this only ever has something to say about a
+        // vehicle.
         if (asset.IsHeadquarters) return issues;
+
+        CheckVehicleFeaturePrerequisites(name, asset.Features, issues);
 
         // p.96 opens Body, Speed and Control at nothing and you spend upward, so a rank below that
         // **pays Vehicle Points back**: Body at −20 buys twenty points of features for nothing and

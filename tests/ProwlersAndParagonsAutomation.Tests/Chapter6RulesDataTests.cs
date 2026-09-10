@@ -960,6 +960,52 @@ public sealed class Chapter6RulesDataTests
     }
 
     /// <summary>
+    /// <b>The structured prerequisite the owner's ruling of 2026-09-10 added (PROGRESS.md item 33,
+    /// ruling 2) is read off the entry's own printed sentence, not trusted from the fixture.</b>
+    /// Submersible needs Swimming; Transforming needs two of four movement features.
+    ///
+    /// <para><b>The closing assertion is the half that keeps it honest</b>: <em>exactly</em>
+    /// <see cref="CanonicalChapterSixRules.VehicleFeaturePrerequisites.PrintedSentence"/>'s two ids
+    /// carry <c>requires_features</c> — so a third one invented for a feature whose entry states no
+    /// hard requirement, or one of these two silently dropped, goes red here.</para>
+    /// </summary>
+    [Fact]
+    public void EveryPrerequisiteAVehicleFeaturesEntryPrintsIsOnTheEntry()
+    {
+        var features = Vehicles().Entries.Single(e => e.Id == "vehicle_features").Features!
+            .ToDictionary(f => f.Id, StringComparer.Ordinal);
+
+        foreach (var (id, sentence) in CanonicalChapterSixRules.VehicleFeaturePrerequisites.PrintedSentence)
+        {
+            var feature = features[id];
+
+            var heading = feature.PrintedPage == 96
+                ? feature.Name.ToUpperInvariant()
+                : "VEHICLES — " + feature.Name.ToUpperInvariant();
+
+            Assert.Contains(sentence, Section(feature.PrintedPage, heading), StringComparison.Ordinal);
+
+            Assert.NotNull(feature.RequiresFeatures);
+            Assert.Equal(
+                CanonicalChapterSixRules.VehicleFeaturePrerequisites.AnyOf[id],
+                feature.RequiresFeatures!.AnyOf);
+            Assert.Equal(
+                CanonicalChapterSixRules.VehicleFeaturePrerequisites.Min[id],
+                feature.RequiresFeatures.Min);
+
+            // Every id named is itself a feature on this table — a prerequisite naming something
+            // that does not exist would be unsatisfiable by construction.
+            foreach (var neededId in feature.RequiresFeatures.AnyOf)
+                Assert.True(features.ContainsKey(neededId),
+                    $"{id}'s requires_features names '{neededId}', which is not a vehicle feature.");
+        }
+
+        Assert.Equal(
+            CanonicalChapterSixRules.VehicleFeaturePrerequisites.PrintedSentence.Keys.Order(),
+            features.Values.Where(f => f.RequiresFeatures is not null).Select(f => f.Id).Order());
+    }
+
+    /// <summary>
     /// <b>Every base feature's price is read off its own printed entry, and every one of the
     /// twenty-two has one.</b> "Spending HQ points should map to something" is the owner's whole
     /// requirement for this file, and a feature with no price maps to nothing.

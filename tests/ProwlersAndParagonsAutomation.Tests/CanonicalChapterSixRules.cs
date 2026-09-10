@@ -617,6 +617,47 @@ public static class CanonicalChapterSixRules
     }
 
     /// <summary>
+    /// <b>The structured prerequisite the owner's ruling of 2026-09-10 added</b> — PROGRESS.md
+    /// item 33, ruling 2. p.100's Submersible and Transforming each name other features in prose;
+    /// this is that prose, mapped to what <c>VehicleFeatureRow.RequiresFeatures</c> should record,
+    /// so the data test can find the sentence in the corpus rather than trust the shipped file for
+    /// it.
+    ///
+    /// <para><b>Two entries, and no more.</b> Every other <c>requires</c> line on the table is a
+    /// caveat about flying or transforming inside an atmosphere, not a prerequisite to hold the
+    /// feature at all — see <c>docs/guide/rules-engine.md</c>. The data test's closing assertion
+    /// says exactly these two ids carry <c>requires_features</c>, so a third one added without a
+    /// printed sentence behind it fails there.</para>
+    /// </summary>
+    public static class VehicleFeaturePrerequisites
+    {
+        /// <summary>Feature id to the sentence its entry prints, exactly as the corpus holds it.</summary>
+        public static readonly IReadOnlyDictionary<string, string> PrintedSentence =
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["submersible"]  = "Only vehicles with Swimming can have this feature.",
+                ["transforming"] = "This feature applies to vehicles with two or more of the "
+                                    + "following features: Flight, Running, Submersible, and Swimming."
+            };
+
+        /// <summary>What each entry's <c>requires_features.any_of</c> must equal, in order.</summary>
+        public static readonly IReadOnlyDictionary<string, string[]> AnyOf =
+            new Dictionary<string, string[]>(StringComparer.Ordinal)
+            {
+                ["submersible"]  = ["swimming"],
+                ["transforming"] = ["flight", "running", "submersible", "swimming"]
+            };
+
+        /// <summary>What each entry's <c>requires_features.min</c> must equal.</summary>
+        public static readonly IReadOnlyDictionary<string, int> Min =
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["submersible"]  = 1,
+                ["transforming"] = 2
+            };
+    }
+
+    /// <summary>
     /// p.96's own arithmetic, replayed. Each stock vehicle's printed Vehicle Point total should be
     /// its characteristics priced by CHARACTERISTICS plus its features priced by VEHICLE FEATURES,
     /// and <b>all six come out exactly</b>.

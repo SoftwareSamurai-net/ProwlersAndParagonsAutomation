@@ -1441,6 +1441,10 @@
           "requires": [
             "swimming"
           ],
+          "requires_features": {
+            "any_of": ["swimming"],
+            "min": 1
+          },
           "restricted_to": null,
           "constraint": null,
           "printed_page": 100
@@ -1471,6 +1475,10 @@
           "requires": [
             "two or more of flight, running, submersible and swimming"
           ],
+          "requires_features": {
+            "any_of": ["flight", "running", "submersible", "swimming"],
+            "min": 2
+          },
           "restricted_to": null,
           "constraint": null,
           "printed_page": 100
@@ -1493,7 +1501,8 @@
       "interpretation": {
         "what_this_is": "One reading, and one thing the entries state about themselves.",
         "cost_shapes": "Every feature's price is a number, a pair of graded numbers, or a rate per unit; none is left to the GM. Where the printed heading gives a range - Hidden Compartments at one or two points - the two grades are keyed by what the text says each buys.",
-        "negative_costs": "A feature with a negative cost lowers the vehicle's total, which the page states in as many words; nothing here floors that total, and no floor is printed."
+        "negative_costs": "A feature with a negative cost lowers the vehicle's total, which the page states in as many words; nothing here floors that total, and no floor is printed.",
+        "requires_features": "A structured prerequisite beside the prose `requires` already carries, owner's ruling of 2026-09-10 (see PROGRESS.md item 33, ruling 2). Shape: {\"any_of\": [feature ids], \"min\": N} - true when at least N of the named features are also on the vehicle. Only on the two entries whose own printed text states a hard requirement on another feature: Submersible (\"Only vehicles with Swimming can have this feature\", any_of [swimming], min 1) and Transforming (\"applies to vehicles with two or more of the following features: Flight, Running, Submersible, and Swimming\", any_of those four, min 2). Every other `requires` entry is a caveat about flying or transforming inside an atmosphere, not a prerequisite to hold this feature at all, and deliberately carries no requires_features - see the field's absence on Flight, Running, Swimming, Spaceflight and Spaceship. CharacterValidator reports a shortfall as a Warning, never repaired."
       },
       "description": "Twenty-three things a vehicle can have, each with what it costs in Vehicle Points and what it does. Four of them are drawbacks and pay points back; one is free. A vehicle may take as many as it likes, and the list is offered as a pattern rather than as a closed set.",
       "verified_fields": [

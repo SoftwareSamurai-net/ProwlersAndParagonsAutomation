@@ -1082,6 +1082,11 @@ public sealed class ValidationIssueStructureTests
         ["ASSET_FEATURE_NEEDS_GRADE"]       = [ValidationSubject.AssetFeature],
         ["MECHA_MIGHT_BELOW_HALF_BODY"]     = [ValidationSubject.AssetFeature],
 
+        // Ruling 2 (PROGRESS.md item 33): Submersible without Swimming, or Transforming without
+        // two of its four movement features. The feature, with the vehicle's name in OwnerId —
+        // the same shape MECHA_MIGHT_BELOW_HALF_BODY takes.
+        ["VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM"] = [ValidationSubject.AssetFeature],
+
         ["GADGET_COMPLEXITY_BELOW_MINIMUM"]         = [ValidationSubject.Gadget],
         ["GADGET_COMPLEXITY_ABOVE_TECHNOLOGY"]      = [ValidationSubject.Gadget],
         ["GADGET_BUILDER_BELOW_TECHNOLOGY_MINIMUM"] = [ValidationSubject.Gadget],
@@ -1652,8 +1657,10 @@ public sealed class ValidationIssueStructureTests
                 {
                     // Control below its floor is legal-shaped and reported; Body below zero is
                     // not a rank at all and pays Vehicle Points back, and the Perk allowance
-                    // below zero pays Hero Points back. Three different findings on one machine.
-                    PerkHeroPoints = -2, Control = -9, Body = -4
+                    // below zero pays Hero Points back. Submersible with no Swimming is Ruling 2's
+                    // finding. Four different findings on one machine.
+                    PerkHeroPoints = -2, Control = -9, Body = -4,
+                    Features = [new SelectedAssetFeature("submersible")]
                 });
                 // Both unpriceable faults on one machine, and deliberately on a machine of their
                 // own: an unpriceable feature silences that vehicle's budget check, so putting one
