@@ -1,4 +1,5 @@
 @inject CharacterSession Session
+@inject DismissedFindings Dismissed
 
 <Panel Title="Talents"
        Aside="1 HP per rank · an ordinary human averages 2d"
@@ -17,7 +18,8 @@
                  RankGuide="@talent.RankGuide"
                  RankChanged="rank => SetTalent(id, rank)" />
 
-        <RowFinding Issues="SheetFindings.ForTalent(Validation, id)" />
+        <RowFinding Issues="Visible(SheetFindings.ForTalent(Validation, id))"
+                    OnDismiss="issue => Dismiss(issue, SheetFindings.ForTalent(Validation, id))" />
     }
 </Panel>
 
@@ -29,6 +31,24 @@
 @code {
     /// <summary>Read fresh on every render — see <c>Review.razor</c>'s own <c>Validation</c>.</summary>
     private ValidationResult Validation => Session.Validate();
+
+    private string CharacterId => DismissedFindings.CharacterKey(Session);
+
+    /// <summary>
+    /// Re-read on every render this component takes part in, so a character switch that leaves
+    /// this component in place never draws with a stale id's dismissals — see
+    /// <c>ChosenRow</c>'s own copy of this reasoning.
+    /// </summary>
+    protected override async Task OnParametersSetAsync() => await Dismissed.LoadAsync(CharacterId);
+
+    private List<ValidationIssue> Visible(IReadOnlyList<ValidationIssue> routed) =>
+        [.. routed.Where(i => !Dismissed.IsDismissed(CharacterId, i))];
+
+    private async Task Dismiss(ValidationIssue issue, IReadOnlyList<ValidationIssue> routed)
+    {
+        await Dismissed.DismissAsync(CharacterId, issue, routed);
+        StateHasChanged();
+    }
 
     private int PackageTalentRank =>
         Session.Sheet.SelectedPackageId is null

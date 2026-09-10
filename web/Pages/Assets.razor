@@ -373,10 +373,16 @@
         <ChosenList>
             @foreach (var contribution in Session.Sheet.CampaignAssets.ToList())
             {
-                <ChosenRow>
+                <ChosenRow Findings="SheetFindings.ForCampaignAssetContribution(Validation, contribution.AssetId)">
                     <Body>@Headline(contribution)</Body>
                     <Actions>
-                        <input type="number" min="0" value="@contribution.HeroPoints" class="units"
+                        @* **The cap is a hint, not a clamp.** min/max on the input keeps the
+                           spinner and the browser's own out-of-range styling honest about where
+                           the rule sits, but typing or pasting past it is still accepted — the
+                           finding above says why it is wrong rather than the box silently
+                           rewriting what somebody typed. *@
+                        <input type="number" min="0" max="@CampaignAssetContribution.MaxHeroPoints"
+                               value="@contribution.HeroPoints" class="units"
                                aria-label="Hero Points"
                                @onchange="e => SetContribution(contribution, contribution with { HeroPoints = Number(e) })" />
                         <button type="button" class="btn small danger"

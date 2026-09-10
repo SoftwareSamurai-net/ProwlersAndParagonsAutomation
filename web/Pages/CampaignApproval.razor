@@ -342,7 +342,7 @@ else
                        differs in style as well as in colour, because a colour difference alone
                        fails WCAG 1.4.1 — see `RowFinding`. A sentence hand-drawn into the body
                        would be the same information with that half taken off it. *@
-                    <ChosenRow Findings="Session.Check(line.Asset)">
+                    <ChosenRow Findings="line.Findings">
                         <Body>
                             <b>@(_rosterRead ? Books(line) : Named(line.Asset))</b>
                             <span class="muted small"><br />@Kind(line.Asset)</span>
@@ -354,10 +354,44 @@ else
 
                             @* **Who paid, largest first**, which is the question a GM has about a
                                shared object — and the one thing on this screen that no single
-                               player's sheet can answer. *@
+                               player's sheet can answer.
+
+                               **Two characters from one account draw as one player**, per the
+                               owner's ruling on item 33.12: a lone contributing character is a
+                               flat row exactly as it always was, and two or more fold under a
+                               parent naming the player rather than either character — nothing
+                               says which account, only that the rows share one. Grouping is
+                               `CampaignAssetLine.ContributorGroups`'s, never decided here. *@
                             @if (_rosterRead)
                             {
-                                <span class="muted small"><br />@Funders(line)</span>
+                                @if (line.Contributors.Count == 0)
+                                {
+                                    <span class="muted small"><br />@NoFunders</span>
+                                }
+                                else
+                                {
+                                    <ul class="funders muted small">
+                                        @foreach (var group in line.ContributorGroups)
+                                        {
+                                            @if (group.IsGrouped)
+                                            {
+                                                <li class="funder-player">
+                                                    @PlayerLabel(group)
+                                                    <ul>
+                                                        @foreach (var member in group.Members)
+                                                        {
+                                                            <li class="funder-character">@Funder(member)</li>
+                                                        }
+                                                    </ul>
+                                                </li>
+                                            }
+                                            else
+                                            {
+                                                <li class="funder-character">@Funder(group.Members[0])</li>
+                                            }
+                                        }
+                                    </ul>
+                                }
 
                                 @* **Reported, and never repaired.** The remedy is somebody putting
                                    more in or the object losing a feature, and both are decisions
@@ -380,6 +414,7 @@ else
                         </Body>
                         <Actions>
                             <button type="button" class="btn small"
+                                    disabled="@(_draft is not null)"
                                     @onclick="() => EditAsset(line.Asset)">Edit</button>
 
                             @* **Two presses**, for the reason removing a player takes two: every
@@ -424,9 +459,17 @@ else
                     <option value="@Headquarters">A headquarters</option>
                 </select>
                 <button type="button" class="btn" aria-label="Add a shared vehicle or base"
-                        disabled="@string.IsNullOrWhiteSpace(_naming)"
+                        disabled="@(string.IsNullOrWhiteSpace(_naming) || _draft is not null)"
                         @onclick="StartAsset">Add</button>
             </div>
+
+            @* **One slot, so a second press has to be refused rather than swapping the draft out
+               from under whoever is mid-edit.** `StartAsset` and `EditAsset` used to replace
+               `_draft` silently; disabling both while one is open, and saying why, is the fix. *@
+            @if (_draft is not null)
+            {
+                <p class="small muted">Finish or cancel the open draft first.</p>
+            }
         }
 
         @* Outside the editor, because saving closes it — the fault this screen already records
@@ -519,7 +562,7 @@ else
                who means to write down an object the book does not allow still can. VehicleRanksNote
                above states the two Control sentences; this is what says whether this object keeps
                them. *@
-            @foreach (var fault in Session.Check(draft with { Name = DraftTitle }))
+            @foreach (var fault in Session.Check(draft with { Name = DraftTitle }, _contributions))
             {
                 <p class="small muted spaced" role="status">@fault.Message</p>
             }
@@ -628,6 +671,14 @@ else
     /// payload could not be read.
     /// </summary>
     private IReadOnlyList<CampaignAssetLine> _ledger = [];
+
+    /// <summary>
+    /// Every contribution any of this campaign's members has recorded, from the same read
+    /// <see cref="_ledger"/> is summed from — kept so the draft editor's own live check can ask
+    /// about a contribution naming the object being edited, exactly as <see cref="_ledger"/>'s own
+    /// findings already do for a saved one.
+    /// </summary>
+    private IReadOnlyList<CampaignAssetContribution> _contributions = [];
 
     /// <summary>
     /// Whether the members' sheets were read, which is what every figure on a shared object is
@@ -762,9 +813,17 @@ else
     /// Every line about a shared object, asked of <c>sheets/</c> and of the engine rather than
     /// composed here — the rule the Vehicles &amp; bases step is written under, and the reason a
     /// figure on this screen cannot disagree with the same figure on a player's.
+    ///
+    /// <para><b>A null <see cref="CampaignAssetLine.Budget"/> is not handed to
+    /// <c>AssetFormatter</c>, which prints no figure this screen has no figure for.</b> The
+    /// contribution the budget could not be trusted to sum from is named in its own sentence — the
+    /// row's finding, drawn beside this one — so this line says only what is still known: the
+    /// object's name and what has been built with it, if anything.</para>
     /// </summary>
     private static string Books(CampaignAssetLine line) =>
-        AssetFormatter.Describe(line.Asset, line.Spent, line.Budget);
+        line.Budget is { } budget
+            ? AssetFormatter.Describe(line.Asset, line.Spent, budget)
+            : Named(line.Asset);
 
     /// <inheritdoc cref="Books"/>
     private static string Kind(CampaignAsset asset) => AssetFormatter.Describe(asset);
@@ -774,15 +833,23 @@ else
         string.Join(", ", asset.Features.Select(
             f => AssetFormatter.Feature(f, Session.Rules, !asset.IsHeadquarters)));
 
+    private const string NoFunders = "Nobody has put anything into this yet.";
+
     /// <summary>
-    /// Who put in, and how much. <b>Never an account or an address</b> — a membership deliberately
+    /// One character's own row. <b>Never an account or an address</b> — a membership deliberately
     /// never tells a GM whose account is on the other side of it, and the label the roster above
     /// draws is the same label here.
     /// </summary>
-    private static string Funders(CampaignAssetLine line) =>
-        line.Contributors.Count == 0
-            ? "Nobody has put anything into this yet."
-            : string.Join(" · ", line.Contributors.Select(c => $"{c.Who} {c.HeroPoints} HP"));
+    private static string Funder(AssetContributor contributor) =>
+        $"{contributor.Who} {contributor.HeroPoints} HP";
+
+    /// <summary>
+    /// The parent row over two or more characters funded by one player. <b>Says a count and a
+    /// sum, never a name</b> — naming the player is the one thing this row exists not to do, since
+    /// nothing on this screen is told which account either character belongs to.
+    /// </summary>
+    private static string PlayerLabel(PlayerGroup<AssetContributor> group) =>
+        $"One player, {group.Members.Count} characters — {group.Total} HP";
 
     private const string OverBudget =
         "More has been built with this than its members have put in. Somebody can put more in, "
@@ -952,9 +1019,10 @@ else
 
         if (at < 0) assets.Add(saved); else assets[at] = saved;
 
-        if (!await Store.SaveAsync(game with { Assets = assets }))
+        var outcome = await Store.SaveAsync(game with { Assets = assets });
+        if (!outcome.Saved)
         {
-            _saidAboutAsset = "That could not be saved just now. Try again in a moment.";
+            _saidAboutAsset = outcome.Message ?? "That could not be saved just now. Try again in a moment.";
             return;
         }
 
@@ -986,9 +1054,10 @@ else
             .Where(a => !string.Equals(a.Id, asset.Id, StringComparison.Ordinal))
             .ToList();
 
-        if (!await Store.SaveAsync(game with { Assets = kept }))
+        var outcome = await Store.SaveAsync(game with { Assets = kept });
+        if (!outcome.Saved)
         {
-            _saidAboutAsset = "That could not be removed just now. Try again in a moment.";
+            _saidAboutAsset = outcome.Message ?? "That could not be removed just now. Try again in a moment.";
             return;
         }
 
@@ -1060,7 +1129,7 @@ else
         // the list stays as it was rather than reporting that everybody has left.
         _rosterRead = inbox is not null;
 
-        IReadOnlyList<(string MembershipId, string Who, CharacterSheet Sheet)> clones = [];
+        IReadOnlyList<(string MembershipId, string Who, string? PlayerKey, CharacterSheet Sheet)> clones = [];
 
         if (inbox is not null)
         {
@@ -1080,7 +1149,8 @@ else
         // campaign's own payload, read above; only what has been put into them needs the clones.
         // Built inside, a failed inbox drew a game that owns nothing over a payload this screen
         // had already opened the objects out of.
-        _ledger = CampaignAssets.Ledger(_campaign, Session.Costs, clones);
+        _ledger = Session.AssetLedger(_campaign, clones);
+        _contributions = [.. clones.SelectMany(m => m.Sheet.CampaignAssets)];
 
         _state = Reading.Read;
     }

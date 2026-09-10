@@ -4,15 +4,24 @@
    hover-description work, and a finding is tempting to fold into the same plumbing — but WCAG
    is explicit that information carried only by a tooltip is information some readers do not
    get, and a rule the character has broken is exactly that kind of information. This renders in
-   the ordinary flow of the page, nothing to hover and nothing to dismiss, whenever the engine
-   has something to say about this row. It is never the only place a finding is said, either —
-   the GM review step still prints every one, in full, with the budget findings this component
-   never sees.
+   the ordinary flow of the page. It is never the only place a finding is said, either — the GM
+   review step still prints every one, in full, with the budget findings this component never
+   sees.
+
+   **A Warning can be dismissed; an Error cannot, and that is drawn here rather than trusted.**
+   `IsError` gates the control below on the same field `Kind`/`Label` already read, so a caller
+   handing this component an Error still gets no way to wave it away — `IsValid` on
+   `ValidationResult` is "no Error", and a dismissable Error would let an illegal character read
+   as legal on screen, against the settled rule that an illegal character is reported and never
+   repaired. The findings this component is handed are already filtered to hide anything already
+   dismissed — see `ChosenRow`, `AbilitiesTab` and `TalentsTab` — so what is drawn here is always
+   what is currently on screen, dismissed or not.
 
    **The engine decides; this only prints what SheetFindings already routed.** Nothing here
    prices, validates, or decides which row an issue belongs to — that is SheetFindings' job,
    reading the SubjectKind/SubjectId/OwnerId CharacterValidator already filled in. This component
-   receives a list already meant for it and draws it.
+   receives a list already meant for it and draws it; dismissing one is a request to whoever fed
+   it that list, never a decision this component makes about the character.
 
    **Error and warning are never colour alone.** A printed word leads every sentence, and the
    left edge differs in *style* as well as in colour — solid against dashed — because a colour
@@ -26,6 +35,12 @@
             <li class="finding @Kind(issue)">
                 <span class="finding-kind">@Label(issue)</span>
                 @issue.Message
+                @if (!IsError(issue))
+                {
+                    <button type="button" class="btn small finding-dismiss"
+                            aria-label="@($"Dismiss: {issue.Message}")"
+                            @onclick="() => Dismiss(issue)">Dismiss</button>
+                }
             </li>
         }
     </ul>
@@ -33,11 +48,19 @@
 
 @code {
     /// <summary>
-    /// The findings that belong to this row, already routed by <see cref="SheetFindings"/>.
-    /// Null or empty draws nothing — most rows break no rule, and a row that is fine should look
-    /// exactly like one nobody has looked at yet.
+    /// The findings that belong to this row, already routed by <see cref="SheetFindings"/> and
+    /// already filtered to drop anything currently dismissed. Null or empty draws nothing — most
+    /// rows break no rule, and a row that is fine should look exactly like one nobody has looked
+    /// at yet.
     /// </summary>
     [Parameter] public IReadOnlyList<ValidationIssue>? Issues { get; set; }
+
+    /// <summary>
+    /// Raised when the reader dismisses one Warning. The feed point that supplied
+    /// <see cref="Issues"/> owns the storage call and the redraw; this component only reports
+    /// which issue was waved off.
+    /// </summary>
+    [Parameter] public EventCallback<ValidationIssue> OnDismiss { get; set; }
 
     // Kept inside @code rather than written as `issue.Severity == ValidationSeverity.Error`
     // in the markup above: NoPageNamesATypeThisProjectDeclares strips the @code block before
@@ -49,4 +72,6 @@
     private static string Kind(ValidationIssue issue) => IsError(issue) ? "error" : "warning";
 
     private static string Label(ValidationIssue issue) => IsError(issue) ? "Error" : "Warning";
+
+    private Task Dismiss(ValidationIssue issue) => OnDismiss.InvokeAsync(issue);
 }

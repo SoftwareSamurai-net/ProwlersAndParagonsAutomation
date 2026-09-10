@@ -288,10 +288,33 @@ table beside `characters` with the same five columns. The contract is `docs/CHAR
   A cascade would delete characters; a `SET NULL` would silently edit characters somebody did not
   have open, and neither can be undone by restoring the campaign. The browser reports the state
   instead — `UNKNOWN_CAMPAIGN`, deliberately the same shape as the engine's `UNKNOWN_TIER`.
-- **No cap and no 409.** `users.character_limit` caps characters. `db.putCampaign` is therefore an
-  ordinary upsert rather than the `INSERT … SELECT … WHERE` that makes `putCharacter`'s cap check
-  race-free — **and if a campaign cap is ever added it has to be written the same way**, inside the
-  statement, not as a read in front of it.
+- **No cap.** `users.character_limit` caps characters, and there is no campaign equivalent — **and
+  if one is ever added it has to be written inside `putCampaign`'s statement**, the way the format
+  check below is, not as a read in front of it.
+- **There is a 409, and it is about the shape of a write, not about how many campaigns exist.**
+  `write` reads `format` from the body, beside `label` and outside `payload` — an older build sends
+  none of it, and that is read as format 0. `db.putCampaign`'s upsert carries
+  `WHERE excluded.payload_format >= campaigns.payload_format` on its `ON CONFLICT … DO UPDATE`,
+  which behaves like `DO NOTHING` when the condition is false: no row changes, `RETURNING id` comes
+  back empty, and that empty result is what `write` reads as "refuse this one, 409". **It is the
+  same race `putCharacter`'s cap check exists to close**, closed the same way — in the statement's
+  own `WHERE`, not as a `SELECT` in front of it — because a read-then-write pair here would let two
+  saves arriving together both see the older format as current.
+
+  **The defect this fixes**: a stale tab reads a campaign leniently, dropping fields it predates —
+  `Assets`, the table rules, the Immortality price — and used to write its own idea of the campaign
+  straight back on Save, silently erasing all three. The message is written for the person, not the
+  developer, because it is shown verbatim in the browser (`ApiCampaignStore.SaveAsync`,
+  `Campaigns.razor`'s `Save`) — this build cannot compose a sentence about a format bump it has
+  never seen, so only the server, which minted both numbers being compared, can say why:
+
+  ```json
+  { "error": "This tab is running an older version of the site. Saving now would erase settings it cannot see — reload the page and try again." }
+  ```
+
+  `d1/migrations/0009_campaign_format.sql` adds the column, `DEFAULT 0` so every row already
+  written is telling the truth about the build that last touched it. `StoredCampaign.PayloadFormat`
+  (`web/`) is the browser's own copy of the current value, with a doc comment saying what it counts.
 - **`join_code` is the one field of a campaign this server can read, and it is a column rather than
   part of the payload for a reason no amount of discipline could get round**: redeeming a code means
   *finding* the campaign it belongs to, and that is a query. It is in the list because the GM has to

@@ -148,10 +148,28 @@ the GM has to be able to read it out to somebody. It cannot live inside `payload
 means finding the campaign it belongs to, which is a query. Null for a campaign written before join
 codes existed. See the membership section below.
 
-Three differences from characters, and each is a decision rather than an omission:
+Four differences from characters, and each is a decision rather than an omission:
 
-- **No `limit`, and no 409.** `users.character_limit` is a cap on *characters*. There is no campaign
-  cap, and answering with one would invent a rule this contract does not have.
+- **No `limit`, and no cap.** `users.character_limit` is a cap on *characters*. There is no campaign
+  cap, and answering with one would invent a rule this contract does not have. The 409 described
+  below is a different thing entirely — not a limit on how many campaigns exist, but a refusal of
+  one particular write.
+- **A `format` integer travels beside `label`, outside `payload`, and the server refuses a write
+  that would move it backwards.** `PUT /api/campaigns/{id}` reads `format` from the write body — an
+  older build, which has never heard of this field, sends none at all, and that is read as format 0.
+  If the incoming format is lower than the one already stored, the write is refused with `409` and
+  changes nothing:
+
+  ```json
+  { "error": "This tab is running an older version of the site. Saving now would erase settings it cannot see — reload the page and try again." }
+  ```
+
+  This is the fix for a real defect: a stale tab reads a campaign leniently — dropping `Assets`, the
+  table rules, and the Immortality price, none of which its own build knows about — and a Save from
+  that tab used to write its own idea of the campaign straight back, erasing all three. The server
+  still reads no field *of the campaign* to make this decision; `format` is a fact about the shape of
+  the payload, carried the same way `label` is. See `d1/migrations/0009_campaign_format.sql` and
+  `StoredCampaign.PayloadFormat` (`web/`) for the current value and what it covers.
 - **Account only, with no browser half at all.** This used to have one — `pp.campaign.v1`, beside
   the characters, written before there was a screen. A campaign exists so that two accounts can hand
   a snapshot between them: one kept in a single browser can never receive a submission, hold a

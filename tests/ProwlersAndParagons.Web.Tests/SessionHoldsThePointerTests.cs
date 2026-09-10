@@ -194,7 +194,7 @@ public sealed class SessionHoldsThePointerTests
         var status = layout.Find(".save-status");
 
         Assert.Contains("has not been kept", status.TextContent, StringComparison.Ordinal);
-        Assert.Equal("build/characters", status.QuerySelector("a")?.GetAttribute("href"));
+        Assert.Equal("characters", status.QuerySelector("a")?.GetAttribute("href"));
         Assert.Contains(
             status.QuerySelectorAll("button"),
             b => b.TextContent.Trim() == "Try again");

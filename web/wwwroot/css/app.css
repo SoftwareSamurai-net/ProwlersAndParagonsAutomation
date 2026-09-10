@@ -1481,6 +1481,10 @@ label {
 .finding.error .finding-kind { color: var(--danger); }
 .finding.warning .finding-kind { color: var(--heading); }
 
+/* Only ever drawn on a Warning's own <li> — see RowFinding.razor's IsError gate. Spaced off
+   the sentence it dismisses the same way .finding-kind is spaced off the words after it. */
+.finding-dismiss { margin-left: var(--space-2); }
+
 .tag {
     display: inline-block;
     font-family: var(--font-display);

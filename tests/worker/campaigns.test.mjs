@@ -27,9 +27,12 @@ const gid = (n = 0) => 'g_000000000000000000000' + n;
 /** A well-formed character id, the same trick with the other letter. */
 const cid = (n = 0) => 'c_000000000000000000000' + n;
 
-const putCampaign = (app, cookie, { theId = gid(), label, payload = campaign } = {}) =>
+/** `campaign`, with a different `Name` — distinguishable in the raw bytes a read hands back. */
+const named = name => ({ ...campaign, Campaign: { ...campaign.Campaign, Name: name } });
+
+const putCampaign = (app, cookie, { theId = gid(), label, payload = campaign, format } = {}) =>
     app.call(`/api/campaigns/${theId}`,
-        { method: 'PUT', body: { label, payload: JSON.stringify(payload) }, cookie });
+        { method: 'PUT', body: { label, payload: JSON.stringify(payload), format }, cookie });
 
 test('a campaign follows its account to another browser', async () => {
     const app = server();
@@ -275,4 +278,79 @@ test('a campaign is not a character and does not count against the cap', async (
         assert.equal((await putCampaign(app, cookie, { theId: gid(i), label: `G${i}` })).status, 204,
             'a campaign was refused for a cap that is not about campaigns');
     }
+});
+
+// ── `payload_format`: an older build's save must not erase what it cannot see ────────────
+
+test('a save with no format at all is treated as format 0, exactly like an older build', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    // Nothing has ever written this campaign, so the stored format defaults to 0 (the column's
+    // own DEFAULT) and a write naming no format at all — the shape an older build sends — has to
+    // land rather than being refused against a row that does not yet exist.
+    assert.equal((await putCampaign(app, cookie, { label: 'First' })).status, 204);
+
+    const read = await app.call(`/api/campaigns/${gid()}`, { cookie });
+    assert.equal(read.status, 200);
+});
+
+test('a lower format after a higher one is refused with the sentence written for the reader', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    assert.equal((await putCampaign(app, cookie,
+        { label: 'Newer', payload: named('Newer'), format: 1 })).status, 204);
+
+    const refused = await putCampaign(app, cookie,
+        { label: 'Older tab', payload: named('Older tab'), format: 0 });
+    assert.equal(refused.status, 409);
+
+    const body = await refused.json();
+    assert.equal(body.error,
+        'This tab is running an older version of the site. Saving now would erase settings it '
+        + 'cannot see — reload the page and try again.');
+
+    // **Nothing was written.** The refusal is only honest if the stored campaign is untouched —
+    // a merge, even a partial one, would be the same loss this feature exists to prevent, one
+    // field at a time.
+    const read = await app.call(`/api/campaigns/${gid()}`, { cookie });
+    assert.equal((await read.json()).Campaign.Name, 'Newer');
+});
+
+test('the same format saves cleanly, and a higher one after it also lands', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    assert.equal((await putCampaign(app, cookie,
+        { label: 'One', payload: named('One'), format: 1 })).status, 204);
+    assert.equal((await putCampaign(app, cookie,
+        { label: 'Still one', payload: named('Still one'), format: 1 })).status, 204);
+    assert.equal((await putCampaign(app, cookie,
+        { label: 'Two', payload: named('Two'), format: 2 })).status, 204);
+
+    const read = await app.call(`/api/campaigns/${gid()}`, { cookie });
+    assert.equal((await read.json()).Campaign.Name, 'Two');
+});
+
+test('a format that is not an integer is refused before it reaches storage', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    for (const bad of ['1', 1.5, true, {}, [1], null]) {
+        assert.equal((await putCampaign(app, cookie, { label: 'Bad', format: bad })).status, 400,
+            `format ${JSON.stringify(bad)} was not refused`);
+    }
+});
+
+test('a read is unaffected by the format check — the bytes come back exactly as stored', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    await putCampaign(app, cookie, { label: 'Newer', format: 1 });
+    await putCampaign(app, cookie, { label: 'Older tab', format: 0 }); // refused, 409
+
+    const read = await app.call(`/api/campaigns/${gid()}`, { cookie });
+    assert.equal(read.status, 200);
+    assert.deepEqual(await read.json(), campaign);
 });

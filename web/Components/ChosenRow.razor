@@ -1,3 +1,5 @@
+@inject CharacterSession Session
+@inject DismissedFindings Dismissed
 @* One entry in a <ChosenList>: what was chosen, what it cost, and what can be done to it.
 
    Both slots are named because Blazor will not mix named child content with unnamed.
@@ -6,7 +8,12 @@
    still be one list item.** `.chosen > li` used to be the flex row itself; a finding rendered as
    a fourth flex child would sit beside the buttons rather than under them, on whatever room was
    left. Moving the flex layout onto the wrapper leaves the `<li>` free to stack the row and the
-   finding in the ordinary block direction. *@
+   finding in the ordinary block direction.
+
+   **This is one of the three places a dismissed Warning is hidden**, alongside `AbilitiesTab`
+   and `TalentsTab` — see `DismissedFindings`. `Findings` still carries everything
+   `SheetFindings` routed here, dismissed or not, because dismissing one more needs the full list
+   to prune correctly against; `Visible` is what actually reaches `RowFinding`. *@
 
 <li>
     <div class="chosen-row">
@@ -17,7 +24,7 @@
         }
         @Actions
     </div>
-    <RowFinding Issues="Findings" />
+    <RowFinding Issues="Visible" OnDismiss="Dismiss" />
 </li>
 
 @code {
@@ -31,8 +38,28 @@
 
     /// <summary>
     /// Findings the engine has against whatever this row represents, already routed to it by
-    /// <see cref="SheetFindings"/>. Null or empty for a row nothing is wrong with — see
-    /// <see cref="RowFinding"/>.
+    /// <see cref="SheetFindings"/> — every one, dismissed or not. Null or empty for a row
+    /// nothing is wrong with — see <see cref="RowFinding"/>.
     /// </summary>
     [Parameter] public IReadOnlyList<ValidationIssue>? Findings { get; set; }
+
+    private string CharacterId => DismissedFindings.CharacterKey(Session);
+
+    /// <summary>What actually reaches <see cref="RowFinding"/>: <see cref="Findings"/> minus
+    /// whatever is currently dismissed for this character.</summary>
+    private List<ValidationIssue> Visible =>
+        Findings is null ? [] : [.. Findings.Where(i => !Dismissed.IsDismissed(CharacterId, i))];
+
+    /// <summary>
+    /// Re-read on every render this component takes part in, so a character switch — which
+    /// re-renders this tree without necessarily recreating it — never draws with a stale id's
+    /// dismissals.
+    /// </summary>
+    protected override async Task OnParametersSetAsync() => await Dismissed.LoadAsync(CharacterId);
+
+    private async Task Dismiss(ValidationIssue issue)
+    {
+        await Dismissed.DismissAsync(CharacterId, issue, Findings ?? []);
+        StateHasChanged();
+    }
 }

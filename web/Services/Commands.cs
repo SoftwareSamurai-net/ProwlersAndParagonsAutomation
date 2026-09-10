@@ -38,6 +38,17 @@ public enum CommandKind
     /// </para>
     /// </summary>
     Passage,
+
+    /// <summary>
+    /// Go to the roster, <c>/characters</c> — every character this browser or account holds.
+    ///
+    /// <para><b>Its own kind rather than <see cref="Step"/>, though both are a plain navigation
+    /// to <see cref="Commands.Run"/>.</b> The roster is not one of the seven creation steps and is
+    /// never counted as one: several tests compare how many <see cref="Step"/>-kind rows the
+    /// palette offers against <see cref="Commands.Steps"/>'s own count, and a roster row wearing
+    /// that kind would inflate that count by one for any query it happens to match.</para>
+    /// </summary>
+    Roster,
 }
 
 /// <summary>
@@ -121,6 +132,25 @@ public sealed class Commands
     /// move with them next time.</para>
     /// </summary>
     public static string FirstStep => Steps[0].Target;
+
+    /// <summary>
+    /// The roster, offered by the palette once something has been typed — never among the seven
+    /// steps above.
+    ///
+    /// <para><b>It is not in <see cref="Steps"/>, because that list feeds the numbered step band
+    /// as well as the palette.</b> <c>StepNav</c> draws one entry per item in it with a running
+    /// index; the roster is not a creation step and has no number to wear — it is its own area,
+    /// <see cref="Area.Characters"/>, precisely so nothing calls it one. Matched like the Powers
+    /// and Chapter 6's rows below rather than offered on an empty box: an empty box is "where do I
+    /// want to go", and <see cref="Steps"/> alone answers that — a reader who has not typed
+    /// anything is not asking for the roster any more than for a specific Power.</para>
+    /// </summary>
+    private static readonly Command RosterCommand = new(
+        CommandKind.Roster,
+        "characters",
+        "Your characters",
+        "Open, switch, or start another",
+        ["roster", "characters", "switch", "manage"]);
 
     /// <summary>Whether the palette is on screen.</summary>
     public bool IsOpen { get; private set; }
@@ -435,6 +465,9 @@ public sealed class Commands
         }
 
         if (query.Length == 0) return found;
+
+        if (OptionFilter.Matches(query, [RosterCommand.Label, RosterCommand.Detail, .. RosterCommand.Keywords]))
+            found.Add(RosterCommand);
 
         foreach (var power in _session.Rules.Powers.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {

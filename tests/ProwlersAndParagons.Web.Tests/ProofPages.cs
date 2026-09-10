@@ -2204,7 +2204,7 @@ public sealed class ProofPages
         <div id="verdict">measuring…</div>
         <iframe id="f" src="__PP_ALIGN_TARGET__"></iframe>
         <script>
-        document.getElementById('f').addEventListener('load', () => {
+        document.getElementById('f').addEventListener('load', async () => {
           const box = document.getElementById('verdict');
           const say = (ok, detail) => {
             document.title = ok ? 'ALIGN: PASS' : 'ALIGN: FAIL';
@@ -2213,6 +2213,18 @@ public sealed class ProofPages
           };
           try {
             const d = document.getElementById('f').contentDocument;
+
+            // **Measure the banner in the face the reader sees, not in whatever Chrome drew while
+            // the webfont was still arriving.** `load` fires on the iframe before `font-display:
+            // swap` has finished swapping, and on the CI runner the fallback for the display face
+            // is a wide generic sans: in it the four avenues and the wordmark run ~150px wider,
+            // the tools wrap onto a second line, and this harness reported a 48px "spread" for a
+            // banner that sits on one line in Oswald — the day a fourth avenue was added, on a
+            // tree the goldens (which do wait) showed correct. So wait for the fonts, and say in
+            // the detail which face was measured, so a runner where the font never loads is a
+            // reading somebody can see rather than a fallback that happened to fit.
+            await d.fonts.ready;
+            const faces = [...d.fonts].filter(f => f.status === 'loaded').map(f => f.family);
 
             // Every one-line item in the band, named by the element that directly holds its
             // text. `.banner-title` is deliberately absent — two lines, `align-self: center`,
@@ -2250,13 +2262,15 @@ public sealed class ProofPages
             // declarations are held by the pixel goldens and by the eye, not by this page; see
             // the note on the rule itself in `app.css`.
             const parts = [
-              ['build',    '.avenue-nav .banner-link'],
-              ['rules',    '.avenue-nav .banner-link'],
-              ['character','.character-switch-name'],
-              ['search',   '.palette-open'],
-              ['chord',    '.palette-open .key'],
-              ['account',  '.banner-account'],
-              ['settings', '.settings-open-label'],
+              ['build',      '.avenue-nav .banner-link'],
+              ['characters', '.avenue-nav .banner-link'],
+              ['run',        '.avenue-nav .banner-link'],
+              ['rules',      '.avenue-nav .banner-link'],
+              ['character',  '.character-switch-name'],
+              ['search',     '.palette-open'],
+              ['chord',      '.palette-open .key'],
+              ['account',    '.banner-account'],
+              ['settings',   '.settings-open-label'],
             ];
 
             // **The baseline, not the box and not the line-box centre.** An empty inline-block
@@ -2296,9 +2310,9 @@ public sealed class ProofPages
             const seen = new Map();
 
             for (const [name, sel] of parts) {
-              // Two rows name the same selector — the pair of avenues — so each takes the next
-              // match rather than the first. `querySelector` would have measured Build twice and
-              // reported a spread of zero across a row where Rules had been pushed out of line.
+              // Four rows name the same selector — the row of avenues — so each takes the next
+              // match rather than the first. `querySelector` would have measured Build four times
+              // and reported a spread of zero across a row where Rules had been pushed out of line.
               const nth = seen.get(sel) || 0;
               seen.set(sel, nth + 1);
 
@@ -2321,6 +2335,7 @@ public sealed class ProofPages
 
             say(complete && spread < 0.5,
               `target ${document.getElementById('f').getAttribute('src')}  items ${found.length} of ${parts.length}\n` +
+              `faces loaded: ${faces.length ? faces.join(', ') : 'none — measured in the fallback'}\n` +
               `${rows.join('\n')}\n    spread ${spread.toFixed(2)}px (want < 0.5)`);
           } catch (e) {
             say(false, 'blocked: ' + e.message);

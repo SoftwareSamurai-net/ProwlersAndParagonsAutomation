@@ -609,6 +609,38 @@ public sealed class AssetValidationTests
     }
 
     /// <summary>
+    /// <b>Ruling 7, 2026-09-10: a contribution above the owner's cap is reported before it ever
+    /// reaches <see cref="CostCalculator.CampaignAssetBudget"/>'s arithmetic.</b> An
+    /// unlimited-budget game makes a hundred-million-Hero-Point contribution legal on its own
+    /// terms, and the owner's answer to "how large is too large" was a flat figure: a game would
+    /// never exceed <see cref="CampaignAssetContribution.MaxHeroPoints"/> on a single Hero.
+    /// </summary>
+    [Fact]
+    public void AContributionAboveTheOwnersCapIsReportedAndStillCharged()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-1")
+        {
+            Name = "The Wing", Kind = CampaignAssetContribution.Vehicle,
+            HeroPoints = CampaignAssetContribution.MaxHeroPoints
+        });
+
+        Assert.False(Reports(sheet, "CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE"));
+
+        sheet.CampaignAssets[0] = sheet.CampaignAssets[0] with
+        {
+            HeroPoints = CampaignAssetContribution.MaxHeroPoints + 1
+        };
+
+        var issue = Only(sheet, "CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE");
+        Assert.Equal(CampaignAssetContribution.MaxHeroPoints + 1, issue.Value);
+        Assert.Equal(CampaignAssetContribution.MaxHeroPoints, issue.Limit);
+
+        // Never repaired: the figure the sheet says is what a caller still gets.
+        Assert.Equal(CampaignAssetContribution.MaxHeroPoints + 1, sheet.CampaignAssets[0].HeroPoints);
+    }
+
+    /// <summary>
     /// <b>The same machine recorded twice is warned about and charged twice.</b> A warning rather
     /// than an error because nothing here is illegal — a character may buy the Perk twice over —
     /// and the total stays what the sheet says, which is the "never repaired" half.

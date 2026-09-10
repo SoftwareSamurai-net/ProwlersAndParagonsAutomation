@@ -147,14 +147,14 @@ Sign in to **[resend.com](https://resend.com)**. Then:
    The key can be created before verification finishes if you would rather not wait, but a send
    against an unverified domain is refused, so there is nothing to test until the row is green.
 
-### 4b. Three variables on the Pages project
+### 4b. Five variables on the Pages project
 
 **In the Cloudflare dashboard:**
 
 **Workers & Pages → your Pages project → Settings tab → Environment variables**
 
-Add three, all for **Production** and **encrypted** (click the encrypt checkbox — the Resend key
-is a real credential):
+Add five, all for **Production** and **encrypted** (click the encrypt checkbox — the Resend key
+and the player-key secret are both real credentials):
 
 | Name | Value |
 |---|---|
@@ -162,6 +162,7 @@ is a real credential):
 | `MAIL_FROM` | `no-reply@superheroes.softwaresamurai.net` — or any address on the verified domain |
 | `SITE_URL` | `https://superheroes.softwaresamurai.net` — no trailing slash |
 | `ADMIN_EMAIL` | your own address — the one account that can always sign in and manage the rest |
+| `PLAYER_KEY_SECRET` | a fresh random string — see below |
 
 **`MAIL_FROM` need not be a mailbox that exists.** Nothing ever delivers to it — it is the `From`
 line and nothing else, and Resend checks only that the domain part is one you verified. A reply to
@@ -180,8 +181,27 @@ the database, because a committed address would be this repository owner's own �
 him the administrator of every fork. A site that signs nobody in is visibly broken; one that lets a
 stranger in is not.
 
-**All four are required, `SITE_URL` included.** It is what sign-in links point at, and the server
+**`PLAYER_KEY_SECRET` is not a credential to anything and nothing hands it to you** — unlike the
+other four, which come from Resend or are your own address, this one you mint yourself, once, and
+it never has to be memorable:
+
+```bash
+openssl rand -base64 32
+```
+
+Paste the output in as the value. It is what a GM's inbox uses to say that two of a campaign's
+memberships share a player, without ever saying which one — see
+[`docs/guide/accounts-server.md`](guide/accounts-server.md#a-campaigns-clone-of-a-character-and-the-one-place-the-scoping-rule-bends)
+for what it protects and why a keyed hash is safe to compute. **Rotating it is safe and cheap**:
+the worst a rotation does is make two characters that used to read as one player read as two
+strangers again for a moment, on the next time either row is listed — no data is lost, because
+nothing is stored *under* the key, only computed from it on the way out.
+
+**All five are required, `SITE_URL` included.** It is what sign-in links point at, and the server
 **refuses to send one at all** without it — `/api/auth/request` answers 500 and writes nothing.
+`PLAYER_KEY_SECRET` is required in the same way: missing it fails the GM's inbox loudly, as a
+`configuration` error, rather than silently answering a key that means nothing or, worse, the same
+key for every campaign.
 
 That refusal is deliberate and replaced a fallback. The link used to be addressed from the origin
 of the request, which is derived from the host it arrived on — and the CSRF check compares the

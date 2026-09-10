@@ -105,6 +105,17 @@ public enum MembershipDecision
 /// two booleans</b>, which is the whole reason it is on the wire: a rejection leaves them exactly
 /// as an approval of an earlier snapshot does.
 /// </param>
+/// <param name="PlayerKey">
+/// A hint that this row shares an account with another one in the same game — never which
+/// account. <b>Only ever set on a GM's own inbox row</b>, which is what
+/// <see cref="ApiMembershipStore.InboxAsync"/> reads it off; <see cref="ApiMembershipStore.MineAsync"/>
+/// never binds it at all, so a player's own list carries null here even if a future server ever
+/// sent one by mistake. <b>Null on an older server</b>, deliberately — a server that has not
+/// learned to send this must not be read as "every row is its own player", which would be a claim
+/// this build invented rather than one the server made; see <see cref="CampaignAssets.Ledger"/>,
+/// which groups by this key and treats null as "groups with nobody, ever" for exactly that
+/// reason.
+/// </param>
 public sealed record MembershipSummary(
     string Id,
     string CampaignId,
@@ -115,7 +126,8 @@ public sealed record MembershipSummary(
     bool HasPending,
     long? PendingAt,
     int PendingVersion,
-    MembershipDecision Decision = MembershipDecision.None)
+    MembershipDecision Decision = MembershipDecision.None,
+    string? PlayerKey = null)
 {
     /// <summary>
     /// Where this character stands. Read off the two slots rather than stored, because a third
@@ -279,9 +291,33 @@ public sealed class ApiMembershipStore
     /// <para>Across every campaign in one call, because both screens want it: the campaign list
     /// needs a waiting count per game and the approval screen needs the rows of one. Two calls
     /// could disagree about the count.</para>
+    ///
+    /// <para><b>Its own wire shape rather than <see cref="ListAsync"/>'s</b>, because this is the
+    /// one list that carries <c>playerKey</c> — a player's own list never does, and
+    /// <c>AccountsContractTests.TheMembershipKeysOnTheWireAreSpelledTheSameAtBothEnds</c> holds
+    /// <see cref="WiredRow"/> to exactly what <c>asPlayerRow</c> sends. Giving both routes one
+    /// record would mean that guard either missing this field on the GM's side or failing on the
+    /// player's for a field it correctly never sends.</para>
     /// </summary>
-    public async Task<IReadOnlyList<MembershipSummary>?> InboxAsync() =>
-        await ListAsync($"{List}/inbox");
+    public async Task<IReadOnlyList<MembershipSummary>?> InboxAsync()
+    {
+        try
+        {
+            using var response = await _http.GetAsync($"{List}/inbox");
+            if (!response.IsSuccessStatusCode) return null;
+
+            var listed = await response.Content.ReadFromJsonAsync<WiredGmList>(Wire);
+            if (listed?.Memberships is null) return null;
+
+            return [.. listed.Memberships
+                .Where(m => m is { Id.Length: > 0, CampaignId.Length: > 0 })
+                .Select(m => new MembershipSummary(
+                    m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
+                    m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion,
+                    Decided(m.Decision), m.PlayerKey))];
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return null; }
+    }
 
     private async Task<IReadOnlyList<MembershipSummary>?> ListAsync(string address)
     {
@@ -599,6 +635,26 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("pendingAt")] long? PendingAt,
         [property: JsonPropertyName("pendingVersion")] int PendingVersion,
         [property: JsonPropertyName("decision")] string? Decision);
+
+    /// <summary>
+    /// The GM's inbox list, which is <see cref="WiredList"/> plus <see cref="WiredGmRow.PlayerKey"/>
+    /// — see <see cref="InboxAsync"/> for why this is not the shared shape.
+    /// </summary>
+    private sealed record WiredGmList(
+        [property: JsonPropertyName("memberships")] WiredGmRow[]? Memberships);
+
+    private sealed record WiredGmRow(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("campaignId")] string? CampaignId,
+        [property: JsonPropertyName("characterId")] string? CharacterId,
+        [property: JsonPropertyName("label")] string? Label,
+        [property: JsonPropertyName("hasApproved")] bool HasApproved,
+        [property: JsonPropertyName("approvedAt")] long? ApprovedAt,
+        [property: JsonPropertyName("hasPending")] bool HasPending,
+        [property: JsonPropertyName("pendingAt")] long? PendingAt,
+        [property: JsonPropertyName("pendingVersion")] int PendingVersion,
+        [property: JsonPropertyName("decision")] string? Decision,
+        [property: JsonPropertyName("playerKey")] string? PlayerKey);
 
     private sealed record WiredDetail(
         [property: JsonPropertyName("id")] string? Id,

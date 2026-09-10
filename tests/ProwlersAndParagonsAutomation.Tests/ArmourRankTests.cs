@@ -124,13 +124,65 @@ public sealed class ArmourRankTests
             + "and Toughness is 2d, so the higher of the two is Toughness and this test proves nothing.");
 
         Assert.Equal(ownRank + 2, _f.Derived.ArmorFromGear(sheet));
+    }
 
-        // And it is capped, not exempt: a Power well above the limit still tops out at 6 + 2.
+    /// <summary>
+    /// <b>A suit never lowers a wearer's own Armor</b> — the owner's 2026-09-10 ruling. p.88 calls
+    /// what a suit does a grant and what an existing Armor Power gets an option; neither is a
+    /// subtraction, so a Power well above the Gear Limit is not capped down to it: Armor 12d in
+    /// Plate prints 12d, and the suit contributes nothing. This is the case the ruling's own
+    /// example names, and it is the opposite of the old behaviour, which this test used to pin at
+    /// 8 before the ruling.
+    /// </summary>
+    [Fact]
+    public void ASuitNeverLowersAWearersOwnArmor()
+    {
         var superhuman = InPlate(2);
         superhuman.SelectedPowers.Add(new SelectedPower("armor", 12));
 
-        Assert.Equal(8, _f.Derived.ArmorFromGear(superhuman));
+        var ownRank = _f.Derived.GetEffectiveRank(superhuman.GetPower("armor")!, superhuman);
+
+        Assert.Equal(ownRank, _f.Derived.ArmorFromGear(superhuman));
+        Assert.True(_f.Derived.WornArmorSuitContributesNothing(superhuman));
     }
+
+    /// <summary>
+    /// <b>The boundary, driven from both sides.</b> Plate's bonus is +2 and the default Gear Limit
+    /// is 6d, so the suit's own contribution tops out at 8d. An own Armor rank of 7d is still below
+    /// that and the suit still supplies the higher figure; at 8d the two are equal; at 9d the
+    /// wearer's own rank is what governs and the suit adds nothing — the floor from the ruling
+    /// above, exercised one die on either side of where it starts to matter.
+    /// </summary>
+    [Fact]
+    public void TheOwnArmorFloorIsExercisedFromBothSidesOfWhatTheSuitWouldGrant()
+    {
+        var justBelow = ArmorRankInSuitAt(7);
+        var atTheBoundary = ArmorRankInSuitAt(8);
+        var justAbove = ArmorRankInSuitAt(9);
+
+        Assert.Equal(8, justBelow); // the suit's capped contribution still wins
+        Assert.False(_f.Derived.WornArmorSuitContributesNothing(SheetWithOwnArmor(7)));
+
+        Assert.Equal(8, atTheBoundary); // equal either way, so either reading answers 8
+
+        Assert.Equal(9, justAbove); // the wearer's own rank now wins, floored rather than capped
+        Assert.True(_f.Derived.WornArmorSuitContributesNothing(SheetWithOwnArmor(9)));
+    }
+
+    /// <summary>
+    /// A sheet in Plate whose own Armor Power sits at exactly <paramref name="ownArmorRank"/>,
+    /// built by giving Armor no baseline contribution (Toughness 0) and purchasing the rank
+    /// directly, so the figure under test is exact rather than derived from a baseline formula.
+    /// </summary>
+    private CharacterSheet SheetWithOwnArmor(int ownArmorRank)
+    {
+        var sheet = InPlate(0);
+        sheet.SelectedPowers.Add(new SelectedPower("armor", ownArmorRank));
+        return sheet;
+    }
+
+    private int ArmorRankInSuitAt(int ownArmorRank) =>
+        _f.Derived.ArmorFromGear(SheetWithOwnArmor(ownArmorRank))!.Value;
 
     /// <summary>
     /// <b>Only the best suit answers.</b> A character wearing two suits is wearing one and carrying

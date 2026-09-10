@@ -76,10 +76,10 @@ as in scope. **Nothing here is a defect.**
 **Waiting on the owner — not work an agent can pick up**
 
 - [x] **[13](#13-the-owners-branding-and-the-sign-in-email)** — the owner's favicons and manifest are served and the mark sits in the banner beside the wordmark, on all four palettes; the four shell goldens were regenerated on the runner. Verified by the orchestrator 2026-09-09: the manifest's colour format and its need for an unmasked icon each went red under mutation. Two choices are recorded in the entry for the owner
-- [ ] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — whether character variants deserve a mechanism; its own entry recommends deferring
 
 **Ready to build, specified enough to start**
 
+- [ ] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — character variants get a mechanism: **the owner said yes on 2026-09-10**, with one condition — every character already in the app must fit it — and one open question recorded in the entry: whether the Alternate Form Power should use the same mechanism. Not yet designed
 - [ ] **[1](#1-close-the-last-three-heroes)** — the last three Heroes, 1 HP out each. **T-Kay closed on the owner's ruling of 2026-09-06** that her `Limited` is somewhat limited; the interaction hypothesis was swept 2026-09-05 and is negative — see the entry; nothing cheap is left
 - [x] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver, and `kill_tree` proved directly. Verified by the orchestrator 2026-09-05: nine checks green, nine twins red on the kind each declares, both drivers, no process left behind. **CI run 33949251306 then proved the Linux leak for real** — the port holder survived outside the tree — and the cause is recorded in the entry; the fix's Linux verdict was given by run 33960793977: all seven kill-tree checks green on `ubuntu-latest`, the real wrangler tree included, and no "still listening" warning anywhere in the job
 - [x] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement, and the rulebook corpus behind `Ctrl`/`⌘`+`K`. Verified by the orchestrator 2026-09-05; what remains of the search bullet is the banner field, recorded in the entry
@@ -109,7 +109,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
 
 - [x] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment became mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle, a base and a Gadget in their own currencies, the sheet prints them, the palette offers them, the fight reads scenery Structure, and a campaign holds the shared objects its members fund. Verified by the orchestrator 2026-09-10 across four pull requests: the Gear-Limit cap and the budget-silencing flag, the knockback's smash-through tie, the headquarters currency and the base-budget boundary, and the shared object's id filter and kind clause each went red under mutation
-- [ ] **[33](#33-decisions-chapter-6-left-to-the-owner)** — twelve design questions the four Chapter 6 reviews raised and nothing in the book settles; each is built one way meanwhile and says which
+- [ ] **[33](#33-decisions-chapter-6-left-to-the-owner)** — twelve Chapter 6 design questions, **all twelve answered by the owner on 2026-09-10**; **rulings 1, 7, 8, 10, 11 and 12 are built** (see the pull request that carried them; each guard was broken and watched red by the orchestrator as well as by the agent that wrote it). Still to build: 2 (feature prerequisites), 4 (a shared base's Teamwork) and 5+6, the largest, which reshapes shared objects so a player proposes a vehicle or base and the GM approves it in item 26's submission shape — its design is accepted and in the entry
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -1450,6 +1450,26 @@ code mutated to "last character's" went red on three theory cases.
 
 ### 21. Variants of one character are a naming convention doing a structure's job
 
+**Answered 2026-09-10: build it, with one constraint and one question still open.**
+
+- **Open: should the Alternate Form Power use the same mechanism?** The owner raised it as a
+  question, not a ruling — they have not read that Power. Chapter 2's `alternate_form` says the
+  form is *"built as a separate character with its own Hero Point budget"*, both forms pay for the
+  Power, and they share one Resolve pool. Today nothing in `engine/`, `sheets/`, `web/` or `cli/`
+  reads that Power beyond pricing it — a player builds two sheets and puts the relationship in the
+  names, which is the same naming convention this entry is about. If it is folded in, the
+  relationship has a third kind beside *later version* and *as another audience sees them*, and
+  that kind carries rules the other two do not (shared Resolve, budget set by the paid power level).
+  Decide before designing, because a link that carries rules and a link that carries none are
+  different shapes.
+- **It must fit every character already in the app.** No migration that asks the owner to rebuild
+  a roster; existing sheets stay valid with no relationship, and one is attached afterwards. That
+  rules out making the link a required field, and it rules out anything that changes an existing
+  export's bytes when no relationship has been declared.
+
+The paragraph that follows, and the recommendation it carried, is kept as the reasoning the answer
+was given against; the "wait and see" half of it is superseded.
+
 **Left ajar rather than decided.** The owner's roster holds *Cael Hughes — Emergence*, *— Realised*
 and *— After School Specials*; two characters called *Emir Hughes*; and *Lena (true capability — GM
 eyes only)* beside *Lena (as observed)*. Those are versions and secrets, expressed in a name because
@@ -2242,39 +2262,141 @@ clause went red in both when inverted.
 
 ### 33. Decisions Chapter 6 left to the owner
 
-**Every one of these is built one way today and says so; none blocks anything.** They are here so
-the owner can answer them in one sitting rather than find them one at a time in item 32's entry.
+**Answered 2026-09-10, all twelve; six built the same day.** Each question is kept with its
+ruling beneath it. Rulings 1, 7, 8, 10, 11 and 12 landed in one pull request; 3 needed nothing;
+2, 4 and 5+6 are still marked **build** and are the open work here.
+
+**Ruling 12 adds a server secret, and the deploy needs it before the GM's inbox will answer.**
+`PLAYER_KEY_SECRET` signs the per-campaign player key; the worker refuses the inbox loudly without
+it, by design, so a deploy that has not set it breaks every GM's approval page. Set it before
+merging to `main`: `openssl rand -base64 32`, then the Pages project's environment variables (and
+`.dev.vars` locally — never written by an agent). `docs/ACCOUNTS-SETUP.md` carries it.
 
 1. **Does a suit of armour make a superhuman worse?** A wearer whose own Armor Power exceeds the
-   Gear Limit gets less from a suit than they have without it — Armor 12d in Plate prints 8d. As
-   built, p.87's cap binds a substituted Power rank too; the alternative floors the figure at the
-   wearer's own Power, on the ground that p.88 grants a rank and never removes one.
+   Gear Limit gets less from a suit than they have without it — Armor 12d in Plate prints 8d.
+   **Ruling: the book decides, and it does.** The owner's rule of thumb was that the specific rule
+   beats the general one, and p.88's specific rule is that armour *"grants you the Armor Power"* and
+   that a wearer who already has Armor *"can use it in place of Toughness"* — a grant and an option,
+   neither of which takes a rank away. So a suit floors at the wearer's own rank: Armor 12d in Plate
+   prints 12d, and the suit contributes nothing. **Build**: `DerivedStatsCalculator.ArmorFromGear`
+   takes the max of the wearer's own Power and the capped gear figure, with the p.88 words in the
+   guard's message.
 2. **A structured prerequisite on vehicle features.** p.100's "only vehicles with Swimming can have
-   this feature" is prose nothing checks, so a Submersible with no Swimming validates clean; a
-   `requires_features` field beside the prose would make it and Transforming's two-of-four
-   checkable. Pinned by a test that fails the day the gap closes.
-3. **Two copies of one flat feature** on one vehicle — two Sensors for 20 Vehicle Points — where
-   p.96 says "any number of features" and prints no rule either way. Accepted today.
-4. **A shared base's Training Facilities grant nobody Teamwork.** `CalculateTeamwork` reads the
-   sheet's own bases. Each member, one pool for the team, or nothing?
-5. **A surplus contribution is unreported.** Ten Hero Points into a base that has spent six of the
-   thirty they bought says nothing; over-budget is reported, under-budget is silent, as a character's
-   own machine behaves.
-6. **Only the GM may write a shared object**, because only the GM writes the campaign's payload. A
-   player proposing one would be a membership-side submission of item 26's shape.
+   this feature" is prose nothing checks, so a Submersible with no Swimming validates clean.
+   **Ruling: check it.** **Build**: a `requires_features` field beside the prose on `vehicles.json`
+   for Submersible and Transforming's two-of-four, read by the validator as a Warning; the test
+   pinning the gap flips to asserting the check.
+3. **Two copies of one flat feature** on one vehicle — two Sensors for 20 Vehicle Points. p.96 says
+   "any number of features" and prints no rule against it. **Ruling: acceptable as built.** Nothing
+   to do.
+4. **A shared base's Training Facilities grant nobody Teamwork.** **Ruling: every approved member
+   of the campaign gets it**, the way an owner gets it from their own base — still one point however
+   many bases carry the feature. **Build**: `CalculateTeamwork` reads the campaign's shared bases
+   the member has been approved into, browser-side where the sheet is priced against its campaign.
+5. **A surplus contribution is unreported**, and
+6. **Only the GM may write a shared object.** **Ruling, covering both: the players hold the
+   object, and the GM approves it.** The points are the players' own from character creation and
+   must never be stranded or spent for them; a player presents their best effort — the vehicle or
+   base, built — and the GM accepts, refuses, or suggests changes. That is item 26's submission
+   shape, whose plumbing already exists for a character: a membership-side draft, a GM decision, an
+   approved clone. **Build**: a shared object becomes a submission a member authors rather than a
+   row the GM types; the GM's page reviews it with the same three answers; contributions attach to
+   the approved object. The surplus question dissolves — a player who over-funds their own proposal
+   sees the figure on their own screen before submitting, and the validator says so as a Warning.
+   The GM-authored path stays for a GM who wants to hand the party something.
+   **Design accepted 2026-09-10, queued.** The proposal rides the character submission: a
+   contribution gains an optional `Proposal` — the full `CampaignAsset` build — null on every
+   existing sheet so every existing export is byte-identical; the proposer mints the id and
+   adoption keeps it, so no contribution is re-pointed and no orphan appears; the GM's pending diff
+   shows the proposal as a row with **Adopt**, **Adopt with changes** (today's draft editor,
+   pre-filled) and **Refuse** (the existing reject); the same id already in the campaign is an
+   amendment shown as a diff; `CAMPAIGN_ASSET_SURPLUS` is a Warning naming the unspent points. Two
+   questions the owner answered by taking the recommendation: Adopt and Approve are one click (a GM
+   who wants the object and not the sheet adds it by hand and rejects), and a proposal spends the
+   character's Hero Points the moment it is written, before adoption. No new route, no migration,
+   no server knowledge — a proposals table was considered and rejected as a second submission
+   channel nobody asked for.
 7. **A budget that overflows.** A contribution of a hundred million Hero Points is legal in an
-   unlimited-budget game and the summed budget throws rather than reporting; the spend side is
-   caught. An upper bound on a contribution, or a nullable budget like the spend.
+   unlimited-budget game and the summed budget throws. **Ruling: cap a contribution at 10,000 HP**
+   — the owner's words: a game would never exceed that on a Hero. **Build**: refuse above it with
+   the figure in the message, on the engine's `CheckSharedAsset` and on the screen.
 8. **A contribution whose kind disagrees with the object's** is priced at the object's currency in
-   silence; unreachable through the screen, reachable by a hand-written payload.
+   silence. **Ruling: report it.** **Build**: `CAMPAIGN_ASSET_KIND_MISMATCH`, Error, never repaired.
 9. **A member who leaves takes their contribution out of the budget**, and nothing says the object
-   lost the funding.
+   lost the funding. **Ruling: say so.** **Build**: the GM page's over-budget sentence names the
+   contributor whose approval is gone, and the object panel says the budget fell and by how much.
 10. **The editor is one slot**: "Add", or "Edit" on another row, replaces an open draft silently.
-11. **An older build's settings save drops every shared object** — it reads the payload leniently,
-    ignores `Assets`, and writes its own `Campaign` back; the same is already true of the table
-    rules and the Immortality price. A known property, or a guard.
-12. **Two characters from one account in one game** are two memberships and both fund; the
-    contributor list shows two labels with no hint they are one player.
+    **Ruling: refuse until the draft is saved or cancelled.** **Build**: the second control is
+    disabled while a draft is open, with the reason beside it.
+11. **An older build's settings save drops every shared object**, the table rules and the
+    Immortality price, because it reads the payload leniently and writes its own `Campaign` back.
+    **Ruling: refuse the stale save, and explain it.** The owner's condition is the explanation:
+    losing control unexpectedly is what users hate, so the refusal must say *why* in the user's
+    terms — this tab is running an older version of the site and saving would erase settings it
+    cannot see; reload to continue. **Build**: the server compares the fields the stored payload
+    carries against the ones the save carries and answers `409` with that sentence; the browser
+    shows it verbatim and offers the reload. No silent merge — a merge would hide the same loss one
+    field at a time.
+12. **Two characters from one account in one game** show as two contributors with no hint they
+    are one player. **Ruling: a tree under the player** — the player once, their characters beneath,
+    the owner's example being a character held as two sheets (Gemini). **Build**: the contributor
+    list groups by account, the account's label as the parent row and each character's contribution
+    as a child, largest player first. This is also the shape item 21's variants will want to be
+    drawn in, so build the grouping once.
+    **Design accepted 2026-09-10, queued.** The server tells a GM nothing about which account a
+    membership belongs to, and keeps not doing so: inbox rows gain a `playerKey`, an HMAC of the
+    campaign id and the player's account id under a server secret — stable within one campaign,
+    meaningless across campaigns, naming nobody — and the browser groups the ledger by it. A
+    single-character player renders flat, so the common case is unchanged. The parent row's label
+    is the owner's pick of the recommendation: *"One player, 2 characters"*, which is true and
+    invents nothing; a display name for an account would be item 19's admin page, not this.
+
+### 34. A warning cannot be dismissed
+
+**Asked for by the owner 2026-09-10, design accepted and built the same day** — see the pull request
+that carried it; the Error guard and the display filter each went red under the orchestrator's
+own mutation. Every finding a row
+prints stays printed until the sheet changes, and a Warning the reader has read and decided to
+live with is noise on every later glance.
+
+- **Key**: `(Code, SubjectKind, SubjectId, OwnerId)` — the four fields `SheetFindings` already
+  routes on. Not the message (prose moves) and not `Value`/`Limit` (a dismissal that silently
+  un-dismisses when a number moves is a control that appears to be broken).
+- **Where it lives: this browser**, under `ppStore` beside the theme choice, keyed by character
+  id — the owner's pick, made knowing the alternative. On the sheet it would travel into the JSON
+  export, the MCP skill's input and the campaign clone, where the GM would read "the player waved
+  this away" — a social feature nobody asked for — and it would be one more field every
+  rules-adjacent reader has to be told to ignore. A browser that refuses storage means nothing is
+  dismissed, the same fallback `SavedCharacters` makes.
+- **Errors stay undismissable.** `IsValid` is "no Error"; a dismissable Error is a way of making an
+  illegal character look legal, against the settled rule that an illegal character is reported,
+  never repaired. The control is drawn only on a Warning and the filter asserts on severity rather
+  than trusting the key.
+- **The engine is never told.** The filter sits where `RowFinding` is fed and in `Review.Issues`,
+  the precedent `Review.razor` already sets for `HP_BUDGET_EXCEEDED` in Villain mode; `Validate()`,
+  `IsValid` and the JSON report are unchanged.
+- **Undo**: the review panel says "N warnings dismissed · Show them"; keys the engine no longer
+  produces are pruned on write.
+
+### 35. The roster is reachable from nowhere but itself
+
+**Reported by the owner 2026-09-10: invited players "do not see the character select area".**
+The investigation found no gate — not role, not cap, not viewport, not hosting — and one gap: the
+character manager and the banner's switcher render only under `/build`, nothing on the front page,
+`/rules`, `/campaign` or the ⌘-K palette links to `/build/characters`, and a player holding one
+character sees no list at all because the list draws only *other* characters. Two of the five
+ranked causes are that shape; the rest are "nothing built yet", a failed or signed-out read (the
+panel then says "in this browser only"), and a cap of 0 or 1 set on `/admin`.
+
+**The owner's answer: a Characters tab in the banner beside Build, Run and Rules, and a
+"Your characters" entry in the palette.** Built the same day, see the pull request that carried
+it: `Areas` gains the roster as its own area at `/characters` (the old `/build/characters` redirects,
+so a bookmark still lands), the banner gains one `NavLink` — the cost `MainLayout.razor`'s own note
+says a new avenue has — and `Commands` offers the roster by name once something is typed. A player
+with one character was already shown it, named, under "Open now"; a regression test now holds that,
+since nothing had. **The four shell goldens draw the banner and must be regenerated on the CI
+runner** (`gh workflow run visual-goldens.yml --ref <branch>`), never locally — the pixel
+comparator will be red until they are.
 
 ## Completed work
 

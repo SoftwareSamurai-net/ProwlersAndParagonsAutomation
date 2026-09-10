@@ -997,6 +997,12 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>
     /// One list row. <c>characterId</c> is withheld from the GM exactly as the real server
     /// withholds it — a stub that sent it would make a test about that impossible to write.
+    ///
+    /// <para><b><c>playerKey</c> is on the GM's row alone</b>, exactly as the real server's
+    /// invariant requires: never on the player's own list. This stub does not hash anything — it
+    /// has no secret to hash under — but it is stable per (campaign, player) and distinct across
+    /// either changing, which is the whole of what a test here needs from it. A real deployment's
+    /// key is opaque; this one is legible on purpose, so a failing assertion is readable.</para>
     /// </summary>
     private string Row(string id, MembershipRow row, bool forGm) => $$"""
         {"id":{{Quote(id)}},"campaignId":{{Quote(row.CampaignId)}},
@@ -1007,7 +1013,8 @@ public sealed class FakeApi : HttpMessageHandler
          "hasPending":{{Lower(row.Pending is not null)}},
          "pendingAt":{{row.PendingAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
          "pendingVersion":{{row.PendingVersion}},
-         "decision":{{((DecisionOnTheWire ?? row.Decision) is not { } word ? "null" : Quote(word))}}}
+         "decision":{{((DecisionOnTheWire ?? row.Decision) is not { } word ? "null" : Quote(word))}},
+         "playerKey":{{(forGm ? Quote($"pk_{row.CampaignId}:{row.PlayerAccount}") : "null")}}}
         """;
 
     /// <summary>Redeem a join code, or refuse the four ways the real server refuses.</summary>

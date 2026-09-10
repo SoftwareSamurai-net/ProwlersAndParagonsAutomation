@@ -95,8 +95,20 @@
        costs one NavLink and that there was nothing behind it — a door onto an empty room being
        worse than a wall. There is a room now: `/campaign` is where somebody runs a game, sees
        what is waiting for their decision, and joins one with a code. *@
+    @* **A fourth avenue, and the reason it earns one where the switcher already reaches the same
+       list is reachability rather than duplication.** `CharacterSwitcher` opens only in
+       `Area.Play`, and before this the roster it links to (`/characters`) had no path in from
+       anywhere else — the front door, the rules reference, the campaign screens and an invited
+       player who has never opened the builder all had no way to it at all. This is offered from
+       every route for the same reason `Build`, `Run` and `Rules` are: a link naming one avenue
+       and hiding the rest is only readable while there is exactly one elsewhere.
+
+       **Its own area, `Area.Characters`, rather than another address under `/build`** — see that
+       enum member's own doc comment for why `Where` had been calling a list of saved characters a
+       creation step. *@
     <nav class="avenue-nav" aria-label="Sections">
         <NavLink class="banner-link" href="@Commands.FirstStep">Build</NavLink>
+        <NavLink class="banner-link" href="characters">Characters</NavLink>
         <NavLink class="banner-link" href="campaign">Run</NavLink>
         <NavLink class="banner-link" href="rules">Rules</NavLink>
     </nav>
@@ -204,7 +216,7 @@
                 @(Retried ?? "Your character could not be loaded, so nothing is being written over"
                              + " it. What is on screen has not been kept.")
                 <button type="button" class="btn small" @onclick="ReadAgain">Try again</button>
-                <a class="small" href="build/characters">All your characters</a>
+                <a class="small" href="characters">All your characters</a>
             }
             else if (JustSaved)
             {
@@ -410,6 +422,12 @@
         // was pulled off three areas to fix.
         Area.Campaign => "Running a game",
         Area.Account => "Your account",
+
+        // Not named Hero or Villain either, and for the same reason as the sheet above: this list
+        // holds every character this browser or account has, most of which are not whichever one
+        // is open right now.
+        Area.Characters => "Your characters",
+
         _ => "Characters, and the rules behind them",
     };
 

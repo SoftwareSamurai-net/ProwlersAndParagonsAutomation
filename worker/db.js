@@ -290,13 +290,16 @@ export async function listCampaigns(db, userId) {
 }
 
 /**
- * Create or replace a campaign.
+ * Create or replace a campaign — refusing the write in place, atomically, if it would move
+ * `payload_format` backwards. True if it landed; false means an existing row already carries a
+ * higher format than this write does, and nothing changed.
  *
  * <p><b>One statement, and no cap to race against</b> — which is the whole difference from
  * `putCharacter`. There the `WHERE` on an `INSERT … SELECT` is the cap check, written that way
  * because a read followed by a write would let two PUTs both see room. Here there is nothing to
- * check, so this is an ordinary upsert and stays one; a cap added later would have to be written
- * in the statement rather than in front of it.</p>
+ * check but the format, and that check lives in the upsert's own `WHERE` rather than in a read
+ * before it — a read-then-write pair is exactly the race `putCharacter`'s comment describes, and
+ * `payload_format` deserves the same defence a lost character write already gets.</p>
  *
  * <p><b>The join code is minted on insert and kept on update, in the same statement.</b> A
  * campaign nobody can join is useless, so the first write gives it one — but `putCampaign` is
@@ -304,16 +307,28 @@ export async function listCampaigns(db, userId) {
  * lock out every player who had been told the old one. `COALESCE(campaigns.join_code, excluded.…)`
  * is what says "only if there is not one already": rotating is a separate, deliberate act, in
  * `rotateJoinCode` below.</p>
+ *
+ * <p><b>`WHERE excluded.payload_format >= campaigns.payload_format` is the whole of the refusal.</b>
+ * SQLite's `ON CONFLICT … DO UPDATE … WHERE` behaves like `DO NOTHING` when that condition is
+ * false: no row changes and no error is thrown, so `RETURNING id` comes back empty and that empty
+ * result is the caller's signal to answer 409. A conflict can only happen against a row that
+ * already exists, so "nothing was returned" here never means "no such campaign" — a brand-new
+ * campaign has nothing to conflict with and always lands.</p>
  */
-export async function putCampaign(db, { userId, id, label, payload, joinCode, now }) {
-    await db.prepare(
-        'INSERT INTO campaigns (user_id, id, label, payload, join_code, updated_at) '
-        + 'VALUES (?, ?, ?, ?, ?, ?) '
+export async function putCampaign(db, { userId, id, label, payload, joinCode, payloadFormat, now }) {
+    const row = await db.prepare(
+        'INSERT INTO campaigns (user_id, id, label, payload, join_code, payload_format, updated_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?, ?) '
         + 'ON CONFLICT (user_id, id) DO UPDATE SET '
         + '  label = excluded.label, payload = excluded.payload, '
         + '  join_code = COALESCE(campaigns.join_code, excluded.join_code), '
-        + '  updated_at = excluded.updated_at')
-        .bind(userId, id, label, payload, joinCode, now).run();
+        + '  payload_format = excluded.payload_format, '
+        + '  updated_at = excluded.updated_at '
+        + 'WHERE excluded.payload_format >= campaigns.payload_format '
+        + 'RETURNING id')
+        .bind(userId, id, label, payload, joinCode, payloadFormat, now).first();
+
+    return row !== null;
 }
 
 /**
@@ -523,8 +538,12 @@ export async function listMembershipsForPlayer(db, playerUserId) {
  * campaign list needs a waiting count per game, and the approval screen needs the rows of one.
  * Two addresses answering from one statement cannot disagree about the count.</p>
  *
- * <p><b>No payload here either</b>, and no account id: a GM learns that a character called
- * something is waiting, never whose account sent it.</p>
+ * <p><b>No payload here, and no account id on the wire</b>: a GM learns that a character called
+ * something is waiting, never whose account sent it. <b>`player_user_id` is selected all the
+ * same</b>, for `memberships.asGmRow` to fold into `playerKey` — a one-way hash of it, computed
+ * per row rather than read back out of it. Nothing downstream of this statement may put the raw
+ * column on the wire; `AccountsContractTests`' "no account id and no address ever appears here"
+ * invariant is about the response, not about what this query is allowed to select.</p>
  *
  * <p><b>Only memberships of a campaign that is still there.</b> There is no cascade when a
  * campaign is deleted and there is deliberately not going to be one — the player's half of a
@@ -536,7 +555,7 @@ export async function listMembershipsForPlayer(db, playerUserId) {
  */
 export async function listMembershipsForGm(db, gmUserId) {
     const result = await db.prepare(
-        'SELECT id, campaign_id, label, approved_at, pending_at, pending_version, '
+        'SELECT id, campaign_id, player_user_id, label, approved_at, pending_at, pending_version, '
         + '       decision, '
         + '       approved_payload IS NOT NULL AS has_approved, '
         + '       pending_payload IS NOT NULL AS has_pending '

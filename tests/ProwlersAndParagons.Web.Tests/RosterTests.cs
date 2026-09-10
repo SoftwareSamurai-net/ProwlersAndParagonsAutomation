@@ -1,10 +1,12 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
+using RosterPage = ProwlersAndParagonsAutomation.Web.Pages.Roster;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -234,8 +236,81 @@ public sealed class RosterTests
 
         Assert.Empty(cut.FindAll(".character-list"));
         Assert.Contains(
-            cut.FindAll("a").Where(a => a.GetAttribute("href") == "build/characters"),
+            cut.FindAll("a").Where(a => a.GetAttribute("href") == "characters"),
             a => a.TextContent.Contains('8', StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>One character is shown, not hidden.</b>
+    ///
+    /// <para>The panel draws only <c>_others</c> below the open block — characters other than the
+    /// one on screen — so a player whose only character is the one they have open sees an empty
+    /// <c>_others</c> list. That must not read as "nothing here": the open block above it, drawn
+    /// unconditionally once there is anything to show, names the character and offers a way to
+    /// start another. This is the roster page's own account of what the owner's report ("invited
+    /// players say they do not see the character select area") turns out to look like once
+    /// somebody actually has exactly one — the empty state further up this file, gated on
+    /// <c>_characters.Count == 0</c>, is a different case and must not fire here.</para>
+    /// </summary>
+    [Fact]
+    public async Task ExactlyOneCharacterIsNamedAsTheOpenOneNotHidden()
+    {
+        // Real storage, not bUnit's loose interop: `AccountCharacterStore.OpenAsync` moves the
+        // current-character pointer through a `ppStore.save` call, and loose mode answers every
+        // interop call with nothing — so the pointer would never actually move and `_currentId`
+        // would stay the legacy id forever, putting this character in `_others` regardless.
+        await using var ctx = new RenderContext(storesForReal: true);
+        ctx.Api.SignedIn = ("acct-solo", "player");
+        ctx.Api.Limit = 40;
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var id = SavedCharacters.NewId();
+        var sheet = SampleCharacters.Hero();
+        sheet.Name = "Lone Wolf";
+        await account.SaveAsync(id, "Lone Wolf", sheet, SheetMode.Hero);
+
+        // Opened, not merely saved: this is what makes it *the* current character rather than one
+        // more row in `_others`, which is the state a solo player's roster is actually in.
+        var store = ctx.Services.GetRequiredService<AccountCharacterStore>();
+        var opened = await store.OpenAsync(id);
+        ctx.Session.Open(opened!.Value.Sheet, opened.Value.Mode, id);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        Assert.Contains("Lone Wolf", cut.Find(".character-open").TextContent, StringComparison.Ordinal);
+        Assert.Contains("Start a new character", Text(cut.Markup), StringComparison.Ordinal);
+
+        // Not the zero-character empty state, and not a stray "nothing matches" — there is one
+        // character and it is the one already named above.
+        Assert.DoesNotContain("Nothing built yet", Text(cut.Markup), StringComparison.Ordinal);
+        Assert.Empty(cut.FindAll(".character-list"));
+    }
+
+    /// <summary>
+    /// <b>A bookmark to the old address still lands.</b>
+    ///
+    /// <para>The roster moved from <c>/build/characters</c> to <c>/characters</c> so it could be
+    /// its own area rather than a page the builder happened to own — see <c>Area.Characters</c>'s
+    /// own doc comment. <c>Roster.razor</c> answers both addresses and moves the bar to the
+    /// canonical one on render, so a link saved before the move still opens the same panel and
+    /// ends up on the address the banner's own tab points at, rather than 404ing or stranding a
+    /// reader on a page `Areas.Of` still calls a builder step.</para>
+    /// </summary>
+    [Fact]
+    public void ABookmarkToTheOldAddressStillLands()
+    {
+        using var ctx = new RenderContext();
+        var nav = ctx.Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo("build/characters");
+
+        var cut = ctx.Render<RosterPage>();
+
+        // The panel this page has always drawn is still on screen...
+        Assert.NotEmpty(cut.FindAll(".character-open, .empty-state"));
+
+        // ...and the address bar has moved to the canonical one, so `Areas.Of` — and the banner's
+        // `Characters` tab — agree on where this page lives from here on.
+        Assert.Equal("characters", nav.ToBaseRelativePath(nav.Uri));
     }
 
     /// <summary>
