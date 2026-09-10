@@ -433,6 +433,56 @@
     {
         <p class="small muted" role="status">The game could not be read just now.</p>
     }
+
+    @* ── Propose one of your own — PROGRESS item 33, rulings 5+6 ─────────────
+
+       The owner's ruling of 2026-09-10: the player holds the object and the GM approves it. The
+       Hero Points are charged the moment this is written — the same instant an ordinary
+       contribution is — and submitting the character (the existing flow) carries the proposal to
+       the GM's own page, where it is a row with Adopt, Adopt with changes, and Refuse. *@
+    @if (Session.Sheet.CampaignId is not null)
+    {
+        <p class="small muted">
+            Or build one yourself and present it: the GM can adopt, adopt with changes, or refuse it.
+        </p>
+        <p class="small muted">It costs your own Hero Points as soon as it is written down.</p>
+
+        @if (_proposal is null)
+        {
+            <div class="inline spaced">
+                <input type="text" placeholder="Name a shared vehicle or base to propose"
+                       aria-label="Name a proposal" @bind="_proposing" @bind:event="oninput" />
+                <select aria-label="A vehicle or a headquarters" value="@_proposingKind"
+                        @onchange="e => _proposingKind = e.Value?.ToString() ?? ProposalVehicle">
+                    <option value="@ProposalVehicle">A vehicle</option>
+                    <option value="@ProposalHeadquarters">A headquarters</option>
+                </select>
+                <button type="button" class="btn" aria-label="Propose a shared vehicle or base"
+                        disabled="@string.IsNullOrWhiteSpace(_proposing)"
+                        @onclick="StartProposal">Propose</button>
+            </div>
+        }
+    }
+
+    @if (_proposal is { } proposal)
+    {
+        <Field Label="Hero Points on this proposal" For="proposal-hp">
+            <input id="proposal-hp" type="number" min="0" max="@CampaignAssetContribution.MaxHeroPoints"
+                   value="@_proposalHeroPoints"
+                   @onchange="e => _proposalHeroPoints = Number(e)" />
+            <span class="muted small">
+                @(Session.Costs.CampaignAssetPointsPerHeroPoint(proposal))
+                @ProposalCurrency(proposal) per Hero Point spent here.
+            </span>
+        </Field>
+
+        <SharedAssetEditor IdPrefix="propose" Draft="proposal" DraftChanged="d => _proposal = d"
+                           DraftName="_proposalName" DraftNameChanged="@(n => _proposalName = n)"
+                           Title="@ProposalTitle" Aside="@ProposalBooks(proposal)"
+                           Findings="ProposalFindings(proposal)"
+                           OnSave="SaveProposal" OnCancel="CancelProposal"
+                           SaveLabel="Propose to the GM" />
+    }
 </Panel>
 
 <StepButtons Back="build/gear" BackLabel="Gear" Next="build/derived" NextLabel="Derived stats" />
@@ -792,6 +842,124 @@
             Kind = asset.Kind,
         });
 
+        Session.NotifyChanged();
+    }
+
+    // ── Propose one of your own — PROGRESS item 33, rulings 5+6 ──────────────
+
+    /// <summary>
+    /// The two kinds, off the constants a contribution names them with. <b>One spelling in
+    /// markup</b>, not the type name itself — the same reason <c>CampaignApproval.razor</c> aliases
+    /// them, since a page may not print a type this project declares.
+    /// </summary>
+    private const string ProposalVehicle = CampaignAssetContribution.Vehicle;
+
+    /// <inheritdoc cref="ProposalVehicle"/>
+    private const string ProposalHeadquarters = CampaignAssetContribution.Headquarters;
+
+    /// <summary>What is being named before a proposal starts, and which of the two it will be.</summary>
+    private string _proposing = "";
+
+    private string _proposingKind = ProposalVehicle;
+
+    /// <summary>The proposal being built, or null when none is open.</summary>
+    private CampaignAsset? _proposal;
+
+    private string _proposalName = "";
+
+    /// <summary>
+    /// Hero Points on this proposal. Held beside the draft rather than on it, exactly as
+    /// <c>_draftName</c> is on the campaign page — the object and the spend are two different
+    /// questions the player is answering, and only one of them is Chapter 6's.
+    /// </summary>
+    private int _proposalHeroPoints;
+
+    private string ProposalTitle =>
+        string.IsNullOrWhiteSpace(_proposalName) ? "A shared object" : _proposalName.Trim();
+
+    /// <summary>
+    /// The proposal's own books as it is typed: what it costs against what the Hero Points above
+    /// buy — never against another member's budget, because nobody has funded this yet and
+    /// nobody's Hero Points but this character's own are being spent.
+    /// </summary>
+    private string ProposalBooks(CampaignAsset proposal) =>
+        AssetFormatter.Describe(
+            proposal, CampaignAssets.Spend(Session.Costs, proposal),
+            checked(_proposalHeroPoints * Session.Costs.CampaignAssetPointsPerHeroPoint(proposal)));
+
+    private static string ProposalCurrency(CampaignAsset proposal) =>
+        proposal.IsHeadquarters ? "Base Points" : "Vehicle Points";
+
+    /// <summary>
+    /// The same printed rules a GM-typed object is held to, plus the surplus a proposal's own Hero
+    /// Points may leave unspent — read straight off the engine, exactly as it will be read again
+    /// once this rides the submission. Live, as the draft is typed, so the same finding a GM would
+    /// eventually see is not a surprise the player only meets after sending it.
+    /// </summary>
+    private IReadOnlyList<ValidationIssue> ProposalFindings(CampaignAsset proposal)
+    {
+        var issues = Session.Check(proposal).ToList();
+
+        if (CampaignAssets.Spend(Session.Costs, proposal) is { } spent)
+        {
+            var bought = checked(_proposalHeroPoints * Session.Costs.CampaignAssetPointsPerHeroPoint(proposal));
+            var unspent = bought - spent;
+
+            if (unspent > 0)
+                issues.Add(new ValidationIssue(ValidationSeverity.Warning, "CAMPAIGN_ASSET_SURPLUS",
+                    $"This costs {_proposalHeroPoints} Hero Points, buying {bought} "
+                    + $"{ProposalCurrency(proposal)}, but the build only spends {spent}. "
+                    + $"{unspent} {ProposalCurrency(proposal)} are unspent."));
+        }
+
+        return issues;
+    }
+
+    /// <summary>
+    /// Start a proposal. <b>The id is minted here, the same way a GM's own editor mints one</b> —
+    /// off <c>StoredCampaign.NewAssetId()</c> — because it is what the campaign will keep on
+    /// adoption, so the contribution this character writes is never re-pointed.
+    /// </summary>
+    private void StartProposal()
+    {
+        if (string.IsNullOrWhiteSpace(_proposing)) return;
+
+        _proposalName = _proposing.Trim();
+        _proposal = new CampaignAsset(StoredCampaign.NewAssetId(), _proposingKind, _proposalName);
+        _proposalHeroPoints = 0;
+        _proposing = "";
+    }
+
+    private void CancelProposal()
+    {
+        _proposal = null;
+        _proposalHeroPoints = 0;
+    }
+
+    /// <summary>
+    /// Write the proposal onto this character as a contribution — the whole of what "presenting"
+    /// it means today, since it rides the ordinary character submission rather than a channel of
+    /// its own. <b>The Hero Points are charged the moment this is written</b>, the owner's answer to
+    /// when a proposal is spent: they are this player's own, from character creation, and must
+    /// never be stranded waiting on a GM's decision.
+    /// </summary>
+    private void SaveProposal()
+    {
+        if (_proposal is not { } proposal) return;
+        if (string.IsNullOrWhiteSpace(_proposalName)) return;
+
+        var saved = proposal with { Name = _proposalName.Trim() };
+
+        Session.Sheet.CampaignAssets.Add(new CampaignAssetContribution(saved.Id)
+        {
+            Name = saved.Name,
+            Kind = saved.Kind,
+            HeroPoints = _proposalHeroPoints,
+            Proposal = saved
+        });
+
+        _proposal = null;
+        _proposalHeroPoints = 0;
         Session.NotifyChanged();
     }
 

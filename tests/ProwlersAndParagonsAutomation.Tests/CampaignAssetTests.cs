@@ -477,4 +477,187 @@ public sealed class CampaignAssetTests
         Assert.DoesNotContain("CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE", withoutContributions);
         Assert.DoesNotContain("CAMPAIGN_ASSET_KIND_MISMATCH", withoutContributions);
     }
+
+    // ── Rulings 5+6, 2026-09-10: the player holds the object, the GM approves it ──────
+
+    private CharacterSheet WithProposal(CampaignAssetContribution contribution)
+    {
+        var sheet = new CharacterSheet { SelectedTierId = "standard" };
+        sheet.CampaignAssets.Add(contribution);
+        return sheet;
+    }
+
+    /// <summary>
+    /// <b>A proposal is priced by exactly the arithmetic a GM-typed object is</b> — the pricing
+    /// equality this item asks for. Same characteristics, same features, same figure, because both
+    /// are one <see cref="CampaignAsset"/> read by one <see cref="CostCalculator"/>.
+    /// </summary>
+    [Fact]
+    public void AProposalIsPricedIdenticallyToTheSameObjectTheGmWouldHaveTyped()
+    {
+        var gmTyped = Vehicle() with { Body = 6, Speed = 8, Control = 3, Weapons = 4 };
+        var proposed = gmTyped with { }; // the same record — a proposal names the same shape
+
+        Assert.Equal(_f.Costs.CampaignAssetPointsSpent(gmTyped), _f.Costs.CampaignAssetPointsSpent(proposed));
+        Assert.Equal(
+            _f.Costs.CampaignAssetPointsPerHeroPoint(gmTyped),
+            _f.Costs.CampaignAssetPointsPerHeroPoint(proposed));
+    }
+
+    /// <summary>
+    /// <b><see cref="CharacterValidator.Validate"/> reaches a proposal without anybody handing it a
+    /// campaign</b> — the whole point of the shape: the object rides the contribution, so it is
+    /// checked the moment the character is, before any GM exists to see it.
+    /// </summary>
+    [Fact]
+    public void AProposalThatSpendsLessThanItsHeroPointsBuyIsAWarning()
+    {
+        var contribution = new CampaignAssetContribution("asset-p1")
+        {
+            Name = "Skyhook", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 1,
+            Proposal = Vehicle("asset-p1") // Body/Speed/Control/Weapons all at zero: spends nothing
+        };
+
+        var issues = _f.Validator.Validate(WithProposal(contribution)).Issues;
+
+        var surplus = Assert.Single(issues, i => i.Code == "CAMPAIGN_ASSET_SURPLUS");
+        Assert.Equal(ValidationSeverity.Warning, surplus.Severity);
+        Assert.Equal(25, surplus.Value);   // 1 HP * 25 VP bought, 0 spent
+        Assert.Equal(0, surplus.Limit);
+    }
+
+    /// <summary>The positive control: a proposal that spends everything it buys is silent.</summary>
+    [Fact]
+    public void AProposalThatSpendsWhatItBuysIsNotASurplus()
+    {
+        var rate = _f.Rules.Assets.VehiclePointsPerHeroPoint;
+        var heroPoints = 1;
+        var proposal = Vehicle("asset-p2") with { Body = heroPoints * rate };
+
+        var contribution = new CampaignAssetContribution("asset-p2")
+        {
+            Name = "Skyhook", Kind = CampaignAssetContribution.Vehicle, HeroPoints = heroPoints,
+            Proposal = proposal
+        };
+
+        var issues = _f.Validator.Validate(WithProposal(contribution)).Issues;
+
+        Assert.DoesNotContain(issues, i => i.Code == "CAMPAIGN_ASSET_SURPLUS");
+    }
+
+    /// <summary>
+    /// <b>A proposal is held to the same printed rules a GM-typed object is</b> —
+    /// <see cref="CharacterValidator.CheckSharedAsset"/>'s own checks reach it through
+    /// <c>Validate</c>, with no campaign in hand.
+    /// </summary>
+    [Fact]
+    public void AProposalOverHalfSpeedControlIsReportedTheSameWayAGmTypedOneIs()
+    {
+        var proposal = Vehicle("asset-p3") with { Speed = 4, Control = 3 };
+        var contribution = new CampaignAssetContribution("asset-p3")
+        {
+            Name = "Skyhook", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 10,
+            Proposal = proposal
+        };
+
+        var fromValidate = _f.Validator.Validate(WithProposal(contribution)).Issues
+            .Select(i => i.Code);
+        var fromSharedAsset = _f.Validator.CheckSharedAsset(proposal).Select(i => i.Code);
+
+        Assert.Contains("VEHICLE_CONTROL_ABOVE_HALF_SPEED", fromValidate);
+        Assert.Equal(fromSharedAsset.Order(StringComparer.Ordinal),
+            fromValidate.Where(c => c == "VEHICLE_CONTROL_ABOVE_HALF_SPEED").Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The kind mismatch check between a contribution and its own proposal</b> is the same
+    /// <see cref="CharacterValidator.CheckContributionAgainstAsset"/> a mismatched contribution
+    /// against an already-adopted object gets — one code, one meaning, whichever side wrote the
+    /// object down.
+    /// </summary>
+    [Fact]
+    public void AProposalWhoseKindDisagreesWithItsContributionIsAKindMismatch()
+    {
+        var contribution = new CampaignAssetContribution("asset-p4")
+        {
+            Name = "Skyhook", Kind = CampaignAssetContribution.Headquarters, HeroPoints = 1,
+            Proposal = Vehicle("asset-p4")   // the proposal itself says vehicle
+        };
+
+        var issues = _f.Validator.Validate(WithProposal(contribution)).Issues;
+
+        var mismatch = Assert.Single(issues, i => i.Code == "CAMPAIGN_ASSET_KIND_MISMATCH");
+        Assert.Equal("asset-p4", mismatch.SubjectId);
+    }
+
+    /// <summary>
+    /// <b>The strict reader accepts <see cref="CampaignAssetContribution.Proposal"/></b>, and a
+    /// character stored before the field existed still reads — nothing here bumped a stored
+    /// character's version.
+    /// </summary>
+    [Fact]
+    public void AProposalRoundTripsThroughTheStrictReaderByteIdentically()
+    {
+        var sheet = new CharacterSheet { SelectedTierId = "standard" };
+        sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-p5")
+        {
+            Name = "Skyhook", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 12,
+            Proposal = new CampaignAsset("asset-p5", CampaignAssetContribution.Vehicle, "Skyhook")
+            {
+                Body = 6, Speed = 8, Control = 3, Weapons = 4,
+                Features = [new SelectedAssetFeature("passengers") { Units = 2 }]
+            }
+        });
+
+        var read = CharacterSheetJson.Read(CharacterSheetJson.Write(sheet), strict: true)!;
+
+        var proposal = read.CampaignAssets[0].Proposal;
+        Assert.NotNull(proposal);
+        Assert.Equal("asset-p5", proposal!.Id);
+        Assert.Equal(6, proposal.Body);
+        Assert.Equal(8, proposal.Speed);
+        Assert.Equal(3, proposal.Control);
+        Assert.Equal(4, proposal.Weapons);
+        Assert.Equal(2, proposal.Features[0].Units);
+
+        // The engine agrees with itself either side of the round trip.
+        Assert.Equal(_f.Costs.CampaignAssetPointsSpent(sheet.CampaignAssets[0].Proposal!),
+                     _f.Costs.CampaignAssetPointsSpent(proposal));
+
+        // And a character stored before this field existed still reads, on the strict reader —
+        // the harder of the two to satisfy, since it refuses a field it does not recognise.
+        var old = CharacterSheetJson.Read(
+            """{"Name":"Nobody","SelectedTierId":"standard","AbilityRanks":{"might":3}}""",
+            strict: true)!;
+
+        Assert.Empty(old.CampaignAssets);
+    }
+
+    /// <summary>
+    /// <b>A hand-written payload that names a proposal with no <c>Features</c> key repairs to an
+    /// empty list rather than a null one</b> — the same non-null-declared-comes-back-null trap
+    /// <see cref="OwnedVehicle.Features"/> and <see cref="OwnedHeadquarters.Features"/> fall into,
+    /// and it would be a <see cref="NullReferenceException"/> the next thing that prices the
+    /// proposal rather than a finding a player can read.
+    /// </summary>
+    [Fact]
+    public void AProposalWithNoFeaturesKeyRepairsToAnEmptyListRatherThanThrowing()
+    {
+        // Features and Kind spelled explicitly null — not merely absent, which the constructor's
+        // own initialiser already survives without any repair at all. It is an explicit null a
+        // hand-written or older payload can carry that this loop exists for.
+        var read = CharacterSheetJson.Read(
+            """
+            {"Name":"Nobody","SelectedTierId":"standard","AbilityRanks":{"might":3},
+             "CampaignAssets":[{"AssetId":"asset-p6","Kind":"vehicle","HeroPoints":1,
+                "Proposal":{"Id":"asset-p6","Kind":null,"Name":"Skyhook","Features":null}}]}
+            """,
+            strict: true)!;
+
+        Assert.NotNull(read.CampaignAssets[0].Proposal);
+        Assert.Empty(read.CampaignAssets[0].Proposal!.Features);
+
+        // Positive control: pricing it does not throw, which is the whole point of the repair.
+        Assert.Equal(0, _f.Costs.CampaignAssetPointsSpent(read.CampaignAssets[0].Proposal!));
+    }
 }
