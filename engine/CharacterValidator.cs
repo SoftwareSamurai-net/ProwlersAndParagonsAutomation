@@ -1780,8 +1780,17 @@ public sealed class CharacterValidator
     /// Hero Points put into a campaign's shared vehicle or base. There is nothing else on this
     /// sheet to check — what the object turned out to be is the campaign's answer — so this is
     /// the two things a record can be wrong about on its own.
+    ///
+    /// <para><b>Except when the contribution carries a <see cref="CampaignAssetContribution.Proposal"/>.</b>
+    /// PROGRESS item 33, rulings 5+6: the player builds the object and the GM approves it, so a
+    /// proposal is a full <see cref="CampaignAsset"/> riding the character submission rather than
+    /// a row the GM already typed. It is held to the same printed rules a GM-typed object is
+    /// (<see cref="CheckSharedAsset"/>), to the same kind agreement a mismatched contribution is
+    /// (<see cref="CheckContributionAgainstAsset"/>), and to a warning of its own —
+    /// <c>CAMPAIGN_ASSET_SURPLUS</c> — when the Hero Points buy more than the build spends, so a
+    /// proposer sees it before submitting rather than the GM discovering it unannounced.</para>
     /// </summary>
-    private static void CheckCampaignAssets(CharacterSheet sheet, List<ValidationIssue> issues)
+    private void CheckCampaignAssets(CharacterSheet sheet, List<ValidationIssue> issues)
     {
         foreach (var contribution in sheet.CampaignAssets)
         {
@@ -1832,7 +1841,63 @@ public sealed class CharacterValidator
                     Value       = contribution.HeroPoints,
                     Limit       = CampaignAssetContribution.MaxHeroPoints
                 });
+
+            if (contribution.Proposal is { } proposal)
+                CheckProposal(contribution, proposal, issues);
         }
+    }
+
+    /// <summary>
+    /// A proposal a member is presenting for the GM to approve, refuse or amend — the build itself
+    /// rides the contribution, so it is checked here rather than waiting for a campaign to exist.
+    ///
+    /// <para><b>The same printed rules a GM-typed object is held to</b>, via
+    /// <see cref="CheckSharedAsset"/> with no other contributions in hand — a proposal is checked
+    /// against Chapter 6 on its own, not against a campaign's budget it does not belong to yet.
+    /// The kind agreement between the contribution and its own proposal is
+    /// <see cref="CheckContributionAgainstAsset"/>, the same check a mismatched contribution
+    /// against an already-adopted object gets.</para>
+    ///
+    /// <para><b><c>CAMPAIGN_ASSET_SURPLUS</c> is new, and it is the dissolution of ruling 5.</b>
+    /// "A surplus contribution is unreported" stopped being a question the GM discovers once the
+    /// player who is spending the Hero Points sees the figure before ever submitting — reported as
+    /// a Warning, because an unspent balance is not illegal, only worth naming.</para>
+    /// </summary>
+    private void CheckProposal(
+        CampaignAssetContribution contribution, CampaignAsset proposal, List<ValidationIssue> issues)
+    {
+        issues.AddRange(CheckContributionAgainstAsset(contribution, proposal));
+        issues.AddRange(CheckSharedAsset(proposal));
+
+        int spent;
+        try
+        {
+            spent = _costs.CampaignAssetPointsSpent(proposal);
+        }
+        catch (Exception e) when (e is InvalidOperationException or OverflowException)
+        {
+            // Unpriceable — CheckSharedAsset has already said which feature or grade is missing,
+            // and a surplus figure computed over a build that cannot be priced would be a second,
+            // contradicting number about the same mistake.
+            return;
+        }
+
+        var bought = contribution.HeroPoints * _costs.CampaignAssetPointsPerHeroPoint(proposal);
+        var unspent = bought - spent;
+        if (unspent <= 0) return;
+
+        var name = string.IsNullOrWhiteSpace(contribution.Name) ? contribution.AssetId : contribution.Name;
+        var currency = proposal.IsHeadquarters ? "Base Points" : "Vehicle Points";
+
+        issues.Add(new(ValidationSeverity.Warning, "CAMPAIGN_ASSET_SURPLUS",
+            $"'{name}' costs {contribution.HeroPoints} Hero Points, buying {bought} {currency}, "
+            + $"but the build only spends {spent}. {unspent} {currency} are unspent.")
+        {
+            SubjectKind = ValidationSubject.Character,
+            SubjectId   = contribution.AssetId,
+            Value       = unspent,
+            Limit       = 0
+        });
     }
 
     /// <summary>

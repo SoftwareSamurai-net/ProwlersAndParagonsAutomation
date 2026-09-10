@@ -1113,6 +1113,11 @@ public sealed class ValidationIssueStructureTests
         // hand, and a contribution belongs to the character the same way its own kind and id do.
         ["CAMPAIGN_ASSET_KIND_MISMATCH"]    = [ValidationSubject.Character],
 
+        // Rulings 5+6: a proposal's Hero Points buy more than the build spends. Filed against the
+        // character the same way every other CampaignAssetContribution-shaped code is — there is
+        // no vehicle or base here yet, only a player's own sheet.
+        ["CAMPAIGN_ASSET_SURPLUS"]          = [ValidationSubject.Character],
+
         // A Trait or a Power over the cap, under the 1d floor, under its package's floor, or
         // recorded with a negative quantity: the kind says which collection to write into.
         ["TRAIT_ABOVE_CAP"]      = [ValidationSubject.Ability, ValidationSubject.Talent, ValidationSubject.Power],
@@ -1369,7 +1374,8 @@ public sealed class ValidationIssueStructureTests
         "power-specific ungraded", "sample villain",
         "house cap above the tier", "house cap below one",
         "a table's price for immortality",
-        "a vehicle", "a headquarters", "a gadget", "assets without names", "a shared asset"
+        "a vehicle", "a headquarters", "a gadget", "assets without names", "a shared asset",
+        "a proposal"
     ];
 
     /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
@@ -1767,6 +1773,23 @@ public sealed class ValidationIssueStructureTests
                 {
                     Name = "The Wing", Kind = CampaignAssetContribution.Vehicle,
                     HeroPoints = CampaignAssetContribution.MaxHeroPoints + 1
+                });
+                return sheet;
+            }
+
+            case "a proposal":
+            {
+                // PROGRESS item 33, rulings 5+6: a proposal is a CampaignAsset riding the
+                // contribution. Cheap and empty on purpose, so the only thing it provokes is the
+                // surplus the Hero Points buy and nothing has spent — CAMPAIGN_ASSET_SURPLUS is
+                // the one code in this file that only Validate(sheet) alone can construct, since
+                // CheckSharedAsset and CheckContributionAgainstAsset both need a second object in
+                // hand that this sheet does not carry.
+                var sheet = Legal();
+                sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-p1")
+                {
+                    Name = "Skyhook", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 1,
+                    Proposal = new CampaignAsset("asset-p1", CampaignAssetContribution.Vehicle, "Skyhook")
                 });
                 return sheet;
             }
