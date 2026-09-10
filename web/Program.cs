@@ -54,6 +54,7 @@ builder.Services.AddScoped<CharacterStore>();
 // list, switch, save-as and delete are not on ICharacterStore's single-character shape and
 // never will be, so a page that wants them asks for SavedCharacters directly.
 builder.Services.AddScoped<SavedCharacters>();
+builder.Services.AddScoped<DismissedFindings>();
 builder.Services.AddScoped<ApiCharacterStore>();
 builder.Services.AddScoped<AccountCharacterStore>();
 builder.Services.AddScoped<DiscardedCharacter>();
