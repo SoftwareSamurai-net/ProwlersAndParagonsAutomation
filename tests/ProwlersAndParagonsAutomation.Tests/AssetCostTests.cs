@@ -347,6 +347,86 @@ public sealed class AssetCostTests
         Assert.Equal(_f.Rules.Assets.Teamwork.PointsPerIssue, _f.Derived.CalculateTeamwork(sheet));
     }
 
+    // ── Teamwork from a campaign's shared base — PROGRESS.md item 33.4 ─────────
+
+    private static CampaignAsset SharedBase(string id = "a_0000000000000000000000") =>
+        new(id, CampaignAssetContribution.Headquarters, "The Sanctum");
+
+    /// <summary>
+    /// <b>A campaign's shared headquarters grants the point exactly as the character's own base
+    /// would.</b> The owner's ruling is that every approved member of the campaign gets it "the
+    /// way an owner gets it from their own base" — so a character who owns no base at all still
+    /// opens on 1 the moment a shared one carries Training Facilities.
+    /// </summary>
+    [Fact]
+    public void ASharedBaseWithTrainingFacilitiesGrantsAPointOfTeamwork()
+    {
+        var sheet = _f.LegalSheet();
+        Assert.Equal(0, _f.Derived.CalculateTeamwork(sheet, []));
+
+        var shared = SharedBase() with
+        {
+            Features = [new SelectedAssetFeature("training_facilities")]
+        };
+
+        Assert.Equal(1, _f.Derived.CalculateTeamwork(sheet, [shared]));
+    }
+
+    /// <summary>
+    /// <b>Owning a base and sharing one still pays exactly one point.</b> p.103 multiplies on
+    /// characters, never on bases — a shared base is one more base carrying the feature and the
+    /// same rule that stops two owned bases paying twice stops an owned one and a shared one
+    /// paying twice between them.
+    /// </summary>
+    [Fact]
+    public void AnOwnedAndASharedBaseWithTheFeatureStillPayOnePoint()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.Headquarters.Add(new OwnedHeadquarters("The Gym")
+        {
+            PerkHeroPoints = 1,
+            Features = [new SelectedAssetFeature("training_facilities")]
+        });
+
+        var shared = SharedBase() with
+        {
+            Features = [new SelectedAssetFeature("training_facilities")]
+        };
+
+        Assert.Equal(_f.Rules.Assets.Teamwork.PointsPerIssue,
+                     _f.Derived.CalculateTeamwork(sheet, [shared]));
+    }
+
+    /// <summary>A shared base without the feature grants nothing, the same as an owned one.</summary>
+    [Fact]
+    public void ASharedBaseWithoutTrainingFacilitiesGrantsNothing()
+    {
+        var sheet = _f.LegalSheet();
+        var shared = SharedBase();
+
+        Assert.Equal(0, _f.Derived.CalculateTeamwork(sheet, [shared]));
+    }
+
+    /// <summary>
+    /// <b>A shared vehicle never grants it, whatever features it carries.</b> Training Facilities
+    /// is a headquarters feature (p.103) and has no counterpart on p.96–100's vehicle tables, so a
+    /// caller handing over a campaign's whole asset list — vehicles and bases together — must not
+    /// have a vehicle answer this question by having the same feature id happen to appear on it.
+    /// </summary>
+    [Fact]
+    public void ASharedVehicleNeverGrantsTeamworkEvenWithTheFeatureId()
+    {
+        var sheet = _f.LegalSheet();
+
+        var vehicle = new CampaignAsset(
+            "a_1111111111111111111111", CampaignAssetContribution.Vehicle, "The Wing")
+        {
+            Features = [new SelectedAssetFeature("training_facilities")]
+        };
+
+        Assert.Equal(0, _f.Derived.CalculateTeamwork(sheet, [vehicle]));
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /// <summary>

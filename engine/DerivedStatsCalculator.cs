@@ -262,17 +262,61 @@ public sealed class DerivedStatsCalculator
     /// <b>It is a silence rather than a settled reading</b>, and it is left as one: a GM who rules
     /// that a second base pays a second point is not contradicted by anything on the page. What
     /// the engine must not do is answer as though the page had said so.</para>
+    ///
+    /// <para><b>The gap the paragraph above named is now answered, and this is the method that
+    /// stayed for the character with no campaign in front of it.</b> A sheet with no shared bases
+    /// handed to it counts only what it owns — the same figure this always returned, so every
+    /// caller that has not learned about a campaign keeps working unchanged. The overload below is
+    /// where a host that <em>can</em> see the campaign hands the rest of the question over — see
+    /// <see cref="CalculateTeamwork(CharacterSheet, IEnumerable{CampaignAsset})"/>.</para>
     /// </summary>
-    public int CalculateTeamwork(CharacterSheet sheet)
+    public int CalculateTeamwork(CharacterSheet sheet) => CalculateTeamwork(sheet, []);
+
+    /// <summary>
+    /// <see cref="CalculateTeamwork(CharacterSheet)"/>, with the campaign's shared headquarters
+    /// added to the character's own — the owner's 2026-09-10 ruling on PROGRESS.md item 33.4: a
+    /// shared base's Training Facilities grants Teamwork to every approved member of the
+    /// campaign, the same as it does to a base's own owner. Still one point however many bases —
+    /// owned or shared — carry the feature, for exactly the reason
+    /// <see cref="CalculateTeamwork(CharacterSheet)"/>'s own doc comment gives: p.103 multiplies on
+    /// characters, never on bases.
+    ///
+    /// <para><b>This engine stays campaign-blind even though the parameter names a campaign
+    /// concept.</b> <see cref="CampaignAsset"/> lives in <c>engine/</c> already — it is the shape
+    /// <see cref="CostCalculator.CampaignAssetBudget"/> already prices — so handing this method the
+    /// bases a host has resolved is not a new dependency on storage; it is the same record another
+    /// method here already takes, asked a different question. Resolving <em>which</em> bases a
+    /// member is approved into, and refusing that list to anybody who is not, is the host's job:
+    /// this method trusts whatever it is handed and counts every headquarters in it, exactly as it
+    /// already trusts <see cref="CharacterSheet.Headquarters"/>.</para>
+    ///
+    /// <para><b>A shared vehicle never grants it</b>, because Training Facilities is a headquarters
+    /// feature — p.103, not p.96–100 — so <paramref name="sharedBases"/> is filtered to
+    /// <see cref="CampaignAsset.IsHeadquarters"/> before it is asked, the same filter a caller
+    /// would otherwise have to remember and could otherwise forget.</para>
+    /// </summary>
+    /// <param name="sheet">The character.</param>
+    /// <param name="sharedBases">
+    /// The campaign's shared objects the character may count — ordinarily every headquarters in
+    /// the campaign the reader is an <em>approved</em> member of, and empty for a pending or
+    /// rejected membership, or for a character with no campaign, or for a caller with no way to
+    /// ask. A non-headquarters entry is ignored rather than rejected, so a caller may hand the
+    /// campaign's whole <see cref="Campaign.Assets"/> list without filtering it first.
+    /// </param>
+    public int CalculateTeamwork(CharacterSheet sheet, IEnumerable<CampaignAsset> sharedBases)
     {
         ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(sharedBases);
 
         var teamwork = _rules.Assets.Teamwork;
 
-        return sheet.Headquarters.Any(hq => hq.Features.Any(
-                   f => string.Equals(f.FeatureId, teamwork.GrantedByFeature, StringComparison.Ordinal)))
-             ? teamwork.PointsPerIssue
-             : 0;
+        bool Grants(IReadOnlyList<SelectedAssetFeature> features) => features.Any(
+            f => string.Equals(f.FeatureId, teamwork.GrantedByFeature, StringComparison.Ordinal));
+
+        var granted = sheet.Headquarters.Any(hq => Grants(hq.Features))
+            || sharedBases.Any(a => a.IsHeadquarters && Grants(a.Features));
+
+        return granted ? teamwork.PointsPerIssue : 0;
     }
 
     // ── Baseline rank ─────────────────────────────────────────────────────
