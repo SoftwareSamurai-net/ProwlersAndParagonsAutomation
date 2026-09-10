@@ -24,7 +24,10 @@ public sealed record AssetContributor(string MembershipId, string Who, int HeroP
 /// <param name="Asset">The object itself.</param>
 /// <param name="Budget">
 /// The second currency its members' Hero Points bought — Vehicle Points or Base Points, depending
-/// on the kind. <see cref="CostCalculator.CampaignAssetBudget"/>'s answer, never worked out here.
+/// on the kind. <see cref="CostCalculator.CampaignAssetBudget"/>'s answer, never worked out here —
+/// and <b>null when a contribution is too large to trust that arithmetic with</b>. See
+/// <see cref="Findings"/>: this is the same "asked rather than caught" shape <see cref="Spent"/>
+/// already makes for a feature id these rules cannot price, one currency over.
 /// </param>
 /// <param name="Spent">
 /// What has been built with it, in the same currency, or <b>null for an object these rules cannot
@@ -39,8 +42,16 @@ public sealed record AssetContributor(string MembershipId, string Who, int HeroP
 /// for a machine one character owns.</para>
 /// </param>
 /// <param name="Contributors">Who put in, most first. Empty for an object nobody has funded.</param>
+/// <param name="Findings">
+/// What <see cref="CharacterValidator.CheckSharedAsset"/> said about this object and the
+/// contributions naming it — <c>CAMPAIGN_ASSET_KIND_MISMATCH</c> and
+/// <c>CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE</c> among them. Asked once here, on the same
+/// contributions <see cref="Budget"/> is summed from, rather than a second time by whatever draws
+/// the row — the row's own <c>Findings="line.Findings"</c> is this list, verbatim.
+/// </param>
 public sealed record CampaignAssetLine(
-    CampaignAsset Asset, int Budget, int? Spent, IReadOnlyList<AssetContributor> Contributors)
+    CampaignAsset Asset, int? Budget, int? Spent, IReadOnlyList<AssetContributor> Contributors,
+    IReadOnlyList<ValidationIssue> Findings)
 {
     /// <summary>
     /// Whether the object is built past what its members paid for.
@@ -50,16 +61,19 @@ public sealed record CampaignAssetLine(
     /// are decisions about a table's game rather than arithmetic a program may do on their
     /// behalf.</para>
     ///
-    /// <para><b>False for an object with no price</b>, because "over its budget" is a claim about
-    /// a figure and there is no figure — the same direction <see cref="EmptySubmissions"/> takes
-    /// with a row it could not read, where an accusation nobody can check is worse than
-    /// silence.</para>
+    /// <para><b>False for an object with no price, and false for a budget nothing can be trusted
+    /// to sum.</b> "Over its budget" is a claim about two figures and one of them is missing
+    /// either way — the same direction <see cref="EmptySubmissions"/> takes with a row it could
+    /// not read, where an accusation nobody can check is worse than silence. The comparison below
+    /// is a lifted <c>&gt;</c>, so a null <see cref="Budget"/> already answers false without a
+    /// second clause — kept explicit in this comment because that is easy to miss re-reading the
+    /// code.</para>
     /// </summary>
     public bool IsOverBudget => Spent is { } spent && spent > Budget;
 
     /// <summary>
     /// What is left, which is negative exactly when <see cref="IsOverBudget"/> is true, and null
-    /// exactly when <see cref="Spent"/> is.
+    /// exactly when <see cref="Spent"/> is — or when <see cref="Budget"/> is, for the same reason.
     /// </summary>
     public int? Remaining => Spent is { } spent ? Budget - spent : null;
 }
@@ -119,6 +133,11 @@ public static class CampaignAssets
     /// </summary>
     /// <param name="campaign">The game, or null when none resolved — which answers nothing.</param>
     /// <param name="costs">The engine, which decides every figure here.</param>
+    /// <param name="validator">
+    /// The same engine, asked what it thinks of the object and the contributions naming it —
+    /// see <see cref="CampaignAssetLine.Findings"/> and the note on <see cref="CampaignAssetLine.Budget"/>
+    /// about why a finding can stop this method trusting its own arithmetic.
+    /// </param>
     /// <param name="members">
     /// One entry per character the caller managed to read: its membership id, the label the roster
     /// draws it under, and the sheet.
@@ -126,9 +145,11 @@ public static class CampaignAssets
     public static IReadOnlyList<CampaignAssetLine> Ledger(
         Campaign? campaign,
         CostCalculator costs,
+        CharacterValidator validator,
         IEnumerable<(string MembershipId, string Who, CharacterSheet Sheet)> members)
     {
         ArgumentNullException.ThrowIfNull(costs);
+        ArgumentNullException.ThrowIfNull(validator);
         ArgumentNullException.ThrowIfNull(members);
 
         var assets = CampaignAsset.On(campaign);
@@ -136,24 +157,40 @@ public static class CampaignAssets
 
         // Read once: the caller's sequence may be a query, and every object below asks it again.
         var everyone = members.ToList();
+        var everyContribution = everyone.SelectMany(m => m.Sheet.CampaignAssets).ToList();
 
         return
         [
-            .. assets.Select(asset => new CampaignAssetLine(
-                asset,
-                costs.CampaignAssetBudget(asset, everyone.SelectMany(m => m.Sheet.CampaignAssets)),
-                Spend(costs, asset),
-                [
-                    .. everyone
-                        .Select(m => new AssetContributor(
-                            m.MembershipId, m.Who,
-                            m.Sheet.CampaignAssets
-                                .Where(c => string.Equals(c.AssetId, asset.Id, StringComparison.Ordinal))
-                                .Sum(c => c.HeroPoints)))
-                        .Where(c => c.HeroPoints != 0)
-                        .OrderByDescending(c => c.HeroPoints)
-                        .ThenBy(c => c.Who, StringComparer.CurrentCulture)
-                ]))
+            .. assets.Select(asset =>
+            {
+                var findings = validator.CheckSharedAsset(asset, everyContribution);
+
+                // **The owner's 2026-09-10 ruling, cashed in here rather than only reported.**
+                // `CostCalculator.CampaignAssetBudget` multiplies a contribution's Hero Points by
+                // the object's own rate inside a `checked` block, and a contribution the validator
+                // has already called too large is exactly the input that overflows it — a hundred
+                // million Hero Points times twenty-five is past `int.MaxValue`. Asking first means
+                // this method never hands that arithmetic something it does not trust, rather than
+                // catching the `OverflowException` after the fact.
+                var tooLarge = findings.Any(i => i.Code == "CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE");
+
+                return new CampaignAssetLine(
+                    asset,
+                    tooLarge ? null : costs.CampaignAssetBudget(asset, everyContribution),
+                    Spend(costs, asset),
+                    [
+                        .. everyone
+                            .Select(m => new AssetContributor(
+                                m.MembershipId, m.Who,
+                                m.Sheet.CampaignAssets
+                                    .Where(c => string.Equals(c.AssetId, asset.Id, StringComparison.Ordinal))
+                                    .Sum(c => c.HeroPoints)))
+                            .Where(c => c.HeroPoints != 0)
+                            .OrderByDescending(c => c.HeroPoints)
+                            .ThenBy(c => c.Who, StringComparer.CurrentCulture)
+                    ],
+                    findings);
+            })
         ];
     }
 
@@ -180,20 +217,29 @@ public static class CampaignAssets
 
         if (campaign is null) return [];
 
-        var known = CampaignAsset.On(campaign)
-            .Select(a => a.Id)
-            .ToHashSet(StringComparer.Ordinal);
+        var assets = CampaignAsset.On(campaign)
+            .ToDictionary(a => a.Id, StringComparer.Ordinal);
 
-        return
-        [
-            .. sheet.CampaignAssets
-                .Where(c => !string.IsNullOrWhiteSpace(c.AssetId) && !known.Contains(c.AssetId))
-                .Select(c => new CampaignFinding(
-                    UnknownAsset,
-                    $"{Named(c)} is not a shared vehicle or base this game has. The Hero Points "
-                    + "are still spent and still counted — put them somewhere else, or ask the "
-                    + "game to put the object back. Nothing has been changed either way."))
-        ];
+        var orphans = sheet.CampaignAssets
+            .Where(c => !string.IsNullOrWhiteSpace(c.AssetId) && !assets.ContainsKey(c.AssetId))
+            .Select(c => new CampaignFinding(
+                UnknownAsset,
+                $"{Named(c)} is not a shared vehicle or base this game has. The Hero Points "
+                + "are still spent and still counted — put them somewhere else, or ask the "
+                + "game to put the object back. Nothing has been changed either way."));
+
+        // **Ruling 8, read from the same two things this method already has in hand.** A
+        // contribution naming an object the game *does* have can still disagree with it about
+        // what it is — a hand-written payload, or an asset whose kind changed after the
+        // contribution was saved — and `CharacterValidator.CheckContributionAgainstAsset` is the
+        // engine's own answer, called here rather than re-derived: the finding's wording belongs
+        // to the rule, not to this screen.
+        var mismatches = sheet.CampaignAssets
+            .Where(c => !string.IsNullOrWhiteSpace(c.AssetId) && assets.ContainsKey(c.AssetId))
+            .SelectMany(c => CharacterValidator.CheckContributionAgainstAsset(c, assets[c.AssetId]))
+            .Select(i => new CampaignFinding(i.Code, i.Message));
+
+        return [.. orphans, .. mismatches];
     }
 
     /// <summary>

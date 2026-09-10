@@ -341,6 +341,93 @@ public sealed class CampaignSharedBooksTests
     }
 
     /// <summary>
+    /// <b>A contribution of a hundred million Hero Points is the owner's 2026-09-10 ruling made
+    /// concrete, and it does not take the GM's page down with it.</b>
+    ///
+    /// <para><c>CostCalculator.CampaignAssetBudget</c> multiplies inside a <c>checked</c> block, and
+    /// a hundred million Hero Points times twenty-five Vehicle Points a piece is past
+    /// <see cref="int.MaxValue"/> — the same shape <see cref="AFigureTooLargeToPriceIsSaidRatherThanThrown"/>
+    /// proves for a huge Body and Speed, one currency over. <c>CampaignAssets.Ledger</c> is what
+    /// keeps this method from ever handing that arithmetic something it does not trust, by asking
+    /// <c>CharacterValidator.CheckSharedAsset</c> first.</para>
+    ///
+    /// <para>The positive control is the roster and the object's name still drawing: a page that
+    /// had thrown would satisfy "no over-budget sentence" by having no sentences at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task AContributionTooLargeToPriceDoesNotThrowTheGmsPage()
+    {
+        await using var ctx = await AGameWithAFundedObject(heroPoints: 100_000_000);
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        var shared = Shared(page);
+
+        Assert.Contains("The Wing", shared, StringComparison.Ordinal);
+
+        // The finding itself, through the row's own slot rather than a sentence hand-drawn into
+        // the body.
+        Assert.NotNull(SharedPanel(page).QuerySelector("li.finding.error"));
+        Assert.Contains("above the 10000", shared, StringComparison.Ordinal);
+
+        // No budget figure is claimed for a contribution nothing here trusts the arithmetic on —
+        // the same "no price" shape a feature these rules cannot cost already gets.
+        Assert.DoesNotContain("Vehicle Points", shared, StringComparison.Ordinal);
+        Assert.DoesNotContain("More has been built", shared, StringComparison.Ordinal);
+
+        // And the roster above it drew, which is what an uncaught OverflowException would have
+        // taken down along with everything else on the page.
+        Assert.Contains("Ninefold", page.Find(".campaign-list").TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A contribution whose declared kind disagrees with the object it names is Ruling 8, and
+    /// the GM's page is where every member's contribution is reviewed against the object they
+    /// funded.</b> Reachable here by a hand-written payload — a build that copied the id right and
+    /// the kind wrong — never through the ordinary offer, which copies both off the object.
+    /// </summary>
+    [Fact]
+    public async Task AKindMismatchIsReportedOnTheGmsPage()
+    {
+        await using var ctx = new RenderContext();
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var code = ctx.Api.Campaign(GameId, "Nightfall", StoredCampaign.Write(
+            new Campaign(GameId, "Nightfall", "standard", 8, false, Assets: [Wing])));
+
+        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var joined = await store.JoinAsync(code, PlayerCharacter, "Ninefold");
+        Assert.NotNull(joined);
+
+        var funder = Funder(2);
+        funder.CampaignAssets[0] = funder.CampaignAssets[0] with
+        {
+            Kind = CampaignAssetContribution.Headquarters
+        };
+
+        Assert.NotNull(await store.SubmitAsync(joined!.Value.Id, funder, SheetMode.Hero));
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var waiting = (await store.InboxAsync())!.Single();
+        Assert.Equal(DecisionOutcome.Done,
+            (await store.ApproveAsync(joined.Value.Id, waiting.PendingVersion)).Outcome);
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        var shared = Shared(page);
+
+        Assert.Contains("The Wing", shared, StringComparison.Ordinal);
+        Assert.NotNull(SharedPanel(page).QuerySelector("li.finding.error"));
+        Assert.Contains("recorded as a 'headquarters' contribution", shared, StringComparison.Ordinal);
+        Assert.Contains("the campaign's own object is a 'vehicle'", shared, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b>A game whose players could not be read is not a game that owns nothing shared.</b> The
     /// objects are in the campaign's own payload, which this screen reads separately and had
     /// already got — so drawing "Nothing shared yet" over a failed inbox told a GM their machines
@@ -705,5 +792,57 @@ public sealed class CampaignSharedBooksTests
         var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
 
         Assert.Contains("Name a vehicle or a base", Shared(page), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The editor is one slot.</b> Opening a draft — by Add or by Edit — used to leave both
+    /// controls live, so a second press swapped the draft out from under whoever was mid-edit and
+    /// lost anything they had typed. Both are refused while a draft is open, and the reason is
+    /// said in the reader's own terms rather than left for a disabled button to explain by itself.
+    ///
+    /// <para><b>Cancelling is the other half of the assertion, not an afterthought.</b> A guard
+    /// that only ever disabled a control and never re-enabled it would leave every editor on this
+    /// page unusable after the first press — the failure a "break it and watch it go red" pass
+    /// against this test catches by removing the <c>disabled</c> attribute rather than the
+    /// re-enabling logic: either mutation turns a passing assertion here false.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheEditorIsOneSlot()
+    {
+        await using var ctx = await AGameWithAFundedObject();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+
+        // A name typed first, so Add's baseline is "live" rather than disabled for the unrelated
+        // reason of having nothing to name yet — the assertion below is about the draft slot, not
+        // about the naming box being empty.
+        await page.Find("input[aria-label='Name a shared vehicle or base']")
+            .InputAsync(new() { Value = "The Roost" });
+
+        var add = page.Find("button[aria-label='Add a shared vehicle or base']");
+        var editWing = Control(page, "The Wing", "Edit");
+
+        Assert.False(add.HasAttribute("disabled"), "Add starts enabled");
+        Assert.False(editWing.HasAttribute("disabled"), "Edit starts enabled");
+        Assert.DoesNotContain("Finish or cancel the open draft first.", Shared(page), StringComparison.Ordinal);
+
+        await editWing.ClickAsync(new MouseEventArgs());
+
+        add = page.Find("button[aria-label='Add a shared vehicle or base']");
+        editWing = Control(page, "The Wing", "Edit");
+
+        Assert.True(add.HasAttribute("disabled"), "Add stays live with a draft open");
+        Assert.True(editWing.HasAttribute("disabled"), "Edit stays live with a draft open");
+        Assert.Contains("Finish or cancel the open draft first.", Shared(page), StringComparison.Ordinal);
+
+        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Cancel")
+            .ClickAsync(new MouseEventArgs());
+
+        add = page.Find("button[aria-label='Add a shared vehicle or base']");
+        editWing = Control(page, "The Wing", "Edit");
+
+        Assert.False(add.HasAttribute("disabled"), "Add is live again once the draft is gone");
+        Assert.False(editWing.HasAttribute("disabled"), "Edit is live again once the draft is gone");
+        Assert.DoesNotContain("Finish or cancel the open draft first.", Shared(page), StringComparison.Ordinal);
     }
 }

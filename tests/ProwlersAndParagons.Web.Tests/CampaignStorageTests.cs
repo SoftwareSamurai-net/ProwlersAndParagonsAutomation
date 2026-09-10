@@ -102,7 +102,7 @@ public sealed class CampaignStorageTests
 
         // A campaign really is stored, so resolution has something it *could* return. Without
         // this the test would pass against a store that can find nothing at all.
-        Assert.True(await store.SaveAsync(ACampaign(tierId: "iconic", traitCap: 20, unlimited: true)));
+        Assert.True((await store.SaveAsync(ACampaign(tierId: "iconic", traitCap: 20, unlimited: true))).Saved);
 
         foreach (var (what, sheet) in InNoCampaign())
         {
@@ -203,7 +203,7 @@ public sealed class CampaignStorageTests
         };
 
         var campaign = ACampaign(tierId: "legendary", unlimited: true);
-        Assert.True(await FreshStore(Signed).Store.SaveAsync(campaign));
+        Assert.True((await FreshStore(Signed).Store.SaveAsync(campaign)).Saved);
 
         // At the join.
         Assert.Equal(CampaignJoinOutcome.TierDisagrees, CampaignJoin.Apply(sheet, campaign).Outcome);
@@ -387,7 +387,7 @@ public sealed class CampaignStorageTests
         var (store, _) = FreshStore(Signed);
         var campaign = ACampaign();
 
-        Assert.True(await store.SaveAsync(campaign));
+        Assert.True((await store.SaveAsync(campaign)).Saved);
 
         var sheet = new CharacterSheet { SelectedTierId = "standard", CampaignId = campaign.Id };
 
@@ -545,7 +545,7 @@ public sealed class CampaignStorageTests
 
         Assert.NotNull(storage.Peek("pp.character.v1"));
 
-        Assert.True(await store.SaveAsync(ACampaign()));
+        Assert.True((await store.SaveAsync(ACampaign())).Saved);
 
         Assert.Null(storage.Peek("pp.campaign.v1"));
         Assert.Null(storage.Peek("pp.campaign.v1.index"));
@@ -561,7 +561,7 @@ public sealed class CampaignStorageTests
         var (store, _) = FreshStore(Signed);
         var campaign = ACampaign(tierId: "high_level", traitCap: 14, unlimited: true);
 
-        Assert.True(await store.SaveAsync(campaign));
+        Assert.True((await store.SaveAsync(campaign)).Saved);
 
         var restored = await store.LoadAsync(campaign.Id);
 
@@ -592,7 +592,7 @@ public sealed class CampaignStorageTests
         var (store, server) = FreshStore();
 
         Assert.False(await store.IsAvailableAsync());
-        Assert.False(await store.SaveAsync(ACampaign()));
+        Assert.False((await store.SaveAsync(ACampaign())).Saved);
         Assert.Empty(await store.ListAsync());
         Assert.Null(await store.LoadAsync("g_0000000000000000000000"));
 
@@ -602,7 +602,7 @@ public sealed class CampaignStorageTests
 
         var (signed, asked) = FreshStore(Signed);
         Assert.True(await signed.IsAvailableAsync());
-        Assert.True(await signed.SaveAsync(ACampaign()));
+        Assert.True((await signed.SaveAsync(ACampaign())).Saved);
         Assert.NotEmpty(asked.Asked);
     }
 
@@ -646,7 +646,7 @@ public sealed class CampaignStorageTests
         var http = new HttpClient(server) { BaseAddress = new Uri("https://pp.example.test/") };
         var store = new AccountCampaignStore(new FixedIdentity(Signed), new ApiCampaignStore(http));
 
-        Assert.False(await store.SaveAsync(ACampaign()));
+        Assert.False((await store.SaveAsync(ACampaign())).Saved);
         Assert.Null(await store.LoadAsync("g_0000000000000000000000"));
         Assert.Empty(await store.ListAsync());
     }
@@ -687,7 +687,7 @@ public sealed class CampaignStorageTests
     {
         var (store, _) = FreshStore(Signed);
 
-        Assert.True(await store.SaveAsync(ACampaign()));
+        Assert.True((await store.SaveAsync(ACampaign())).Saved);
 
         var row = Assert.Single(await store.ListAsync());
 
@@ -715,7 +715,7 @@ public sealed class CampaignStorageTests
     {
         var (store, _) = FreshStore(Signed);
 
-        Assert.True(await store.SaveAsync(ACampaign()));
+        Assert.True((await store.SaveAsync(ACampaign())).Saved);
 
         var row = Assert.Single(await store.ListAsync());
 

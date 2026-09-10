@@ -1770,6 +1770,22 @@ public sealed class CharacterValidator
                     Value       = contribution.HeroPoints,
                     Limit       = 0
                 });
+
+            // The owner's 2026-09-10 ruling: a contribution above CampaignAssetContribution's own
+            // cap is not a huge campaign, it is a mistake, and it is reported before it ever
+            // reaches CostCalculator.CampaignAssetBudget's arithmetic.
+            if (contribution.HeroPoints > CampaignAssetContribution.MaxHeroPoints)
+                issues.Add(new(ValidationSeverity.Error, "CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE",
+                    $"'{(string.IsNullOrWhiteSpace(contribution.Name) ? contribution.AssetId : contribution.Name)}' "
+                    + $"records {contribution.HeroPoints} Hero Points put in, above the "
+                    + $"{CampaignAssetContribution.MaxHeroPoints} the owner has ruled a game would "
+                    + "never exceed on a single Hero.")
+                {
+                    SubjectKind = ValidationSubject.Character,
+                    SubjectId   = contribution.AssetId,
+                    Value       = contribution.HeroPoints,
+                    Limit       = CampaignAssetContribution.MaxHeroPoints
+                });
         }
     }
 
@@ -1798,12 +1814,45 @@ public sealed class CharacterValidator
     /// the campaign says, which is what makes the finding worth printing beside it.</para>
     /// </summary>
     /// <param name="asset">The campaign's shared object.</param>
+    /// <param name="contributions">
+    /// Every contribution the caller has collected, from any member — the same set
+    /// <see cref="CostCalculator.CampaignAssetBudget"/> is handed. Optional, and null when a
+    /// caller has only the object: a contribution naming another asset is skipped, exactly as
+    /// <c>CampaignAssetBudget</c> skips it, and each one naming this asset is held to the same cap
+    /// <see cref="CheckCampaignAssets"/> already holds a character's own contributions to, plus the
+    /// kind-mismatch check <see cref="CheckContributionAgainstAsset"/> makes — belt and braces with
+    /// that check, since a campaign page reviewing every member's contribution against the object
+    /// they funded is exactly the place both would otherwise go unnoticed.
+    /// </param>
     /// <returns>What is wrong with it, or nothing.</returns>
-    public IReadOnlyList<ValidationIssue> CheckSharedAsset(CampaignAsset asset)
+    public IReadOnlyList<ValidationIssue> CheckSharedAsset(
+        CampaignAsset asset, IEnumerable<CampaignAssetContribution>? contributions = null)
     {
         ArgumentNullException.ThrowIfNull(asset);
 
         var issues = new List<ValidationIssue>();
+
+        foreach (var contribution in contributions ?? [])
+        {
+            if (!string.Equals(contribution.AssetId, asset.Id, StringComparison.Ordinal)) continue;
+
+            issues.AddRange(CheckContributionAgainstAsset(contribution, asset));
+
+            if (contribution.HeroPoints > CampaignAssetContribution.MaxHeroPoints)
+                issues.Add(new(ValidationSeverity.Error, "CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE",
+                    $"'{(string.IsNullOrWhiteSpace(contribution.Name) ? contribution.AssetId : contribution.Name)}' "
+                    + $"records {contribution.HeroPoints} Hero Points put in, above the "
+                    + $"{CampaignAssetContribution.MaxHeroPoints} the owner has ruled a game would "
+                    + "never exceed on a single Hero.")
+                {
+                    SubjectKind = asset.IsHeadquarters
+                        ? ValidationSubject.Headquarters
+                        : ValidationSubject.Vehicle,
+                    SubjectId   = string.IsNullOrWhiteSpace(asset.Name) ? asset.Id : asset.Name,
+                    Value       = contribution.HeroPoints,
+                    Limit       = CampaignAssetContribution.MaxHeroPoints
+                });
+        }
 
         // A shared object is named by the table and identified by its id, so — unlike a machine on
         // a sheet — a blank name is not a reason to stop. The id is what every contribution names
@@ -1862,6 +1911,57 @@ public sealed class CharacterValidator
         CheckControl(name, asset.Control, asset.Speed, issues);
 
         return issues;
+    }
+
+    /// <summary>
+    /// <b>Ruling 8: a contribution whose declared kind disagrees with the object it names.</b> A
+    /// <see cref="CampaignAssetContribution"/> copies its <c>Kind</c> from the campaign's asset
+    /// when a host writes it, but nothing stops a hand-written payload — a build that spelled the
+    /// id right and the kind wrong, or an asset whose kind changed after the contribution was
+    /// saved — from disagreeing. <see cref="CostCalculator.CampaignAssetBudget"/> and
+    /// <see cref="CostCalculator.CampaignAssetPointsPerHeroPoint"/> both read the <em>asset's</em>
+    /// kind, so a mismatched contribution is silently priced at the object's own currency rather
+    /// than the one it claims — which is exactly the silence the owner ruled should end.
+    ///
+    /// <para><b>Pure, and handed both objects rather than resolving either.</b> A contribution and
+    /// the asset it names live on opposite sides of the engine's no-storage line — one is on a
+    /// <see cref="CharacterSheet"/>, the other belongs to a <see cref="Campaign"/> — and nothing
+    /// in <c>engine/</c> may join them. A host that already has both in hand (a campaign page
+    /// reviewing a member's contribution, or a member's own screen once its campaign is resolved)
+    /// calls this directly; <see cref="CheckSharedAsset"/> also calls it for every contribution it
+    /// is handed, so a campaign-wide review reaches it without a second call.</para>
+    ///
+    /// <para><b>Reported, never repaired.</b> The engine does not decide which of the two the
+    /// player meant — see <c>CLAUDE.md</c>'s rule that an illegal character is reported, not
+    /// fixed.</para>
+    /// </summary>
+    /// <param name="contribution">One character's contribution.</param>
+    /// <param name="asset">The campaign's own record of the object the contribution names.</param>
+    /// <returns>
+    /// A single <c>CAMPAIGN_ASSET_KIND_MISMATCH</c> error when the two disagree, or nothing.
+    /// Nothing at all when <paramref name="contribution"/> names a different object — that is
+    /// <see cref="CampaignAssets.Orphaned"/>'s question, not this one.
+    /// </returns>
+    public static IReadOnlyList<ValidationIssue> CheckContributionAgainstAsset(
+        CampaignAssetContribution contribution, CampaignAsset asset)
+    {
+        ArgumentNullException.ThrowIfNull(contribution);
+        ArgumentNullException.ThrowIfNull(asset);
+
+        if (!string.Equals(contribution.AssetId, asset.Id, StringComparison.Ordinal)) return [];
+        if (string.Equals(contribution.Kind, asset.Kind, StringComparison.Ordinal)) return [];
+
+        var name = string.IsNullOrWhiteSpace(contribution.Name) ? contribution.AssetId : contribution.Name;
+
+        return [new(ValidationSeverity.Error, "CAMPAIGN_ASSET_KIND_MISMATCH",
+            $"'{name}' is recorded as a '{contribution.Kind}' contribution, but the campaign's own "
+            + $"object is a '{asset.Kind}'. Priced silently at the object's own currency, which is "
+            + "not what the contribution says it is buying.")
+        {
+            SubjectKind = ValidationSubject.Character,
+            SubjectId   = contribution.AssetId,
+            OwnerId     = asset.Kind
+        }];
     }
 
     /// <summary>

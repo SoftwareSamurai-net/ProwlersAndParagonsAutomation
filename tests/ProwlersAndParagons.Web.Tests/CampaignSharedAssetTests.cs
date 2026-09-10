@@ -65,6 +65,11 @@ public sealed class CampaignSharedAssetTests
         await page.FindAll("button").Single(b => b.TextContent.Trim() == "Join").ClickAsync(new());
     }
 
+    /// <summary>The "Shared with the campaign" panel, found rather than assumed to be the only one.</summary>
+    private static AngleSharp.Dom.IElement SharedPanel(IRenderedComponent<Assets> page) =>
+        page.FindAll("section.panel")
+            .Single(s => s.TextContent.Contains("Shared with the campaign", StringComparison.Ordinal));
+
     // ── The offer ─────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -215,6 +220,71 @@ public sealed class CampaignSharedAssetTests
         // Kept, with its Hero Points, and still charged.
         Assert.Equal(2, Assert.Single(ctx.Session.Sheet.CampaignAssets).HeroPoints);
         Assert.Equal(2, ctx.Session.Costs.TotalAssetPerkCost(ctx.Session.Sheet));
+    }
+
+    /// <summary>
+    /// <b>A contribution above the owner's 2026-09-10 cap is reported on this character's own
+    /// step</b>, through the same <c>ChosenRow</c> slot every other finding on this page uses —
+    /// <c>CharacterValidator.CheckCampaignAssets</c> makes it without needing the campaign at all,
+    /// so it is on <c>Session.Validate()</c> from the moment the number is typed.
+    /// </summary>
+    [Fact]
+    public async Task AContributionOverTheCapIsReportedOnTheStep()
+    {
+        var (ctx, code) = await AGameRunByAnotherAccount(Wing);
+        await using var _ = ctx;
+
+        await Join(ctx, code);
+
+        ctx.Session.Sheet.CampaignAssets.Add(new CampaignAssetContribution(TheWing)
+        {
+            Name = "The Wing", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 100_000_000
+        });
+
+        var page = ctx.Render<Assets>();
+
+        await page.WaitForAssertionAsync(() =>
+            Assert.Contains("The Wing", page.Markup, StringComparison.Ordinal));
+
+        Assert.Contains("above the 10000", page.Markup, StringComparison.Ordinal);
+        Assert.NotNull(SharedPanel(page).QuerySelector("li.finding.error"));
+
+        // Reported, never repaired — the Hero Points are still on the sheet and still charged.
+        Assert.Equal(100_000_000, Assert.Single(ctx.Session.Sheet.CampaignAssets).HeroPoints);
+    }
+
+    /// <summary>
+    /// <b>A contribution whose kind disagrees with the object it names is Ruling 8</b>, surfaced
+    /// through <c>CampaignAssets.Orphaned</c> rather than through <c>Session.Validate()</c> —
+    /// answering it needs the campaign's own record of the object, which is exactly what
+    /// <c>Orphaned</c> already has in hand and the plain sheet validator never does. Reachable only
+    /// by a hand-written payload: the ordinary offer copies the kind off the object, so a mismatch
+    /// can never happen by clicking.
+    /// </summary>
+    [Fact]
+    public async Task AKindMismatchIsReportedOnTheStep()
+    {
+        var (ctx, code) = await AGameRunByAnotherAccount(Wing);
+        await using var _ = ctx;
+
+        await Join(ctx, code);
+
+        ctx.Session.Sheet.CampaignAssets.Add(new CampaignAssetContribution(TheWing)
+        {
+            Name = "The Wing", Kind = CampaignAssetContribution.Headquarters, HeroPoints = 2
+        });
+
+        var page = ctx.Render<Assets>();
+
+        await page.WaitForAssertionAsync(() =>
+            Assert.Contains("recorded as a 'headquarters' contribution", page.Markup,
+                StringComparison.Ordinal));
+
+        Assert.Contains("the campaign's own object is a 'vehicle'", page.Markup, StringComparison.Ordinal);
+
+        // Never the UNKNOWN_CAMPAIGN_ASSET sentence — the object is real, only the kind disagrees.
+        Assert.DoesNotContain("is not a shared vehicle or base this game has", page.Markup,
+            StringComparison.Ordinal);
     }
 
     /// <summary>

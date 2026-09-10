@@ -65,8 +65,8 @@ public sealed class AccountCampaignStore
     }
 
     /// <summary>Create or replace one, and say whether it actually landed.</summary>
-    public async Task<bool> SaveAsync(Campaign campaign) =>
-        await IsSignedInAsync() && await _inTheAccount.SaveAsync(campaign);
+    public async Task<CampaignSaveOutcome> SaveAsync(Campaign campaign) =>
+        await IsSignedInAsync() ? await _inTheAccount.SaveAsync(campaign) : new CampaignSaveOutcome(false, null);
 
     /// <summary>Throw one away. Characters that named it keep saying so — see the design note.</summary>
     public async Task DeleteAsync(string id)

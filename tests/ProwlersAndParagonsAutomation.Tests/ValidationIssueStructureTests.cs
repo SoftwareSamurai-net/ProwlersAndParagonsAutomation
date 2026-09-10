@@ -1093,8 +1093,20 @@ public sealed class ValidationIssueStructureTests
         // A contribution to a campaign's shared object belongs to the sheet: what the object is
         // belongs to the campaign, and there is no vehicle or base here to name.
         ["CAMPAIGN_ASSET_WITHOUT_ID"]       = [ValidationSubject.Character],
-        ["UNKNOWN_CAMPAIGN_ASSET_KIND"]     = [ValidationSubject.Character],
+        ["UNKNOWN_CAMPAIGN_ASSET_KIND"]     = [ValidationSubject.Character, ValidationSubject.Vehicle,
+                                                 ValidationSubject.Headquarters],
         ["ASSET_PERK_RECORDED_TWICE"]       = [ValidationSubject.Character],
+
+        // Ruling 7: reported against the character when CheckCampaignAssets finds it on a
+        // contribution, and against the shared object when CheckSharedAsset finds it while
+        // walking every member's contribution to that object.
+        ["CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE"] = [ValidationSubject.Character,
+                                                       ValidationSubject.Vehicle,
+                                                       ValidationSubject.Headquarters],
+
+        // Ruling 8: CheckContributionAgainstAsset has only the contribution and the asset in
+        // hand, and a contribution belongs to the character the same way its own kind and id do.
+        ["CAMPAIGN_ASSET_KIND_MISMATCH"]    = [ValidationSubject.Character],
 
         // A Trait or a Power over the cap, under the 1d floor, under its package's floor, or
         // recorded with a negative quantity: the kind says which collection to write into.
@@ -1741,6 +1753,14 @@ public sealed class ValidationIssueStructureTests
                 {
                     Name = "The Aerie", Kind = "space_station", HeroPoints = -2
                 });
+
+                // Ruling 7: a contribution above the owner's cap is reported before the figure
+                // ever reaches CostCalculator.CampaignAssetBudget's arithmetic.
+                sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-1")
+                {
+                    Name = "The Wing", Kind = CampaignAssetContribution.Vehicle,
+                    HeroPoints = CampaignAssetContribution.MaxHeroPoints + 1
+                });
                 return sheet;
             }
 
@@ -1816,7 +1836,16 @@ public sealed class ValidationIssueStructureTests
     /// produces it exists.</para>
     /// </summary>
     private static readonly string[] UnprovokableCodes =
-        ["POWER_MECHANICS_UNVERIFIED", "POWER_DESCRIPTION_UNVERIFIED", "CHARACTER_NOT_PRICEABLE"];
+    [
+        "POWER_MECHANICS_UNVERIFIED", "POWER_DESCRIPTION_UNVERIFIED", "CHARACTER_NOT_PRICEABLE",
+
+        // Ruling 8's CAMPAIGN_ASSET_KIND_MISMATCH comes only out of
+        // CharacterValidator.CheckContributionAgainstAsset, which takes a contribution and a
+        // campaign's own asset rather than a CharacterSheet — nothing Validate(sheet) walks can
+        // ever reach it, by the same no-storage line CheckSharedAsset is exempt for. Exercised
+        // directly by CampaignAssetTests instead.
+        "CAMPAIGN_ASSET_KIND_MISMATCH"
+    ];
 
     /// <summary>
     /// <b>Every source file in the engine, not just the validator.</b> Reading

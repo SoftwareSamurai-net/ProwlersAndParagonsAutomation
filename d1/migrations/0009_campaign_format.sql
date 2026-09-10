@@ -1,0 +1,25 @@
+-- The shape of a campaign's payload, so a save from an older build can be refused rather than
+-- silently erasing what that build cannot see.
+--
+-- **The defect this closes.** `campaigns.write` stores whatever payload the browser sends, and it
+-- has to: the server has never parsed a campaign and must not start. But a stale tab running an
+-- older build reads a campaign leniently — it ignores `Assets`, and before that the table rules
+-- and the Immortality price, because that field did not exist in its own build yet — and a Save
+-- from that tab writes its own `Campaign` back, erasing whatever it could not read. Two tabs open
+-- on the same campaign, one of them old, is not a rare shape: a GM keeps a campaign open for
+-- weeks.
+--
+-- **`payload_format` is a fact about the shape of the payload, not about the campaign.** It never
+-- travels inside `payload` — a field there is exactly the thing no query here may look inside —
+-- so it rides beside `label` in the write body, the same way `label` already does. Bumped
+-- whenever the payload gains a field an older build would drop; see `Campaign` (in `web/`) for
+-- the browser's own copy of the current value and what each bump has covered so far.
+--
+-- **`DEFAULT 0` is what an older build's write already looks like.** A body with no `format` at
+-- all — exactly what a build predating this feature sends — is read as format 0, so every
+-- existing row is already telling the truth about the build that last touched it: nothing wrote
+-- with a higher format before this column existed to record one.
+--
+-- **No table rebuild.** Not part of a primary key, so SQLite adds it in place — the same shape
+-- 0005 and 0008 already used for a column on this table.
+ALTER TABLE campaigns ADD COLUMN payload_format INTEGER NOT NULL DEFAULT 0;

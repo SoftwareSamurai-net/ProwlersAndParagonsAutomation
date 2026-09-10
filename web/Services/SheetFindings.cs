@@ -107,4 +107,25 @@ public static class SheetFindings
             i.SubjectKind == ValidationSubject.Character
             && i.SubjectId == perkId
             && i.Code is "PER_UNIT_WITHOUT_UNITS" or "NEGATIVE_UNITS" or "UNKNOWN_PERK")];
+
+    /// <summary>
+    /// One contribution's row on the Vehicles &amp; bases step: what is wrong with the
+    /// contribution itself, filed by <c>CharacterValidator.CheckCampaignAssets</c> at
+    /// <see cref="ValidationSubject.Character"/> with the contribution's own asset id as
+    /// <see cref="ValidationIssue.SubjectId"/> — the same shape <see cref="ForPerk"/> reads, and
+    /// restricted to the same handful of codes for the same reason: an asset id and a Perk or Pro
+    /// id are drawn from different collections and the type system does not keep them apart.
+    ///
+    /// <para><b><c>CAMPAIGN_ASSET_KIND_MISMATCH</c> is deliberately not one of these codes.</b> It
+    /// needs the campaign's own record of the object, which this sheet-only filter never has —
+    /// <see cref="CampaignAssets.Orphaned"/> is where that finding is made, because it is the one
+    /// place on this step already holding both the sheet and the resolved campaign.</para>
+    /// </summary>
+    public static IReadOnlyList<ValidationIssue> ForCampaignAssetContribution(
+        ValidationResult result, string assetId) =>
+        [.. result.Issues.Where(i =>
+            i.SubjectKind == ValidationSubject.Character
+            && i.SubjectId == assetId
+            && i.Code is "CAMPAIGN_ASSET_WITHOUT_ID" or "UNKNOWN_CAMPAIGN_ASSET_KIND"
+                       or "NEGATIVE_UNITS" or "CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE")];
 }

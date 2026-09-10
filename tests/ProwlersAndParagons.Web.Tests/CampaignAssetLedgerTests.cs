@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -29,6 +30,10 @@ public sealed class CampaignAssetLedgerTests
     private static Campaign Game(params CampaignAsset[] assets) =>
         new("g_0000000000000000000000", "Nightfall", "standard", 8, false, Assets: assets);
 
+    /// <summary>The same engine service <c>CampaignApproval.razor</c> injects beside <c>Session.Costs</c>.</summary>
+    private static CharacterValidator Validator(RenderContext ctx) =>
+        ctx.Services.GetRequiredService<CharacterValidator>();
+
     private static CharacterSheet Who(params (string Id, string Kind, int HeroPoints)[] put)
     {
         var sheet = new CharacterSheet { SelectedTierId = "standard" };
@@ -56,7 +61,7 @@ public sealed class CampaignAssetLedgerTests
     {
         using var ctx = new RenderContext();
 
-        var ledger = CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
+        var ledger = CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, Validator(ctx),
         [
             ("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 1))),
             ("m_2", "Nightjar", Who((TheWing, CampaignAssetContribution.Vehicle, 3))),
@@ -82,7 +87,7 @@ public sealed class CampaignAssetLedgerTests
     {
         using var ctx = new RenderContext();
 
-        var ledger = CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
+        var ledger = CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, Validator(ctx),
         [
             ("m_1", "Bulwark",  Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
             ("m_2", "Nightjar", Who()),
@@ -101,7 +106,7 @@ public sealed class CampaignAssetLedgerTests
     {
         using var ctx = new RenderContext();
 
-        var ledger = CampaignAssets.Ledger(Game(Wing, Roost), ctx.Session.Costs,
+        var ledger = CampaignAssets.Ledger(Game(Wing, Roost), ctx.Session.Costs, Validator(ctx),
         [
             ("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 2),
                                    (TheRoost, CampaignAssetContribution.Headquarters, 4))),
@@ -122,7 +127,7 @@ public sealed class CampaignAssetLedgerTests
     {
         using var ctx = new RenderContext();
 
-        var line = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, []));
+        var line = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, Validator(ctx), []));
 
         Assert.Equal(0, line.Budget);
         Assert.Empty(line.Contributors);
@@ -151,16 +156,16 @@ public sealed class CampaignAssetLedgerTests
         var rate = ctx.Session.Rules.Assets.VehiclePointsPerHeroPoint;
 
         // Body 8 + Speed 10 is 18 Vehicle Points; one Hero Point buys 25 and none buys nothing.
-        var funded = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
+        var funded = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, Validator(ctx),
             [("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 1)))]));
 
         // Body 20 + Speed 10 is 30, against the same one Hero Point's 25: over, and nowhere near
         // twice over.
         var barely = Assert.Single(CampaignAssets.Ledger(
-            Game(Wing with { Body = 20 }), ctx.Session.Costs,
+            Game(Wing with { Body = 20 }), ctx.Session.Costs, Validator(ctx),
             [("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 1)))]));
 
-        var starved = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, []));
+        var starved = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, Validator(ctx), []));
 
         Assert.False(funded.IsOverBudget);
         Assert.Equal(rate, funded.Budget);
@@ -205,7 +210,7 @@ public sealed class CampaignAssetLedgerTests
             Features = [new SelectedAssetFeature("warp_nacelles")]
         };
 
-        var ledger = CampaignAssets.Ledger(Game(fromAnotherBuild, Roost), ctx.Session.Costs,
+        var ledger = CampaignAssets.Ledger(Game(fromAnotherBuild, Roost), ctx.Session.Costs, Validator(ctx),
         [
             ("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 2),
                                    (TheRoost, CampaignAssetContribution.Headquarters, 4))),
@@ -239,7 +244,7 @@ public sealed class CampaignAssetLedgerTests
 
         var withSensors = Wing with { Features = [new SelectedAssetFeature("sensors")] };
 
-        var line = Assert.Single(CampaignAssets.Ledger(Game(withSensors), ctx.Session.Costs, []));
+        var line = Assert.Single(CampaignAssets.Ledger(Game(withSensors), ctx.Session.Costs, Validator(ctx), []));
 
         // Body 8 + Speed 10 + Sensors at its printed price, all from the rules data.
         Assert.Equal(8 + 10 + ctx.Session.Costs.VehicleFeatureCost(new SelectedAssetFeature("sensors")),
@@ -254,8 +259,8 @@ public sealed class CampaignAssetLedgerTests
 
         var none = new Campaign("g_0000000000000000000000", "Nightfall", "standard", 8, false);
 
-        Assert.Empty(CampaignAssets.Ledger(none, ctx.Session.Costs, []));
-        Assert.Empty(CampaignAssets.Ledger(null, ctx.Session.Costs, []));
+        Assert.Empty(CampaignAssets.Ledger(none, ctx.Session.Costs, Validator(ctx), []));
+        Assert.Empty(CampaignAssets.Ledger(null, ctx.Session.Costs, Validator(ctx), []));
     }
 
     // ── A contribution to an object that is not there ─────────────────────────

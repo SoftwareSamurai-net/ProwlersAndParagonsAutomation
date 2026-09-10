@@ -471,16 +471,25 @@ public sealed class DerivedStatsCalculator
     /// <summary>
     /// The Armor rank a worn suit grants this character, or null if they are wearing none.
     ///
-    /// <para><b>p.88 states the rank and p.87 caps it, so the answer is neither page alone.</b>
-    /// p.88: wearing a suit hands you the Armor Power at your Toughness plus the suit's Armor
-    /// Bonus, measured from your own Armor Power instead where you already have one. p.87: the
-    /// Gear Limit is the maximum Trait rank you can apply when using mundane equipment that boosts
-    /// your Traits "(usually armor and weapons)", and its worked example fixes the order of the
-    /// arithmetic at limit-plus-bonus rather than trait-plus-bonus-then-capped. So the rank is
-    /// <c>min(base, gear limit) + bonus</c>, and a 10d-Toughness Hero in Plate is 8d in a standard
-    /// game, not 12d. p.87 says outright that this is what makes mundane armour less useful to a
-    /// superhuman, so the surprising half is the printed intent. See
-    /// <c>docs/guide/rules-engine.md</c>, which carries the whole argument.</para>
+    /// <para><b>p.88 states the rank, p.87 caps it, and the owner's 2026-09-10 ruling floors it —
+    /// so the answer is no one page alone.</b> p.88: wearing a suit hands you the Armor Power at
+    /// your Toughness plus the suit's Armor Bonus, measured from your own Armor Power instead
+    /// where you already have one. p.87: the Gear Limit is the maximum Trait rank you can apply
+    /// when using mundane equipment that boosts your Traits "(usually armor and weapons)", and its
+    /// worked example fixes the order of the arithmetic at limit-plus-bonus rather than
+    /// trait-plus-bonus-then-capped. So before the floor the rank is
+    /// <c>min(base, gear limit) + bonus</c>, and p.87 says outright that this is what makes
+    /// mundane armour less useful to a superhuman.</para>
+    ///
+    /// <para><b>But a suit never lowers a wearer's own Armor.</b> p.88 calls what a suit does a
+    /// grant — it "grants you the Armor Power" — and calls what an existing Armor Power gets an
+    /// option — you "can use it in place of Toughness". A grant and an option; neither is a
+    /// subtraction, and the specific rule about armour beats the Gear Limit's general one where
+    /// the two would otherwise disagree. So the final rank is the wearer's own Armor Power's
+    /// effective rank, or the capped figure above, whichever is higher: a Hero with Armor 12d who
+    /// puts on Plate still shows Armor 12d, and the suit is reported as contributing nothing
+    /// rather than as having reduced them. See <c>docs/guide/rules-engine.md</c>, which carries
+    /// the whole argument.</para>
     ///
     /// <para><b>It is a figure this reports, not a Power it buys.</b> Nothing here touches
     /// <see cref="CharacterSheet.SelectedPowers"/>: mundane gear is free and untracked, an Armor
@@ -494,15 +503,39 @@ public sealed class DerivedStatsCalculator
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
-        var best = sheet.Gear
+        var best = BestWornArmorBonusDice(sheet);
+
+        return best < 0 ? null : ArmorRankInSuit(sheet, best);
+    }
+
+    /// <summary>
+    /// True when a suit is worn but its own contribution — the capped Toughness-or-own-Armor plus
+    /// the suit's Armor Bonus — does not exceed the wearer's own Armor Power. In that case
+    /// <see cref="ArmorFromGear"/> is entirely the wearer's own rank and the suit adds nothing, so
+    /// a host printing "worn, under the Gear Limit" beside the figure would be crediting the suit
+    /// for a number it did not supply. False when nothing is worn.
+    /// </summary>
+    public bool WornArmorSuitContributesNothing(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var best = BestWornArmorBonusDice(sheet);
+        if (best < 0) return false;
+
+        var toughness = GetTraitRank("toughness", sheet);
+        var ownArmor = sheet.GetPower("armor") is { } armor ? GetEffectiveRank(armor, sheet) : 0;
+        var capped = Math.Min(Math.Max(toughness, ownArmor), EffectiveGearLimit(sheet)) + best;
+
+        return ownArmor >= capped;
+    }
+
+    private int BestWornArmorBonusDice(CharacterSheet sheet) =>
+        sheet.Gear
             .Select(g => g.CatalogueId is null ? null : _rules.Catalogue.Find(g.CatalogueId))
             .Where(r => r is { Kind: GearCatalogueKind.Armor })
             .Select(r => r!.BonusDice ?? 0)
             .DefaultIfEmpty(-1)
             .Max();
-
-        return best < 0 ? null : ArmorRankInSuit(sheet, best);
-    }
 
     /// <summary>
     /// The rank a suit worth <paramref name="armorBonusDice"/> grants this character.
@@ -512,7 +545,9 @@ public sealed class DerivedStatsCalculator
     /// their own Armor Power's effective rank, whichever is higher — p.88's second sentence, so
     /// "an armoured hero in a borrowed shell is not reduced to an ordinary person's baseline" —
     /// and a Power's rank substituted in that way is a Trait rank like any other and is capped the
-    /// same.</para>
+    /// same. <b>The result then floors at the wearer's own Armor Power</b> — the owner's
+    /// 2026-09-10 ruling that a suit never lowers a wearer's own Armor — so a suit whose capped
+    /// contribution would land below what the wearer already has simply does not apply.</para>
     /// </summary>
     public int ArmorRankInSuit(CharacterSheet sheet, int armorBonusDice)
     {
@@ -522,6 +557,8 @@ public sealed class DerivedStatsCalculator
 
         var ownArmor = sheet.GetPower("armor") is { } armor ? GetEffectiveRank(armor, sheet) : 0;
 
-        return Math.Min(Math.Max(toughness, ownArmor), EffectiveGearLimit(sheet)) + armorBonusDice;
+        var capped = Math.Min(Math.Max(toughness, ownArmor), EffectiveGearLimit(sheet)) + armorBonusDice;
+
+        return Math.Max(ownArmor, capped);
     }
 }

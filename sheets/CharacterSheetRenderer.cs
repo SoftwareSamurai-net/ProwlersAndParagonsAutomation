@@ -357,8 +357,17 @@ public static class CharacterSheetRenderer
         // **Only when a suit is being worn**, because a line reading "Armor: —" on every sheet in
         // the game would be a stat nobody has. It is derived and not bought: p.88 hands the Power
         // over for free, capped by p.87's Gear Limit, and nothing was spent on it.
+        //
+        // **And only "worn, under the Gear Limit" when the suit actually supplied the number.**
+        // The owner's 2026-09-10 ruling floors the figure at the wearer's own Armor Power, so a
+        // Hero whose own Armor already exceeds what the suit would grant sees that stated plainly
+        // rather than a line crediting the suit for a rank it did not add.
         if (derived.ArmorFromGear(sheet) is { } armor)
-            sb.AppendLine($"  Armor:   {armor}d (worn, under the Gear Limit)");
+        {
+            sb.AppendLine(derived.WornArmorSuitContributesNothing(sheet)
+                ? $"  Armor:   {armor}d (own Armor Power; the worn suit adds nothing)"
+                : $"  Armor:   {armor}d (worn, under the Gear Limit)");
+        }
 
         // **Only when a base grants it**, for the reason Armor prints only when a suit is worn:
         // a line reading "Teamwork: 0" on every sheet in the game is a figure nobody has.

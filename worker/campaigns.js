@@ -123,12 +123,28 @@ export async function read(request, env, deps, user, id) {
 }
 
 /**
+ * The sentence a stale tab is shown. Written for the person at the keyboard, not the developer
+ * reading a network tab — the one refusal in this file that breaks that rule on purpose, because
+ * the browser shows it verbatim (see `ApiCampaignStore.SaveAsync`) and there is nowhere else for
+ * the explanation to live: a build old enough to send format 0 cannot know what a newer format
+ * added, so only the server, which can see both, can say why the save is refused.
+ */
+const STALE_FORMAT_MESSAGE =
+    'This tab is running an older version of the site. Saving now would erase settings it cannot '
+    + 'see — reload the page and try again.';
+
+/**
  * Create or replace one campaign.
  *
  * The id's shape, the label's length and the JSON check are the whole of the validation, and all
  * three are about this server rather than about the campaign: they keep the table's keys
  * well-formed and the database from being filled with junk. Whether the campaign's settings make
  * sense for a character is a question for the browser, on the other side of the wire.
+ *
+ * **`format` travels beside `label`, outside `payload`, and this function still reads no field of
+ * the campaign itself.** It is a fact about the *shape* of the payload — how many things this
+ * build knows to preserve — not about the game, and the distinction is the whole of what keeps
+ * this file's own invariant intact. See `d1/migrations/0009_campaign_format.sql`.
  */
 export async function write(request, env, deps, user, id) {
     if (!sameOrigin(request)) return fail(403, 'This request did not come from this site.');
@@ -145,15 +161,30 @@ export async function write(request, env, deps, user, id) {
     const label = normaliseLabel(body.value.label);
     if (label === undefined) return fail(400, 'That label is too long.');
 
+    // **Absent is format 0, and that is exactly what an older build sends** — this field did not
+    // exist in its write body, so "missing" and "the oldest known shape" have to mean the same
+    // thing. Anything present that is not an integer is refused outright: a non-numeric format is
+    // not a build older than this server has ever shipped, it is a malformed request.
+    const rawFormat = body.value.format;
+    if (rawFormat !== undefined && !Number.isInteger(rawFormat)) {
+        return fail(400, 'That is not a format number this server understands.');
+    }
+    const payloadFormat = rawFormat === undefined ? 0 : rawFormat;
+
     // **A candidate code, kept only if there is not one already.** A campaign nobody can join is
     // useless, so the first write gives it one — and `COALESCE` in the statement is what stops an
     // ordinary save (a rename, a tier change) rotating it and locking out everybody who had been
     // told the old one. Rotating is `rotateCode` above, deliberately.
-    await db.putCampaign(env.DB, {
-        userId: user.id, id, label, payload,
+    const landed = await db.putCampaign(env.DB, {
+        userId: user.id, id, label, payload, payloadFormat,
         joinCode: normaliseJoinCode(newJoinCode()),
         now: deps.now(),
     });
+
+    // **A stale save, never a merge.** `putCampaign`'s own `WHERE` is what decided this — the row
+    // already existed and already carried a higher format — so nothing was written and the
+    // stored campaign is exactly what it was before this request arrived.
+    if (!landed) return fail(409, STALE_FORMAT_MESSAGE);
 
     return noContent();
 }

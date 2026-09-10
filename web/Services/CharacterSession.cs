@@ -606,6 +606,27 @@ public sealed class CharacterSession
     /// constraints — see <c>CharacterValidator.CheckSharedAsset</c>, which is where the argument
     /// for that living in the engine rather than on the screen is written down.</para>
     /// </summary>
-    public IReadOnlyList<ValidationIssue> Check(CampaignAsset asset) =>
-        Validator.CheckSharedAsset(asset);
+    /// <param name="asset">The campaign's shared object.</param>
+    /// <param name="contributions">
+    /// Every contribution the caller has collected, from any member — optional, and null for a
+    /// caller (or a test) that only has the object. Held to the same cap and the same
+    /// kind-mismatch check <see cref="CharacterValidator.CheckSharedAsset"/> already makes when it
+    /// is handed contributions.
+    /// </param>
+    public IReadOnlyList<ValidationIssue> Check(
+        CampaignAsset asset, IEnumerable<CampaignAssetContribution>? contributions = null) =>
+        Validator.CheckSharedAsset(asset, contributions);
+
+    /// <summary>
+    /// Every shared object a campaign has, with its books open — <see cref="CampaignAssets.Ledger"/>,
+    /// handed both engine services it needs without a `.razor` file ever naming
+    /// <c>CharacterValidator</c> in an <c>@inject</c> line. <c>NoPageNamesATypeThisProjectDeclares</c>
+    /// scans the visible prose of every page, and an <c>@inject</c> directive is not stripped from
+    /// it — the type after the keyword is exactly as visible to that guard as a sentence would be,
+    /// which is why this wrapper exists rather than a second injected engine service beside
+    /// <see cref="Costs"/>.
+    /// </summary>
+    public IReadOnlyList<CampaignAssetLine> AssetLedger(
+        Campaign? campaign, IEnumerable<(string MembershipId, string Who, CharacterSheet Sheet)> members) =>
+        CampaignAssets.Ledger(campaign, Costs, Validator, members);
 }

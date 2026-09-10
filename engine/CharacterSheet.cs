@@ -325,6 +325,21 @@ public record CampaignAssetContribution(string AssetId)
 
     /// <summary>Both of the above, for a host offering a choice and for the validator's message.</summary>
     public static IReadOnlyList<string> Kinds { get; } = [Vehicle, Headquarters];
+
+    /// <summary>
+    /// The most Hero Points one contribution may put into a shared object.
+    ///
+    /// <para><b>The owner's 2026-09-10 ruling.</b> A campaign's unlimited-budget game legally lets
+    /// a contribution of a hundred million Hero Points sit on a sheet, and
+    /// <see cref="CostCalculator.CampaignAssetBudget"/> multiplying that by the object's
+    /// points-per-Hero-Point rate is arithmetic the engine should never be asked to trust. Asked
+    /// for a real ceiling, the owner's words were that a game would never exceed this much on a
+    /// single Hero — so a figure above it is not a huge campaign, it is a mistake, and
+    /// <c>CharacterValidator.CheckCampaignAssets</c> reports it rather than letting it reach the
+    /// arithmetic. One constant, so the figure in the message and the figure the checked sum can
+    /// actually reach never drift apart.</para>
+    /// </summary>
+    public const int MaxHeroPoints = 10_000;
 }
 
 /// <summary>

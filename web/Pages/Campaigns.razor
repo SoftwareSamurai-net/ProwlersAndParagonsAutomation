@@ -246,7 +246,13 @@ else
 
                 @if (_problem is { } problem)
                 {
-                    <p class="small muted spaced" role="status">@problem</p>
+                    <p class="small muted spaced" role="status">
+                        @problem
+                        @if (_offerReload)
+                        {
+                            <text> <a href=".">Reload</a></text>
+                        }
+                    </p>
                 }
             </div>
         }
@@ -576,6 +582,13 @@ else
 
     /// <summary>What went wrong with the last save, or null. Cleared at the start of each one.</summary>
     private string? _problem;
+
+    /// <summary>
+    /// Whether <see cref="_problem"/> is a stale-format refusal, which is the one save failure a
+    /// reload actually fixes — this tab has to fetch the newer bytes it could not see, not merely
+    /// try the same write again.
+    /// </summary>
+    private bool _offerReload;
 
     /// <summary>What became of the last join. Cleared at the start of the next one.</summary>
     private string? _joined;
@@ -1260,18 +1273,24 @@ else
     /// <para><b>A refused save has to be said out loud</b>, because a form that clears itself and
     /// does nothing is indistinguishable from a control that is not wired up — the rule the
     /// character manager's own refusals follow.</para>
+    ///
+    /// <para><b>A stale-format refusal shows the server's own sentence, verbatim.</b> This build
+    /// cannot know what a later one added to the payload, so it cannot write the explanation
+    /// itself — only the server, on the far side of the wire, knows both formats being compared.
+    /// See <c>ApiCampaignStore.SaveAsync</c>.</para>
     /// </summary>
     private async Task Save()
     {
         if (_editing is not { } editing) return;
 
         _problem = null;
+        _offerReload = false;
 
         // **The book is stored as null**, so a campaign whose GM opened this form and turned
         // nothing on is byte-identical to one written before the form existed. They are the same
         // game, and a stored block of thirteen falses would be a difference `CampaignDiff` and
         // `Inspect` would then have to be careful not to report.
-        var landed = await Store.SaveAsync(editing with
+        var outcome = await Store.SaveAsync(editing with
         {
             Name = _name,
             TierId = _tierId,
@@ -1280,9 +1299,10 @@ else
             ImmortalityCost = _immortality
         });
 
-        if (!landed)
+        if (!outcome.Saved)
         {
-            _problem = "That could not be saved just now. Try again in a moment.";
+            _problem = outcome.Message ?? "That could not be saved just now. Try again in a moment.";
+            _offerReload = outcome.Message is not null;
             return;
         }
 

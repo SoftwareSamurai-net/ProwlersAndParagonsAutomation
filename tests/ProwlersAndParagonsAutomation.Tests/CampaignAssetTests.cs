@@ -36,6 +36,9 @@ public sealed class CampaignAssetTests
     private static CampaignAssetContribution Put(int heroPoints, string id = Id) =>
         new(id) { HeroPoints = heroPoints };
 
+    private static readonly string[] BothRulingCodes =
+        ["CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE", "CAMPAIGN_ASSET_KIND_MISMATCH"];
+
     // ── The budget is what the members put in ─────────────────────────────────
 
     /// <summary>
@@ -401,5 +404,77 @@ public sealed class CampaignAssetTests
                 $"OwnedVehicle.{name} is {type.Name} and the campaign's own object spells it "
                 + $"{mirrored!.Name}. One printed table prices both.");
         }
+    }
+
+    // ── Ruling 8, 2026-09-10: a contribution's kind against the object's own ──────────
+
+    /// <summary>
+    /// <b>The two agreeing is silent, and that is the point of the positive control.</b> Nothing
+    /// is reported when a contribution's kind is exactly the asset's own, which is the ordinary
+    /// case every host writes.
+    /// </summary>
+    [Fact]
+    public void AgreeingKindsAreNotReported() =>
+        Assert.Empty(CharacterValidator.CheckContributionAgainstAsset(Put(2), Vehicle()));
+
+    /// <summary>
+    /// <b>A hand-written contribution can disagree with the object it names</b>, and Ruling 8 says
+    /// so rather than pricing it at the object's currency in silence.
+    /// </summary>
+    [Fact]
+    public void ADisagreeingKindIsReported()
+    {
+        var contribution = Put(2) with
+        {
+            Name = "The Wing", Kind = CampaignAssetContribution.Headquarters
+        };
+
+        var issue = Assert.Single(CharacterValidator.CheckContributionAgainstAsset(contribution, Vehicle()));
+
+        Assert.Equal("CAMPAIGN_ASSET_KIND_MISMATCH", issue.Code);
+        Assert.Equal(Id, issue.SubjectId);
+        Assert.Equal(CampaignAssetContribution.Vehicle, issue.OwnerId);
+    }
+
+    /// <summary>
+    /// <b>A contribution naming a different object is not this question</b> — that is
+    /// <c>CampaignAssets.Orphaned</c>'s, which needs the whole campaign to answer. Handed an
+    /// asset it does not name, this reports nothing rather than guessing.
+    /// </summary>
+    [Fact]
+    public void AContributionNamingADifferentAssetIsNotAKindMismatch() =>
+        Assert.Empty(CharacterValidator.CheckContributionAgainstAsset(
+            Put(2, "some-other-asset") with { Kind = CampaignAssetContribution.Headquarters },
+            Vehicle()));
+
+    /// <summary>
+    /// <b><see cref="CharacterValidator.CheckSharedAsset"/> reaches both Ruling 7 and Ruling 8 for
+    /// every contribution it is handed</b>, so a campaign page reviewing one shared object gets
+    /// both checks without a second call per contributor. A contribution naming another asset is
+    /// skipped, exactly as <see cref="CostCalculator.CampaignAssetBudget"/> skips it.
+    /// </summary>
+    [Fact]
+    public void CheckSharedAssetAlsoWalksEveryContributionItIsHanded()
+    {
+        var mismatched = Put(2) with { Kind = CampaignAssetContribution.Headquarters };
+        var tooLarge   = Put(CampaignAssetContribution.MaxHeroPoints + 1);
+        var elsewhere  = Put(5, "some-other-asset") with { Kind = CampaignAssetContribution.Headquarters };
+
+        var codes = _f.Validator.CheckSharedAsset(Vehicle(), [mismatched, tooLarge, elsewhere])
+            .Select(i => i.Code)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(
+            BothRulingCodes.Order(StringComparer.Ordinal),
+            codes);
+
+        // The positive control: called with no contributions at all, as every existing call site
+        // in this file does, the object-only checks still run and neither new code appears.
+        var withoutContributions = _f.Validator.CheckSharedAsset(Vehicle())
+            .Select(i => i.Code).ToList();
+
+        Assert.DoesNotContain("CAMPAIGN_ASSET_CONTRIBUTION_TOO_LARGE", withoutContributions);
+        Assert.DoesNotContain("CAMPAIGN_ASSET_KIND_MISMATCH", withoutContributions);
     }
 }

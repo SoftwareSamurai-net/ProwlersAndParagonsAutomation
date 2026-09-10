@@ -80,6 +80,25 @@ public static class StoredCampaign
     private const int CurrentVersion = 1;
 
     /// <summary>
+    /// The shape of the payload this build writes, sent to the server beside <c>label</c> — never
+    /// inside the payload itself, which no query on that side may look inside.
+    ///
+    /// <para><b>Bumped whenever the campaign payload gains a field an older build would drop</b>,
+    /// so the server can tell a save from a build that cannot see a field from one that legitimately
+    /// has nothing to put there. Today's value, 1, counts <see cref="Campaign.Assets"/>, the table
+    /// rules on <see cref="Campaign.Table"/>, and <see cref="Campaign.ImmortalityCost"/> — all three
+    /// arrived after format 0, which is what a build with none of them, or no notion of a format at
+    /// all, sends. See <c>d1/migrations/0009_campaign_format.sql</c> for the column this is compared
+    /// against, and <c>worker/campaigns.js</c>'s <c>write</c> for the comparison itself.</para>
+    ///
+    /// <para><b>Unlike <see cref="CurrentVersion"/>, this is never used to discard anything read
+    /// back in this browser.</b> It exists only for the server to refuse a write that would move
+    /// backwards, which is why it travels on the wire rather than living inside the envelope this
+    /// file reads and writes.</para>
+    /// </summary>
+    public const int PayloadFormat = 1;
+
+    /// <summary>
     /// The engine's own options, so a campaign is spelled the way a character is. Nothing about a
     /// campaign needs the sheet reader's repairs; what it needs is one naming policy at both ends.
     /// </summary>

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -73,8 +74,15 @@ public sealed class ApiCampaignStore
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }
 
-    /// <summary>Write one campaign, creating it if the id is new. False if it went nowhere.</summary>
-    public async Task<bool> SaveAsync(Campaign campaign)
+    /// <summary>
+    /// Write one campaign, creating it if the id is new.
+    ///
+    /// <para><b><see cref="StoredCampaign.PayloadFormat"/> travels beside <c>label</c>, outside
+    /// the payload</b> — a fact about the shape of what this build knows to write, not about the
+    /// campaign. The server compares it against the one it last stored and answers 409 when this
+    /// save is older, so an out-of-date tab cannot silently drop a field it has never heard of.</para>
+    /// </summary>
+    public async Task<CampaignSaveOutcome> SaveAsync(Campaign campaign)
     {
         ArgumentNullException.ThrowIfNull(campaign);
 
@@ -82,16 +90,34 @@ public sealed class ApiCampaignStore
         {
             using var body = new StringContent(
                 JsonSerializer.Serialize(
-                    new Sending(StoredCampaign.LabelFor(campaign), StoredCampaign.Write(campaign)), Wire),
+                    new Sending(
+                        StoredCampaign.LabelFor(campaign), StoredCampaign.Write(campaign),
+                        StoredCampaign.PayloadFormat),
+                    Wire),
                 Encoding.UTF8,
                 "application/json");
 
             using var response =
                 await _http.PutAsync($"{List}/{Uri.EscapeDataString(campaign.Id)}", body);
 
-            return response.IsSuccessStatusCode;
+            if (response.IsSuccessStatusCode) return new CampaignSaveOutcome(true, null);
+
+            // **The message is shown verbatim, and that is deliberate rather than a shortcut.**
+            // A stale-format refusal exists precisely because this build cannot know what a
+            // later one added — so it cannot compose the sentence explaining that either. Only
+            // the server, which minted the format this save is being measured against, can say
+            // why in words that make sense today. A build old enough to hit this path is,
+            // necessarily, a build that already shows server error text verbatim; if it did not,
+            // there would be nothing here for a future server to say to it.
+            if (response.StatusCode == HttpStatusCode.Conflict)
+            {
+                var refusal = await response.Content.ReadFromJsonAsync<Refusal>(Wire);
+                return new CampaignSaveOutcome(false, refusal?.Error);
+            }
+
+            return new CampaignSaveOutcome(false, null);
         }
-        catch (Exception e) when (IsUnreachable(e)) { return false; }
+        catch (Exception e) when (IsUnreachable(e)) { return new CampaignSaveOutcome(false, null); }
     }
 
     /// <summary>
@@ -133,5 +159,16 @@ public sealed class ApiCampaignStore
     /// <summary>What the browser sends to store one. `payload` is opaque to the server.</summary>
     private sealed record Sending(
         [property: JsonPropertyName("label")] string Label,
-        [property: JsonPropertyName("payload")] string Payload);
+        [property: JsonPropertyName("payload")] string Payload,
+        [property: JsonPropertyName("format")] int Format);
+
+    /// <summary>The one field this build reads out of a refusal: the sentence to show.</summary>
+    private sealed record Refusal([property: JsonPropertyName("error")] string? Error);
 }
+
+/// <summary>
+/// What a save answered. <see cref="Message"/> is null except on the one refusal that carries a
+/// sentence meant for the reader — a stale <see cref="StoredCampaign.PayloadFormat"/> — so a
+/// caller can show it verbatim without a component composing wording of its own.
+/// </summary>
+public sealed record CampaignSaveOutcome(bool Saved, string? Message);

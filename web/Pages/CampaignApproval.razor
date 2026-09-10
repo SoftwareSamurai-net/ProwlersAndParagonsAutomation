@@ -342,7 +342,7 @@ else
                        differs in style as well as in colour, because a colour difference alone
                        fails WCAG 1.4.1 — see `RowFinding`. A sentence hand-drawn into the body
                        would be the same information with that half taken off it. *@
-                    <ChosenRow Findings="Session.Check(line.Asset)">
+                    <ChosenRow Findings="line.Findings">
                         <Body>
                             <b>@(_rosterRead ? Books(line) : Named(line.Asset))</b>
                             <span class="muted small"><br />@Kind(line.Asset)</span>
@@ -380,6 +380,7 @@ else
                         </Body>
                         <Actions>
                             <button type="button" class="btn small"
+                                    disabled="@(_draft is not null)"
                                     @onclick="() => EditAsset(line.Asset)">Edit</button>
 
                             @* **Two presses**, for the reason removing a player takes two: every
@@ -424,9 +425,17 @@ else
                     <option value="@Headquarters">A headquarters</option>
                 </select>
                 <button type="button" class="btn" aria-label="Add a shared vehicle or base"
-                        disabled="@string.IsNullOrWhiteSpace(_naming)"
+                        disabled="@(string.IsNullOrWhiteSpace(_naming) || _draft is not null)"
                         @onclick="StartAsset">Add</button>
             </div>
+
+            @* **One slot, so a second press has to be refused rather than swapping the draft out
+               from under whoever is mid-edit.** `StartAsset` and `EditAsset` used to replace
+               `_draft` silently; disabling both while one is open, and saying why, is the fix. *@
+            @if (_draft is not null)
+            {
+                <p class="small muted">Finish or cancel the open draft first.</p>
+            }
         }
 
         @* Outside the editor, because saving closes it — the fault this screen already records
@@ -519,7 +528,7 @@ else
                who means to write down an object the book does not allow still can. VehicleRanksNote
                above states the two Control sentences; this is what says whether this object keeps
                them. *@
-            @foreach (var fault in Session.Check(draft with { Name = DraftTitle }))
+            @foreach (var fault in Session.Check(draft with { Name = DraftTitle }, _contributions))
             {
                 <p class="small muted spaced" role="status">@fault.Message</p>
             }
@@ -628,6 +637,14 @@ else
     /// payload could not be read.
     /// </summary>
     private IReadOnlyList<CampaignAssetLine> _ledger = [];
+
+    /// <summary>
+    /// Every contribution any of this campaign's members has recorded, from the same read
+    /// <see cref="_ledger"/> is summed from — kept so the draft editor's own live check can ask
+    /// about a contribution naming the object being edited, exactly as <see cref="_ledger"/>'s own
+    /// findings already do for a saved one.
+    /// </summary>
+    private IReadOnlyList<CampaignAssetContribution> _contributions = [];
 
     /// <summary>
     /// Whether the members' sheets were read, which is what every figure on a shared object is
@@ -762,9 +779,17 @@ else
     /// Every line about a shared object, asked of <c>sheets/</c> and of the engine rather than
     /// composed here — the rule the Vehicles &amp; bases step is written under, and the reason a
     /// figure on this screen cannot disagree with the same figure on a player's.
+    ///
+    /// <para><b>A null <see cref="CampaignAssetLine.Budget"/> is not handed to
+    /// <c>AssetFormatter</c>, which prints no figure this screen has no figure for.</b> The
+    /// contribution the budget could not be trusted to sum from is named in its own sentence — the
+    /// row's finding, drawn beside this one — so this line says only what is still known: the
+    /// object's name and what has been built with it, if anything.</para>
     /// </summary>
     private static string Books(CampaignAssetLine line) =>
-        AssetFormatter.Describe(line.Asset, line.Spent, line.Budget);
+        line.Budget is { } budget
+            ? AssetFormatter.Describe(line.Asset, line.Spent, budget)
+            : Named(line.Asset);
 
     /// <inheritdoc cref="Books"/>
     private static string Kind(CampaignAsset asset) => AssetFormatter.Describe(asset);
@@ -952,9 +977,10 @@ else
 
         if (at < 0) assets.Add(saved); else assets[at] = saved;
 
-        if (!await Store.SaveAsync(game with { Assets = assets }))
+        var outcome = await Store.SaveAsync(game with { Assets = assets });
+        if (!outcome.Saved)
         {
-            _saidAboutAsset = "That could not be saved just now. Try again in a moment.";
+            _saidAboutAsset = outcome.Message ?? "That could not be saved just now. Try again in a moment.";
             return;
         }
 
@@ -986,9 +1012,10 @@ else
             .Where(a => !string.Equals(a.Id, asset.Id, StringComparison.Ordinal))
             .ToList();
 
-        if (!await Store.SaveAsync(game with { Assets = kept }))
+        var outcome = await Store.SaveAsync(game with { Assets = kept });
+        if (!outcome.Saved)
         {
-            _saidAboutAsset = "That could not be removed just now. Try again in a moment.";
+            _saidAboutAsset = outcome.Message ?? "That could not be removed just now. Try again in a moment.";
             return;
         }
 
@@ -1080,7 +1107,8 @@ else
         // campaign's own payload, read above; only what has been put into them needs the clones.
         // Built inside, a failed inbox drew a game that owns nothing over a payload this screen
         // had already opened the objects out of.
-        _ledger = CampaignAssets.Ledger(_campaign, Session.Costs, clones);
+        _ledger = Session.AssetLedger(_campaign, clones);
+        _contributions = [.. clones.SelectMany(m => m.Sheet.CampaignAssets)];
 
         _state = Reading.Read;
     }
