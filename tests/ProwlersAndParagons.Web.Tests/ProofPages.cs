@@ -2204,7 +2204,7 @@ public sealed class ProofPages
         <div id="verdict">measuring…</div>
         <iframe id="f" src="__PP_ALIGN_TARGET__"></iframe>
         <script>
-        document.getElementById('f').addEventListener('load', () => {
+        document.getElementById('f').addEventListener('load', async () => {
           const box = document.getElementById('verdict');
           const say = (ok, detail) => {
             document.title = ok ? 'ALIGN: PASS' : 'ALIGN: FAIL';
@@ -2213,6 +2213,18 @@ public sealed class ProofPages
           };
           try {
             const d = document.getElementById('f').contentDocument;
+
+            // **Measure the banner in the face the reader sees, not in whatever Chrome drew while
+            // the webfont was still arriving.** `load` fires on the iframe before `font-display:
+            // swap` has finished swapping, and on the CI runner the fallback for the display face
+            // is a wide generic sans: in it the four avenues and the wordmark run ~150px wider,
+            // the tools wrap onto a second line, and this harness reported a 48px "spread" for a
+            // banner that sits on one line in Oswald — the day a fourth avenue was added, on a
+            // tree the goldens (which do wait) showed correct. So wait for the fonts, and say in
+            // the detail which face was measured, so a runner where the font never loads is a
+            // reading somebody can see rather than a fallback that happened to fit.
+            await d.fonts.ready;
+            const faces = [...d.fonts].filter(f => f.status === 'loaded').map(f => f.family);
 
             // Every one-line item in the band, named by the element that directly holds its
             // text. `.banner-title` is deliberately absent — two lines, `align-self: center`,
@@ -2323,6 +2335,7 @@ public sealed class ProofPages
 
             say(complete && spread < 0.5,
               `target ${document.getElementById('f').getAttribute('src')}  items ${found.length} of ${parts.length}\n` +
+              `faces loaded: ${faces.length ? faces.join(', ') : 'none — measured in the fallback'}\n` +
               `${rows.join('\n')}\n    spread ${spread.toFixed(2)}px (want < 0.5)`);
           } catch (e) {
             say(false, 'blocked: ' + e.message);
