@@ -109,7 +109,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
 
 - [x] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment became mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle, a base and a Gadget in their own currencies, the sheet prints them, the palette offers them, the fight reads scenery Structure, and a campaign holds the shared objects its members fund. Verified by the orchestrator 2026-09-10 across four pull requests: the Gear-Limit cap and the budget-silencing flag, the knockback's smash-through tie, the headquarters currency and the base-budget boundary, and the shared object's id filter and kind clause each went red under mutation
-- [ ] **[33](#33-decisions-chapter-6-left-to-the-owner)** — twelve Chapter 6 design questions, **all twelve answered by the owner on 2026-09-10**; the rulings are in the entry and nine of them are work not yet built. The largest reshapes shared objects: a player proposes a vehicle or base and the GM approves it, in item 26's submission shape — **its design and item 12's tree were accepted the same day and are queued behind rulings 1, 7, 8, 10 and 11, which are being built**
+- [ ] **[33](#33-decisions-chapter-6-left-to-the-owner)** — twelve Chapter 6 design questions, **all twelve answered by the owner on 2026-09-10**; **rulings 1, 7, 8, 10, 11 and 12 are built** (see the pull request that carried them; each guard was broken and watched red by the orchestrator as well as by the agent that wrote it). Still to build: 2 (feature prerequisites), 4 (a shared base's Teamwork) and 5+6, the largest, which reshapes shared objects so a player proposes a vehicle or base and the GM approves it in item 26's submission shape — its design is accepted and in the entry
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -2262,9 +2262,15 @@ clause went red in both when inverted.
 
 ### 33. Decisions Chapter 6 left to the owner
 
-**Answered 2026-09-10, all twelve.** Each question is kept with its ruling beneath it, and the
-ruling says whether it is a change to build or a confirmation of what stands. None is built yet;
-the ones that are work are marked **build**.
+**Answered 2026-09-10, all twelve; six built the same day.** Each question is kept with its
+ruling beneath it. Rulings 1, 7, 8, 10, 11 and 12 landed in one pull request; 3 needed nothing;
+2, 4 and 5+6 are still marked **build** and are the open work here.
+
+**Ruling 12 adds a server secret, and the deploy needs it before the GM's inbox will answer.**
+`PLAYER_KEY_SECRET` signs the per-campaign player key; the worker refuses the inbox loudly without
+it, by design, so a deploy that has not set it breaks every GM's approval page. Set it before
+merging to `main`: `openssl rand -base64 32`, then the Pages project's environment variables (and
+`.dev.vars` locally — never written by an agent). `docs/ACCOUNTS-SETUP.md` carries it.
 
 1. **Does a suit of armour make a superhuman worse?** A wearer whose own Armor Power exceeds the
    Gear Limit gets less from a suit than they have without it — Armor 12d in Plate prints 8d.
@@ -2347,7 +2353,9 @@ the ones that are work are marked **build**.
 
 ### 34. A warning cannot be dismissed
 
-**Asked for by the owner 2026-09-10, design accepted the same day, building.** Every finding a row
+**Asked for by the owner 2026-09-10, design accepted and built the same day** — see the pull request
+that carried it; the Error guard and the display filter each went red under the orchestrator's
+own mutation. Every finding a row
 prints stays printed until the sheet changes, and a Warning the reader has read and decided to
 live with is noise on every later glance.
 
@@ -2381,10 +2389,14 @@ ranked causes are that shape; the rest are "nothing built yet", a failed or sign
 panel then says "in this browser only"), and a cap of 0 or 1 set on `/admin`.
 
 **The owner's answer: a Characters tab in the banner beside Build, Run and Rules, and a
-"Your characters" entry in the palette.** Building. `Areas` gains the roster as its own area, the
-banner gains one `NavLink` — the cost `MainLayout.razor`'s own note says a new avenue has — and
-`Commands` offers the roster by name. A player with one character should see that one, named, and
-the way to start another, rather than nothing.
+"Your characters" entry in the palette.** Built the same day, see the pull request that carried
+it: `Areas` gains the roster as its own area at `/characters` (the old `/build/characters` redirects,
+so a bookmark still lands), the banner gains one `NavLink` — the cost `MainLayout.razor`'s own note
+says a new avenue has — and `Commands` offers the roster by name once something is typed. A player
+with one character was already shown it, named, under "Open now"; a regression test now holds that,
+since nothing had. **The four shell goldens draw the banner and must be regenerated on the CI
+runner** (`gh workflow run visual-goldens.yml --ref <branch>`), never locally — the pixel
+comparator will be red until they are.
 
 ## Completed work
 
