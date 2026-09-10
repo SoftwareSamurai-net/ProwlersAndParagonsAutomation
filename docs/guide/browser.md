@@ -631,27 +631,32 @@ the spread under 0.5px. Twenty-one browser verdicts now, not nineteen.
   independently of the face. No computed style exposes that number and a range box gives the line
   box instead.
 - **The positive control is the count.** A spread over one found item is 0.00 and passes, so a
-  banner that had lost six of its seven controls would report a perfectly aligned row. Proved by
-  mutation: dropping the `.key` class from the chord's two spans gave `FAIL` at `items 6 of 7`
-  with a spread of 0.00 — the six that were still found genuinely did share a line, which is
-  exactly the reading the count exists to refuse.
-- **Seven items, because the search control is a field and is measured as two of them.** The
-  `<input>` takes no children, so its baseline is read off `.palette-open` — the probe joins that
+  banner that had lost most of its controls would report a perfectly aligned row. Proved by
+  mutation: dropping the `.key` class from the chord's two spans gave `FAIL` at a reduced item
+  count with a spread of 0.00 — the items that were still found genuinely did share a line, which
+  is exactly the reading the count exists to refuse.
+- **Nine items, not seven — the `Characters` avenue added one row, as does `Run` in the row
+  already there.** The search control is still a field measured as two of them: the `<input>`
+  takes no children, so its baseline is read off `.palette-open` — the probe joins that
   flex line — and the chord is read separately in a `.key` box, which holds text of its own.
   **Each row was measured catching a defect the other reports as a tidy band**, which is why there
   are two: `.palette-open { align-items: center }` puts the control on 28.17 against the band's
   32.00 while the chord stays within 0.25px (chord row alone: PASS), and a defect confined to the
   key boxes leaves the control on 32.00 with everything else while the chord goes to 37.00
-  (control row alone: PASS at 0.00px, over a chord 5px off the line).
+  (control row alone: PASS at 0.00px, over a chord 5px off the line). The exact figures above are
+  from the seven-item harness and are recorded as evidence of the *shape* of each defect rather
+  than as numbers to reproduce; they have not been re-measured in a browser since the fourth
+  avenue was added, which this repository's own rule requires happen on the CI runner's Chrome
+  rather than locally — see the regeneration procedure below.
 - **What this page does *not* hold is the field's own box model.** Restoring the UA border and
-  padding `.palette-field` strips moves all seven items from 32.00 to 33.00 *together* and leaves
+  padding `.palette-field` strips moves every item from 32.00 to 33.00 *together* and leaves
   the spread at 0.00px, still `PASS`: `align-items: baseline` re-aligns the band to the field's new
   baseline, and a spread cannot see a band that moved as one. Recorded because the opposite is the
   natural assumption and this page is read as evidence — those declarations are held by the pixel
   goldens, not here.
 - **And it does not see x-position either.** Every measurement on this page is a `top`; the field's
   width, the gaps between the tools and where the cluster sits in the row are invisible to it. A
-  band with its seven items on one baseline and the search box twice as wide as it should be is a
+  band with its items on one baseline and the search box twice as wide as it should be is a
   `PASS` here. **So a change to the banner's geometry is a change nothing in the ordinary CI run
   will catch, and it has to go through the pixel goldens.** `tests/visual-goldens/*.png` includes
   the four `proof-shell-*` pages, which draw this whole band; regenerating them is
@@ -668,7 +673,10 @@ the spread under 0.5px. Twenty-one browser verdicts now, not nineteen.
   It has to be that workflow and not a local run: the goldens and the check must come from the same
   Chrome, and `scripts/visual-regression.sh` drives a Docker Chrome off Linux and the runner's own
   Chrome on it. Changes that need this: the field's `width`, its `margin`, the tracking or transform
-  that decide what a `ch` measures, anything about the `.key` boxes, and adding or removing a tool.
+  that decide what a `ch` measures, anything about the `.key` boxes, and adding or removing a tool
+  or an avenue — the `Characters` avenue added with the roster's own tab is exactly this kind of
+  change, and the four `shell-*` goldens have not been regenerated for it; see this repository's
+  own note on regenerating deliberately and never as a side effect.
 - **A twin reproduces `align-items: center`** — the owner's reported defect — driving the
   byte-identical script, and CI requires it to say `FAIL`. Measured: PASS at 0.00px, twin FAIL at
   2.00px. **The C# suites stay green against that mutation**, which is the whole reason the harness
@@ -955,17 +963,22 @@ per letter typed.
 
 ## The roster: two shapes of one panel, and what a row is allowed to know
 
-**`/build/characters` is the list; the tier page keeps the character on screen and a link to the
+**`/characters` is the list; the tier page keeps the character on screen and a link to the
 rest.** At twenty-nine characters the panel was the tallest thing on the page a visitor meets
 first, so choosing a tier meant scrolling a screen of other people's characters to reach the six
 cards — and a GM sorting NPCs is not choosing a tier at all.
 
-- **It is under `/build` rather than beside it, and that is the whole of the routing decision.**
-  `Areas.Of` reads the first segment, so the address is `Area.Play` by construction: the step band,
-  the budget strip and the banner's switcher come with it and cannot be forgotten. A top-level
-  `/characters` would have needed a case in `Areas.Of` saying "this one is the builder too", which
-  is the special case the prefix scheme exists to avoid. The step band draws with **no step
-  marked** — every step's `NavLink` is `NavLinkMatch.All` — which is correct rather than tolerated.
+- **It is its own area, `Area.Characters`, and that reverses the original routing decision.** The
+  roster used to live under `/build/characters`, where `Areas.Of` read the first segment and made
+  the address `Area.Play` by construction: the step band, the budget strip and the banner's
+  switcher all came with it whether or not any belonged. An invited player who had never opened
+  the builder had no way to that address at all — nothing on the front door, the rules reference,
+  a campaign screen or the palette's empty box named it — and a player holding exactly one
+  character found the panel drawing only `_others`, which is empty for them. **A `Characters` tab
+  in the banner (offered from every route, like `Build`, `Run` and `Rules`) and a palette row now
+  reach it from everywhere**, and the old address still answers — `Roster.razor` carries a second
+  `@page` and redirects to the canonical one on render — so a bookmark from before the move does
+  not break.
 - **One component, two shapes, and `ListsEveryCharacter` turns off a list and never a behaviour.**
   Both shapes name the character on screen, both offer the two ways to make one, and both report a
   refusal through `Keep` in the same words. Two components would be two chances for one of them to

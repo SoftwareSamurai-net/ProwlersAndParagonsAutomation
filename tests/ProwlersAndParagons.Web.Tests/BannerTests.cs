@@ -679,13 +679,14 @@ public sealed class BannerTests
 
         // The positive control: the avenues kept the marking that makes them destinations.
         //
-        // **Three now, not two.** `Run` shipped with the campaign screens — the third door
-        // `MainLayout`'s own note had been reserving, which it said would cost one `NavLink` and
-        // did. The number is asserted rather than left loose because the point of this control is
-        // that the avenues are a closed set with a marking of their own: a tool that had quietly
-        // grown the underline would arrive here as a fourth avenue.
+        // **Four now, not three.** `Run` shipped with the campaign screens — a door `MainLayout`'s
+        // own note had been reserving — and `Characters` followed for the roster, which had no
+        // path in from anywhere but the builder's own switcher. The number is asserted rather than
+        // left loose because the point of this control is that the avenues are a closed set with a
+        // marking of their own: a tool that had quietly grown the underline would arrive here as a
+        // fifth avenue.
         var avenues = layout.FindAll(".avenue-nav .banner-link");
-        Assert.Equal(3, avenues.Count);
+        Assert.Equal(4, avenues.Count);
     }
 
     /// <summary>

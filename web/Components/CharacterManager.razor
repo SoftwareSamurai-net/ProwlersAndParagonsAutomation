@@ -68,12 +68,12 @@
 
    ── Two shapes, because a roster of thirty is not a panel on step one ────────────────────────
 
-   **The list moved to `/build/characters` and this panel is drawn in both places.** At
-   twenty-nine characters it was the tallest thing on the tier page, so somebody who came to
-   choose a tier scrolled a screen of other people's characters to reach the six cards — and a GM
-   sorting NPCs is not choosing a tier at all. `ListsEveryCharacter` is what differs: the tier
-   page keeps the character on screen and the two ways to make one, and links to the rest; the
-   roster page draws the list itself.
+   **The list moved to `/characters` — its own area now, not a page under `/build` — and this
+   panel is drawn in both places.** At twenty-nine characters it was the tallest thing on the tier
+   page, so somebody who came to choose a tier scrolled a screen of other people's characters to
+   reach the six cards — and a GM sorting NPCs is not choosing a tier at all. `ListsEveryCharacter`
+   is what differs: the tier page keeps the character on screen and the two ways to make one, and
+   links to the rest; the roster page draws the list itself.
 
    **One component and not two, because the actions are the same actions.** Starting another
    character and importing one both go through `Keep`, which reports a refusal in words — a second
@@ -164,7 +164,7 @@
                onto an unknown quantity, and knowing there are twenty-eight is most of the reason
                to walk through it. *@
             <p class="others-head">@Elsewhere</p>
-            <p><a class="btn" href="build/characters">All your characters (@_others.Count)</a></p>
+            <p><a class="btn" href="characters">All your characters (@_others.Count)</a></p>
         }
         else if (_others.Count > 0)
         {

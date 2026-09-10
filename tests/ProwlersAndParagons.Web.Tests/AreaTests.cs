@@ -23,11 +23,6 @@ public sealed class AreaTests
     [InlineData("build", Area.Play)]
     [InlineData("build/characteristics", Area.Play)]
     [InlineData("build/review", Area.Play)]
-
-    // The roster. Under the builder's own prefix, so it is the builder by construction rather
-    // than by a case in `Areas.Of` saying "this one is the builder too" — which is what a
-    // top-level /characters would have needed, and what the prefix scheme exists to avoid.
-    [InlineData("build/characters", Area.Play)]
     [InlineData("rules", Area.Rules)]
     [InlineData("campaign", Area.Campaign)]
     [InlineData("campaign/g_AAAAAAAAAAAAAAAAAAAAAA", Area.Campaign)]
@@ -35,6 +30,11 @@ public sealed class AreaTests
     [InlineData("campaigns", Area.Home)]
     [InlineData("sheet", Area.Sheet)]
     [InlineData("sheet/c_AAAAAAAAAAAAAAAAAAAAAA", Area.Sheet)]
+    [InlineData("characters", Area.Characters)]
+    [InlineData("characters/c_AAAAAAAAAAAAAAAAAAAAAA", Area.Characters)]
+    // The roster's old address, matched on its own first segment like any other and deliberately
+    // not special-cased into Area.Characters — see Area.Characters's own doc comment.
+    [InlineData("build/characters", Area.Play)]
     [InlineData("admin", Area.Account)]
     [InlineData("Admin", Area.Account)]
     [InlineData("admin/portfolio", Area.Account)]
@@ -56,6 +56,8 @@ public sealed class AreaTests
     [InlineData("CAMPAIGN/g_AAAAAAAAAAAAAAAAAAAAAA", Area.Campaign)]
     [InlineData("Sheet", Area.Sheet)]
     [InlineData("SHEET/c_AAAAAAAAAAAAAAAAAAAAAA", Area.Sheet)]
+    [InlineData("Characters", Area.Characters)]
+    [InlineData("CHARACTERS/c_AAAAAAAAAAAAAAAAAAAAAA", Area.Characters)]
     [InlineData("SignIn", Area.Account)]
     public void TheMatchIsCaseInsensitive(string path, Area expected) =>
         Assert.Equal(expected, Areas.Of(path));
@@ -72,6 +74,7 @@ public sealed class AreaTests
     [InlineData("ruleset")]
     [InlineData("sheets")]
     [InlineData("sheet-music")]
+    [InlineData("characterization")]
     [InlineData("administrators")]
     public void APageMerelyBeginningWithAPrefixIsNot(string path) =>
         Assert.Equal(Area.Home, Areas.Of(path));
@@ -101,6 +104,7 @@ public sealed class AreaTests
     [InlineData("rules", false)]
     [InlineData("sheet", false)]
     [InlineData("sheet/c_AAAAAAAAAAAAAAAAAAAAAA", false)]
+    [InlineData("characters", false)]
     [InlineData("signin", false)]
     [InlineData("admin", false)]
     [InlineData("admin/portfolio/replay/the-conductor", false)]
@@ -116,7 +120,7 @@ public sealed class AreaTests
     }
 
     /// <summary>
-    /// All three avenues are offered from every address, rather than one link naming whichever
+    /// All four avenues are offered from every address, rather than one link naming whichever
     /// half the reader is not in.
     ///
     /// <para><b>The flipping cross-link was right for two rooms and wrong for three.</b> It told
@@ -124,11 +128,14 @@ public sealed class AreaTests
     /// place; with a front door, a builder and a reference it named one of two elsewheres and hid
     /// the other.</para>
     ///
-    /// <para><b>Three now, and this asserted two while there were three.</b> <c>Run</c> shipped
-    /// with the campaign screens — the door `MainLayout` had been reserving — and it is offered
-    /// from everywhere for exactly the reason the other two are: a reader standing in a campaign
-    /// needs the way back into the builder as much as the reverse. The campaign address is in the
-    /// theory's own list too, because "from everywhere" has to include the newest room.</para>
+    /// <para><b>Three became four, and this asserted three while there were three.</b> <c>Run</c>
+    /// shipped with the campaign screens — the door `MainLayout` had been reserving — and it is
+    /// offered from everywhere for exactly the reason the other two are: a reader standing in a
+    /// campaign needs the way back into the builder as much as the reverse. <c>Characters</c> is
+    /// the same argument again: before it, the roster had no path in from the front door, the
+    /// rules reference, a campaign screen, or an invited player who had never opened the builder.
+    /// Both the campaign and the characters addresses are in the theory's own list too, because
+    /// "from everywhere" has to include every room this covers.</para>
     /// </summary>
     [Theory]
     [InlineData("")]
@@ -137,6 +144,7 @@ public sealed class AreaTests
     [InlineData("sheet")]
     [InlineData("admin")]
     [InlineData("campaign")]
+    [InlineData("characters")]
     public void EveryAvenueIsOfferedFromEverywhere(string path)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
@@ -145,8 +153,24 @@ public sealed class AreaTests
         var nav = ctx.Render<MainLayout>().Find(".avenue-nav").TextContent;
 
         Assert.Contains("Build", nav, StringComparison.Ordinal);
+        Assert.Contains("Characters", nav, StringComparison.Ordinal);
         Assert.Contains("Run", nav, StringComparison.Ordinal);
         Assert.Contains("Rules", nav, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The banner's four avenues are in a fixed order — Build, Characters, Run, Rules — and a
+    /// substring check on the joined text cannot see that order move.
+    /// </summary>
+    [Fact]
+    public void TheFourAvenuesAreInOrder()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        var links = ctx.Render<MainLayout>().FindAll(".avenue-nav .banner-link");
+
+        Assert.Equal(["Build", "Characters", "Run", "Rules"],
+            links.Select(l => l.TextContent).ToArray());
     }
 
     /// <summary>
