@@ -2250,13 +2250,15 @@ public sealed class ProofPages
             // declarations are held by the pixel goldens and by the eye, not by this page; see
             // the note on the rule itself in `app.css`.
             const parts = [
-              ['build',    '.avenue-nav .banner-link'],
-              ['rules',    '.avenue-nav .banner-link'],
-              ['character','.character-switch-name'],
-              ['search',   '.palette-open'],
-              ['chord',    '.palette-open .key'],
-              ['account',  '.banner-account'],
-              ['settings', '.settings-open-label'],
+              ['build',      '.avenue-nav .banner-link'],
+              ['characters', '.avenue-nav .banner-link'],
+              ['run',        '.avenue-nav .banner-link'],
+              ['rules',      '.avenue-nav .banner-link'],
+              ['character',  '.character-switch-name'],
+              ['search',     '.palette-open'],
+              ['chord',      '.palette-open .key'],
+              ['account',    '.banner-account'],
+              ['settings',   '.settings-open-label'],
             ];
 
             // **The baseline, not the box and not the line-box centre.** An empty inline-block
@@ -2296,9 +2298,9 @@ public sealed class ProofPages
             const seen = new Map();
 
             for (const [name, sel] of parts) {
-              // Two rows name the same selector — the pair of avenues — so each takes the next
-              // match rather than the first. `querySelector` would have measured Build twice and
-              // reported a spread of zero across a row where Rules had been pushed out of line.
+              // Four rows name the same selector — the row of avenues — so each takes the next
+              // match rather than the first. `querySelector` would have measured Build four times
+              // and reported a spread of zero across a row where Rules had been pushed out of line.
               const nth = seen.get(sel) || 0;
               seen.set(sel, nth + 1);
 

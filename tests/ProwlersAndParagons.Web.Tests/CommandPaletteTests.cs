@@ -235,6 +235,42 @@ public sealed class CommandPaletteTests
     }
 
     /// <summary>
+    /// The palette offers the roster, and choosing it is a plain navigation — the same shape as
+    /// choosing a step, and unlike a Power or a gear row it changes nothing about the character.
+    ///
+    /// <para><b>It does not appear on an empty box</b>, for the reason <see cref="Commands.Matching"/>
+    /// gives for the Powers: an empty box is "where do I want to go" and the seven steps already
+    /// answer that. Typing something is what asks for it, same as the Powers and Chapter 6's
+    /// rows.</para>
+    /// </summary>
+    [Fact]
+    public async Task ThePaletteOffersTheRoster()
+    {
+        using var ctx = Opened();
+        var commands = CommandsOf(ctx);
+
+        var page = ctx.Render<CommandPalette>();
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "roster" }),
+            "the word that finds the roster");
+
+        var row = page.FindAll(".palette-row.kind-roster");
+        Assert.Single(row);
+        Assert.Equal("Your characters", row[0].QuerySelector(".palette-label")!.TextContent);
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").KeyDownAsync(new KeyboardEventArgs { Key = "Enter" }),
+            "the Enter that chooses it");
+
+        Assert.False(commands.IsOpen);
+        Assert.Equal("characters", ctx.Services.GetRequiredService<NavigationManager>().ToBaseRelativePath(
+            ctx.Services.GetRequiredService<NavigationManager>().Uri));
+    }
+
+    /// <summary>
     /// The request is acted on once.
     ///
     /// <para><b>Read-once is what stops the editor reopening over whatever the reader moved

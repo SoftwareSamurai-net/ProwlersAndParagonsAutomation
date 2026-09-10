@@ -1,22 +1,23 @@
+@page "/characters"
 @page "/build/characters"
+@inject NavigationManager Nav
 
 <PageTitle>Your characters — Prowlers &amp; Paragons</PageTitle>
 
 @* Every character this browser or this account is holding, with the room to draw them all.
 
-   **It is under `/build` rather than beside it, and that is one line of consequence.**
-   `Areas.Of` reads the first path segment, so this address is `Area.Play` by construction — the
-   step band and the budget strip come with it, the banner names the palette, and the switcher is
-   in the banner where it is on every other builder page. A top-level `/characters` would have
-   needed a case in `Areas.Of` saying "this one is the builder too", which is the special case the
-   whole prefix scheme exists to avoid.
+   **It is its own area now, `Area.Characters`, rather than a page under `/build`.** It used to be
+   `Area.Play` by construction — `Areas.Of` reads the first path segment, so `/build/characters`
+   inherited the step band and the budget strip whether or not either belonged. Neither did: the
+   roster is not a creation step, and the block it draws above the list is the *open* character's
+   own spend, read from the session exactly as the panel always has — not a fact the strip needed
+   to repeat in a second format. Giving the roster its own area is what lets `Where` stop calling
+   it a step rather than special-casing it out of the step band one component at a time.
 
-   **The step band draws with no step marked, and that is correct rather than tolerated.** Each
-   step's `NavLink` is `NavLinkMatch.All`, so this address is none of them: what a reader sees is
-   the creation steps of the job they are in, with none of them claimed. The budget strip below it
-   reports the character named in the panel's own first block, which is the character it is about —
-   unlike the three areas the strip was pulled off, where the figure on screen belonged to somebody
-   else.
+   **The old address still answers, and it is a redirect rather than a second copy of this page.**
+   `@@page "/build/characters"` above keeps a bookmark from breaking; `OnInitialized` below moves
+   the address bar to the canonical one the moment it renders, so `Areas.Of` — and the banner's
+   `Characters` tab — agree on where this page lives whichever door a reader came in by.
 
    **The page is the panel and nothing else.** Every action on a character — open, read, discard,
    start another, import — is `CharacterManager`'s, and a second control here would be a second
@@ -26,3 +27,23 @@
 <p class="muted">Everything you have built, and the games they are in.</p>
 
 <CharacterManager />
+
+@code {
+    /// <summary>
+    /// A visit through the old address moves the bar to the new one.
+    ///
+    /// <para><b>A client-side redirect, not a second live page.</b> Both <c>@@page</c> routes
+    /// render this same component, so without this the roster would simply answer at two
+    /// addresses forever and <c>Areas.Of("build/characters")</c> would keep reporting
+    /// <see cref="Area.Play"/> for a page that has stopped being one. <c>replace: true</c> so the
+    /// old address does not sit in browser history as a step back to itself.</para>
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        if (string.Equals(Nav.ToBaseRelativePath(Nav.Uri), "build/characters",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Nav.NavigateTo("characters", replace: true);
+        }
+    }
+}

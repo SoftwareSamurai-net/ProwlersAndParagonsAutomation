@@ -74,6 +74,30 @@ public enum Area
     /// it is a different subject entirely, in the same six-label format.</para>
     /// </summary>
     Account,
+
+    /// <summary>
+    /// Every character this browser or this account holds, and the way between them.
+    ///
+    /// <para><b>It used to be <see cref="Play"/> — <c>/build/characters</c> — and moving it out is
+    /// the whole point of giving it a sixth area.</b> The roster is not a creation step: it has no
+    /// place in the numbered list, no Hero Point figure of its own to report against the budget
+    /// strip (the block it draws above the list is the *open* character's, read from the session
+    /// like everything else that panel shows), and reading it should not require having wandered
+    /// into the builder first. Leaving it under <c>Area.Play</c> meant <c>Where</c> called it a
+    /// creation step by construction — it drew the step band with none of the seven marked and the
+    /// budget strip beside a list of characters that mostly are not the one being budgeted — which
+    /// this area removes rather than special-cases away.</para>
+    ///
+    /// <para><b>The old address still answers</b> — see <c>Roster.razor</c>'s two <c>@page</c>
+    /// directives — but it is not this area: <see cref="Areas.Of"/> matches on the first path
+    /// segment with no exception for it, so a visit to <c>/build/characters</c> is <see cref="Play"/>
+    /// for as long as it takes the page's own redirect to move the address bar to
+    /// <c>/characters</c>. That is deliberate rather than a gap: the whole reason this area exists
+    /// is to stop naming the roster a step, and carving out a segment-matching exception for its
+    /// one surviving old address would reintroduce exactly the special case the prefix scheme is
+    /// for avoiding.</para>
+    /// </summary>
+    Characters,
 }
 
 /// <summary>
@@ -124,6 +148,17 @@ public static class Areas
     private const string AccountPrefix = "admin";
 
     /// <summary>
+    /// The first path segment that marks the roster — every character this browser or this
+    /// account holds.
+    ///
+    /// <para>Matched on the segment like every other, so <c>/characters</c> and a later
+    /// <c>/characters/…</c> are one area. The roster's *old* address, <c>/build/characters</c>,
+    /// is deliberately not matched here — see <see cref="Area.Characters"/>'s own doc comment for
+    /// why that is a decision rather than an oversight.</para>
+    /// </summary>
+    private const string CharactersPrefix = "characters";
+
+    /// <summary>
     /// Signing in is administration of a sort and is deliberately not the builder.
     ///
     /// <para>It used to fall through to <see cref="Area.Play"/> — the only reason being that
@@ -158,6 +193,7 @@ public static class Areas
         if (Is(first, SheetPrefix)) return Area.Sheet;
         if (Is(first, RulesPrefix)) return Area.Rules;
         if (Is(first, CampaignPrefix)) return Area.Campaign;
+        if (Is(first, CharactersPrefix)) return Area.Characters;
         if (Is(first, AccountPrefix) || Is(first, SignInPrefix)) return Area.Account;
 
         return Area.Home;
