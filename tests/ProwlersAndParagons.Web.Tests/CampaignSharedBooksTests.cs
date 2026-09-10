@@ -845,4 +845,186 @@ public sealed class CampaignSharedBooksTests
         Assert.False(editWing.HasAttribute("disabled"), "Edit is live again once the draft is gone");
         Assert.DoesNotContain("Finish or cancel the open draft first.", Shared(page), StringComparison.Ordinal);
     }
+
+    // ── Two characters from one player draw as a tree under the player (item 33.12) ───────────
+
+    private static readonly string[] CharacterIds =
+    [
+        PlayerCharacter,
+        "c_2222222222222222222222",
+        "c_3333333333333333333333",
+    ];
+
+    /// <summary>
+    /// A game with one shared object, funded by every entry in <paramref name="fundings"/> — each
+    /// its own account, its own Hero Points, and its own character label. Two entries with the
+    /// same account are two characters of one player; different accounts are different players.
+    /// </summary>
+    private static async Task<RenderContext> AGameFundedBy(
+        params (string Account, int HeroPoints, string Label)[] fundings)
+    {
+        var ctx = new RenderContext();
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var code = ctx.Api.Campaign(GameId, "Nightfall", StoredCampaign.Write(
+            new Campaign(GameId, "Nightfall", "standard", 8, false, Assets: [Wing])));
+
+        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var joined = new List<string>();
+
+        for (var i = 0; i < fundings.Length; i++)
+        {
+            var (account, heroPoints, label) = fundings[i];
+
+            ctx.Api.SignedIn = (account, label);
+            var membership = await store.JoinAsync(code, CharacterIds[i], label);
+            Assert.NotNull(membership);
+            Assert.NotNull(await store.SubmitAsync(
+                membership!.Value.Id, Funder(heroPoints, label), SheetMode.Hero));
+
+            joined.Add(membership.Value.Id);
+        }
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var waiting = (await store.InboxAsync())!;
+        // The positive control: every submission really did arrive.
+        Assert.Equal(fundings.Length, waiting.Count);
+
+        foreach (var row in waiting)
+        {
+            Assert.Equal(DecisionOutcome.Done,
+                (await store.ApproveAsync(row.Id, row.PendingVersion)).Outcome);
+        }
+
+        return ctx;
+    }
+
+    private static CharacterSheet Funder(int heroPoints, string name)
+    {
+        var sheet = new CharacterSheet
+        {
+            SelectedTierId = "standard", Name = name, AbilityRanks = { ["might"] = 6 },
+        };
+
+        sheet.CampaignAssets.Add(new CampaignAssetContribution(TheWing)
+        {
+            Kind = CampaignAssetContribution.Vehicle, Name = "The Wing", HeroPoints = heroPoints,
+        });
+
+        return sheet;
+    }
+
+    /// <summary>
+    /// <b>One player, one contributing character, renders exactly as before</b>: a flat row and no
+    /// parent, no disclosure. The positive control for the whole feature — a build that always drew
+    /// a parent would still say "Ninefold 2 HP" and pass every pre-existing test in this file, so
+    /// this checks the *absence* of a parent directly.
+    /// </summary>
+    [Fact]
+    public async Task OnePlayerWithOneCharacterRendersFlatWithNoParentRow()
+    {
+        await using var ctx = await AGameWithAFundedObject();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+        var panel = SharedPanel(page);
+
+        Assert.Contains("Ninefold 2 HP", panel.TextContent, StringComparison.Ordinal);
+        Assert.Empty(panel.QuerySelectorAll(".funder-player"));
+        Assert.Single(panel.QuerySelectorAll(".funder-character"));
+    }
+
+    /// <summary>
+    /// <b>Two characters from one account fold under one parent row, labelled by count and summed,
+    /// with both characters beneath it.</b> This is the ruling in item 33.12: two memberships from
+    /// one account must not read as two contributors with nothing saying they are one player.
+    /// </summary>
+    [Fact]
+    public async Task TwoCharactersFromOneAccountRenderOneParentWithTheSumAndTwoChildren()
+    {
+        await using var ctx = await AGameFundedBy(
+            ("u_alice", 2, "Bulwark"), ("u_alice", 3, "Second Self"));
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+        var panel = SharedPanel(page);
+
+        var parent = Assert.Single(panel.QuerySelectorAll(".funder-player"));
+        Assert.Contains("One player, 2 characters", parent.TextContent, StringComparison.Ordinal);
+        Assert.Contains("5 HP", parent.TextContent, StringComparison.Ordinal);
+
+        // Neither character's own name is in the parent's *own* label — it is a fact about the
+        // player, not about either character. Read off the label's own text nodes rather than the
+        // parent's whole TextContent, which also carries the nested children's names.
+        var ownLabel = string.Concat(parent.ChildNodes
+            .Where(n => n.NodeType == AngleSharp.Dom.NodeType.Text)
+            .Select(n => n.TextContent));
+
+        Assert.DoesNotContain("Bulwark", ownLabel, StringComparison.Ordinal);
+        Assert.DoesNotContain("Second Self", ownLabel, StringComparison.Ordinal);
+
+        var children = panel.QuerySelectorAll(".funder-character");
+        Assert.Equal(2, children.Length);
+        Assert.Contains(children, c => c.TextContent.Contains("Bulwark 2 HP", StringComparison.Ordinal));
+        Assert.Contains(children,
+            c => c.TextContent.Contains("Second Self 3 HP", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>Two players never fold together</b>, even one character apiece — the negative control:
+    /// without it, a build that grouped every contributor into one row regardless of account would
+    /// pass the test above.
+    /// </summary>
+    [Fact]
+    public async Task TwoDifferentAccountsRenderAsTwoFlatRowsWithNoParent()
+    {
+        await using var ctx = await AGameFundedBy(
+            ("u_alice", 2, "Bulwark"), ("u_bob", 3, "Nightjar"));
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+        var panel = SharedPanel(page);
+
+        Assert.Empty(panel.QuerySelectorAll(".funder-player"));
+
+        var children = panel.QuerySelectorAll(".funder-character");
+        Assert.Equal(2, children.Length);
+        Assert.Contains(children, c => c.TextContent.Contains("Bulwark 2 HP", StringComparison.Ordinal));
+        Assert.Contains(children, c => c.TextContent.Contains("Nightjar 3 HP", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>Ordering: the largest player first.</b> Alice's two characters sum to five, which
+    /// outranks Bob's lone four — so Alice's parent row prints before Bob's flat one, even though
+    /// neither of Alice's characters alone is the largest single contribution.
+    /// </summary>
+    [Fact]
+    public async Task TheLargestPlayerPrintsFirstEvenWhenNoSingleCharacterIsTheLargest()
+    {
+        // Alice's two characters (2 + 3 = 5) must outrank Bob's lone four, though neither of
+        // Alice's own characters is individually the largest single contribution.
+        await using var ctx = await AGameFundedBy(
+            ("u_alice", 2, "Halo"), ("u_bob", 4, "Nightjar"), ("u_alice", 3, "Second Self"));
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, GameId));
+        var panel = SharedPanel(page);
+
+        var funderList = panel.QuerySelector("ul.funders")!;
+        var topLevel = funderList.Children.ToList();
+
+        Assert.Equal(2, topLevel.Count); // one group for Alice, one flat row for Bob
+
+        var alicesGroup = Assert.Single(topLevel, e => e.ClassList.Contains("funder-player"));
+        var bobsRow = Assert.Single(topLevel, e => e.ClassList.Contains("funder-character"));
+
+        Assert.True(topLevel.IndexOf(alicesGroup) < topLevel.IndexOf(bobsRow),
+            "Alice's group (5 HP total) must print before Bob's lone row (4 HP)");
+
+        Assert.Contains("Nightjar 4 HP", bobsRow.TextContent, StringComparison.Ordinal);
+
+        // And within Alice's group, largest first: "Second Self" (3) before "Halo" (2).
+        var withinAlice = alicesGroup.QuerySelectorAll(".funder-character");
+        Assert.Equal(2, withinAlice.Length);
+        Assert.Contains("Second Self 3 HP", withinAlice[0].TextContent, StringComparison.Ordinal);
+        Assert.Contains("Halo 2 HP", withinAlice[1].TextContent, StringComparison.Ordinal);
+    }
 }

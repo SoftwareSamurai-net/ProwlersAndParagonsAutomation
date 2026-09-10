@@ -627,6 +627,6 @@ public sealed class CharacterSession
     /// <see cref="Costs"/>.
     /// </summary>
     public IReadOnlyList<CampaignAssetLine> AssetLedger(
-        Campaign? campaign, IEnumerable<(string MembershipId, string Who, CharacterSheet Sheet)> members) =>
+        Campaign? campaign, IEnumerable<(string MembershipId, string Who, string? PlayerKey, CharacterSheet Sheet)> members) =>
         CampaignAssets.Ledger(campaign, Costs, Validator, members);
 }

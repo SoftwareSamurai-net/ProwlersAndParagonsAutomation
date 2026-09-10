@@ -30,7 +30,7 @@
 
 import { campaignByJoinCode } from './db.js';
 import * as db from './db.js';
-import { newMembershipId, normaliseJoinCode } from './crypto.js';
+import { newMembershipId, normaliseJoinCode, playerKey } from './crypto.js';
 import { fail, json, noContent, readJson, sameOrigin } from './http.js';
 
 /** `m_` plus 22 URL-safe characters — the `c_`/`g_` shape with a third letter. */
@@ -163,11 +163,19 @@ export async function listMine(request, env, deps, user) {
  *
  * **No account id and no address ever appears here.** A GM learns that a character called
  * something is waiting; whose account sent it is not a thing this server tells anybody.
+ *
+ * **Except one bit, and it says only that two rows share an account.** Each row also carries
+ * `playerKey` — a keyed hash of the campaign and the player's account id, computed by
+ * `crypto.playerKey` and never the account id itself. It reveals that two characters in this game
+ * came from one player and reveals nothing else: it does not name which account, does not compare
+ * across campaigns (the campaign id is folded into the hash), and cannot be inverted without the
+ * server's own secret. The invariant above survives because the invariant was always about the
+ * *account*, not about whether two rows can be told apart as siblings.
  */
 export async function inbox(request, env, deps, user) {
     const rows = await db.listMembershipsForGm(env.DB, user.id);
 
-    return json({ memberships: rows.map(asGmRow) });
+    return json({ memberships: await Promise.all(rows.map(row => asGmRow(env, row))) });
 }
 
 /**
@@ -459,8 +467,14 @@ function asPlayerRow(row) {
     };
 }
 
-/** What a GM's list row carries — the same, without the player's character id. */
-function asGmRow(row) {
+/**
+ * What a GM's list row carries — the same, without the player's character id, plus `playerKey`.
+ *
+ * **Async because the hash is**, and that is the only reason `inbox` maps this through
+ * `Promise.all` rather than a bare `.map`. `row.player_user_id` is read here and nowhere else in
+ * this function's return value — see the invariant in `inbox`'s own doc comment.
+ */
+async function asGmRow(env, row) {
     return {
         id: row.id,
         campaignId: row.campaign_id,
@@ -475,6 +489,13 @@ function asGmRow(row) {
         // a field on the player's row and not the GM's would silently default on the GM's screens
         // rather than fail, which is exactly the drift `AccountsContractTests` exists for.
         decision: row.decision ?? null,
+
+        // **The one field the player's row must never gain**, and the reason it stays out of
+        // `asPlayerRow`: a player has no use for "which of my own rows share an account with
+        // me" — they already know — and sending it there for free would be one more field this
+        // server hands out for no consumer, which is exactly the kind of drift
+        // `AccountsContractTests` exists to catch.
+        playerKey: await playerKey(env, row.campaign_id, row.player_user_id),
     };
 }
 

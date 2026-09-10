@@ -2,6 +2,8 @@
 // database. Nothing here is bespoke cryptography: it is WebCrypto, which the Workers runtime
 // and Node both provide, used the obvious way.
 
+import { configurationFailure } from './errors.js';
+
 /**
  * A fresh secret, URL-safe, 256 bits of randomness.
  *
@@ -52,6 +54,54 @@ export function newInvitationId() {
 function base64url(bytes) {
     return btoa(String.fromCharCode(...bytes))
         .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
+
+/**
+ * An HMAC-SHA256 of `message` under `secret`, as base64url, truncated to 22 characters — the same
+ * length this file already mints an id's random half from.
+ *
+ * **Not a token and nothing here ever compares one.** A login token and a session are bearer
+ * secrets looked up by their hash; this is neither. It is a one-way function of two things that
+ * are not secret on their own (a campaign id, an account id) under one that is, so truncating
+ * costs nothing an untruncated digest would have bought — nobody is meant to invert it, and 22
+ * base64url characters is still 132 bits, which is not a space anybody sweeps to find a
+ * collision.
+ */
+async function hmac(secret, message) {
+    const key = await crypto.subtle.importKey(
+        'raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' },
+        false, ['sign']);
+
+    const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+
+    return base64url(new Uint8Array(signature)).slice(0, 22);
+}
+
+/**
+ * The key that says two membership rows belong to the same player, without saying which one.
+ *
+ * <p><b>`campaignId + ':' + playerUserId`, under a secret only this server holds.</b> Stable
+ * within one campaign — the same player's two characters in one game hash to the same value —
+ * and meaningless across campaigns, because the campaign id is folded into the message: the same
+ * player in a second game the caller also runs gets a different key, so nothing here lets a GM
+ * compare two of their games against each other by a shared value. It names nobody: going from
+ * this key back to an account needs the secret, which never leaves this server — the same one-way
+ * property {@link hash} gives a token.</p>
+ *
+ * <p><b>Fails loudly rather than guessing when the secret is missing</b>, the same shape
+ * `auth.requestLink` uses for `SITE_URL`: a deployment with no `PLAYER_KEY_SECRET` set cannot
+ * honestly say which rows share a player, and answering anyway — with an empty string, or with a
+ * hash of nothing — would be a `playerKey` that agrees across every campaign on every deployment
+ * that forgot to set it, which is the opposite of what it exists to guarantee.</p>
+ */
+export async function playerKey(env, campaignId, playerUserId) {
+    if (typeof env.PLAYER_KEY_SECRET !== 'string' || env.PLAYER_KEY_SECRET.length === 0) {
+        throw configurationFailure(
+            'PLAYER_KEY_SECRET is not set, so a GM inbox cannot say which rows share a player. '
+            + 'See docs/ACCOUNTS-SETUP.md.');
+    }
+
+    return hmac(env.PLAYER_KEY_SECRET, `${campaignId}:${playerUserId}`);
 }
 
 /**

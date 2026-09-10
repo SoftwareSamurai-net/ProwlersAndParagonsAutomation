@@ -105,6 +105,7 @@ export function server({ now = Date.parse('2026-08-19T10:00:00Z'), gated = false
             MAIL_FROM: 'no-reply@example.test',
             RESEND_API_KEY: 'not-a-real-key',
             ADMIN_EMAIL: admin ?? '',
+            PLAYER_KEY_SECRET: 'test-player-key-secret-not-real',
         },
     };
 

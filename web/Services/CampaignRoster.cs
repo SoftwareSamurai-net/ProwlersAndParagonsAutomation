@@ -11,14 +11,16 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// <see cref="EmptySubmissions"/>, which is where the cost of knowing is argued.
 /// </param>
 /// <param name="Clones">
-/// The sheet this campaign holds for each member that has one, with the membership id and the
-/// label the roster draws it under. <b>The clone and never the waiting snapshot</b>: a snapshot is
+/// The sheet this campaign holds for each member that has one, with the membership id, the
+/// label the roster draws it under, and the <see cref="MembershipSummary.PlayerKey"/> hint off
+/// the same row — carried through so <see cref="CampaignAssets.Ledger"/> can group two
+/// characters funded by one player. <b>The clone and never the waiting snapshot</b>: a snapshot is
 /// a request the GM has not decided about, so counting its contributions would spend a player's
 /// Hero Points on a shared object before anybody agreed they were spent.
 /// </param>
 public sealed record RosterRead(
     IReadOnlySet<string> Empty,
-    IReadOnlyList<(string MembershipId, string Who, CharacterSheet Sheet)> Clones);
+    IReadOnlyList<(string MembershipId, string Who, string? PlayerKey, CharacterSheet Sheet)> Clones);
 
 /// <summary>
 /// One read per membership, with both of the campaign page's per-member answers taken off it.
@@ -52,7 +54,7 @@ public static class CampaignRoster
         ArgumentNullException.ThrowIfNull(session);
 
         var empty = new HashSet<string>(StringComparer.Ordinal);
-        var clones = new List<(string, string, CharacterSheet)>();
+        var clones = new List<(string, string, string?, CharacterSheet)>();
 
         if (rows is null) return new RosterRead(empty, clones);
 
@@ -62,7 +64,7 @@ public static class CampaignRoster
 
             if (EmptySubmissions.ShowsNothing(session, detail)) empty.Add(row.Id);
 
-            if (detail.Approved is { } clone) clones.Add((row.Id, row.Label, clone));
+            if (detail.Approved is { } clone) clones.Add((row.Id, row.Label, row.PlayerKey, clone));
         }
 
         return new RosterRead(empty, clones);

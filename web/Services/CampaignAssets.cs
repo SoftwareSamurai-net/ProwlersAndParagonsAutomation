@@ -15,7 +15,12 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// the other side of it, and nothing here weakens that.
 /// </param>
 /// <param name="HeroPoints">What that character's sheet says it put in.</param>
-public sealed record AssetContributor(string MembershipId, string Who, int HeroPoints);
+/// <param name="PlayerKey">
+/// The same hint <see cref="MembershipSummary.PlayerKey"/> carries, threaded through so two
+/// contributions can be folded under one player — see <see cref="CampaignAssetLine.ContributorGroups"/>.
+/// Still never an account: it says two rows share one without saying which.
+/// </param>
+public sealed record AssetContributor(string MembershipId, string Who, int HeroPoints, string? PlayerKey = null);
 
 /// <summary>
 /// One of the campaign's shared objects with its books opened: what its members bought it, what
@@ -76,6 +81,20 @@ public sealed record CampaignAssetLine(
     /// exactly when <see cref="Spent"/> is — or when <see cref="Budget"/> is, for the same reason.
     /// </summary>
     public int? Remaining => Spent is { } spent ? Budget - spent : null;
+
+    /// <summary>
+    /// <see cref="Contributors"/>, folded so that two characters funded by one player draw as one
+    /// row rather than two with nothing saying they are the same person.
+    ///
+    /// <para><b>Computed here rather than by the screen</b>, for the same reason every other
+    /// figure on this record is: a page that grouped its own copy could disagree with one that
+    /// read <see cref="Contributors"/> directly, and this way there is one answer to "how many
+    /// funders does this object have". <see cref="Contributors"/> itself is unchanged — flat,
+    /// largest first — because it is what a caller with no interest in the grouping already
+    /// reads.</para>
+    /// </summary>
+    public IReadOnlyList<PlayerGroup<AssetContributor>> ContributorGroups =>
+        PlayerGrouping.Group(Contributors, c => c.PlayerKey, c => c.HeroPoints, c => c.Who);
 }
 
 /// <summary>
@@ -140,13 +159,14 @@ public static class CampaignAssets
     /// </param>
     /// <param name="members">
     /// One entry per character the caller managed to read: its membership id, the label the roster
-    /// draws it under, and the sheet.
+    /// draws it under, the <see cref="MembershipSummary.PlayerKey"/> hint (or null, which groups
+    /// with nobody — see <see cref="PlayerGrouping.Group{T}"/>), and the sheet.
     /// </param>
     public static IReadOnlyList<CampaignAssetLine> Ledger(
         Campaign? campaign,
         CostCalculator costs,
         CharacterValidator validator,
-        IEnumerable<(string MembershipId, string Who, CharacterSheet Sheet)> members)
+        IEnumerable<(string MembershipId, string Who, string? PlayerKey, CharacterSheet Sheet)> members)
     {
         ArgumentNullException.ThrowIfNull(costs);
         ArgumentNullException.ThrowIfNull(validator);
@@ -184,7 +204,8 @@ public static class CampaignAssets
                                 m.MembershipId, m.Who,
                                 m.Sheet.CampaignAssets
                                     .Where(c => string.Equals(c.AssetId, asset.Id, StringComparison.Ordinal))
-                                    .Sum(c => c.HeroPoints)))
+                                    .Sum(c => c.HeroPoints),
+                                m.PlayerKey))
                             .Where(c => c.HeroPoints != 0)
                             .OrderByDescending(c => c.HeroPoints)
                             .ThenBy(c => c.Who, StringComparer.CurrentCulture)
