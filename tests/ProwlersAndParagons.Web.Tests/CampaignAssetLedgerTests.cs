@@ -58,9 +58,9 @@ public sealed class CampaignAssetLedgerTests
 
         var ledger = CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
         [
-            ("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 1))),
-            ("m_2", "Nightjar", Who((TheWing, CampaignAssetContribution.Vehicle, 3))),
-            ("m_3", "Halo",     Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
+            ("m_1", "Bulwark", null, Who((TheWing, CampaignAssetContribution.Vehicle, 1))),
+            ("m_2", "Nightjar", null, Who((TheWing, CampaignAssetContribution.Vehicle, 3))),
+            ("m_3", "Halo", null,     Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
         ]);
 
         var line = Assert.Single(ledger);
@@ -84,8 +84,8 @@ public sealed class CampaignAssetLedgerTests
 
         var ledger = CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
         [
-            ("m_1", "Bulwark",  Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
-            ("m_2", "Nightjar", Who()),
+            ("m_1", "Bulwark", null,  Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
+            ("m_2", "Nightjar", null, Who()),
         ]);
 
         Assert.Equal(["Bulwark"], Assert.Single(ledger).Contributors.Select(c => c.Who));
@@ -103,7 +103,7 @@ public sealed class CampaignAssetLedgerTests
 
         var ledger = CampaignAssets.Ledger(Game(Wing, Roost), ctx.Session.Costs,
         [
-            ("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 2),
+            ("m_1", "Bulwark", null, Who((TheWing, CampaignAssetContribution.Vehicle, 2),
                                    (TheRoost, CampaignAssetContribution.Headquarters, 4))),
         ]);
 
@@ -152,13 +152,13 @@ public sealed class CampaignAssetLedgerTests
 
         // Body 8 + Speed 10 is 18 Vehicle Points; one Hero Point buys 25 and none buys nothing.
         var funded = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
-            [("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 1)))]));
+            [("m_1", "Bulwark", null, Who((TheWing, CampaignAssetContribution.Vehicle, 1)))]));
 
         // Body 20 + Speed 10 is 30, against the same one Hero Point's 25: over, and nowhere near
         // twice over.
         var barely = Assert.Single(CampaignAssets.Ledger(
             Game(Wing with { Body = 20 }), ctx.Session.Costs,
-            [("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 1)))]));
+            [("m_1", "Bulwark", null, Who((TheWing, CampaignAssetContribution.Vehicle, 1)))]));
 
         var starved = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs, []));
 
@@ -207,7 +207,7 @@ public sealed class CampaignAssetLedgerTests
 
         var ledger = CampaignAssets.Ledger(Game(fromAnotherBuild, Roost), ctx.Session.Costs,
         [
-            ("m_1", "Bulwark", Who((TheWing, CampaignAssetContribution.Vehicle, 2),
+            ("m_1", "Bulwark", null, Who((TheWing, CampaignAssetContribution.Vehicle, 2),
                                    (TheRoost, CampaignAssetContribution.Headquarters, 4))),
         ]);
 
@@ -312,5 +312,129 @@ public sealed class CampaignAssetLedgerTests
         sheet.CampaignAssets.Add(new CampaignAssetContribution("") { HeroPoints = 2 });
 
         Assert.Empty(CampaignAssets.Orphaned(sheet, Game(Wing)));
+    }
+
+    // ── Two characters from one player draw as one player (item 33.12) ───────────
+
+    /// <summary>
+    /// <b>A player with one contributing character renders exactly as before</b>: a group of one,
+    /// carrying no disclosure. This is the positive control for the whole feature — a build that
+    /// grouped everything under a wrapper regardless would still pass every earlier test in this
+    /// file, which asserts <see cref="CampaignAssetLine.Contributors"/> rather than the groups.
+    /// </summary>
+    [Fact]
+    public void OneContributingCharacterIsAGroupOfOneWithNoDisclosure()
+    {
+        using var ctx = new RenderContext();
+
+        var line = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
+        [
+            ("m_1", "Bulwark", "pk_alice", Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
+        ]));
+
+        var group = Assert.Single(line.ContributorGroups);
+
+        Assert.False(group.IsGrouped);
+        Assert.Equal(2, group.Total);
+        Assert.Equal("Bulwark", Assert.Single(group.Members).Who);
+    }
+
+    /// <summary>
+    /// <b>Two characters sharing a <c>playerKey</c> fold into one group, summed</b> — the whole
+    /// point of item 33.12's ruling: two memberships from one account read as one player with two
+    /// characters, not as two contributors with nothing saying they are the same person.
+    /// </summary>
+    [Fact]
+    public void TwoCharactersSharingAPlayerKeyFoldIntoOneGroup()
+    {
+        using var ctx = new RenderContext();
+
+        var line = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
+        [
+            ("m_1", "Bulwark", "pk_alice", Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
+            ("m_2", "Second Self", "pk_alice", Who((TheWing, CampaignAssetContribution.Vehicle, 3))),
+        ]));
+
+        var group = Assert.Single(line.ContributorGroups);
+
+        Assert.True(group.IsGrouped);
+        Assert.Equal(5, group.Total); // the sum across both of the player's characters
+        Assert.Equal(2, group.Members.Count);
+
+        // Largest first within the group.
+        Assert.Equal(["Second Self", "Bulwark"], group.Members.Select(m => m.Who));
+
+        // The flat list is unaffected — still two contributors, largest first — which is the
+        // control that this is a new, additional view and not a replacement for the old one.
+        Assert.Equal(["Second Self", "Bulwark"], line.Contributors.Select(c => c.Who));
+    }
+
+    /// <summary>
+    /// <b>Two players never fold together</b>, even one character apiece — the negative control on
+    /// the test above, without which a build that grouped everyone into one row would pass it.
+    /// </summary>
+    [Fact]
+    public void TwoDifferentPlayersDoNotFoldTogether()
+    {
+        using var ctx = new RenderContext();
+
+        var line = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
+        [
+            ("m_1", "Bulwark", "pk_alice", Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
+            ("m_2", "Nightjar", "pk_bob", Who((TheWing, CampaignAssetContribution.Vehicle, 3))),
+        ]));
+
+        Assert.Equal(2, line.ContributorGroups.Count);
+        Assert.True(line.ContributorGroups.All(g => !g.IsGrouped));
+    }
+
+    /// <summary>
+    /// <b>A null <c>playerKey</c> — an older server that has not learned to send one — groups with
+    /// nobody, ever.</b> Two contributors with no key must not be folded together on the strength
+    /// of sharing "no key", which would be this build inventing a fact the server never sent.
+    /// </summary>
+    [Fact]
+    public void NoPlayerKeyAtAllNeverGroupsAnybodyTogether()
+    {
+        using var ctx = new RenderContext();
+
+        var line = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
+        [
+            ("m_1", "Bulwark", null, Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
+            ("m_2", "Nightjar", null, Who((TheWing, CampaignAssetContribution.Vehicle, 3))),
+        ]));
+
+        Assert.Equal(2, line.ContributorGroups.Count);
+        Assert.True(line.ContributorGroups.All(g => !g.IsGrouped));
+    }
+
+    /// <summary>
+    /// <b>Ordering: the largest player first, then the largest character within, ties by
+    /// label.</b> A grouped player with a bigger sum outranks a lone contributor with a smaller
+    /// one, even though neither of the group's own characters is individually the largest.
+    /// </summary>
+    [Fact]
+    public void GroupsOrderByTotalThenLabelAndSoDoMembersWithinAGroup()
+    {
+        using var ctx = new RenderContext();
+
+        var line = Assert.Single(CampaignAssets.Ledger(Game(Wing), ctx.Session.Costs,
+        [
+            // Alice's two characters sum to 5, each individually smaller than Carol's lone 4.
+            ("m_1", "Halo", "pk_alice", Who((TheWing, CampaignAssetContribution.Vehicle, 2))),
+            ("m_2", "Second Self", "pk_alice", Who((TheWing, CampaignAssetContribution.Vehicle, 3))),
+            ("m_3", "Carol’s Machine", "pk_carol", Who((TheWing, CampaignAssetContribution.Vehicle, 4))),
+        ]));
+
+        Assert.Equal(2, line.ContributorGroups.Count);
+
+        var first = line.ContributorGroups[0];
+        Assert.True(first.IsGrouped);
+        Assert.Equal(5, first.Total); // Alice's group must outrank Carol's lone 4
+        Assert.Equal(["Second Self", "Halo"], first.Members.Select(m => m.Who));
+
+        var second = line.ContributorGroups[1];
+        Assert.False(second.IsGrouped);
+        Assert.Equal("Carol’s Machine", second.Members[0].Who);
     }
 }

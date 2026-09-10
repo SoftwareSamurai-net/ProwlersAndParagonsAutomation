@@ -354,10 +354,44 @@ else
 
                             @* **Who paid, largest first**, which is the question a GM has about a
                                shared object — and the one thing on this screen that no single
-                               player's sheet can answer. *@
+                               player's sheet can answer.
+
+                               **Two characters from one account draw as one player**, per the
+                               owner's ruling on item 33.12: a lone contributing character is a
+                               flat row exactly as it always was, and two or more fold under a
+                               parent naming the player rather than either character — nothing
+                               says which account, only that the rows share one. Grouping is
+                               `CampaignAssetLine.ContributorGroups`'s, never decided here. *@
                             @if (_rosterRead)
                             {
-                                <span class="muted small"><br />@Funders(line)</span>
+                                @if (line.Contributors.Count == 0)
+                                {
+                                    <span class="muted small"><br />@NoFunders</span>
+                                }
+                                else
+                                {
+                                    <ul class="funders muted small">
+                                        @foreach (var group in line.ContributorGroups)
+                                        {
+                                            @if (group.IsGrouped)
+                                            {
+                                                <li class="funder-player">
+                                                    @PlayerLabel(group)
+                                                    <ul>
+                                                        @foreach (var member in group.Members)
+                                                        {
+                                                            <li class="funder-character">@Funder(member)</li>
+                                                        }
+                                                    </ul>
+                                                </li>
+                                            }
+                                            else
+                                            {
+                                                <li class="funder-character">@Funder(group.Members[0])</li>
+                                            }
+                                        }
+                                    </ul>
+                                }
 
                                 @* **Reported, and never repaired.** The remedy is somebody putting
                                    more in or the object losing a feature, and both are decisions
@@ -774,15 +808,23 @@ else
         string.Join(", ", asset.Features.Select(
             f => AssetFormatter.Feature(f, Session.Rules, !asset.IsHeadquarters)));
 
+    private const string NoFunders = "Nobody has put anything into this yet.";
+
     /// <summary>
-    /// Who put in, and how much. <b>Never an account or an address</b> — a membership deliberately
+    /// One character's own row. <b>Never an account or an address</b> — a membership deliberately
     /// never tells a GM whose account is on the other side of it, and the label the roster above
     /// draws is the same label here.
     /// </summary>
-    private static string Funders(CampaignAssetLine line) =>
-        line.Contributors.Count == 0
-            ? "Nobody has put anything into this yet."
-            : string.Join(" · ", line.Contributors.Select(c => $"{c.Who} {c.HeroPoints} HP"));
+    private static string Funder(AssetContributor contributor) =>
+        $"{contributor.Who} {contributor.HeroPoints} HP";
+
+    /// <summary>
+    /// The parent row over two or more characters funded by one player. <b>Says a count and a
+    /// sum, never a name</b> — naming the player is the one thing this row exists not to do, since
+    /// nothing on this screen is told which account either character belongs to.
+    /// </summary>
+    private static string PlayerLabel(PlayerGroup<AssetContributor> group) =>
+        $"One player, {group.Members.Count} characters — {group.Total} HP";
 
     private const string OverBudget =
         "More has been built with this than its members have put in. Somebody can put more in, "
@@ -1060,7 +1102,7 @@ else
         // the list stays as it was rather than reporting that everybody has left.
         _rosterRead = inbox is not null;
 
-        IReadOnlyList<(string MembershipId, string Who, CharacterSheet Sheet)> clones = [];
+        IReadOnlyList<(string MembershipId, string Who, string? PlayerKey, CharacterSheet Sheet)> clones = [];
 
         if (inbox is not null)
         {

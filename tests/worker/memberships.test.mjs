@@ -23,7 +23,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { server, signIn } from './harness.mjs';
+import { errorRows, server, signIn } from './harness.mjs';
 
 /** Shaped like what `StoredCampaign` writes: a version and the campaign's own fields. */
 const campaignPayload = {
@@ -351,6 +351,102 @@ test('two players in one campaign cannot see each other', async () => {
         { cookie: two.cookie })).json()).memberships.map(m => m.id).sort(), [b]);
     assert.deepEqual((await (await app.call('/api/memberships/inbox',
         { cookie: gm.cookie })).json()).memberships.map(m => m.id).sort(), [a, b].sort());
+});
+
+// ── The GM's inbox says which rows share a player, without saying which player ────────────
+
+test('two of one player’s characters in one campaign share a playerKey', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+
+    const code = await joinCodeFor(app, gm.cookie);
+    const player = await signIn(app, 'player@example.test');
+
+    const a = (await (await join(app, player.cookie,
+        { code, characterId: cid(1), label: 'Bulwark' })).json()).id;
+    const b = (await (await join(app, player.cookie,
+        { code, characterId: cid(2), label: 'Nightjar' })).json()).id;
+
+    const inbox = (await (await app.call('/api/memberships/inbox',
+        { cookie: gm.cookie })).json()).memberships;
+
+    const first = inbox.find(m => m.id === a);
+    const second = inbox.find(m => m.id === b);
+
+    assert.ok(first.playerKey, 'a key must be present at all');
+    assert.equal(first.playerKey, second.playerKey);
+});
+
+test('the same player in a second campaign gets a different playerKey', async () => {
+    const app = server();
+
+    const gmOne = await signIn(app, 'gm-one@example.test');
+    assert.equal((await putCampaign(app, gmOne.cookie, { theId: gid(1) })).status, 204);
+    const codeOne = await joinCodeFor(app, gmOne.cookie, gid(1));
+
+    const gmTwo = await signIn(app, 'gm-two@example.test');
+    assert.equal((await putCampaign(app, gmTwo.cookie, { theId: gid(2) })).status, 204);
+    const codeTwo = await joinCodeFor(app, gmTwo.cookie, gid(2));
+
+    const player = await signIn(app, 'player@example.test');
+    await join(app, player.cookie, { code: codeOne, characterId: cid(1) });
+    await join(app, player.cookie, { code: codeTwo, characterId: cid(2) });
+
+    const inboxOne = (await (await app.call('/api/memberships/inbox',
+        { cookie: gmOne.cookie })).json()).memberships;
+    const inboxTwo = (await (await app.call('/api/memberships/inbox',
+        { cookie: gmTwo.cookie })).json()).memberships;
+
+    assert.notEqual(inboxOne[0].playerKey, inboxTwo[0].playerKey,
+        'the same player must not hash the same across two different campaigns');
+});
+
+test('two different players never share a playerKey', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+
+    const code = await joinCodeFor(app, gm.cookie);
+
+    const one = await signIn(app, 'one@example.test');
+    const two = await signIn(app, 'two@example.test');
+
+    await join(app, one.cookie, { code, characterId: cid(1) });
+    await join(app, two.cookie, { code, characterId: cid(2) });
+
+    const inbox = (await (await app.call('/api/memberships/inbox',
+        { cookie: gm.cookie })).json()).memberships;
+
+    assert.notEqual(inbox[0].playerKey, inbox[1].playerKey);
+});
+
+test('a player never sees a playerKey, on either of their own routes', async () => {
+    const { app, player, membership } = await aTable();
+
+    const mine = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+    const one = await (await app.call(`/api/memberships/${membership}`,
+        { cookie: player.cookie })).json();
+
+    assert.equal(mine.memberships.length, 1, 'the positive control: there is a row to inspect');
+    assert.ok(!('playerKey' in mine.memberships[0]));
+    assert.ok(!('playerKey' in one));
+
+    for (const body of [JSON.stringify(mine), JSON.stringify(one)]) {
+        assert.ok(!body.includes('playerKey'), body);
+    }
+});
+
+test('a missing PLAYER_KEY_SECRET fails the inbox loudly, as a configuration failure', async () => {
+    const { app, gm } = await aTable();
+
+    delete app.env.PLAYER_KEY_SECRET;
+
+    const response = await app.call('/api/memberships/inbox', { cookie: gm.cookie });
+
+    assert.equal(response.status, 500);
+    assert.equal((await response.json()).category, 'configuration');
+    assert.equal(errorRows(app.db)[0].category, 'configuration');
 });
 
 test('one player cannot squat on another’s character id in the same campaign', async () => {

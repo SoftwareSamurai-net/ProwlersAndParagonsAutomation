@@ -523,8 +523,12 @@ export async function listMembershipsForPlayer(db, playerUserId) {
  * campaign list needs a waiting count per game, and the approval screen needs the rows of one.
  * Two addresses answering from one statement cannot disagree about the count.</p>
  *
- * <p><b>No payload here either</b>, and no account id: a GM learns that a character called
- * something is waiting, never whose account sent it.</p>
+ * <p><b>No payload here, and no account id on the wire</b>: a GM learns that a character called
+ * something is waiting, never whose account sent it. <b>`player_user_id` is selected all the
+ * same</b>, for `memberships.asGmRow` to fold into `playerKey` — a one-way hash of it, computed
+ * per row rather than read back out of it. Nothing downstream of this statement may put the raw
+ * column on the wire; `AccountsContractTests`' "no account id and no address ever appears here"
+ * invariant is about the response, not about what this query is allowed to select.</p>
  *
  * <p><b>Only memberships of a campaign that is still there.</b> There is no cascade when a
  * campaign is deleted and there is deliberately not going to be one — the player's half of a
@@ -536,7 +540,7 @@ export async function listMembershipsForPlayer(db, playerUserId) {
  */
 export async function listMembershipsForGm(db, gmUserId) {
     const result = await db.prepare(
-        'SELECT id, campaign_id, label, approved_at, pending_at, pending_version, '
+        'SELECT id, campaign_id, player_user_id, label, approved_at, pending_at, pending_version, '
         + '       decision, '
         + '       approved_payload IS NOT NULL AS has_approved, '
         + '       pending_payload IS NOT NULL AS has_pending '
