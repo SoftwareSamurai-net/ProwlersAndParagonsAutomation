@@ -29,7 +29,33 @@ The root `.csproj` sits at the repository root, so it carries a `<Compile Remove
 
 The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestMinor` rollForward). The 9.x SDK cannot build it; install with `winget install --id Microsoft.DotNet.SDK.10`.
 
-**A crashed test process still prints `Passed! - Failed: 0`.** A stack overflow (e.g. an endless render loop) exits with `Catastrophic failure ... exit code -1073741571` — that is `0xC00000FD`; the process is dead, the summary line is a lie. CI notices via the exit code; a human tailing the log for `Passed!` does not. **Grep for `Catastrophic` and check the total moved.** `node --test` has the same trap in another spelling: an empty glob exits 0 reporting zero tests. Both suites' CI steps assert the count for this reason.
+**Both test projects run on Microsoft.Testing.Platform (MTP), not VSTest — `global.json`'s `test.runner` says so, and it is what `dotnet test` reads the opt-in from** (a `dotnet.config` `[dotnet.test.runner]` section does *not* take on this SDK; `dotnet test --help` names `global.json` as the place). The test projects carry only `xunit.v3`: `xunit.runner.visualstudio` and `Microsoft.NET.Test.Sdk` were removed, because under MTP the test project self-hosts and the VSTest adapter is dead weight. See PROGRESS.md item 20 for the migration itself.
+
+**The old VSTest trap this section used to warn about is closed, not just reworded — proved by planting the crash and reading the real output.** A `[Fact]` with unbounded recursion (`dotnet test tests/ProwlersAndParagonsAutomation.Tests --configuration Release --filter "FullyQualifiedName~UnboundedRecursionCrashesTheProcess"`, on SDK 10.0.303 with xunit.v3 4.0.0) printed:
+
+```
+Error output: Stack overflow.
+  Repeated 31418 times:
+  --------------------------------
+     at ProwlersAndParagonsAutomation.Tests.ZZZTempCrashTest.Recurse(Int32)
+  --------------------------------
+     ...
+Test run summary: Zero tests ran
+  error: 1
+
+  total: 0
+  failed: 0
+  succeeded: 0
+  skipped: 0
+  duration: 847ms
+Test run completed with non-success exit code: -1073741571 (see: https://aka.ms/testingplatform/exitcodes)
+```
+
+No `Passed!` anywhere, no `Failed: 0` — the crash is reported as an infrastructure `error`, the exit code names the same `0xC00000FD` VSTest used to hide, and `total: 0` is honest about the fact that nothing ran to completion. **So `Catastrophic` is no longer the thing to grep for** — under MTP that word does not appear at all; a crashed run is `Zero tests ran` with a non-zero exit code and an `Error output:` block naming the fault. CI notices the same way it always did, through the exit code; a human tailing the log now sees the crash instead of a line that lies about it. `node --test` still has its own trap in another spelling — an empty glob exits 0 reporting zero tests — and that suite's CI step still asserts the count for that reason.
+
+**A filter matching nothing is refused the same way, not reported as success**: `dotnet test <project> --filter "FullyQualifiedName~NoSuchTest"` prints `Test run summary: Zero tests ran` and exits non-zero (`8`, MTP's own "zero tests ran" code) rather than `0`. The VSTest-style filter syntax itself (`FullyQualifiedName~Foo`, `FullyQualifiedName=Foo`) is unchanged under MTP — measured, not assumed — so nothing that already filters this way needs to change its spelling.
+
+**`dotnet test` used to print one `Passed!` per project because VSTest ran each project as a separate pass; MTP prints a single combined `total:`/`succeeded:`/`failed:`/`skipped:` block for a solution-wide run**, with one `passed (…)`/`failed with N error(s) (…)` line per assembly above it rather than a per-project count. `./scripts/count-tests.sh` reads a per-project figure by invoking each test project on its own (`dotnet test tests/<project> --configuration Release`) and grepping that run's own `succeeded:` line — **never `--nologo` or `-v q` on a project-scoped MTP invocation**: both are forwarded to the test host rather than consumed by the `dotnet` CLI, and the host reads them as unrecognised arguments and reports `Zero tests ran` without running a single test. That was measured while updating the script for this migration, not assumed.
 
 
 ## Static analysis
@@ -128,8 +154,9 @@ pending migrations — apply, refuse, or proceed — pulled out of the shell so 
 canned wrangler output. That is the same shape `scripts/visual/diff.mjs` took for the same reason,
 and its six branches are each proved by mutation rather than by reading.
 
-**`dotnet test` prints one `Passed!` per project and there are two.** Count the lines, and grep for
-`Catastrophic` — see the note below on why a crashed process still prints `Passed! - Failed: 0`.
+**A solution-wide `dotnet test` prints one combined `total:`/`succeeded:`/`failed:` block for both
+.NET projects, not one `Passed!` line each** — see the note above on Microsoft.Testing.Platform for
+what that block looks like and why a crash cannot hide inside it any more.
 
 ## Counting them is `./scripts/count-tests.sh`, and the count is not written down anywhere
 
