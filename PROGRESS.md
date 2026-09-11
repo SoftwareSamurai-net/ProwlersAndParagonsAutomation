@@ -109,7 +109,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[31](#31-the-account-autosave-lost-an-edit-to-its-own-predecessor)** — one fire-and-forget write per keystroke against a last-write-wins server lost the later edit while the app said Saved; the autosave is serialised and coalesced, "Saved" can only understate what landed, and a guard holds the app to actually starting it. Verified by the orchestrator 2026-09-07: the coalescing flag and the app's `Start()` line each went red under mutation
 
 - [x] **[32](#32-fold-chapter-6-into-the-sheet-and-the-fight)** — the owner's ask of 2026-09-08: the extracted equipment, gadgets, vehicles, headquarters and environment became mechanics — the Gear step picks from the catalogue, `CostCalculator` prices a vehicle, a base and a Gadget in their own currencies, the sheet prints them, the palette offers them, the fight reads scenery Structure, and a campaign holds the shared objects its members fund. Verified by the orchestrator 2026-09-10 across four pull requests: the Gear-Limit cap and the budget-silencing flag, the knockback's smash-through tie, the headquarters currency and the base-budget boundary, and the shared object's id filter and kind clause each went red under mutation
-- [ ] **[33](#33-decisions-chapter-6-left-to-the-owner)** — twelve Chapter 6 design questions, **all twelve answered by the owner on 2026-09-10**; **rulings 1, 7, 8, 10, 11 and 12 are built** (see the pull request that carried them; each guard was broken and watched red by the orchestrator as well as by the agent that wrote it). Still to build: 2 (feature prerequisites), 4 (a shared base's Teamwork) and 5+6, the largest, which reshapes shared objects so a player proposes a vehicle or base and the GM approves it in item 26's submission shape — its design is accepted and in the entry
+- [x] **[33](#33-decisions-chapter-6-left-to-the-owner)** — twelve Chapter 6 design questions, **all twelve answered by the owner on 2026-09-10 and every ruling that was work is built**, across two pull requests the same day. Verified by the orchestrator: each guard broken and watched red independently of the agent that wrote it — and one that did not go red (the shared-vehicle prerequisite path) got the test it was missing before the merge
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -2262,9 +2262,14 @@ clause went red in both when inverted.
 
 ### 33. Decisions Chapter 6 left to the owner
 
-**Answered 2026-09-10, all twelve; six built the same day.** Each question is kept with its
-ruling beneath it. Rulings 1, 7, 8, 10, 11 and 12 landed in one pull request; 3 needed nothing;
-2, 4 and 5+6 are still marked **build** and are the open work here.
+**Answered 2026-09-10, all twelve, and closed the same day.** Each question is kept with its
+ruling beneath it. Rulings 1, 7, 8, 10, 11 and 12 landed in the first pull request; 2, 4 and 5+6
+in the second; 3 needed nothing. The **build** markers below are what each ruling *was*, kept so
+the reasoning stays beside the question. Two facts from building 5+6 worth knowing: a proposal is
+`CampaignAssetContribution.Proposal`, null on every older sheet so every older export is
+byte-identical; and the GM's draft editor became `SharedAssetEditor`, one component both pages
+use. From building 4: Teamwork from a shared base reads the *live* campaign through item 30's
+route and grants only to an approved membership — offline it is no grant and no error.
 
 **Ruling 12 adds a server secret, and the deploy needs it before the GM's inbox will answer.**
 `PLAYER_KEY_SECRET` signs the per-campaign player key; the worker refuses the inbox loudly without
