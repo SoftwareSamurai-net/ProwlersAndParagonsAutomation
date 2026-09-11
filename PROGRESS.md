@@ -94,7 +94,7 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[2](#2-what-the-sheet-still-cannot-say)** — a mid-sheet page is anonymous, with no portable CSS answer
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
-- [ ] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — a test-platform migration, blocked on MTP v2 versus the .NET 10 SDK
+- [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
 - [x] **[24](#24-a-bunit-event-is-dispatched-not-applied-and-three-palette-tests-read-a-render-early)** — three palette tests raced the renderer and went red on CI one at a time; the whole class is swept and a guard fails the build on the next synchronous drive. Verified by the orchestrator 2026-09-06
@@ -1630,6 +1630,17 @@ the orchestrator: the admin gate, the self-cap exclusion on the `UPDATE`, the co
 `aria-controls` and the sheets in-flight guard each went red under mutation.
 
 ### 20. xunit.v3 4.0.0 is a test-platform migration, and it is measured but not done
+
+**Done 2026-09-11.** The recipe below was re-measured and held: xunit.v3 4.0.0, `global.json` opts
+the SDK into Microsoft.Testing.Platform, `xunit.runner.visualstudio` and `Microsoft.NET.Test.Sdk`
+are gone. `count-tests.sh` runs each .NET project on its own because MTP prints one combined
+`total:` for a solution run. **One trap found on the way and written into the script and the guide:
+`--nologo` and `-v q` are forwarded to the MTP test host, which reports "Zero tests ran" and exits
+without running anything** — a green-looking no-op of exactly the shape this repository's guard
+faults take. Do not pass them to `dotnet test` any more. The crash trap the guide warned about is
+closed for real: a deliberate stack overflow prints `Zero tests ran`, `error: 1` and a non-zero exit,
+not `Passed!`. The paragraphs below are kept as the record of what the migration was measured
+against.
 
 **Dependabot raised it as a chore ([#112](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/112)) with [#111](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/111) chained to it, and both were closed deliberately rather than merged or ignored.** 4.0.0 defaults to Microsoft.Testing.Platform v2, and MTP v2 refuses the VSTest target on the .NET 10 SDK this repository pins:
 

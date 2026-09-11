@@ -11,9 +11,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
-        <PackageReference Include="xunit.v3" Version="3.2.2" />
-        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+        <!-- Microsoft.Testing.Platform: the test project self-hosts, so neither the VSTest
+             adapter (xunit.runner.visualstudio) nor Microsoft.NET.Test.Sdk is needed — see
+             PROGRESS.md item 20 and docs/guide/testing.md. -->
+        <PackageReference Include="xunit.v3" Version="4.0.0" />
     </ItemGroup>
 
     <ItemGroup>
