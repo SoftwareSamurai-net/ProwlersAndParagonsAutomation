@@ -1,0 +1,47 @@
+-- Two more columns on `characters`, so a roster can draw the tree item 21's variants need
+-- without a payload read per row.
+--
+-- **The same bargain 0008's three columns struck, and for the same reason.** A row in the
+-- manager may not cost a payload read: `SavedCharacters` keeps an index precisely so that
+-- drawing a list does not deserialize every character in it, and a tree over thirty characters
+-- is the same problem the flat list already solved once. So what a row needs to draw itself
+-- under its root travels *beside* the payload, supplied by the client — the server never parses
+-- a character and this migration does not change that.
+--
+-- **What they are:**
+--
+--   * `variant_of`   — the id of the character this one is a version of, or NULL for a root.
+--                      Shaped like a character id (`c_` plus 22 URL-safe characters) because
+--                      that is exactly what it is — the same key this table's own `id` column
+--                      holds — but it is not a foreign key and nothing here joins it to
+--                      anything: a version may name a root this account has deleted, or one
+--                      that lives on another browser and has never been uploaded, and both are
+--                      ordinary states the browser reports rather than states this table
+--                      refuses. See `CharacterVariants.Group` (in `web/`) and
+--                      `VARIANT_ROOT_NOT_HELD`.
+--   * `variant_kind` — what kind of version it is — later, as seen by another audience,
+--                      alternate form. An opaque, length-bounded string here, exactly like
+--                      `kind` and `tier_id` in 0008: the fixed set of kinds is
+--                      `CharacterVariant.Kinds` in the engine, a file this server has never
+--                      read and must not start reading. `UNKNOWN_VARIANT_KIND` is the engine's
+--                      own check of it, on the other side of the wire.
+--
+-- **Both travel together or not at all, and neither is checked against the other here.** A
+-- payload whose own `Variant` field is null sends neither; one whose `Variant` names a root but
+-- an unrecognised kind sends `variant_of` and a `variant_kind` this server has never heard of —
+-- which is correct, because refusing it would make this server the authority on what a legal
+-- kind is, and reporting it as `UNKNOWN_VARIANT_KIND` is the engine's own validator's job. What
+-- this server refuses is a shape: not a string, or an id that is not `c_` plus 22 URL-safe
+-- characters.
+--
+-- **NULL on both is what every existing row gets, which is right.** A character written before
+-- this migration, and one whose sheet carries no `Variant` at all, both read back as a root —
+-- exactly what CharacterSheet.Variant already means by null. Nothing backfills, because
+-- backfilling would mean parsing every payload on the server, which is the thing this column
+-- set exists to avoid.
+--
+-- **No table rebuild.** Neither is part of a primary key, so SQLite adds them in place — the
+-- same shape 0005, 0008 and 0009 already used for a column on an existing table.
+
+ALTER TABLE characters ADD COLUMN variant_of TEXT;
+ALTER TABLE characters ADD COLUMN variant_kind TEXT;

@@ -63,7 +63,9 @@ public sealed class FakeApi : HttpMessageHandler
         string? CampaignId = null,
         string? Kind = null,
         string? TierId = null,
-        int? Spent = null);
+        int? Spent = null,
+        string? VariantOf = null,
+        string? VariantKind = null);
 
     /// <summary>
     /// A counter, not a clock. The list is ordered by it and the browser adopts the first entry, so
@@ -402,7 +404,9 @@ public sealed class FakeApi : HttpMessageHandler
                  "campaignId":{{Quote(e.Value.CampaignId)}},
                  "kind":{{Quote(e.Value.Kind)}},
                  "tierId":{{Quote(e.Value.TierId)}},
-                 "spent":{{e.Value.Spent?.ToString(CultureInfo.InvariantCulture) ?? "null"}}}
+                 "spent":{{e.Value.Spent?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
+                 "variantOf":{{Quote(e.Value.VariantOf)}},
+                 "variantKind":{{Quote(e.Value.VariantKind)}}}
                 """);
 
         return Json($$"""{"limit":{{Limit}},"characters":[{{string.Join(",", mine)}}]}""");
@@ -484,7 +488,9 @@ public sealed class FakeApi : HttpMessageHandler
                 SentString(sent.RootElement, "campaignId"),
                 SentString(sent.RootElement, "kind"),
                 SentString(sent.RootElement, "tierId"),
-                SentNumber(sent.RootElement, "spent"));
+                SentNumber(sent.RootElement, "spent"),
+                SentString(sent.RootElement, "variantOf"),
+                SentString(sent.RootElement, "variantKind"));
 
             return Status(HttpStatusCode.NoContent);
         }

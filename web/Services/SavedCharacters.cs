@@ -75,6 +75,23 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// follows, and it is why this is <c>int?</c> rather than an <c>int</c> defaulting to zero: zero
 /// is a real spend and "unknown" is not it.</para>
 /// </param>
+/// <param name="VariantOf">
+/// The id of the character this one is a version of, or null for a root — item 21's slice one,
+/// the roster's own copy of <see cref="Engine.CharacterVariant.OfCharacterId"/>.
+///
+/// <para><b>A fourth duplicate out of the payload, on the same bargain <see cref="CampaignId"/>
+/// struck.</b> A roster drawing the tree <see cref="Web.Services.CharacterVariants.Group"/> builds
+/// must not cost a payload read per row any more than the game or the tier does, so this rides
+/// beside them — supplied by the client, stored verbatim, never derived. Null on a row written
+/// before this field existed, which correctly means "a root", exactly what
+/// <see cref="Engine.CharacterSheet.Variant"/> already means by null.</para>
+/// </param>
+/// <param name="VariantKind">
+/// What kind of version it is — <see cref="Engine.CharacterVariant.Later"/>,
+/// <see cref="Engine.CharacterVariant.AsSeenBy"/> or <see cref="Engine.CharacterVariant.AlternateForm"/>
+/// — or null alongside <paramref name="VariantOf"/>. The two travel together; see
+/// <see cref="IndexFieldsFor"/>.
+/// </param>
 public sealed record SavedCharacterSummary(
     string Id,
     string Label,
@@ -82,7 +99,9 @@ public sealed record SavedCharacterSummary(
     string? CampaignId = null,
     string? Kind = null,
     string? TierId = null,
-    int? Spent = null);
+    int? Spent = null,
+    string? VariantOf = null,
+    string? VariantKind = null);
 
 /// <summary>
 /// Many characters, kept in this browser's local storage.
@@ -231,7 +250,7 @@ public sealed class SavedCharacters
         string.IsNullOrWhiteSpace(sheet.Name) ? "Unnamed character" : sheet.Name.Trim();
 
     /// <summary>
-    /// The three things besides its name and its campaign that an index records about a character,
+    /// The five things besides its name and its campaign that an index records about a character,
     /// so a row can say what it is without the payload being read.
     ///
     /// <para><b>One spelling, shared with <see cref="ApiCharacterStore"/> for the reason
@@ -245,9 +264,14 @@ public sealed class SavedCharacters
     /// autosave fires on every change — including the change that makes a sheet unpriceable. A
     /// throw here would take down a write that has nothing to do with the figure; null is the
     /// answer, and a row with no figure is the honest drawing of it.</para>
+    ///
+    /// <para><b>The last two are item 21's pair, read straight off <see cref="CharacterSheet.Variant"/>
+    /// with no engine call behind them</b> — unlike the spend, there is nothing here that can
+    /// throw: a null <c>Variant</c> answers two nulls, and a set one answers its own two fields
+    /// verbatim. Both travel together, exactly as they sit on the one record that names them.</para>
     /// </summary>
-    internal static (string Kind, string? TierId, int? Spent) IndexFieldsFor(
-        CharacterSheet sheet, SheetMode mode, CostCalculator costs)
+    internal static (string Kind, string? TierId, int? Spent, string? VariantOf, string? VariantKind)
+        IndexFieldsFor(CharacterSheet sheet, SheetMode mode, CostCalculator costs)
     {
         ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(costs);
@@ -257,7 +281,9 @@ public sealed class SavedCharacters
         // written into a column that outlives it.
         var kind = mode == SheetMode.Villain ? "villain" : "hero";
 
-        return (kind, sheet.SelectedTierId, CharacterSession.TryCost(() => costs.TotalCost(sheet)));
+        return (
+            kind, sheet.SelectedTierId, CharacterSession.TryCost(() => costs.TotalCost(sheet)),
+            sheet.Variant?.OfCharacterId, sheet.Variant?.Kind);
     }
 
     // ── Reading and writing the index ───────────────────────────────────────────────
@@ -326,14 +352,16 @@ public sealed class SavedCharacters
                     && _payload.Read(raw) is { } slot
                     && CharacterSession.IsWorthKeeping(slot.Sheet))
                 {
-                    // The payload is already open here, so this row carries the same three fields
-                    // an index entry does rather than being the one row in the list that cannot
-                    // say what it is. It is the one place reading a payload to draw a row is worth
+                    // The payload is already open here, so this row carries the same fields an
+                    // index entry does rather than being the one row in the list that cannot say
+                    // what it is. It is the one place reading a payload to draw a row is worth
                     // paying for, and having paid, there is nothing to be saved by using less of it.
-                    var (kind, tierId, spent) = IndexFieldsFor(slot.Sheet, slot.Mode, _costs);
+                    var (kind, tierId, spent, variantOf, variantKind) =
+                        IndexFieldsFor(slot.Sheet, slot.Mode, _costs);
 
                     result.Add(new SavedCharacterSummary(
-                        LegacyId, LabelFor(slot.Sheet), 0, slot.Sheet.CampaignId, kind, tierId, spent));
+                        LegacyId, LabelFor(slot.Sheet), 0, slot.Sheet.CampaignId, kind, tierId, spent,
+                        variantOf, variantKind));
                 }
             }
 
@@ -387,12 +415,13 @@ public sealed class SavedCharacters
             await _js.InvokeVoidAsync(
                 "ppStore.save", PayloadKeyFor(prefix, resolvedId), StoredCharacter.Write(sheet, mode));
 
-            var (kind, tierId, spent) = IndexFieldsFor(sheet, mode, _costs);
+            var (kind, tierId, spent, variantOf, variantKind) = IndexFieldsFor(sheet, mode, _costs);
 
             var index = await ReadIndexAsync(prefix);
             index.RemoveAll(e => e.Id == resolvedId);
             index.Add(new SavedCharacterSummary(
-                resolvedId, resolvedLabel, updatedAt, sheet.CampaignId, kind, tierId, spent));
+                resolvedId, resolvedLabel, updatedAt, sheet.CampaignId, kind, tierId, spent,
+                variantOf, variantKind));
             await WriteIndexAsync(prefix, index);
         }
         // The id is still handed back — a caller that minted one wants it either way — but the
@@ -539,12 +568,12 @@ public sealed class SavedCharacters
 
             if (!CharacterSession.IsWorthKeeping(sheet)) return;
 
-            var (kind, tierId, spent) = IndexFieldsFor(sheet, mode, _costs);
+            var (kind, tierId, spent, variantOf, variantKind) = IndexFieldsFor(sheet, mode, _costs);
 
             var index = await ReadIndexAsync(prefix);
             var entry = new SavedCharacterSummary(
                 id, LabelFor(sheet), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                sheet.CampaignId, kind, tierId, spent);
+                sheet.CampaignId, kind, tierId, spent, variantOf, variantKind);
 
             var i = index.FindIndex(e => e.Id == id);
             if (i >= 0) index[i] = entry; else index.Add(entry);

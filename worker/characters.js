@@ -32,12 +32,14 @@ const MAX_LABEL_LENGTH = 80;
 const DEFAULT_LABEL = 'Unnamed character';
 
 /**
- * The cap on the two index strings this server stores without understanding: which palette a
- * character is built in, and which tier it is built to.
+ * The cap on the opaque index strings this server stores without understanding: which palette a
+ * character is built in, which tier it is built to, and — item 21 — what kind of version of
+ * another character this one is.
  *
- * Shorter than a label's 80 because neither is prose — one is a word and the other is an id out of
- * `data/rules/tiers.json`, a file this server has never read. The bound is about what a column
- * should be asked to hold, which is the only question this file is entitled to ask about either.
+ * Shorter than a label's 80 because none of the three is prose — a word, an id out of
+ * `data/rules/tiers.json`, or one of `CharacterVariant.Kinds` — and neither file has ever been
+ * read here. The bound is about what a column should be asked to hold, which is the only
+ * question this file is entitled to ask about any of them.
  */
 const MAX_INDEX_FIELD_LENGTH = 40;
 
@@ -78,6 +80,12 @@ export async function list(request, env, deps, user) {
             kind: row.kind ?? null,
             tierId: row.tier_id ?? null,
             spent: row.spent ?? null,
+
+            // Item 21's pair, on the same terms as the three above: supplied by the client,
+            // stored verbatim, handed back verbatim, `?? null` for a row written before 0010.
+            // See that migration and `CharacterVariants.Group` (in `web/`).
+            variantOf: row.variant_of ?? null,
+            variantKind: row.variant_kind ?? null,
         })),
     });
 }
@@ -137,8 +145,15 @@ export async function write(request, env, deps, user, id) {
     const spent = normaliseSpent(body.value.spent);
     if (spent === undefined) return fail(400, 'That is not a value this server can store.');
 
+    const variantOf = normaliseCharacterId(body.value.variantOf);
+    if (variantOf === undefined) return fail(400, 'That is not a character id this server uses.');
+
+    const variantKind = normaliseIndexField(body.value.variantKind);
+    if (variantKind === undefined) return fail(400, 'That is not a value this server can store.');
+
     const stored = await db.putCharacter(env.DB, {
-        userId: user.id, id, label, payload, campaignId, kind, tierId, spent, now: deps.now(),
+        userId: user.id, id, label, payload, campaignId, kind, tierId, spent,
+        variantOf, variantKind, now: deps.now(),
     });
 
     if (!stored) {
@@ -197,6 +212,27 @@ function normaliseCampaignId(value) {
     if (value === '') return null;
 
     return CAMPAIGN_ID_PATTERN.test(value) ? value : undefined;
+}
+
+/**
+ * `variantOf` — item 21's root reference, checked for being a well-formed character id and
+ * nothing else.
+ *
+ * **The same shape as `normaliseCampaignId`, on the id this table's own `id` column uses rather
+ * than a campaign's.** It is not a foreign key and this is not checked against `characters`
+ * itself: a version may name a root this account has since deleted, or one that lives on another
+ * browser and has never been uploaded, and both are ordinary states the browser reports rather
+ * than states this table refuses — see the migration and `CharacterVariants.Group` (in `web/`).
+ *
+ * Missing or null is the ordinary state — a root, or a sheet with no `Variant` at all.
+ * `undefined` out of this function means a refusal: something that is not a usable id at all.
+ */
+function normaliseCharacterId(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string') return undefined;
+    if (value === '') return null;
+
+    return ID_PATTERN.test(value) ? value : undefined;
 }
 
 /**
