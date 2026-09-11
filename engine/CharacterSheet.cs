@@ -317,6 +317,33 @@ public record CampaignAssetContribution(string AssetId)
     /// <summary>Hero Points put in. Charged on this sheet like any other spend.</summary>
     public int HeroPoints { get; init; }
 
+    /// <summary>
+    /// The proposer's own build, when this contribution <em>is</em> a proposal rather than a
+    /// contribution to an object the GM already wrote down — PROGRESS item 33, rulings 5+6: the
+    /// player builds a vehicle or base and presents it, and the GM adopts, adopts with changes, or
+    /// refuses.
+    ///
+    /// <para><b>Null on every contribution that funds an object the campaign already has</b>, which
+    /// is every contribution this engine has ever read before this field existed — so an older
+    /// export reads back byte-identical, and nothing here bumped a stored character's version.</para>
+    ///
+    /// <para><b>The proposer mints <see cref="CampaignAsset.Id"/> and the same id goes on
+    /// <see cref="AssetId"/> above</b> — the same id a GM's own editor would mint, off
+    /// <c>StoredCampaign.NewAssetId()</c>. On adoption the campaign's own record keeps that id, so
+    /// the contribution is never re-pointed and no <c>UNKNOWN_CAMPAIGN_ASSET</c> appears the
+    /// moment the GM says yes. An amendment — a proposal naming an id the campaign already holds —
+    /// is not a second proposal; it is the same object shown as a diff against what the GM already
+    /// adopted.</para>
+    ///
+    /// <para><b>Priced the moment it is written, before any GM has seen it</b> — the owner's
+    /// answer to "when is it spent": the points are the player's own from character creation, and
+    /// a proposal riding the submission is charged like any other purchase on the sheet, by
+    /// <see cref="CostCalculator.TotalAssetPerkCost"/> reading <see cref="HeroPoints"/> exactly as
+    /// it always has. Nothing about pricing a contribution changed; what is new is that the object
+    /// beside it may be one this sheet invented rather than one the campaign already had.</para>
+    /// </summary>
+    public CampaignAsset? Proposal { get; init; }
+
     /// <summary>The two kinds of shared object Chapter 6 lets a team pool points on.</summary>
     public const string Vehicle = "vehicle";
 

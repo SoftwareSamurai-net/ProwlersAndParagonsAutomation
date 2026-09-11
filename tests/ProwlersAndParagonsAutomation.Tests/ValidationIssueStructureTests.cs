@@ -1082,6 +1082,11 @@ public sealed class ValidationIssueStructureTests
         ["ASSET_FEATURE_NEEDS_GRADE"]       = [ValidationSubject.AssetFeature],
         ["MECHA_MIGHT_BELOW_HALF_BODY"]     = [ValidationSubject.AssetFeature],
 
+        // Ruling 2 (PROGRESS.md item 33): Submersible without Swimming, or Transforming without
+        // two of its four movement features. The feature, with the vehicle's name in OwnerId —
+        // the same shape MECHA_MIGHT_BELOW_HALF_BODY takes.
+        ["VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM"] = [ValidationSubject.AssetFeature],
+
         ["GADGET_COMPLEXITY_BELOW_MINIMUM"]         = [ValidationSubject.Gadget],
         ["GADGET_COMPLEXITY_ABOVE_TECHNOLOGY"]      = [ValidationSubject.Gadget],
         ["GADGET_BUILDER_BELOW_TECHNOLOGY_MINIMUM"] = [ValidationSubject.Gadget],
@@ -1113,6 +1118,11 @@ public sealed class ValidationIssueStructureTests
         // Ruling 8: CheckContributionAgainstAsset has only the contribution and the asset in
         // hand, and a contribution belongs to the character the same way its own kind and id do.
         ["CAMPAIGN_ASSET_KIND_MISMATCH"]    = [ValidationSubject.Character],
+
+        // Rulings 5+6: a proposal's Hero Points buy more than the build spends. Filed against the
+        // character the same way every other CampaignAssetContribution-shaped code is — there is
+        // no vehicle or base here yet, only a player's own sheet.
+        ["CAMPAIGN_ASSET_SURPLUS"]          = [ValidationSubject.Character],
 
         // A Trait or a Power over the cap, under the 1d floor, under its package's floor, or
         // recorded with a negative quantity: the kind says which collection to write into.
@@ -1371,7 +1381,7 @@ public sealed class ValidationIssueStructureTests
         "house cap above the tier", "house cap below one",
         "a table's price for immortality",
         "a vehicle", "a headquarters", "a gadget", "assets without names", "a shared asset",
-        "a variant"
+        "a variant", "a proposal"
     ];
 
     /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
@@ -1659,8 +1669,10 @@ public sealed class ValidationIssueStructureTests
                 {
                     // Control below its floor is legal-shaped and reported; Body below zero is
                     // not a rank at all and pays Vehicle Points back, and the Perk allowance
-                    // below zero pays Hero Points back. Three different findings on one machine.
-                    PerkHeroPoints = -2, Control = -9, Body = -4
+                    // below zero pays Hero Points back. Submersible with no Swimming is Ruling 2's
+                    // finding. Four different findings on one machine.
+                    PerkHeroPoints = -2, Control = -9, Body = -4,
+                    Features = [new SelectedAssetFeature("submersible")]
                 });
                 // Both unpriceable faults on one machine, and deliberately on a machine of their
                 // own: an unpriceable feature silences that vehicle's budget check, so putting one
@@ -1778,6 +1790,23 @@ public sealed class ValidationIssueStructureTests
                 // is not this validator's question — see CheckVariant's own remarks.
                 var sheet = Legal();
                 sheet.Variant = new CharacterVariant("", "cursed_mirror");
+                return sheet;
+            }
+
+            case "a proposal":
+            {
+                // PROGRESS item 33, rulings 5+6: a proposal is a CampaignAsset riding the
+                // contribution. Cheap and empty on purpose, so the only thing it provokes is the
+                // surplus the Hero Points buy and nothing has spent — CAMPAIGN_ASSET_SURPLUS is
+                // the one code in this file that only Validate(sheet) alone can construct, since
+                // CheckSharedAsset and CheckContributionAgainstAsset both need a second object in
+                // hand that this sheet does not carry.
+                var sheet = Legal();
+                sheet.CampaignAssets.Add(new CampaignAssetContribution("asset-p1")
+                {
+                    Name = "Skyhook", Kind = CampaignAssetContribution.Vehicle, HeroPoints = 1,
+                    Proposal = new CampaignAsset("asset-p1", CampaignAssetContribution.Vehicle, "Skyhook")
+                });
                 return sheet;
             }
 

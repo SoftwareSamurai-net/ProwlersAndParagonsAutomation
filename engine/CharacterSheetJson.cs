@@ -168,6 +168,22 @@ public static class CharacterSheetJson
             if (sheet.CampaignAssets[i].Kind is null)
                 sheet.CampaignAssets[i] = sheet.CampaignAssets[i] with { Kind = "" };
 
+        // A proposal is a CampaignAsset riding the contribution, and it falls into the same
+        // non-null-declared-comes-back-null trap Vehicles, Headquarters and the contribution's own
+        // Kind do: its Features list is null when the payload wrote the object with none, and its
+        // Kind is null when a hand-written payload omitted it. Absent and empty mean the same
+        // thing here, same as everywhere else this trap is repaired.
+        for (var i = 0; i < sheet.CampaignAssets.Count; i++)
+        {
+            if (sheet.CampaignAssets[i].Proposal is not { } proposal) continue;
+            if (proposal.Features is not null && proposal.Kind is not null) continue;
+
+            sheet.CampaignAssets[i] = sheet.CampaignAssets[i] with
+            {
+                Proposal = proposal with { Features = proposal.Features ?? [], Kind = proposal.Kind ?? "" }
+            };
+        }
+
         if (dropIdlessEntries)
         {
             sheet.SelectedPowers.RemoveAll(p => p.PowerId is null);

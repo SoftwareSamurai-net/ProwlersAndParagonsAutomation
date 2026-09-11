@@ -61,14 +61,27 @@ require() {
 echo "Running all five suites. This takes a couple of minutes."
 echo
 
-dotnet_out="$(dotnet test --nologo -v q 2>&1)"
-engine="$(echo "$dotnet_out" | grep -oE 'Passed: +[0-9]+.*ProwlersAndParagonsAutomation\.Tests' | grep -oE 'Passed: +[0-9]+' | grep -oE '[0-9]+' | head -1)"
-web="$(echo "$dotnet_out" | grep -oE 'Passed: +[0-9]+.*ProwlersAndParagons\.Web\.Tests' | grep -oE 'Passed: +[0-9]+' | grep -oE '[0-9]+' | head -1)"
-
-if echo "$dotnet_out" | grep -q 'Failed!'; then
-    echo "error: a .NET suite failed. Counting a red suite tells you nothing." >&2
+# Microsoft.Testing.Platform (global.json's `test.runner`, see PROGRESS.md item 20) prints one
+# combined `total:`/`succeeded:`/`failed:` block for a solution-wide `dotnet test`, not a per-
+# project count the way VSTest's `Passed: N` line did — so each project is run on its own to get
+# its own figure. **Neither `--nologo` nor `-v q` may be passed to a project-scoped invocation
+# here.** Under MTP those are forwarded to the test host itself rather than consumed by the
+# `dotnet` CLI, and the host reads them as unrecognised arguments and reports "Zero tests ran"
+# without touching a single test — measured, not assumed, while updating this script for the
+# migration.
+engine_out="$(dotnet test tests/ProwlersAndParagonsAutomation.Tests --configuration Release 2>&1)"
+if echo "$engine_out" | grep -q 'Failed!'; then
+    echo "error: the engine suite failed. Counting a red suite tells you nothing." >&2
     fail=1
 fi
+engine="$(echo "$engine_out" | grep -oE 'succeeded: [0-9]+' | grep -oE '[0-9]+' | tail -1)"
+
+web_out="$(dotnet test tests/ProwlersAndParagons.Web.Tests --configuration Release 2>&1)"
+if echo "$web_out" | grep -q 'Failed!'; then
+    echo "error: the bUnit suite failed. Counting a red suite tells you nothing." >&2
+    fail=1
+fi
+web="$(echo "$web_out" | grep -oE 'succeeded: [0-9]+' | grep -oE '[0-9]+' | tail -1)"
 
 require 'the engine suite' "$engine"; engine="$counted"
 require 'the bUnit suite' "$web"; web="$counted"

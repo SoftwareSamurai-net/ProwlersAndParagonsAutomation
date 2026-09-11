@@ -1,0 +1,209 @@
+@inject CharacterSession Session
+
+@* The Chapter 6 shared-object editor, held to one file because two screens buy it now.
+
+   **The GM's page has written a shared vehicle or base down since item 32, and PROGRESS item 33's
+   rulings 5+6 gave a player the same editor** — they build their own proposal and the GM decides.
+   Copying the markup a second time would be two forms to keep answering p.96 and p.100
+   identically; this is the one place that answers it, parameterised on what happens to the object
+   once "Save" is pressed rather than on who is looking at it.
+
+   **Every field is bound through the parent**, exactly as the campaign page's draft always was: a
+   field bound straight to a campaign living on a server would be a request per number typed, and a
+   proposal riding a character submission is no different — the character autosaves the same way.
+   So this component owns no state of its own beyond what it is handed, and "Save" is the parent's
+   button to wire up. *@
+
+<Panel Class="machine" Title="@Title" Aside="@Aside">
+    <Field Label="Name" For="@($"{IdPrefix}-name")">
+        <input id="@($"{IdPrefix}-name")" type="text" maxlength="80"
+               value="@DraftName" @oninput="e => DraftNameChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+    </Field>
+
+    @if (!Draft.IsHeadquarters)
+    {
+        <VehicleRanksNote />
+
+        <Field Label="Body" For="@($"{IdPrefix}-body")">
+            <input id="@($"{IdPrefix}-body")" type="number" min="0" value="@Draft.Body"
+                   @onchange="e => SetDraft(Draft with { Body = Number(e) })" />
+        </Field>
+        <Field Label="Speed" For="@($"{IdPrefix}-speed")">
+            <input id="@($"{IdPrefix}-speed")" type="number" min="0" value="@Draft.Speed"
+                   @onchange="e => SetDraft(Draft with { Speed = Number(e) })" />
+        </Field>
+        <Field Label="Control" For="@($"{IdPrefix}-control")">
+            <input id="@($"{IdPrefix}-control")" type="number" value="@Draft.Control"
+                   @onchange="e => SetDraft(Draft with { Control = Number(e) })" />
+        </Field>
+        <Field Label="Weapons" For="@($"{IdPrefix}-weapons")">
+            <input id="@($"{IdPrefix}-weapons")" type="number" min="0" value="@Draft.Weapons"
+                   placeholder="unarmed"
+                   @onchange="e => SetDraft(Draft with { Weapons = OptionalNumber(e) })" />
+            <span class="muted small">Leave it empty for a machine with no weapon systems at all.</span>
+        </Field>
+    }
+    else
+    {
+        <p class="small muted">
+            A base has no ranks of its own. The building comes with the Perk; every point after
+            that is a feature (p.100).
+        </p>
+    }
+
+    <Field Label="@FeatureLabel">
+        @if (Draft.Features.Count > 0)
+        {
+            <ChosenList>
+                @foreach (var f in Draft.Features.ToList())
+                {
+                    <ChosenRow>
+                        <Body>@FeatureName(f)</Body>
+                        <Actions>
+                            @if (PerUnit(f))
+                            {
+                                <input type="number" min="1" value="@f.Units" class="units"
+                                       aria-label="Units"
+                                       @onchange="e => SetDraftFeature(f, f with { Units = Number(e) })" />
+                            }
+                            @if (Grades(f) is { } grades)
+                            {
+                                <select aria-label="Grade" value="@f.GradeKey"
+                                        @onchange="e => SetDraftFeature(f, f with { GradeKey = e.Value?.ToString() })">
+                                    @foreach (var grade in grades.OrderBy(g => g.Value))
+                                    {
+                                        <option value="@grade.Key">@Labels.Humanise(grade.Key) — @grade.Value @Unit</option>
+                                    }
+                                </select>
+                            }
+                            <button type="button" class="btn small danger"
+                                    @onclick="() => SetDraftFeature(f, null)">Remove</button>
+                        </Actions>
+                    </ChosenRow>
+                }
+            </ChosenList>
+        }
+
+        <OptionList Placeholder="@FeaturePlaceholder">
+            @foreach (var row in FeatureRows)
+            {
+                <OptionRow Name="@row.Name" Caveat="@row.Description" Cost="@AssetRows.Price(row)"
+                           Keywords="@row.Keywords" OnSelect="() => AddDraftFeature(row)" />
+            }
+        </OptionList>
+    </Field>
+
+    @* Said as it is typed, and not only once it is written down — the whole difference between a
+       report and a repair: nothing here refuses the save. *@
+    @foreach (var fault in Findings)
+    {
+        <p class="small muted spaced" role="status">@fault.Message</p>
+    }
+
+    <div class="inline">
+        <button type="button" class="btn primary"
+                disabled="@(string.IsNullOrWhiteSpace(DraftName) || !CanSave)"
+                @onclick="() => OnSave.InvokeAsync()">@SaveLabel</button>
+        <button type="button" class="btn quiet" @onclick="() => OnCancel.InvokeAsync()">Cancel</button>
+    </div>
+</Panel>
+
+@code {
+    /// <summary>The object being written down.</summary>
+    [Parameter, EditorRequired] public CampaignAsset Draft { get; set; } = null!;
+
+    [Parameter] public EventCallback<CampaignAsset> DraftChanged { get; set; }
+
+    /// <summary>
+    /// The name, bound separately from the rest of the draft — the same split the campaign page
+    /// always made, since the field is typed a letter at a time and the record is what gets saved.
+    /// </summary>
+    [Parameter, EditorRequired] public string DraftName { get; set; } = "";
+
+    [Parameter] public EventCallback<string> DraftNameChanged { get; set; }
+
+    /// <summary>The panel's heading — usually the name as typed so far.</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    /// <summary>What the object is costing, against what it may spend — the panel's <c>Aside</c>.</summary>
+    [Parameter] public string? Aside { get; set; }
+
+    /// <summary>
+    /// What <see cref="CharacterSession.Check"/> (or the engine directly) says about the draft as
+    /// it stands — computed by the caller, since one caller has a campaign's other contributions in
+    /// hand and the other does not.
+    /// </summary>
+    [Parameter] public IReadOnlyList<ValidationIssue> Findings { get; set; } = [];
+
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    /// <summary>Whether Save may be pressed at all, beyond the name being filled in.</summary>
+    [Parameter] public bool CanSave { get; set; } = true;
+
+    [Parameter] public string SaveLabel { get; set; } = "Save";
+
+    /// <summary>
+    /// A prefix for every input's <c>id</c>, so two of these on one page (never true today, but
+    /// cheap to keep true) do not collide.
+    /// </summary>
+    [Parameter] public string IdPrefix { get; set; } = "shared-asset";
+
+    private string Unit => Draft.IsHeadquarters ? "BP" : "VP";
+
+    private string FeatureLabel =>
+        Draft.IsHeadquarters ? "Features (pp.100–103)" : "Features (pp.96–100)";
+
+    private string FeaturePlaceholder =>
+        Draft.IsHeadquarters ? "Filter the base features" : "Filter the vehicle features";
+
+    private IEnumerable<AssetCatalogueRow> FeatureRows =>
+        Session.Assets.Rows.Where(r => r.Kind == (Draft.IsHeadquarters
+            ? AssetRowKind.BaseFeature
+            : AssetRowKind.VehicleFeature));
+
+    private string FeatureName(SelectedAssetFeature feature) =>
+        AssetFormatter.Feature(feature, Session.Rules, !Draft.IsHeadquarters);
+
+    private bool PerUnit(SelectedAssetFeature feature) =>
+        Draft.IsHeadquarters
+            ? Session.Assets.FindBaseFeature(feature.FeatureId) is { CostType: "per_unit" }
+            : Session.Assets.FindVehicleFeature(feature.FeatureId) is { CostType: "per_unit" };
+
+    private IReadOnlyDictionary<string, int>? Grades(SelectedAssetFeature feature) =>
+        Draft.IsHeadquarters
+            ? Session.Assets.FindBaseFeature(feature.FeatureId)?.CostRange
+            : Session.Assets.FindVehicleFeature(feature.FeatureId)?.CostRange;
+
+    private void SetDraft(CampaignAsset updated) => DraftChanged.InvokeAsync(updated);
+
+    private void AddDraftFeature(AssetCatalogueRow row)
+    {
+        var prefix = Draft.IsHeadquarters
+            ? AssetCatalogue.BaseFeaturePrefix
+            : AssetCatalogue.VehicleFeaturePrefix;
+
+        var id = row.Id[prefix.Length..];
+        if (Draft.Features.Any(f => f.FeatureId == id)) return;
+
+        SetDraft(Draft with
+        {
+            Features = [.. Draft.Features,
+                        new SelectedAssetFeature(id) { GradeKey = AssetRows.CheapestGrade(row) }]
+        });
+    }
+
+    private void SetDraftFeature(SelectedAssetFeature old, SelectedAssetFeature? updated) =>
+        SetDraft(Draft with { Features = Replace(Draft.Features, old, updated) });
+
+    private static IReadOnlyList<T> Replace<T>(IReadOnlyList<T> list, T old, T? updated) where T : class =>
+        [.. list.SelectMany(item => ReferenceEquals(item, old)
+            ? (updated is null ? Array.Empty<T>() : [updated])
+            : new[] { item })];
+
+    private static int Number(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var value) ? value : 0;
+
+    private static int? OptionalNumber(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), out var value) ? value : null;
+}

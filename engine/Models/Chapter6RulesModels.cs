@@ -418,6 +418,24 @@ public record StockVehicleRow
     public IReadOnlyList<string> Features { get; init; } = [];
 }
 
+/// <summary>
+/// A structured prerequisite one vehicle feature states on others, read by
+/// <see cref="VehicleFeatureRow.RequiresFeatures"/>.
+///
+/// <para><b>The smallest shape that expresses both printed cases.</b> Submersible needs one
+/// feature (Swimming); Transforming needs two of four (Flight, Running, Submersible, Swimming).
+/// Both are "at least <see cref="Min"/> of <see cref="AnyOf"/>", so one shape covers both rather
+/// than a separate field for "exactly one" and "at least two".</para>
+/// </summary>
+public record VehicleFeaturePrerequisite
+{
+    /// <summary>The feature ids counted — any one of them satisfies one towards <see cref="Min"/>.</summary>
+    public IReadOnlyList<string> AnyOf { get; init; } = [];
+
+    /// <summary>How many of <see cref="AnyOf"/> the vehicle must also carry. 1 for Submersible, 2 for Transforming.</summary>
+    public int Min { get; init; } = 1;
+}
+
 /// <summary>One of the twenty-three vehicle features, priced in Vehicle Points.</summary>
 public record VehicleFeatureRow
 {
@@ -441,6 +459,19 @@ public record VehicleFeatureRow
 
     /// <summary>Other features this one needs, as the page states them.</summary>
     public IReadOnlyList<string> Requires { get; init; } = [];
+
+    /// <summary>
+    /// A structured prerequisite on another feature, or null — <see cref="VehicleFeaturePrerequisite"/>.
+    ///
+    /// <para><b>Only on Submersible and Transforming, and that is a fact about the page rather
+    /// than an oversight.</b> <see cref="Requires"/> is the whole of p.100's prose, and most of it
+    /// is a caveat rather than a prerequisite: Spaceflight and Spaceship still need Flight "to fly
+    /// in an atmosphere", which is not a requirement to hold the feature at all. Only Submersible
+    /// ("Only vehicles with Swimming can have this feature") and Transforming ("two or more of
+    /// Flight, Running, Submersible, and Swimming") state a hard prerequisite, so those are the
+    /// only two entries this carries — owner's ruling, PROGRESS.md item 33 ruling 2.</para>
+    /// </summary>
+    public VehicleFeaturePrerequisite? RequiresFeatures { get; init; }
 
     /// <summary>A kind of vehicle the feature is limited to, or null.</summary>
     public string? RestrictedTo { get; init; }
