@@ -818,37 +818,27 @@ public sealed class AssetValidationTests
         return sheet;
     }
 
-    // ── The constraint nothing checks ─────────────────────────────────────────
+    // ── Ruling 2: a vehicle feature's structured prerequisite ───────────────────
 
     /// <summary>
-    /// <b>A vehicle feature that names another feature is not enforced, and this is the record of
-    /// it.</b>
+    /// <b>Submersible with no Swimming is now a Warning, not silence.</b> p.100: "Only vehicles
+    /// with Swimming can have this feature." Reported, never repaired — the machine still prices
+    /// and validates otherwise, exactly as an over-budget one does.
     ///
-    /// <para>p.100's Submersible says "Only vehicles with Swimming can have this feature" and
-    /// p.100's Transforming says it applies to "vehicles with two or more of the following
-    /// features". Both are constraints on a list this engine holds — p.96's stock Submersible
-    /// carries both features, so the book satisfies its own rule in its own worked example — and
-    /// <c>VehicleFeatureRow.Requires</c> is read by exactly one caller, which turns it into
-    /// keywords for the command palette.</para>
-    ///
-    /// <para><b>Why this is a pinned gap rather than a fix.</b> The field is a sentence, not a
-    /// list of ids: Spaceflight's entry reads "flight, to fly in an atmosphere", which is a
-    /// <em>caveat</em> and not a prerequisite — a ship that never enters an atmosphere needs no
-    /// Flight. Telling the two apart means parsing that prose, which is the one thing
-    /// <c>data/rules/</c> exists to prevent, so the shape of the field is the owner's decision.
-    /// <c>docs/guide/rules-engine.md</c> carries the argument.</para>
-    ///
-    /// <para><b>This test fails when the gap closes</b>, which is the point: whoever adds the
-    /// check finds the record of why it was not there and deletes it deliberately, rather than
-    /// finding nothing and wondering whether the silence was meant.</para>
+    /// <para>Owner's ruling, 2026-09-10, PROGRESS.md item 33 ruling 2. This test used to be
+    /// <c>AFeatureThatNamesAnotherFeatureIsNotYetChecked</c>, pinning the gap; it now asserts the
+    /// check that closed it.</para>
     /// </summary>
     [Fact]
-    public void AFeatureThatNamesAnotherFeatureIsNotYetChecked()
+    public void SubmersibleWithNoSwimmingIsAWarning()
     {
         // The positive control on the fixture: the rulebook really does print the requirement,
-        // and it really is a bare id rather than the prose the other two carry.
+        // and the structured field now says the same thing.
         var submersible = _f.Rules.Assets.FindVehicleFeature("submersible")!;
         Assert.Contains("swimming", submersible.Requires);
+        Assert.NotNull(submersible.RequiresFeatures);
+        Assert.Equal(["swimming"], submersible.RequiresFeatures!.AnyOf);
+        Assert.Equal(1, submersible.RequiresFeatures.Min);
 
         var sheet = _f.LegalSheet();
         sheet.Vehicles.Add(new OwnedVehicle("The Diver")
@@ -858,13 +848,86 @@ public sealed class AssetValidationTests
             Features = [new SelectedAssetFeature("submersible")]
         });
 
-        // No Swimming, and the sheet is reported clean of any finding about this machine.
-        Assert.DoesNotContain(Issues(sheet),
-            i => i.SubjectId == "The Diver" || i.OwnerId == "The Diver");
+        var issue = Only(sheet, "VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM");
+        Assert.Equal(ValidationSeverity.Warning, issue.Severity);
+        Assert.Equal(ValidationSubject.AssetFeature, issue.SubjectKind);
+        Assert.Equal("submersible", issue.SubjectId);
+        Assert.Equal("The Diver", issue.OwnerId);
+        Assert.Equal(0, issue.Value);
+        Assert.Equal(1, issue.Limit);
 
-        // And the control that the machine is otherwise a machine the validator does look at, so
-        // the silence above is about this rule rather than about a vehicle nothing examines.
+        // Never repaired: the machine is still priced and still checked for everything else.
         sheet.Vehicles[0] = sheet.Vehicles[0] with { Body = 40 };
         Assert.True(Reports(sheet, "VEHICLE_OVER_BUDGET"));
+    }
+
+    /// <summary>Submersible <em>with</em> Swimming is the book's own worked example (p.96's stock
+    /// Submersible carries both) and draws no finding.</summary>
+    [Fact]
+    public void SubmersibleWithSwimmingIsClean()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.Vehicles.Add(new OwnedVehicle("The Diver")
+        {
+            PerkHeroPoints = 10,
+            Features = [new SelectedAssetFeature("submersible"), new SelectedAssetFeature("swimming")]
+        });
+
+        Assert.False(Reports(sheet, "VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM"));
+    }
+
+    /// <summary>
+    /// p.100: Transforming "applies to vehicles with two or more of the following features:
+    /// Flight, Running, Submersible, and Swimming" — one is not enough, and two is.
+    /// </summary>
+    [Fact]
+    public void TransformingNeedsTwoOfItsFourMovementFeatures()
+    {
+        var transforming = _f.Rules.Assets.FindVehicleFeature("transforming")!;
+        Assert.NotNull(transforming.RequiresFeatures);
+        Assert.Equal(["flight", "running", "submersible", "swimming"], transforming.RequiresFeatures!.AnyOf);
+        Assert.Equal(2, transforming.RequiresFeatures.Min);
+
+        var sheet = _f.LegalSheet();
+        sheet.Vehicles.Add(new OwnedVehicle("The Shifter")
+        {
+            PerkHeroPoints = 10,
+            Features = [new SelectedAssetFeature("transforming"), new SelectedAssetFeature("flight")]
+        });
+
+        var issue = Only(sheet, "VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM");
+        Assert.Equal("transforming", issue.SubjectId);
+        Assert.Equal(1, issue.Value);
+        Assert.Equal(2, issue.Limit);
+
+        sheet.Vehicles[0] = sheet.Vehicles[0] with
+        {
+            Features =
+            [
+                new SelectedAssetFeature("transforming"),
+                new SelectedAssetFeature("flight"),
+                new SelectedAssetFeature("running")
+            ]
+        };
+        Assert.False(Reports(sheet, "VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM"));
+    }
+
+    /// <summary>
+    /// <b>A base feature never gets this check, because none of the twenty-two prints a
+    /// prerequisite of this shape.</b> <c>BaseFeatureRow</c> carries no <c>RequiresFeatures</c>
+    /// field at all — there is nothing to read — so a headquarters with any combination of
+    /// features validates clean of this code.
+    /// </summary>
+    [Fact]
+    public void ABaseFeatureNeverGetsThisCheck()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.Headquarters.Add(new OwnedHeadquarters("The Aerie")
+        {
+            PerkHeroPoints = 1,
+            Features = [new SelectedAssetFeature("mobile")]
+        });
+
+        Assert.False(Reports(sheet, "VEHICLE_FEATURE_PREREQUISITE_BELOW_MINIMUM"));
     }
 }

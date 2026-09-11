@@ -197,6 +197,59 @@ else
                                         </p>
                                     }
 
+                                    @* **PROGRESS item 33, rulings 5+6: the player holds the object
+                                       and the GM approves it.** A proposal rides the submission
+                                       exactly as any other purchase does, so it is read off the
+                                       pending sheet rather than off a second channel — and it is
+                                       drawn here, above the ordinary diff, because it is a decision
+                                       of its own kind rather than one more row in it. *@
+                                    @if (_pending is { } proposing)
+                                    {
+                                        @foreach (var contribution in Proposals(proposing))
+                                        {
+                                            <div class="proposal-row">
+                                                <p>
+                                                    <b>@one.Label</b> proposes <b>@ProposalTitle(contribution)</b>,
+                                                    @ProposalKind(contribution),
+                                                    @contribution.HeroPoints HP →
+                                                    @ProposalBudget(contribution) @ProposalCurrency(contribution),
+                                                    spends @ProposalSpend(contribution).
+                                                </p>
+
+                                                @foreach (var finding in ProposalFindings(contribution))
+                                                {
+                                                    <p class="small muted spaced" role="status">@finding.Message</p>
+                                                }
+
+                                                @if (IsAmendment(contribution) is { } existing)
+                                                {
+                                                    <p class="small muted">
+                                                        This game already holds an object under this id.
+                                                        Adopting replaces it.
+                                                    </p>
+                                                    <ul class="diff-rows">
+                                                        @foreach (var row in AssetDiffRows(existing, contribution.Proposal!))
+                                                        {
+                                                            <li>@row</li>
+                                                        }
+                                                    </ul>
+                                                }
+
+                                                <div class="inline spaced">
+                                                    <button type="button" class="btn primary"
+                                                            @onclick="() => Adopt(one.Id, contribution)">Adopt</button>
+                                                    <button type="button" class="btn"
+                                                            disabled="@(_draft is not null)"
+                                                            @onclick="() => StartAdoptWithChanges(one.Id, contribution)">
+                                                        Adopt with changes
+                                                    </button>
+                                                    <button type="button" class="btn quiet"
+                                                            @onclick="() => Decide(one.Id, approve: false)">Refuse</button>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+
                                     @* **Led by the spend, because that is what a GM decides on** —
                                        and both figures are the engine's answers for the two sheets
                                        rather than anything read out of a payload or worked out
@@ -482,98 +535,16 @@ else
 
     @if (_draft is { } draft)
     {
-        <Panel Class="machine" Title="@DraftTitle" Aside="@DraftBooks(draft)">
-            @* p.96 opens Body, Speed and Control at nothing and gives Weapons no starting value
-               at all, so a shared machine costs what it is — exactly as one character's own does,
-               and priced by the same calculation. *@
-            <Field Label="Name" For="shared-name">
-                <input id="shared-name" type="text" maxlength="80"
-                       @bind="_draftName" @bind:event="oninput" />
-            </Field>
-
-            @if (!draft.IsHeadquarters)
-            {
-                <VehicleRanksNote />
-
-                <Field Label="Body" For="shared-body">
-                    <input id="shared-body" type="number" min="0" value="@draft.Body"
-                           @onchange="e => SetDraft(draft with { Body = Number(e) })" />
-                </Field>
-                <Field Label="Speed" For="shared-speed">
-                    <input id="shared-speed" type="number" min="0" value="@draft.Speed"
-                           @onchange="e => SetDraft(draft with { Speed = Number(e) })" />
-                </Field>
-                <Field Label="Control" For="shared-control">
-                    <input id="shared-control" type="number" value="@draft.Control"
-                           @onchange="e => SetDraft(draft with { Control = Number(e) })" />
-                </Field>
-                <Field Label="Weapons" For="shared-weapons">
-                    <input id="shared-weapons" type="number" min="0" value="@draft.Weapons"
-                           placeholder="unarmed"
-                           @onchange="e => SetDraft(draft with { Weapons = OptionalNumber(e) })" />
-                    <span class="muted small">Leave it empty for a machine with no weapon systems at all.</span>
-                </Field>
-            }
-            else
-            {
-                @* pp.100–103 give a headquarters no characteristics at all, and the Perk grants
-                   the building already furnished — so a base with no features is not an error. *@
-                <p class="small muted">
-                    A base has no ranks of its own. The building comes with the Perk; every point
-                    after that is a feature (p.100).
-                </p>
-            }
-
-            <Field Label="@DraftFeatureLabel">
-                @if (draft.Features.Count > 0)
-                {
-                    <ChosenList>
-                        @foreach (var f in draft.Features.ToList())
-                        {
-                            <ChosenRow>
-                                <Body>@FeatureName(draft, f)</Body>
-                                <Actions>
-                                    @if (PerUnit(draft, f))
-                                    {
-                                        <input type="number" min="1" value="@f.Units" class="units"
-                                               aria-label="Units"
-                                               @onchange="e => SetDraftFeature(draft, f, f with { Units = Number(e) })" />
-                                    }
-                                    <button type="button" class="btn small danger"
-                                            @onclick="() => SetDraftFeature(draft, f, null)">Remove</button>
-                                </Actions>
-                            </ChosenRow>
-                        }
-                    </ChosenList>
-                }
-
-                <OptionList Placeholder="@DraftFeaturePlaceholder">
-                    @foreach (var row in DraftFeatureRows)
-                    {
-                        <OptionRow Name="@row.Name" Caveat="@row.Description" Cost="@Price(row)"
-                                   Keywords="@row.Keywords"
-                                   OnSelect="() => AddDraftFeature(draft, row)" />
-                    }
-                </OptionList>
-            </Field>
-
-            @* **Said as it is typed, and not only once it is written down**, which is the whole
-               difference between a report and a repair: nothing here refuses the save, and a GM
-               who means to write down an object the book does not allow still can. VehicleRanksNote
-               above states the two Control sentences; this is what says whether this object keeps
-               them. *@
-            @foreach (var fault in Session.Check(draft with { Name = DraftTitle }, _contributions))
-            {
-                <p class="small muted spaced" role="status">@fault.Message</p>
-            }
-
-            <div class="inline">
-                <button type="button" class="btn primary"
-                        disabled="@string.IsNullOrWhiteSpace(_draftName)"
-                        @onclick="SaveAsset">Save</button>
-                <button type="button" class="btn quiet" @onclick="() => _draft = null">Cancel</button>
-            </div>
-        </Panel>
+        @* p.96 opens Body, Speed and Control at nothing and gives Weapons no starting value at
+           all, so a shared machine costs what it is — exactly as one character's own does, and
+           priced by the same calculation. The editor itself is `SharedAssetEditor`, shared with
+           the player's own proposal draft on the Vehicles and bases step. *@
+        <SharedAssetEditor IdPrefix="shared"
+                            Draft="draft" DraftChanged="SetDraft"
+                            DraftName="_draftName" DraftNameChanged="@(name => _draftName = name)"
+                            Title="@DraftTitle" Aside="@DraftBooks(draft)"
+                            Findings="Session.Check(draft with { Name = DraftTitle }, _contributions)"
+                            OnSave="SaveAsset" OnCancel="CancelDraft" />
     }
 
     <p class="small muted spaced"><a href="campaign">Back to your campaigns</a></p>
@@ -894,6 +865,13 @@ else
     /// <summary>Which shared object is one press away from being removed, or null.</summary>
     private string? _dropping;
 
+    /// <summary>
+    /// Which membership's proposal is being adopted with changes, or null. The one edit
+    /// <see cref="_draft"/> makes that must also settle a decision: saving it both writes the
+    /// campaign's object and approves the character it rode in on — ruling 5+6's "one click".
+    /// </summary>
+    private string? _adoptingMembershipId;
+
     /// <summary>What became of the last write, or null. Drawn outside the editor it was about.</summary>
     private string? _saidAboutAsset;
 
@@ -915,33 +893,6 @@ else
     private int Funded(CampaignAsset asset) =>
         _ledger.FirstOrDefault(
             l => string.Equals(l.Asset.Id, asset.Id, StringComparison.Ordinal))?.Budget ?? 0;
-
-    private string DraftFeatureLabel =>
-        _draft is { IsHeadquarters: true } ? "Features (pp.100–103)" : "Features (pp.96–100)";
-
-    private string DraftFeaturePlaceholder =>
-        _draft is { IsHeadquarters: true } ? "Filter the base features" : "Filter the vehicle features";
-
-    /// <summary>
-    /// Which of the two tables the draft picks from. <b>The kind decides it</b>, the same way a
-    /// character says it by which of its two collections a machine is stored in.
-    /// </summary>
-    private IEnumerable<AssetCatalogueRow> DraftFeatureRows =>
-        Session.Assets.Rows.Where(r => r.Kind == (_draft is { IsHeadquarters: true }
-            ? AssetRowKind.BaseFeature
-            : AssetRowKind.VehicleFeature));
-
-    /// <inheritdoc cref="Books"/>
-    private string FeatureName(CampaignAsset asset, SelectedAssetFeature feature) =>
-        AssetFormatter.Feature(feature, Session.Rules, !asset.IsHeadquarters);
-
-    private bool PerUnit(CampaignAsset asset, SelectedAssetFeature feature) =>
-        asset.IsHeadquarters
-            ? Session.Assets.FindBaseFeature(feature.FeatureId) is { CostType: "per_unit" }
-            : Session.Assets.FindVehicleFeature(feature.FeatureId) is { CostType: "per_unit" };
-
-    /// <inheritdoc cref="Books"/>
-    private static string Price(AssetCatalogueRow row) => AssetRows.Price(row);
 
     /// <summary>
     /// Start writing one down. <b>The id is minted here and never moves again</b>, because every
@@ -970,29 +921,12 @@ else
 
     private void SetDraft(CampaignAsset updated) => _draft = updated;
 
-    /// <summary>
-    /// A feature goes on at its cheapest grade, because <c>CostCalculator</c> throws rather than
-    /// guessing one — the same answer the Vehicles &amp; bases step gives, from the same helper.
-    /// </summary>
-    private void AddDraftFeature(CampaignAsset draft, AssetCatalogueRow row)
+    /// <summary>Close the draft without writing anything — and without leaving an adopt in flight.</summary>
+    private void CancelDraft()
     {
-        var prefix = draft.IsHeadquarters
-            ? AssetCatalogue.BaseFeaturePrefix
-            : AssetCatalogue.VehicleFeaturePrefix;
-
-        var id = row.Id[prefix.Length..];
-        if (draft.Features.Any(f => f.FeatureId == id)) return;
-
-        SetDraft(draft with
-        {
-            Features = [.. draft.Features,
-                        new SelectedAssetFeature(id) { GradeKey = AssetRows.CheapestGrade(row) }]
-        });
+        _draft = null;
+        _adoptingMembershipId = null;
     }
-
-    private void SetDraftFeature(
-        CampaignAsset draft, SelectedAssetFeature old, SelectedAssetFeature? updated) =>
-        SetDraft(draft with { Features = Replace(draft.Features, old, updated) });
 
     /// <summary>
     /// Write the draft into the campaign, and say so when it went nowhere.
@@ -1004,6 +938,12 @@ else
     /// <para><b>The object is replaced by id, never by position.</b> A list rewritten in order
     /// would put one object's features on another the moment two were written down in the same
     /// sitting.</para>
+    ///
+    /// <para><b>Adopt with changes is this same write, plus one more step.</b> Ruling 5+6's "one
+    /// click" is that Save both writes the edited object and approves the character it rode in on
+    /// — so when <see cref="_adoptingMembershipId"/> is set, saving hands off to
+    /// <see cref="Decide"/> instead of refreshing on its own; <c>Decide</c> refreshes regardless of
+    /// its outcome, so nothing here has to duplicate that.</para>
     /// </summary>
     private async Task SaveAsset()
     {
@@ -1026,13 +966,120 @@ else
             return;
         }
 
+        var adopting = _adoptingMembershipId;
+        _adoptingMembershipId = null;
+        _draft = null;
+
+        if (adopting is not null)
+        {
+            await Decide(adopting, approve: true);
+            return;
+        }
+
         _saidAboutAsset = _draftIsNew
             ? "Written down. Every player can now put Hero Points into it from their own sheet."
             : null;
 
-        _draft = null;
-
         await Refresh();
+    }
+
+    // ── Rulings 5+6, 2026-09-10: the player holds the object, the GM approves it ──────
+
+    /// <summary>The proposals riding one pending submission — every contribution naming its own build.</summary>
+    private static IEnumerable<CampaignAssetContribution> Proposals(CharacterSheet pending) =>
+        pending.CampaignAssets.Where(c => c.Proposal is not null);
+
+    private static string ProposalTitle(CampaignAssetContribution contribution) =>
+        string.IsNullOrWhiteSpace(contribution.Proposal!.Name) ? contribution.AssetId : contribution.Proposal.Name;
+
+    private static string ProposalKind(CampaignAssetContribution contribution) =>
+        AssetFormatter.Describe(contribution.Proposal!);
+
+    private int ProposalBudget(CampaignAssetContribution contribution) =>
+        checked(contribution.HeroPoints * Session.Costs.CampaignAssetPointsPerHeroPoint(contribution.Proposal!));
+
+    private static string ProposalCurrency(CampaignAssetContribution contribution) =>
+        contribution.Proposal!.IsHeadquarters ? "Base Points" : "Vehicle Points";
+
+    private string ProposalSpend(CampaignAssetContribution contribution) =>
+        CampaignAssets.Spend(Session.Costs, contribution.Proposal!) is { } spent
+            ? spent.ToString()
+            : "an amount these rules cannot work out";
+
+    /// <summary>
+    /// What the engine says about this proposal — the same printed rules a GM-typed object is held
+    /// to, plus the surplus and kind-agreement checks a proposal carries beyond that. Read straight
+    /// off <see cref="CharacterValidator.CheckSharedAsset"/> and
+    /// <see cref="CharacterValidator.CheckContributionAgainstAsset"/> rather than composed here.
+    /// </summary>
+    private IReadOnlyList<ValidationIssue> ProposalFindings(CampaignAssetContribution contribution) =>
+        [.. Session.Check(contribution.Proposal!),
+         .. CharacterValidator.CheckContributionAgainstAsset(contribution, contribution.Proposal!)];
+
+    /// <summary>The object this campaign already holds under the proposal's id, or null for a fresh one.</summary>
+    private CampaignAsset? IsAmendment(CampaignAssetContribution contribution) =>
+        _campaign is { } game
+            ? CampaignAsset.On(game).FirstOrDefault(
+                a => string.Equals(a.Id, contribution.AssetId, StringComparison.Ordinal))
+            : null;
+
+    /// <summary>
+    /// What changed between the adopted object and the amendment, field by field. <b>Not
+    /// <c>CharacterDiff</c></b>, which compares a <see cref="CharacterSheet"/>'s many fields by
+    /// reflection — this compares the handful of printed characteristics one
+    /// <see cref="CampaignAsset"/> has, and a hand-written list is honest about there being few
+    /// enough to name.
+    /// </summary>
+    private static IEnumerable<string> AssetDiffRows(CampaignAsset before, CampaignAsset after)
+    {
+        if (before.Name != after.Name) yield return $"Name: {before.Name} → {after.Name}";
+        if (before.Body != after.Body) yield return $"Body: {before.Body}d → {after.Body}d";
+        if (before.Speed != after.Speed) yield return $"Speed: {before.Speed}d → {after.Speed}d";
+        if (before.Control != after.Control) yield return $"Control: {before.Control}d → {after.Control}d";
+        if (before.Weapons != after.Weapons) yield return $"Weapons: {before.Weapons}d → {after.Weapons}d";
+        if (before.Features.Count != after.Features.Count)
+            yield return $"Features: {before.Features.Count} → {after.Features.Count}";
+    }
+
+    /// <summary>
+    /// Adopt a proposal unchanged: the campaign keeps the id the proposer minted, so the
+    /// contribution is never re-pointed, and the character it rode in on is approved in the same
+    /// action — ruling 5+6's "one click", the recommendation the owner took.
+    /// </summary>
+    private async Task Adopt(string membershipId, CampaignAssetContribution contribution)
+    {
+        if (_campaign is not { } game || contribution.Proposal is not { } proposal) return;
+
+        var assets = CampaignAsset.On(game).ToList();
+        var at = assets.FindIndex(a => string.Equals(a.Id, proposal.Id, StringComparison.Ordinal));
+
+        if (at < 0) assets.Add(proposal); else assets[at] = proposal;
+
+        var outcome = await Store.SaveAsync(game with { Assets = assets });
+        if (!outcome.Saved)
+        {
+            _saidAboutAsset = outcome.Message ?? "That could not be saved just now. Try again in a moment.";
+            return;
+        }
+
+        await Decide(membershipId, approve: true);
+    }
+
+    /// <summary>
+    /// Open the proposal in the same draft editor a GM's own object uses, pre-filled — so a GM who
+    /// wants the vehicle but not every rank of it can change one before adopting. Saving both
+    /// writes the edited object and approves the character, in <see cref="SaveAsset"/>.
+    /// </summary>
+    private void StartAdoptWithChanges(string membershipId, CampaignAssetContribution contribution)
+    {
+        if (contribution.Proposal is not { } proposal || _draft is not null) return;
+
+        _draft = proposal;
+        _draftIsNew = IsAmendment(contribution) is null;
+        _draftName = proposal.Name;
+        _adoptingMembershipId = membershipId;
+        _dropping = null;
+        _saidAboutAsset = null;
     }
 
     /// <summary>
@@ -1068,17 +1115,6 @@ else
 
         await Refresh();
     }
-
-    private static IReadOnlyList<T> Replace<T>(IReadOnlyList<T> list, T old, T? updated) where T : class =>
-        [.. list.SelectMany(item => ReferenceEquals(item, old)
-            ? (updated is null ? Array.Empty<T>() : [updated])
-            : new[] { item })];
-
-    private static int Number(ChangeEventArgs e) =>
-        int.TryParse(e.Value?.ToString(), out var value) ? value : 0;
-
-    private static int? OptionalNumber(ChangeEventArgs e) =>
-        int.TryParse(e.Value?.ToString(), out var value) ? value : null;
 
     private const string Unpriceable =
         "Something on this was built with a feature these rules do not have, so what it has cost "
