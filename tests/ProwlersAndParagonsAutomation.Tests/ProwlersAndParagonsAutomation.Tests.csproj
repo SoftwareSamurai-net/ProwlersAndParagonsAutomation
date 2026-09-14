@@ -14,7 +14,7 @@
         <!-- Microsoft.Testing.Platform: the test project self-hosts, so neither the VSTest
              adapter (xunit.runner.visualstudio) nor Microsoft.NET.Test.Sdk is needed — see
              PROGRESS.md item 20 and docs/guide/testing.md. -->
-        <PackageReference Include="xunit.v3" Version="4.0.0" />
+        <PackageReference Include="xunit.v3" Version="4.0.1" />
     </ItemGroup>
 
     <ItemGroup>
