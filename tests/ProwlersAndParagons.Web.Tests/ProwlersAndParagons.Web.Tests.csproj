@@ -25,17 +25,6 @@
              PROGRESS.md item 20 and docs/guide/testing.md. -->
         <PackageReference Include="xunit.v3" Version="4.0.1" />
         <PackageReference Include="bunit" Version="2.11.3" />
-
-        <!-- bunit pulls AngleSharp 1.3.0 transitively, and that version carries a published
-             advisory (GHSA-pgww-w46g-26qg). NuGet audit reports it as NU1902 and this
-             repository builds warnings as errors in CI, so the choice is to fix it or to
-             suppress it — and suppressing an advisory to make a build green is how a
-             vulnerable dependency ships.
-
-             1.3.1 and 1.4.0 are still flagged; 1.5.2 is the first clean release. Pinned
-             above bunit's floor rather than at it, so a bunit upgrade cannot silently drag
-             the vulnerable version back in. Drop this when bunit's own floor clears it. -->
-        <PackageReference Include="AngleSharp" Version="1.8.1" />
     </ItemGroup>
 
     <ItemGroup>
