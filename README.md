@@ -156,6 +156,15 @@ dotnet run -- build --from character.json --no-export
 
 It writes one JSON report to standard output and exits **0** if the character is legal, **1** if it breaks a rule, or **2** if the input could not be read. `--help` lists the rest. The input is the character-sheet shape — the *inputs* of a character, which is also what the browser keeps in local storage — not the JSON export, which is a report and would mean rebuilding a character from its own conclusions.
 
+To put a character into somebody's account on the site:
+
+```bash
+dotnet run -- push --from character.json --user <u_id or email> --dry-run
+dotnet run -- push --from character.json --user <u_id or email>
+```
+
+It runs the same validation as `build` first and writes nothing if the character is illegal. Running it again updates the same character, matched by name, rather than adding a second one. `--list-users` prints the accounts, `--campaign` attaches the character to a campaign, and `--id` picks the row when two share a name. It reaches the database through `wrangler` with this machine's own login, the same way the pull script does. Exit **0** written, **1** illegal, **2** bad input or unknown account, **3** database unreachable. Details are in `docs/guide/mcp-and-headless.md`.
+
 `.claude/skills/prowlers-and-paragons-character/SKILL.md` teaches that loop to a language model: propose a character, submit it, read the structured findings, adjust, resubmit. The ordering is the whole point — the model proposes and the engine decides what anything costs.
 
 To run the test suite:

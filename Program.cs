@@ -11,8 +11,13 @@ var validator = new CharacterValidator(rules, costs, derived);
 
 // Everything about what the arguments mean is in CommandLine, so that it can be tested. This
 // file is the wiring: real services, the real console, the real terminal check.
+var build = new BuildCommand(rules, costs, derived, validator);
+
 var commandLine = new CommandLine(
-    new BuildCommand(rules, costs, derived, validator),
+    build,
+    // The live database, reached through wrangler under this machine's own login — the same
+    // road the vault's pull script takes, and the only one there is (see WranglerDatabase).
+    new PushCommand(build, costs, new WranglerDatabase(projectRoot)),
     () => new WizardOrchestrator(rules, costs, derived, validator, projectRoot).Run(),
     () => InteractiveTerminal.IsAvailable);
 
