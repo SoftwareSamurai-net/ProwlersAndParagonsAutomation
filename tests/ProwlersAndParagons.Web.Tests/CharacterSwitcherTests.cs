@@ -243,4 +243,89 @@ public sealed class CharacterSwitcherTests
         Assert.Contains(otherName, sheet.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain(openName, sheet.Markup, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Item 21: a root and its version draw as a tree, root first, the child labelled by its kind
+    /// — built over the whole account list rather than over the "others" list alone, so a third,
+    /// unrelated character being the one that is open does not change the answer.
+    /// </summary>
+    [Fact]
+    public async Task TheSwitcherGroupsARootWithItsChild()
+    {
+        await using var ctx = At("build/characteristics", signedIn: true);
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+
+        var root = SampleCharacters.Hero();
+        root.Name = "Cael Hughes — Emergence";
+        var rootId = SavedCharacters.NewId();
+        await account.SaveAsync(rootId, root.Name, root, SheetMode.Hero);
+
+        var child = SampleCharacters.Hero();
+        child.Name = "Cael Hughes — Realised";
+        child.Variant = new CharacterVariant(rootId, CharacterVariant.Later);
+        var childId = SavedCharacters.NewId();
+        await account.SaveAsync(childId, child.Name, child, SheetMode.Hero);
+
+        // A third, unrelated character is the one that is open, so root and child both have to
+        // come from the account list rather than from whatever the session already holds.
+        var open = SampleCharacters.Villain();
+        open.Name = "Someone Else";
+        var openId = SavedCharacters.NewId();
+        await account.SaveAsync(openId, open.Name, open, SheetMode.Villain);
+
+        var store = ctx.Services.GetRequiredService<AccountCharacterStore>();
+        var who = await ctx.Services.GetRequiredService<IIdentitySource>().CurrentAsync();
+        ctx.JSInterop.Setup<string?>("ppStore.load", $"pp.character.v1.{who.Key}.current")
+            .SetResult(openId);
+
+        if (await store.OpenAsync(openId) is { } opened)
+            ctx.Session.RestoreBeforeFirstRender(opened.Sheet, opened.Mode);
+
+        var shell = ctx.Render<MainLayout>();
+        await shell.Find(".character-switch-name").ClickAsync(new());
+        await shell.WaitForElementAsync("#character-switch-list li button");
+
+        var rows = shell.FindAll("#character-switch-list li").ToList();
+        var rootIndex = rows.FindIndex(li => li.TextContent.Contains(root.Name, StringComparison.Ordinal));
+        var childIndex = rows.FindIndex(li => li.TextContent.Contains(child.Name, StringComparison.Ordinal));
+
+        Assert.True(rootIndex >= 0, "the root never appeared in the switcher's list");
+        Assert.True(childIndex >= 0, "the child never appeared in the switcher's list");
+        Assert.True(rootIndex < childIndex, "the root must draw before its own version");
+
+        Assert.Contains("variant-child", rows[childIndex].ClassList);
+        Assert.Contains("later version", rows[childIndex].TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("variant-child", rows[rootIndex].ClassList);
+    }
+
+    /// <summary>
+    /// A version whose root this account does not hold draws flat, with the browser-side
+    /// <c>VARIANT_ROOT_NOT_HELD</c> finding on its own row — the engine cannot see the roster, so
+    /// this is computed here rather than by <c>CharacterValidator</c>.
+    /// </summary>
+    [Fact]
+    public async Task AnOrphanedVersionDrawsFlatWithTheWarning()
+    {
+        await using var ctx = At("build/characteristics", signedIn: true);
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+
+        var orphan = SampleCharacters.Hero();
+        orphan.Name = "Lena (as observed)";
+        orphan.Variant = new CharacterVariant("c_" + new string('0', 22), CharacterVariant.AsSeenBy);
+        await account.SaveAsync(SavedCharacters.NewId(), orphan.Name, orphan, SheetMode.Hero);
+
+        var shell = ctx.Render<MainLayout>();
+        await shell.Find(".character-switch-name").ClickAsync(new());
+        await shell.WaitForElementAsync("#character-switch-list li button");
+
+        var row = shell.FindAll("#character-switch-list li")
+            .Single(li => li.TextContent.Contains(orphan.Name, StringComparison.Ordinal));
+
+        Assert.Contains("variant-child", row.ClassList);
+        Assert.Contains("Warning:", row.TextContent, StringComparison.Ordinal);
+        Assert.Contains(CharacterVariants.RootNotHeldMessage(new VariantRow(
+            "ignored", orphan.Name, orphan.Variant)), row.TextContent, StringComparison.Ordinal);
+    }
 }

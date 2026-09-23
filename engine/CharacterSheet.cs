@@ -370,6 +370,62 @@ public record CampaignAssetContribution(string AssetId)
 }
 
 /// <summary>
+/// This sheet is another telling of some other character — a later chapter, a second
+/// audience's view, or (not yet — see below) another form of the same one. Item 21's slice one:
+/// the owner's roster held <i>Cael Hughes — Emergence</i>, <i>— Realised</i> and
+/// <i>— After School Specials</i>; two characters called <i>Emir Hughes</i>; and
+/// <i>Lena (true capability — GM eyes only)</i> beside <i>Lena (as observed)</i>, told apart only
+/// by name. This is the mechanism, agreed with the owner on 2026-09-10.
+///
+/// <para><b>One-directional, child to root, and that is the whole shape.</b> A variant names the
+/// id of the character it is a version of; the root carries nothing pointing the other way, and a
+/// root is simply any character nothing else names. Finding a root's children means asking every
+/// other character whether it names this one — <c>web/</c>'s business, since the engine cannot see
+/// the roster at all.</para>
+///
+/// <para><b>This slice carries no rule consequences, on purpose.</b> Nothing in
+/// <see cref="CostCalculator"/> or <see cref="DerivedStatsCalculator"/> may read this record or
+/// this field — <c>CharacterVariantTests.CostAndDerivedStatsNeverReadTheVariantField</c> is the
+/// guard, in the shape of <c>PresentationFlagsTests.NoRulesCodeReadsAPresentationFlag</c>, which
+/// keeps <see cref="CharacterSheet.IsVillain"/> out of the arithmetic. A character with a
+/// <see cref="CharacterSheet.Variant"/> costs and validates exactly as it would with none.</para>
+///
+/// <para><b>Slice two, not yet built: does <c>alternate_form</c> belong on this record at all?</b>
+/// Ch.2's Alternate Form Power says a form is "built as a separate character with its own Hero
+/// Point budget", both forms pay for the Power, and they share one Resolve pool — a relationship
+/// that carries rules the other two kinds do not (a shared Resolve pool, a budget set by the paid
+/// power level). <see cref="Later"/> and <see cref="AsSeenBy"/> name nothing an engine prices;
+/// <see cref="AlternateForm"/> is recorded here as a kind a link can name, because a player using
+/// this mechanism for it today should not have their sheets silently disagree with one built after
+/// slice two lands — but nothing costs or validates it any differently yet, and closing that gap
+/// is the open question this record's slice one leaves for the next one.</para>
+/// </summary>
+/// <param name="OfCharacterId">
+/// The id of the character this is a version of. Blank is reported as
+/// <c>VARIANT_WITHOUT_ROOT</c> rather than repaired — an id this engine could invent would be a
+/// guess about which character was meant.
+/// </param>
+public record CharacterVariant(string OfCharacterId, string Kind)
+{
+    /// <summary>The same character, later in the story — <i>Cael Hughes — Realised</i>.</summary>
+    public const string Later = "later";
+
+    /// <summary>
+    /// The same character as a different audience sees them — the GM-eyes/observed pair.
+    /// </summary>
+    public const string AsSeenBy = "as_seen_by";
+
+    /// <summary>
+    /// Another form of the same character, Chapter 2's Alternate Form Power. See the type's own
+    /// remarks on why this kind is named here and priced nowhere yet.
+    /// </summary>
+    public const string AlternateForm = "alternate_form";
+
+    /// <summary>Every kind a link may name, for a host offering a choice and for the validator's message.</summary>
+    public static IReadOnlyList<string> Kinds { get; } = [Later, AsSeenBy, AlternateForm];
+}
+
+/// <summary>
 /// Mutable state object for a character being built in the wizard.
 /// All calculators and validators receive this and read from it.
 /// </summary>
@@ -650,4 +706,16 @@ public class CharacterSheet
     /// this character. Charged here; everything else about the object belongs to the campaign.
     /// </summary>
     public List<CampaignAssetContribution> CampaignAssets { get; } = [];
+
+    /// <summary>
+    /// This character as another telling of some other character, or null for a root — see
+    /// <see cref="CharacterVariant"/>. Null on every character that predates item 21's slice one,
+    /// which is what makes it optional rather than something a migration has to touch.
+    ///
+    /// <para><b>No rules code may read this, and there is a test that none does</b> — see
+    /// <see cref="CharacterVariant"/>'s own remarks. It is here for the same reason
+    /// <see cref="CampaignId"/> is: a character is portable, so the relationship travels with the
+    /// export rather than living only in whichever browser drew the tree.</para>
+    /// </summary>
+    public CharacterVariant? Variant { get; set; }
 }

@@ -391,3 +391,94 @@ test('what the index fields refuse is a shape, never a value out of the rules', 
     // file kept in the wrong building, stale the first time the data moved.
     assert.equal((await send({ kind: 'eldritch', tierId: 'no_such_tier', spent: 0 })).status, 204);
 });
+
+// ── Item 21's pair: which root this character is a version of, and what kind of version ──────
+//
+// `variantOf` and `variantKind` are `kind`'s and `tierId`'s own bargain, on the two fields a
+// roster needs to draw the tree item 21 adds without a payload read per row. See 0010.
+
+test('a version of another character lists with both fields, byte for byte', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    assert.equal((await app.call(`/api/characters/${id(1)}`, {
+        method: 'PUT', cookie,
+        body: {
+            label: 'Cael Hughes — Realised', payload: '{}',
+            variantOf: id(0), variantKind: 'later',
+        },
+    })).status, 204);
+
+    const listed = (await (await app.call('/api/characters', { cookie })).json()).characters[0];
+
+    assert.equal(listed.variantOf, id(0));
+    assert.equal(listed.variantKind, 'later');
+});
+
+test('a root — no Variant at all — lists with both fields null, and that is not a failure', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    assert.equal((await put(app, cookie, { label: 'Ninefold' })).status, 204);
+
+    const listed = (await (await app.call('/api/characters', { cookie })).json()).characters[0];
+
+    assert.equal(listed.variantOf, null);
+    assert.equal(listed.variantKind, null);
+});
+
+test('a replace that clears the link clears both fields rather than leaving the old ones standing', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    const send = body => app.call(`/api/characters/${id(1)}`, { method: 'PUT', cookie, body });
+
+    await send({ label: 'Lena', payload: '{}', variantOf: id(0), variantKind: 'as_seen_by' });
+    await send({ label: 'Lena', payload: '{}' }); // "Not a version" clears the link
+
+    const listed = (await (await app.call('/api/characters', { cookie })).json()).characters[0];
+
+    assert.equal(listed.variantOf, null);
+    assert.equal(listed.variantKind, null);
+});
+
+test('what variantOf and variantKind refuse is a shape, never a value out of the rules', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    const send = extra => app.call(`/api/characters/${id(1)}`,
+        { method: 'PUT', cookie, body: { label: 'x', payload: '{}', ...extra } });
+
+    // Refused: not a string, and a string that is not a character id this server mints.
+    assert.equal((await send({ variantOf: 7 })).status, 400);
+    assert.equal((await send({ variantOf: 'not-an-id' })).status, 400);
+    assert.equal((await send({ variantOf: 'g_' + '0'.repeat(22) })).status, 400, 'a campaign id, not a character one');
+
+    // Refused: variantKind not a string, or too long for a column to hold.
+    assert.equal((await send({ variantKind: 7 })).status, 400);
+    assert.equal((await send({ variantKind: 'x'.repeat(41) })).status, 400);
+
+    // Accepted: a kind this server has never heard of, because `UNKNOWN_VARIANT_KIND` is the
+    // engine's own validator's question, on the other side of the wire — a list of legal kinds
+    // here would be a copy of engine data kept in the wrong building.
+    assert.equal((await send({ variantOf: id(0), variantKind: 'cursed_mirror' })).status, 204);
+
+    // Accepted: a well-formed character id that is not, and has never been, held by this or any
+    // account — an orphan link is `VARIANT_ROOT_NOT_HELD`'s own territory, not this server's.
+    assert.equal((await send({ variantOf: id(9), variantKind: 'later' })).status, 204);
+});
+
+test('the character read back is byte-identical when it carries a variant link', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    await app.call(`/api/characters/${id(1)}`, {
+        method: 'PUT', cookie,
+        body: { label: 'x', payload: JSON.stringify(character), variantOf: id(0), variantKind: 'later' },
+    });
+
+    const read = await app.call(`/api/characters/${id(1)}`, { cookie });
+
+    assert.equal(read.status, 200);
+    assert.deepEqual(await read.json(), character, 'variantOf/variantKind ride beside the payload, never inside it');
+});

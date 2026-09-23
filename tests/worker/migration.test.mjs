@@ -506,3 +506,60 @@ test('0008 leaves the account cap alone', () => {
         db.prepare('SELECT character_limit FROM users WHERE id = ?').all('u_gm')[0].character_limit,
         40);
 });
+
+// ── 0010, item 21's two columns for the variant tree a roster draws ──────────────────────────
+//
+// Against the *pre*-0010 schema, for the same reason 0008's own block is: the server harness
+// applies every migration together, so it can never hold the database a real deployment is
+// holding in the moment before this one runs.
+
+/** A database with 0001–0009 applied — `characters` as it was before 0010. */
+function pre0010Db() {
+    const db = new DatabaseSync(':memory:');
+    for (const migration of MIGRATIONS.slice(0, 9)) db.exec(readFileSync(migration, 'utf8'));
+
+    return db;
+}
+
+function apply0010(db) {
+    db.exec(readFileSync(MIGRATIONS[9], 'utf8'));
+}
+
+test('an existing character survives 0010 with both new columns null, byte for byte', () => {
+    const db = pre0010Db();
+    user(db, 'u_gm', 'gm@example.test');
+    character(db, 'u_gm', 'c_a', 'Cael Hughes', '{"Sheet":{"Name":"Cael Hughes"}}', 2000);
+
+    apply0010(db);
+
+    const rows = db.prepare('SELECT * FROM characters WHERE user_id = ?').all('u_gm');
+
+    assert.equal(rows.length, 1, 'no rebuild, so no row can be lost');
+    assert.equal(rows[0].label, 'Cael Hughes');
+    assert.equal(rows[0].payload, '{"Sheet":{"Name":"Cael Hughes"}}', 'byte for byte, unparsed');
+    assert.equal(rows[0].updated_at, 2000);
+    assert.equal(rows[0].variant_of, null);
+    assert.equal(rows[0].variant_kind, null, 'nothing is backfilled — that would mean parsing a payload');
+});
+
+test('0010 leaves the three 0008 index fields, a campaign and the account cap alone', () => {
+    // The positive control on every earlier column: a migration that rebuilt the table instead
+    // of altering it could drop any of them and every assertion above would still pass.
+    const db = pre0010Db();
+    user(db, 'u_gm', 'gm@example.test');
+    db.prepare('UPDATE users SET character_limit = 40 WHERE id = ?').run('u_gm');
+    character(db, 'u_gm', 'c_a', 'Cael Hughes', '{}', 2000);
+    db.prepare('UPDATE characters SET campaign_id = ?, kind = ?, tier_id = ?, spent = ? WHERE id = ?')
+        .run('g_ashfall', 'villain', 'high_level', 164, 'c_a');
+
+    apply0010(db);
+
+    const row = db.prepare('SELECT * FROM characters WHERE id = ?').all('c_a')[0];
+    assert.equal(row.campaign_id, 'g_ashfall');
+    assert.equal(row.kind, 'villain');
+    assert.equal(row.tier_id, 'high_level');
+    assert.equal(row.spent, 164);
+    assert.equal(
+        db.prepare('SELECT character_limit FROM users WHERE id = ?').all('u_gm')[0].character_limit,
+        40);
+});

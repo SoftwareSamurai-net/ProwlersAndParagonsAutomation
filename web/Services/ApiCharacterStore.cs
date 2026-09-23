@@ -149,7 +149,7 @@ public sealed class ApiCharacterStore : ICharacterStore
                         .Where(c => c.Id is { Length: > 0 })
                         .Select(c => new SavedCharacterSummary(
                             c.Id!, c.Label ?? "Unnamed character", c.UpdatedAt, c.CampaignId,
-                            c.Kind, c.TierId, c.Spent))]);
+                            c.Kind, c.TierId, c.Spent, c.VariantOf, c.VariantKind))]);
         }
         catch (Exception e) when (IsUnreachable(e)) { return AccountCharacters.Unknown; }
     }
@@ -314,13 +314,14 @@ public sealed class ApiCharacterStore : ICharacterStore
     {
         try
         {
-            var (kind, tierId, spent) = SavedCharacters.IndexFieldsFor(sheet, mode, _costs);
+            var (kind, tierId, spent, variantOf, variantKind) =
+                SavedCharacters.IndexFieldsFor(sheet, mode, _costs);
 
             using var body = new StringContent(
                 JsonSerializer.Serialize(
                     new Sending(
                         label, StoredCharacter.Write(sheet, mode), sheet.CampaignId,
-                        kind, tierId, spent),
+                        kind, tierId, spent, variantOf, variantKind),
                     Wire),
                 Encoding.UTF8,
                 "application/json");
@@ -622,7 +623,9 @@ public sealed class ApiCharacterStore : ICharacterStore
         [property: JsonPropertyName("campaignId")] string? CampaignId,
         [property: JsonPropertyName("kind")] string? Kind = null,
         [property: JsonPropertyName("tierId")] string? TierId = null,
-        [property: JsonPropertyName("spent")] int? Spent = null);
+        [property: JsonPropertyName("spent")] int? Spent = null,
+        [property: JsonPropertyName("variantOf")] string? VariantOf = null,
+        [property: JsonPropertyName("variantKind")] string? VariantKind = null);
 
     /// <summary>
     /// What the browser sends to store one. `payload` is opaque to the server.
@@ -639,7 +642,9 @@ public sealed class ApiCharacterStore : ICharacterStore
         [property: JsonPropertyName("campaignId")] string? CampaignId,
         [property: JsonPropertyName("kind")] string? Kind = null,
         [property: JsonPropertyName("tierId")] string? TierId = null,
-        [property: JsonPropertyName("spent")] int? Spent = null);
+        [property: JsonPropertyName("spent")] int? Spent = null,
+        [property: JsonPropertyName("variantOf")] string? VariantOf = null,
+        [property: JsonPropertyName("variantKind")] string? VariantKind = null);
 }
 
 /// <summary>

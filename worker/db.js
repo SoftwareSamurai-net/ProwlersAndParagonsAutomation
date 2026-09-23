@@ -193,11 +193,14 @@ export async function getCharacter(db, userId, id) {
  * sentence above applies to them unchanged: supplied by the client, stored verbatim, handed back
  * verbatim, never derived and never interpreted. `spent` is NULL for a character the engine
  * declined to price and for every row written before 0008 — see the migration.</p>
+ *
+ * <p><b>`variant_of` and `variant_kind` are item 21's pair, on the same terms.</b> NULL for a
+ * root and for every row written before 0010 — see that migration.</p>
  */
 export async function listCharacters(db, userId) {
     const result = await db.prepare(
-        'SELECT id, label, updated_at, campaign_id, kind, tier_id, spent FROM characters '
-        + 'WHERE user_id = ? ORDER BY updated_at DESC')
+        'SELECT id, label, updated_at, campaign_id, kind, tier_id, spent, variant_of, variant_kind '
+        + 'FROM characters WHERE user_id = ? ORDER BY updated_at DESC')
         .bind(userId).all();
 
     return result.results;
@@ -228,11 +231,12 @@ export async function characterLimit(db, userId) {
  * a row back means stored, nothing back means refused.</p>
  */
 export async function putCharacter(
-    db, { userId, id, label, payload, campaignId, kind, tierId, spent, now }) {
+    db, { userId, id, label, payload, campaignId, kind, tierId, spent, variantOf, variantKind, now }) {
     const row = await db.prepare(
         'INSERT INTO characters '
-        + '  (user_id, id, label, payload, campaign_id, kind, tier_id, spent, updated_at) '
-        + 'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? '
+        + '  (user_id, id, label, payload, campaign_id, kind, tier_id, spent, '
+        + '   variant_of, variant_kind, updated_at) '
+        + 'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? '
         + 'WHERE EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?) '
         + '   OR (SELECT COUNT(*) FROM characters WHERE user_id = ?) '
         + '       < (SELECT character_limit FROM users WHERE id = ?) '
@@ -240,10 +244,11 @@ export async function putCharacter(
         + '  label = excluded.label, payload = excluded.payload, '
         + '  campaign_id = excluded.campaign_id, kind = excluded.kind, '
         + '  tier_id = excluded.tier_id, spent = excluded.spent, '
+        + '  variant_of = excluded.variant_of, variant_kind = excluded.variant_kind, '
         + '  updated_at = excluded.updated_at '
         + 'RETURNING id')
         .bind(
-            userId, id, label, payload, campaignId, kind, tierId, spent, now,
+            userId, id, label, payload, campaignId, kind, tierId, spent, variantOf, variantKind, now,
             userId, id, userId, userId)
         .first();
 
