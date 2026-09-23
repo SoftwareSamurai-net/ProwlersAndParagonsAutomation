@@ -199,6 +199,15 @@ public sealed class BuildCommand
     private sealed record Input(string Path, CharacterSheet? Sheet, string? Error);
 
     /// <summary>
+    /// The verdict on one sheet, with no exports — what <see cref="PushCommand"/> asks before it
+    /// will write anything. The same guarded judging as a <c>build</c> run, so a character that
+    /// is refused at the door of the database is refused with exactly the report <c>build</c>
+    /// would have given, and a caller can fix it against one document rather than two.
+    /// </summary>
+    internal (JsonObject Report, int ExitCode) Judge(CharacterSheet sheet, TextWriter stderr) =>
+        JudgeOne(sheet, NoOptions with { WriteExports = false }, "", stderr, null);
+
+    /// <summary>
     /// <c>--trait-cap</c> applied, which is <b>every character in the run</b> and <b>over the
     /// field on the file</b>.
     ///
@@ -664,7 +673,12 @@ public sealed class BuildCommand
 
     // ── Input ─────────────────────────────────────────────────────────────
 
-    private static bool ReadCharacter(
+    /// <summary>
+    /// One character out of a file or standard input, strictly. Internal because
+    /// <see cref="PushCommand"/> reads its input through this same door — the device-name
+    /// refusal, the strict reader and the wording of every refusal are one copy.
+    /// </summary>
+    internal static bool ReadCharacter(
         string? from,
         TextReader stdin,
         out CharacterSheet sheet,

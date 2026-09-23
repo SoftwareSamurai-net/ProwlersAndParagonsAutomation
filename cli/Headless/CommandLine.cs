@@ -2,7 +2,7 @@ namespace ProwlersAndParagonsAutomation.Cli.Headless;
 
 /// <summary>
 /// What the program does with its arguments: run the wizard, run <see cref="BuildCommand"/>,
-/// or explain itself and stop.
+/// run <see cref="PushCommand"/>, or explain itself and stop.
 ///
 /// <para><b>It is a class rather than the top of <c>Program.cs</c> so that it can be tested.</b>
 /// It was six lines of top-level statements, and every one of them was uncovered — the verb
@@ -13,18 +13,21 @@ namespace ProwlersAndParagonsAutomation.Cli.Headless;
 public sealed class CommandLine
 {
     private readonly BuildCommand _build;
+    private readonly PushCommand _push;
     private readonly Action _runWizard;
     private readonly Func<bool> _terminalIsInteractive;
 
     /// <param name="build">The headless command.</param>
+    /// <param name="push">The headless command with a destination.</param>
     /// <param name="runWizard">Starts the terminal wizard. Called only when a terminal can be
     /// read, and never by a test — which is why it is a delegate.</param>
     /// <param name="terminalIsInteractive">Whether the wizard can prompt. Injected so the
     /// non-interactive path is reachable from a test; the real one is
     /// <see cref="InteractiveTerminal.IsAvailable"/>.</param>
-    public CommandLine(BuildCommand build, Action runWizard, Func<bool> terminalIsInteractive)
+    public CommandLine(BuildCommand build, PushCommand push, Action runWizard, Func<bool> terminalIsInteractive)
     {
         _build = build;
+        _push = push;
         _runWizard = runWizard;
         _terminalIsInteractive = terminalIsInteractive;
     }
@@ -38,6 +41,9 @@ public sealed class CommandLine
         if (args.Count > 0 && args[0] == BuildCommand.Verb)
             return _build.Run([.. args.Skip(1)], projectRoot, stdout, stderr, stdin);
 
+        if (args.Count > 0 && args[0] == PushCommand.Verb)
+            return _push.Run([.. args.Skip(1)], stdout, stderr, stdin);
+
         if (args.Count > 0)
         {
             // Through BuildCommand's own reporting, not a bare stderr line. A caller that
@@ -47,10 +53,12 @@ public sealed class CommandLine
             stderr.WriteLine("Run with no arguments for the character wizard, or:");
             stderr.WriteLine();
             stderr.WriteLine(BuildCommand.Usage);
+            stderr.WriteLine();
+            stderr.WriteLine(PushCommand.Usage);
 
             return BuildCommand.ReportArgumentError(stdout,
                 $"'{args[0]}' is not a command this program has. "
-                + $"The only one is '{BuildCommand.Verb}'.");
+                + $"The commands are '{BuildCommand.Verb}' and '{PushCommand.Verb}'.");
         }
 
         // No arguments: the wizard, which is a conversation and needs a terminal it can read.
