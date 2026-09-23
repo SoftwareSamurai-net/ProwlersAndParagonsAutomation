@@ -64,12 +64,21 @@ public sealed class UppercasedTextTests
             {
                 var trimmed = selector.Trim();
 
+                // **A block nested in an at-rule reads its parent's declarations as its
+                // selector**, because the flat pattern above knows nothing about nesting:
+                // `@page { size: A4; margin: 14mm; @top-center { … } }` yields the selector
+                // "size: A4; margin: 14mm; @top-center". The prelude is whatever follows the
+                // last `;`, and that is what the `@` test below has to be asked of — the
+                // running head in the page margin is set in capitals, and it is a margin box,
+                // not an element any page can be queried for.
+                var prelude = trimmed[(trimmed.LastIndexOf(';') + 1)..].Trim();
+
                 // Pseudo-elements and at-rule preludes are not queryable, and `::after`
                 // content is decoration rather than text a reader is given.
-                if (trimmed.Length == 0 || trimmed.StartsWith('@') || trimmed.Contains("::", StringComparison.Ordinal))
+                if (prelude.Length == 0 || prelude.StartsWith('@') || prelude.Contains("::", StringComparison.Ordinal))
                     continue;
 
-                data.Add(trimmed);
+                data.Add(prelude);
             }
         }
 

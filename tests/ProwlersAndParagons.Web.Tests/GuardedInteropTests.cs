@@ -76,6 +76,29 @@ public sealed class GuardedInteropTests
     }
 
     /// <summary>
+    /// A missing script leaves every printed page after the first anonymous — the state the sheet
+    /// was in before the running head existed — rather than taking the sheet's render down. Both
+    /// halves: the push, and the clear the last sheet on a page fires from its <c>Dispose</c>.
+    /// </summary>
+    [Fact]
+    public async Task RunningHeadSwallowsAMissingScript()
+    {
+        var head = new RunningHead(new NoScripts());
+
+        head.Take();
+        await head.Show("Lynchpin");
+        Assert.True(head.ScriptIsMissing);
+
+        // The clear is fire-and-forget off a synchronous Dispose; it still records the failure
+        // rather than faulting a task nobody observes.
+        var again = new RunningHead(new NoScripts());
+        again.Take();
+        again.Release();
+        Assert.True(again.ScriptIsMissing);
+        Assert.Null(again.Current);
+    }
+
+    /// <summary>
     /// A missing <c>slider.js</c> leaves Home and End scrolling the document — the defect this
     /// class exists to fix — rather than taking a rank row's rendering down with it.
     /// </summary>
@@ -205,5 +228,13 @@ public sealed class GuardedInteropTests
 
         Assert.False(theme.ScriptIsMissing);
         Assert.Contains(ctx.JSInterop.Invocations, i => i.Identifier == "ppSetMode");
+
+        var head = new RunningHead(js);
+        head.Take();
+        await head.Show("Lynchpin");
+
+        Assert.False(head.ScriptIsMissing);
+        Assert.Contains(ctx.JSInterop.Invocations,
+            i => i.Identifier == "ppSetSheetName" && i.Arguments.Contains("Lynchpin"));
     }
 }
