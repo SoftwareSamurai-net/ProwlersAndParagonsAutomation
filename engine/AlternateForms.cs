@@ -47,7 +47,10 @@ public sealed record AlternateFormFamily(
 /// depending on your other form's power level" — the Units bought are the power level the form
 /// is built at, Street Level being 1 and Iconic 6 — is <c>ALTERNATE_FORM_LEVEL_NOT_PAID</c>
 /// where a form's tier is not one the root has paid a purchase for, matched one purchase to one
-/// form, and <c>ALTERNATE_FORM_PAID_NOT_IN_ROSTER</c> on the root where a purchase is left over.
+/// form and offering only the levels no earlier form has spent, and
+/// <c>ALTERNATE_FORM_PAID_NOT_IN_ROSTER</c> on the root where a purchase is left over. "Buy this
+/// Power multiple times if you want multiple forms" is why the entry is marked
+/// <see cref="PowerModel.Repeatable"/>: a root paying twice is not a Power listed twice.
 /// "You only have one pool of Resolve: use the lowest Resolve among your various forms" is
 /// <see cref="AlternateFormFamily.SharedResolve"/>.</para>
 ///
@@ -211,8 +214,13 @@ public sealed class AlternateForms
         // "Any power level up to but not higher than yours", and the level the root paid for.
         var rootLevel  = PowerLevel(root.Sheet.SelectedTierId);
         var paidLevels = Purchases(root.Sheet).Select(p => p.Units).ToList();
-        var paidTiers  = paidLevels.Select(TierAtLevel).Where(t => t is not null).Select(t => t!.Id)
-            .Distinct(StringComparer.Ordinal).ToList();
+
+        // The levels still on offer to a form: what the root has paid for and no earlier form
+        // in the roster has already taken. Offering a level another form spent would be a
+        // repair that, taken, leaves this finding standing — one purchase pays for one form.
+        List<string> Unspent() =>
+            [.. paidLevels.Select(TierAtLevel).Where(t => t is not null).Select(t => t!.Id)
+                .Distinct(StringComparer.Ordinal)];
 
         foreach (var form in forms)
         {
@@ -247,7 +255,7 @@ public sealed class AlternateForms
                 SubjectId   = form.Id,
                 OwnerId     = root.Id,
                 Value       = level,
-                Options     = paidTiers
+                Options     = Unspent()
             });
         }
 

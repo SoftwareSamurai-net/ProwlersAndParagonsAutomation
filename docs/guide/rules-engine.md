@@ -519,9 +519,18 @@ form costs and validates alone as the character it is, and the family's findings
 - **"This Power's cost varies depending on your other form's power level"** — the `Units` on a
   purchase *are* the level paid for (Standard is 3, as `PrebuiltHeroes` has always recorded it),
   and one purchase pays for one form: `ALTERNATE_FORM_LEVEL_NOT_PAID` on a form whose tier no
-  unmatched purchase on the root pays for, offering the levels the root does pay for, and
+  unmatched purchase on the root pays for, offering the levels the root pays for **that no
+  earlier form in the roster has already spent** (the review found it offering a level another
+  form had taken, a repair that leaves the finding standing), and
   `ALTERNATE_FORM_PAID_NOT_IN_ROSTER` (a warning) on the root for a purchase no form matched —
   the roster may be partial.
+- **"Buy this Power multiple times if you want multiple forms"** — so a root with two forms
+  buys the Power twice, and `CharacterValidator` must not call that a Power listed twice.
+  Alternate Form and Duplication (p.27, the same sentence) carry `repeatable: true` in
+  `powers.json`, the mark an option that may be bought again already uses, and
+  `CheckDuplicatePowers` skips them; `ValidationIssueStructureTests` holds the marked entries to
+  exactly those whose printed text says so. Found by the review: the slice's own remedy for a
+  second form drew `DUPLICATE_POWER` on every member's report.
 - **"Use the lowest Resolve among your various forms"** — `SharedResolve`, the minimum of every
   member's own `CalculateResolve`, and **null rather than 0** when any member has no resolvable
   tier: `CalculateResolve` answers 0 there, and a minimum over a hole is a number that is not one.

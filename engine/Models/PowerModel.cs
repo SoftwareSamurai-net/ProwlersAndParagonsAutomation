@@ -197,6 +197,16 @@ public record PowerModel
     /// <summary>Where the entry was verified from, e.g. "Ultimate Edition, Ch.2 Powers, p.21".</summary>
     public string? SourceRef { get; init; }
 
+    /// <summary>
+    /// True where the Power's own entry says to buy it again — "Buy this Power multiple times
+    /// if you want multiple forms" (Alternate Form, p.21) and the same sentence on Duplication
+    /// (p.27). The same mark an option that may be bought again carries, and it means the same
+    /// thing: a second purchase is what the book asked for, not a Power listed twice, so
+    /// <see cref="CharacterValidator"/> does not warn <c>DUPLICATE_POWER</c> on it. A test holds
+    /// the marked entries to exactly those whose printed text says so.
+    /// </summary>
+    public bool Repeatable { get; init; }
+
     public string? Notes { get; init; }
 
     public bool IsVerified(string field) =>

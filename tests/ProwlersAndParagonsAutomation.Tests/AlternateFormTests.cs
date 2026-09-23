@@ -302,6 +302,38 @@ public sealed class AlternateFormTests
         Assert.Empty(Family(root, form, new("second", second)).Issues);
     }
 
+    /// <summary>
+    /// <b>The levels offered are the purchases no earlier form has already spent.</b> A root
+    /// paying once for Standard, with a Standard form and a Low Level one: the Standard form
+    /// takes the purchase, and the Low Level form has nothing to be offered — offering
+    /// "Standard" would be a repair that, taken, leaves the finding in place, since one purchase
+    /// pays for one form. Pay again on every member and Standard is on offer, and taking it
+    /// closes the finding: the repair is made from the structure alone.
+    /// </summary>
+    [Fact]
+    public void TheLevelsOfferedAreThePurchasesNoEarlierFormHasSpent()
+    {
+        var (root, form) = Herald();
+        var second = Hero("Herald (Scathach)");
+        second.Name = "Herald (Scathach)";
+        second.Variant = new CharacterVariant("airmid", CharacterVariant.AlternateForm);
+        second.SelectedTierId = "low_level";
+        var entry = new RosterEntry("second", second);
+
+        var unpaid = Assert.Single(Family(root, form, entry).Issues, i => i.Code == "ALTERNATE_FORM_LEVEL_NOT_PAID");
+        Assert.Equal("second", unpaid.SubjectId);
+        Assert.Empty(unpaid.Options);
+
+        foreach (var sheet in new[] { root.Sheet, form.Sheet, second })
+            sheet.SelectedPowers.Add(Purchase(sheet));
+
+        unpaid = Assert.Single(Family(root, form, entry).Issues, i => i.Code == "ALTERNATE_FORM_LEVEL_NOT_PAID");
+        Assert.Equal(["standard"], unpaid.Options);
+
+        second.SelectedTierId = unpaid.Options[0];
+        Assert.Empty(Family(root, form, entry).Issues);
+    }
+
     [Fact]
     public void APurchaseAtALevelNoTierIsIsStillReportedByNumber()
     {
