@@ -497,6 +497,62 @@ joins, and the engine reads the character. Nothing here resolves a campaign id; 
   something. `CampaignTable.IsTheBook` is that question, and the browser stores the book as null.
 
 
+## Alternate forms: the one rule that needs two sheets
+
+`CharacterSheet.Variant` links a sheet to a root as *later*, *as seen by* or *alternate form*
+(PROGRESS item 21). The first two carry no rule. **The third is Ch.2 p.21's Alternate Form
+Power, and every rule it carries is about a set of sheets**, so `engine/AlternateForms.cs` is
+handed a roster — `RosterEntry(Id, Sheet)` pairs — and answers one `AlternateFormFamily` per
+root some form names. Nothing about one sheet moves: `CostCalculator` and
+`DerivedStatsCalculator` still cannot read the link (`CharacterVariantTests` scans them), so a
+form costs and validates alone as the character it is, and the family's findings are beside it.
+
+- **"Both forms must pay for this Power"** — `ALTERNATE_FORM_NOT_PAID` on any member without it,
+  root included.
+- **"Each form must pay this Power's total cost"** — `ALTERNATE_FORM_COST_DIFFERS`, the form's
+  Hero Points on the Power (`CostCalculator.PowerCost`, house price forwarded) against the root's
+  as `Value`/`Limit`.
+- **"Any power level up to but not higher than yours"** — `ALTERNATE_FORM_ABOVE_ROOT_LEVEL`.
+  A power level is a tier's position in `tiers.json`, Street Level 1 to Iconic 6, and
+  `AlternateFormTests.ThePowerLevelLadderIsTheOrderTheBooksCostTablePrints` holds that order
+  to p.21's own cost table: each tier named, in order, at `cost_per_unit × level`.
+- **"This Power's cost varies depending on your other form's power level"** — the `Units` on a
+  purchase *are* the level paid for (Standard is 3, as `PrebuiltHeroes` has always recorded it),
+  and one purchase pays for one form: `ALTERNATE_FORM_LEVEL_NOT_PAID` on a form whose tier no
+  unmatched purchase on the root pays for, offering the levels the root does pay for, and
+  `ALTERNATE_FORM_PAID_NOT_IN_ROSTER` (a warning) on the root for a purchase no form matched —
+  the roster may be partial.
+- **"Use the lowest Resolve among your various forms"** — `SharedResolve`, the minimum of every
+  member's own `CalculateResolve`, and **null rather than 0** when any member has no resolvable
+  tier: `CalculateResolve` answers 0 there, and a minimum over a hole is a number that is not one.
+- A form whose root is not in the roster is `ALTERNATE_FORM_ROOT_NOT_IN_ROSTER`, a warning, and
+  the family has no pool.
+
+**The positive control is the book's own pair.** Herald prints twice, pp.134–135, as Airmid and
+Scáthach — both Standard, both with Alternate Form at the Standard level with Independent Forms,
+both at Resolve 5 — and linked they pass every check with a pool of 5. Every negative case in
+`AlternateFormTests` is that pair with one thing changed.
+
+**One sentence of p.21 is deliberately not applied, and the reason is a collision of rulings.**
+"Your other form's power level only affects the number of Hero Points you have to create it, not
+its Trait Cap" — so a Street Level form of a Standard Hero is built on 75 HP and capped at 12d.
+The engine's one way to state a cap is `TraitCapRank`, and a house cap above the tier's is
+`TRAIT_CAP_ABOVE_TIER` by the owner's ruling on house caps (above). Applying the sentence means
+deciding which ruling gives way, and that is the owner's call. Until it is made, a form's own
+Resolve is measured from its own tier's cap, which can be lower than the book's — and so can the
+pool. Recorded in the class's own remarks as well as here.
+
+**The six codes are exempt from `ValidationIssueStructureTests`' provoked-case rule by name**, because
+`Validate(sheet)` has one sheet and cannot reach them, and `AlternateFormTests` holds the codes
+`AlternateForms.cs` declares, the codes it provokes, and that exemption list to each other.
+
+**Who says what a sheet is called is the host.** A `Variant` names an id and a sheet does not
+carry one — the browser keeps it in the storage envelope and a file keeps it in its name — so the
+input is `RosterEntry` rather than a bare sheet, and two entries under one id are refused rather
+than guessed at. `build --from` uses the file name with its extension off, `.character.json`
+counted as one; see [`mcp-and-headless.md`](mcp-and-headless.md).
+
+
 ## The engine never touches the filesystem
 
 `RulesRepository` reads through `IRulesSource`, not `File.ReadAllText`. Two implementations ship: `FileSystemRulesSource` (the CLI) and `InMemoryRulesSource` (any host that loads the data itself — a browser has no filesystem). `RulesRepository(string)` and `FromBasePath` still work exactly as before.

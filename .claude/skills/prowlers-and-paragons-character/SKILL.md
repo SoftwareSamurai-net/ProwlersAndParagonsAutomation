@@ -110,10 +110,28 @@ them:
                     "powers": 4, "perks": 2, "gear": 0, "total": 60 },
         "perks": [ { "id": "contacts", "units": 2, "cost": 2 } ] }
     ],
-    "perks_by_id": [ { "id": "contacts", "characters": 2, "units": 5 } ]
+    "perks_by_id": [ { "id": "contacts", "characters": 2, "units": 5 } ],
+    "alternate_forms": [     // one per root some sheet's Variant names as its alternate_form
+      { "root_id": "airmid", "root_in_roster": true,
+        "members": [ { "id": "airmid", "role": "root", "source": "…", "name": "…",
+                       "tier": "standard", "resolve": 5 },
+                     { "id": "scathach", "role": "form", "source": "…", "name": "…",
+                       "tier": "standard", "resolve": 5 } ],
+        "shared_resolve": 5,  // the one pool: the lowest member's, null if any is unknown
+        "issues": [ /* same shape as a character's; an error here is exit 1 for the run */ ] }
+    ]
   }
 }
 ```
+
+**`alternate_forms` is the one rule that needs two sheets.** A sheet whose `Variant` is
+`{ "OfCharacterId": "airmid", "Kind": "alternate_form" }` is checked against the root it
+names: both pay for Alternate Form and pay the same, the form's power level is one the root's
+purchase `Units` pays for (Street Level 1 … Iconic 6) and not above the root's own, and the
+family shares one Resolve pool at the lowest of its members. **A sheet is known by its file
+name with the extension off** — `airmid.json` or `airmid.character.json` is `airmid` — so
+name the root's file what the form's `Variant` says. A root that is not in the run is a
+warning; a family that breaks a rule is exit 1 even when every character is legal alone.
 
 **A file that cannot be read is one exit-2 report inside `characters`, not the end of the
 run** — a typo in one file name does not cost you the other twenty-seven answers. Read

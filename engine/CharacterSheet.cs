@@ -383,22 +383,23 @@ public record CampaignAssetContribution(string AssetId)
 /// other character whether it names this one — <c>web/</c>'s business, since the engine cannot see
 /// the roster at all.</para>
 ///
-/// <para><b>This slice carries no rule consequences, on purpose.</b> Nothing in
+/// <para><b>The link changes nothing about one sheet, on purpose.</b> Nothing in
 /// <see cref="CostCalculator"/> or <see cref="DerivedStatsCalculator"/> may read this record or
 /// this field — <c>CharacterVariantTests.CostAndDerivedStatsNeverReadTheVariantField</c> is the
 /// guard, in the shape of <c>PresentationFlagsTests.NoRulesCodeReadsAPresentationFlag</c>, which
 /// keeps <see cref="CharacterSheet.IsVillain"/> out of the arithmetic. A character with a
 /// <see cref="CharacterSheet.Variant"/> costs and validates exactly as it would with none.</para>
 ///
-/// <para><b>Slice two, not yet built: does <c>alternate_form</c> belong on this record at all?</b>
-/// Ch.2's Alternate Form Power says a form is "built as a separate character with its own Hero
-/// Point budget", both forms pay for the Power, and they share one Resolve pool — a relationship
-/// that carries rules the other two kinds do not (a shared Resolve pool, a budget set by the paid
-/// power level). <see cref="Later"/> and <see cref="AsSeenBy"/> name nothing an engine prices;
-/// <see cref="AlternateForm"/> is recorded here as a kind a link can name, because a player using
-/// this mechanism for it today should not have their sheets silently disagree with one built after
-/// slice two lands — but nothing costs or validates it any differently yet, and closing that gap
-/// is the open question this record's slice one leaves for the next one.</para>
+/// <para><b>Slice two: <see cref="AlternateForm"/> is the one kind that carries rules, and they
+/// are rules about a set of sheets.</b> Ch.2's Alternate Form Power says a form is "built as a
+/// separate character with its own Hero Point budget", both forms pay for the Power, and they
+/// share one Resolve pool. <see cref="Later"/> and <see cref="AsSeenBy"/> name nothing an engine
+/// prices; a family of alternate forms is read by <see cref="AlternateForms"/>, which is handed a
+/// whole roster and reports what the set breaks — a form the root did not pay for, a form above
+/// the root's power level, two forms paying differently — and the one pool at the lowest of the
+/// forms' Resolve. It reports, never repairs, and each form still costs and validates alone as the
+/// character it is. The one host that hands the engine two sheets at once is <c>build --from</c>
+/// with more than one file.</para>
 /// </summary>
 /// <param name="OfCharacterId">
 /// The id of the character this is a version of. Blank is reported as
@@ -416,8 +417,8 @@ public record CharacterVariant(string OfCharacterId, string Kind)
     public const string AsSeenBy = "as_seen_by";
 
     /// <summary>
-    /// Another form of the same character, Chapter 2's Alternate Form Power. See the type's own
-    /// remarks on why this kind is named here and priced nowhere yet.
+    /// Another form of the same character, Chapter 2's Alternate Form Power. The one kind that
+    /// carries rules, all of them about the set — see <see cref="AlternateForms"/>.
     /// </summary>
     public const string AlternateForm = "alternate_form";
 
@@ -712,8 +713,9 @@ public class CharacterSheet
     /// <see cref="CharacterVariant"/>. Null on every character that predates item 21's slice one,
     /// which is what makes it optional rather than something a migration has to touch.
     ///
-    /// <para><b>No rules code may read this, and there is a test that none does</b> — see
-    /// <see cref="CharacterVariant"/>'s own remarks. It is here for the same reason
+    /// <para><b>Nothing that prices or derives one sheet may read this, and there is a test that
+    /// none does</b> — see <see cref="CharacterVariant"/>'s own remarks; <see cref="AlternateForms"/>
+    /// reads it, and is handed a roster rather than a sheet. It is here for the same reason
     /// <see cref="CampaignId"/> is: a character is portable, so the relationship travels with the
     /// export rather than living only in whichever browser drew the tree.</para>
     /// </summary>
