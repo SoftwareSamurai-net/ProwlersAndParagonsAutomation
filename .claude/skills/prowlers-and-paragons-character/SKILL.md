@@ -129,8 +129,9 @@ them:
 names: both pay for Alternate Form and pay the same, the form's power level is one the root's
 purchase `Units` pays for (Street Level 1 … Iconic 6) and not above the root's own, and the
 family shares one Resolve pool at the lowest of its members. **A sheet is known by its file
-name with the extension off** — `airmid.json` or `airmid.character.json` is `airmid` — so
-name the root's file what the form's `Variant` says. A root that is not in the run is a
+name with the extension off** — a file called `airmid` with either extension (`.json`, or the
+browser's `.character.json`) is `airmid` — so name the root's file what the form's `Variant`
+says. A root that is not in the run is a
 warning; a family that breaks a rule is exit 1 even when every character is legal alone.
 
 **A file that cannot be read is one exit-2 report inside `characters`, not the end of the
