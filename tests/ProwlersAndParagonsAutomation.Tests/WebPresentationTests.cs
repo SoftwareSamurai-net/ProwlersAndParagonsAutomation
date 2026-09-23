@@ -3281,6 +3281,20 @@ public sealed class WebPresentationTests
         // which CSS reads as the letter n.
         Assert.Matches(@"replace\(/\[\\\\""\]/g", body);
         Assert.DoesNotContain("JSON.stringify", body, StringComparison.Ordinal);
+
+        // **And wrapped in quotes, which the escaping is for.** The review of this feature wrote
+        // the escaped value bare — `setProperty("--sheet-name", escaped)` — and every assertion
+        // above held: `content: Lynchpin " · page " …` is an invalid value, the box is not
+        // generated, and the sheet prints as anonymous as it did before, without a word. So the
+        // write is held to the quoted template literal, not merely to naming the property.
+        Assert.Matches(@"setProperty\(""--sheet-name"",\s*`""\$\{escaped\}""`\)", body);
+
+        // A line break cannot be escaped into a CSS string by a backslash alone — `\` followed by
+        // a newline is a line continuation, which drops the break rather than printing it — and a
+        // margin box has nowhere to put one anyway, so the script folds every run of them to one
+        // space. This, too, survived being deleted: only the quote-and-backslash escaper above was
+        // being read.
+        Assert.Matches(@"replace\(/\[\\r\\n\\f\]\+/g,\s*"" ""\)", body);
     }
 
     /// <summary>
