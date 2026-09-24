@@ -467,7 +467,7 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
         Assert.Equal(7, powers.Count);
         AssertKeys(FirstOf(powers),
             "id", "name", "range", "rank_type", "cost_type", "purchased_ranks", "baseline_rank",
-            "baseline_trait", "effective_rank", "units", "cost_variant", "cost", "source",
+            "baseline_trait", "effective_rank", "units", "unit_names", "cost_variant", "cost", "source",
             "source_heading", "rank_against_powers", "mechanics_verified", "source_ref",
             "pros", "cons");
     }

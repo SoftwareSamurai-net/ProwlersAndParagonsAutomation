@@ -163,6 +163,7 @@ public sealed class PowerBrowser
 
         var purchasedRanks = PromptPurchasedRanks(power, cap, baseline);
         var units          = PromptUnits(power);
+        var unitNames      = PromptUnitNames(power, units);
 
         // Pros and cons
         var selector = new ProConSelector(_rules);
@@ -179,6 +180,7 @@ public sealed class PowerBrowser
         {
             CostVariantKey  = variantKey,
             Units           = units,
+            UnitNames       = unitNames,
             BaselineTraitId = baselineTraitId,
             SourceId        = sourceId
         };
@@ -253,6 +255,24 @@ public sealed class PowerBrowser
     }
 
     /// <summary>Quantity for per-unit Powers: immunities, Resolve, power levels.</summary>
+    /// <summary>
+    /// One name per unit for a Power whose units are named — Immunity, each "named and paid for
+    /// separately". Blank is allowed, as in the browser: the validator warns rather than blocks.
+    /// </summary>
+    private static List<string>? PromptUnitNames(PowerModel power, int units)
+    {
+        if (!power.UnitsAreNamed) return null;
+
+        var names = Enumerable.Range(1, units)
+            .Select(n => AnsiConsole.Prompt(
+                new TextPrompt<string>($"What is {Markup.Escape(power.UnitNoun(1))} {n} against?")
+                    .AllowEmpty()).Trim())
+            .ToList();
+
+        while (names.Count > 0 && names[^1].Length == 0) names.RemoveAt(names.Count - 1);
+        return names.Count == 0 ? null : names;
+    }
+
     private static int PromptUnits(PowerModel power)
     {
         if (power.CostType != "per_unit") return 1;
