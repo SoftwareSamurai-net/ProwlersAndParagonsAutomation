@@ -169,6 +169,13 @@
                                     {
                                         <div class="statline">@stand</div>
                                     }
+                                    @* Which immunities, not only how many: the rulebook names each
+                                       one, and a sheet that says "Immunity" alone leaves the GM
+                                       asking what it is against. *@
+                                    @if (UnitNames(power, sp) is { } unitNames)
+                                    {
+                                        <div class="statline">@unitNames</div>
+                                    }
                                     @* Labelled, not run together: a reader has to be able to
                                        tell which of these cost Hero Points and which paid
                                        for the rest. *@
@@ -536,6 +543,10 @@
         "plot_hook_and_condition" => "Plot Hook + Condition",
         _                         => ""
     };
+
+    /// <summary>Which immunities were bought, as the text export words it; null for nothing to say.</summary>
+    private static string? UnitNames(PowerModel? power, SelectedPower sp) =>
+        PowerFormatter.UnitNamesLine(power, sp);
 
     private string Label(SelectedProCon choice, PowerModel? power)
     {

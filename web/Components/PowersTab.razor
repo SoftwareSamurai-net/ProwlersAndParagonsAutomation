@@ -60,6 +60,10 @@ else
                                         <span class="tag warn">not checked against the book</span>
                                     }
                                 </div>
+                                @if (UnitNames(power, sp) is { } unitNames)
+                                {
+                                    <div class="small muted">@unitNames</div>
+                                }
                                 @* Labelled separately, as on the sheet. Run together into one
                                    list a player cannot tell which of these cost Hero Points
                                    and which paid for the rest — which is the whole question
@@ -195,6 +199,10 @@ else
         CharacterSession.TryCost(() => Session.Costs.TotalPowersCost(Session.Sheet)) is { } c
             ? $"{c} HP"
             : "not costable yet";
+
+    /// <summary>Which immunities were bought, as the text export words it; null for nothing to say.</summary>
+    private static string? UnitNames(PowerModel? power, SelectedPower sp) =>
+        PowerFormatter.UnitNamesLine(power, sp);
 
     /// <summary>
     /// A Power's own Pro or Con takes precedence over a generic one of the same id — it is

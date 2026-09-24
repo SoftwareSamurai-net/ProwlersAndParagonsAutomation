@@ -1979,6 +1979,7 @@
     "cost_type": "per_unit",
     "cost_per_unit": 3,
     "cost_unit_label": "immunity",
+    "units_are_named": true,
     "max_rank": 0,
     "dice_per_rank": 1,
     "description": "You are immune to specific attacks, energies, conditions, hazards or Powers. Each immunity is named and paid for separately.",

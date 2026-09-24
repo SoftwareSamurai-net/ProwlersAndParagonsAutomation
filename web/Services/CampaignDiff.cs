@@ -516,6 +516,11 @@ public static class CampaignDiff
                 : $"×{power.Units}");
         }
 
+        // What each unit is, where the Power names them — renaming an immunity changes what the
+        // character is immune to, which is a change a GM approving the sheet has to see.
+        var unitNames = power.BoughtUnitNames();
+        if (unitNames.Count > 0) parts.Add(string.Join(", ", unitNames));
+
         // Boost and Expertise nominate a Trait, and for Boost it sets the per-rank cost — so it is
         // never presentation. Named through the same lookups every other row uses.
         if (power.BaselineTraitId is { Length: > 0 } trait) parts.Add($"on {TraitName(rules, trait)}");
