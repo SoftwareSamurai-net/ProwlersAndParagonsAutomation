@@ -205,9 +205,10 @@
                 </p>
 
                 <ul class="character-list">
-                    @foreach (var one in group.Characters)
+                    @foreach (var row in Arrange(group.Characters))
                     {
-                        <li>
+                        var one = row.Row;
+                        <li class="@(row.Indent ? "variant-child" : "")">
                         @* **The row is the button.** Opening is what a reader came here to do, and
                            it is now the whole width of the row rather than a chip at the far edge.
                            A real `<button>`, never a `<div>` with a click handler — the rule every
@@ -257,6 +258,17 @@
                             }
                         </button>
 
+                        @* **Item 21: what this row's link reads as, or the browser-side finding
+                           when the root it names is not held anywhere — the same shape
+                           `UNKNOWN_CAMPAIGN` takes, computed here because the engine cannot see
+                           the roster.** *@
+                        @if (row.Note is { } note)
+                        {
+                            <span class="meta @(row.Warning ? "warning" : "")">
+                                @(row.Warning ? $"Warning: {note}" : note)
+                            </span>
+                        }
+
                         @* No question first — see the comment on the panel above. Both kinds of
                            row are undoable from the banner the moment this fires: the one on
                            screen through the character's own buffer, any other row through
@@ -276,9 +288,56 @@
                            actually open. See `SheetPage`. *@
                         <a class="btn small quiet" href="sheet/@one.Id">Sheet</a>
 
+                        <button type="button" class="btn small quiet"
+                                @onclick="() => ToggleVersionOf(one.Id)">
+                            Version of…
+                        </button>
+
                         <button type="button" class="btn small quiet" @onclick="() => Delete(one.Id)">
                             Discard
                         </button>
+
+                        @* **The chooser: another held character and a kind, or "Not a version" to
+                           clear it.** It excludes this row itself and anything
+                           `CharacterVariants.WouldCreateCycle` refuses, because the engine cannot
+                           see the roster and so cannot refuse a cycle on its own — see that
+                           method's remarks. *@
+                        @if (_versionOfOpenId == one.Id)
+                        {
+                            <div class="version-of-chooser">
+                                <Field Label="Version of" For="@($"version-of-root-{one.Id}")">
+                                    <select id="@($"version-of-root-{one.Id}")" value="@_versionOfRoot"
+                                            @onchange="@((ChangeEventArgs e) => _versionOfRoot = e.Value?.ToString() ?? "")">
+                                        <option value="">Not a version of another character</option>
+                                        @foreach (var candidate in RootCandidatesFor(one.Id))
+                                        {
+                                            <option value="@candidate.Id">@candidate.Label</option>
+                                        }
+                                    </select>
+                                </Field>
+
+                                @if (_versionOfRoot.Length > 0)
+                                {
+                                    <Field Label="Kind" For="@($"version-of-kind-{one.Id}")">
+                                        <select id="@($"version-of-kind-{one.Id}")" value="@_versionOfKind"
+                                                @onchange="ChangeVersionOfKind">
+                                            @foreach (var kind in VersionKinds)
+                                            {
+                                                <option value="@kind">@Capitalise(CharacterVariants.Label(kind))</option>
+                                            }
+                                        </select>
+                                    </Field>
+                                }
+
+                                <button type="button" class="btn small" @onclick="() => SaveVersionOf(one.Id)">
+                                    Save
+                                </button>
+                                <button type="button" class="btn small quiet"
+                                        @onclick="() => ClearVersionOf(one.Id)">
+                                    Not a version
+                                </button>
+                            </div>
+                        }
                         </li>
                     }
                 </ul>
@@ -431,6 +490,30 @@
     /// </summary>
     private string? _refusal;
 
+    /// <summary>
+    /// Item 21: the id of the row whose "Version of…" chooser is open, or null when none is.
+    /// One at a time — opening a second closes the first, the same idiom a disclosure anywhere
+    /// else in this app follows.
+    /// </summary>
+    private string? _versionOfOpenId;
+
+    /// <summary>The chooser's own selections, reset every time it opens on a different row.</summary>
+    private string _versionOfRoot = "";
+
+    private string _versionOfKind = CharacterVariant.Later;
+
+    /// <summary>
+    /// The kinds the chooser's second box offers, read here rather than named as
+    /// <c>CharacterVariant.Kinds</c> in the markup — <c>NoPageNamesATypeThisProjectDeclares</c>
+    /// scans the templated region of every page for a compound type name printed at a player, and
+    /// a component naming its own engine types on screen is exactly what that guard exists to
+    /// catch.
+    /// </summary>
+    private static IReadOnlyList<string> VersionKinds { get; } = CharacterVariant.Kinds;
+
+    private void ChangeVersionOfKind(ChangeEventArgs e) =>
+        _versionOfKind = e.Value?.ToString() is { Length: > 0 } chosen ? chosen : CharacterVariant.Later;
+
     private string Aside => _limit is { } limit ? $"{_characters.Count} of {limit}" : "In this browser";
 
     /// <summary>
@@ -547,6 +630,126 @@
         // would take.
 
         return string.Join(" · ", mine.Select(m => Standings.Say(m.Standing)));
+    }
+
+    /// <summary>
+    /// Item 21: <paramref name="characters"/> — one campaign heading's rows — re-ordered into
+    /// root-then-children order, each carrying what to print beside it.
+    ///
+    /// <para><b>Built local to this heading, then corrected against the whole account.</b>
+    /// <see cref="CharacterVariants.Group"/> only sees the rows it is handed, so a child whose
+    /// root is in a <em>different</em> game — or is the character open above this panel, which is
+    /// never in any heading's list at all — reads as an orphan from here alone. That is corrected
+    /// below: a root missing from this heading but present anywhere in <see cref="_characters"/>
+    /// is not drawn (there is nowhere to put its row in this heading) but is not warned about
+    /// either, and the child still says what kind of version it is. Only a root this account does
+    /// not hold at all earns <see cref="CharacterVariants.RootNotHeldCode"/>.</para>
+    /// </summary>
+    private IReadOnlyList<(SavedCharacterSummary Row, bool Indent, string? Note, bool Warning)>
+        Arrange(IReadOnlyList<SavedCharacterSummary> characters)
+    {
+        var byId = characters.ToDictionary(c => c.Id, StringComparer.Ordinal);
+        var heldAnywhere = _characters.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+        var families = CharacterVariants.Group(characters.Select(CharacterVariants.FromSummary));
+
+        var result = new List<(SavedCharacterSummary, bool, string?, bool)>();
+
+        foreach (var family in families)
+        {
+            if (family.Root is { } root)
+            {
+                result.Add((byId[root.Id], false, null, false));
+
+                foreach (var child in family.Children)
+                    result.Add((byId[child.Id], true, CharacterVariants.Label(child.Variant!.Kind), false));
+
+                continue;
+            }
+
+            foreach (var child in family.Children)
+            {
+                var namesA = child.Variant!.OfCharacterId;
+                var heldElsewhere = heldAnywhere.Contains(namesA);
+
+                result.Add((
+                    byId[child.Id], false,
+                    heldElsewhere ? CharacterVariants.Label(child.Variant.Kind)
+                                  : CharacterVariants.RootNotHeldMessage(child),
+                    !heldElsewhere));
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Every character this row could honestly be recorded as a version of: everything held,
+    /// minus itself and minus anything <see cref="CharacterVariants.WouldCreateCycle"/> refuses —
+    /// the engine cannot see the roster and so cannot refuse a cycle on its own, which is why this
+    /// is asked here rather than left to <c>UNKNOWN_VARIANT_KIND</c>'s neighbours.
+    /// </summary>
+    private IReadOnlyList<SavedCharacterSummary> RootCandidatesFor(string characterId)
+    {
+        var lookup = _characters.ToDictionary(
+            c => c.Id, c => c.VariantOf, StringComparer.Ordinal);
+
+        return
+        [
+            .. _characters
+                .Where(c => c.Id != characterId)
+                .Where(c => !CharacterVariants.WouldCreateCycle(characterId, c.Id, lookup))
+                .OrderBy(c => c.Label, StringComparer.CurrentCulture)
+        ];
+    }
+
+    private static string Capitalise(string? word) =>
+        string.IsNullOrEmpty(word) ? "" : char.ToUpperInvariant(word[0]) + word[1..];
+
+    /// <summary>
+    /// Opens the chooser on one row, closing whichever was open before. Seeded from that row's
+    /// own current link, so reopening it shows what it already says rather than a blank form.
+    /// </summary>
+    private void ToggleVersionOf(string characterId)
+    {
+        if (_versionOfOpenId == characterId)
+        {
+            _versionOfOpenId = null;
+            return;
+        }
+
+        _versionOfOpenId = characterId;
+
+        var current = _characters.FirstOrDefault(c => c.Id == characterId);
+        _versionOfRoot = current?.VariantOf ?? "";
+        _versionOfKind = current?.VariantKind is { Length: > 0 } kind ? kind : CharacterVariant.Later;
+    }
+
+    /// <summary>
+    /// Writes the chooser's choice onto the character and saves it through the ordinary store —
+    /// whichever one it lives in — so the index fields follow exactly as they do for any other
+    /// edit. Not the row that is open on screen: this control only ever appears on an "other" row,
+    /// so a read-modify-write here can never race the session's own autosave.
+    /// </summary>
+    private async Task SaveVersionOf(string characterId)
+    {
+        if (await Store.ReadAsync(characterId) is not { } got) { _versionOfOpenId = null; return; }
+
+        got.Sheet.Variant = _versionOfRoot.Length == 0
+            ? null
+            : new CharacterVariant(_versionOfRoot, _versionOfKind);
+
+        var label = _characters.FirstOrDefault(c => c.Id == characterId)?.Label ?? "Unnamed character";
+        await Store.RestoreAsync(characterId, label, got.Sheet, got.Mode);
+
+        _versionOfOpenId = null;
+        await Refresh();
+    }
+
+    /// <summary>"Not a version" — clears the link without opening the chooser first.</summary>
+    private async Task ClearVersionOf(string characterId)
+    {
+        _versionOfRoot = "";
+        await SaveVersionOf(characterId);
     }
 
     /// <summary>

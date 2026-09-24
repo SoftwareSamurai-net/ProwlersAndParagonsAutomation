@@ -1104,6 +1104,12 @@ public sealed class ValidationIssueStructureTests
                                                  ValidationSubject.Headquarters],
         ["ASSET_PERK_RECORDED_TWICE"]       = [ValidationSubject.Character],
 
+        // Item 21: both are about the character's own Variant field rather than about anything
+        // it names — the engine cannot see the roster, so there is no root or child to point a
+        // repair at.
+        ["VARIANT_WITHOUT_ROOT"]            = [ValidationSubject.Character],
+        ["UNKNOWN_VARIANT_KIND"]            = [ValidationSubject.Character],
+
         // Ruling 7: reported against the character when CheckCampaignAssets finds it on a
         // contribution, and against the shared object when CheckSharedAsset finds it while
         // walking every member's contribution to that object.
@@ -1175,7 +1181,7 @@ public sealed class ValidationIssueStructureTests
         "PRO_VARIANT_NOT_CHOSEN", "CON_VARIANT_NOT_CHOSEN", "RANKLESS_POWER_WITHOUT_SOURCE",
         "POWER_WITHOUT_SOURCE", "MODIFIER_ON_UNBOUGHT_ABILITY", "FLAW_MIN_NOT_MET",
         "UNKNOWN_ASSET_FEATURE", "ASSET_FEATURE_NEEDS_GRADE", "UNKNOWN_CAMPAIGN_ASSET_KIND",
-        "UNKNOWN_GADGET_ABILITY", "UNKNOWN_GADGET_TALENT"
+        "UNKNOWN_GADGET_ABILITY", "UNKNOWN_GADGET_TALENT", "UNKNOWN_VARIANT_KIND"
     };
 
     /// <summary>
@@ -1377,7 +1383,7 @@ public sealed class ValidationIssueStructureTests
         "house cap above the tier", "house cap below one",
         "a table's price for immortality",
         "a vehicle", "a headquarters", "a gadget", "assets without names", "a shared asset",
-        "a proposal", "unnamed units"
+        "a variant", "a proposal", "unnamed units"
     ];
 
     /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
@@ -1792,6 +1798,16 @@ public sealed class ValidationIssueStructureTests
                     Name = "The Wing", Kind = CampaignAssetContribution.Vehicle,
                     HeroPoints = CampaignAssetContribution.MaxHeroPoints + 1
                 });
+                return sheet;
+            }
+
+            case "a variant":
+            {
+                // Both structural findings at once: a blank root and an unrecognised kind. The
+                // engine cannot see the roster, so whether the root is actually held by anybody
+                // is not this validator's question — see CheckVariant's own remarks.
+                var sheet = Legal();
+                sheet.Variant = new CharacterVariant("", "cursed_mirror");
                 return sheet;
             }
 
@@ -2249,7 +2265,11 @@ public sealed class ValidationIssueStructureTests
 
                     // …and a campaign's shared vehicle or base, which is a fourth thing that
                     // belongs to the sheet rather than to any Trait: what this character put in.
-                    || sheet.CampaignAssets.Any(a => a.AssetId == id),
+                    || sheet.CampaignAssets.Any(a => a.AssetId == id)
+
+                    // …and the kind on this character's own Variant link: UNKNOWN_VARIANT_KIND
+                    // names the offending kind, which sits on the sheet rather than on any Trait.
+                    || sheet.Variant?.Kind == id,
 
                 _ => true
             };
@@ -2402,6 +2422,8 @@ public sealed class ValidationIssueStructureTests
 
         "UNKNOWN_CAMPAIGN_ASSET_KIND" =>
             CampaignAssetContribution.Kinds.Contains(option, StringComparer.Ordinal),
+
+        "UNKNOWN_VARIANT_KIND" => CharacterVariant.Kinds.Contains(option, StringComparer.Ordinal),
 
         "FLAW_MIN_NOT_MET" or "UNKNOWN_FLAW" => _f.Rules.GetFlaw(option) is not null,
 

@@ -79,7 +79,7 @@ as in scope. **Nothing here is a defect.**
 
 **Ready to build, specified enough to start**
 
-- [ ] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — character variants get a mechanism: **the owner said yes on 2026-09-10**, with one condition — every character already in the app must fit it — and one open question recorded in the entry: whether the Alternate Form Power should use the same mechanism. Not yet designed
+- [ ] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — character variants get a mechanism. **Slice one built 2026-09-11** (see the pull request that carried it): a sheet may say it is a version of a root character — *later*, *as seen by another audience*, or an *alternate form* — the roster and the switcher draw the family as a tree, and a "Version of…" control makes or clears the link. Verified by the orchestrator: the cycle guard and the tree's read of the index field each went red under mutation. **Open: slice two**, the rule consequences of `alternate_form` (one Resolve pool at the lowest of the forms; the form's budget set by the paid power level), which need the engine handed two sheets at once — item 16's roster command is the one place that happens today
 - [ ] **[1](#1-close-the-last-three-heroes)** — the last three Heroes, 1 HP out each. **T-Kay closed on the owner's ruling of 2026-09-06** that her `Limited` is somewhat limited; the interaction hypothesis was swept 2026-09-05 and is negative — see the entry; nothing cheap is left. **Deferred to last by the owner, 2026-09-11**: the published Heroes have served their purpose as reference material, so this is the item to pick up when nothing else is open
 - [x] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver, and `kill_tree` proved directly. Verified by the orchestrator 2026-09-05: nine checks green, nine twins red on the kind each declares, both drivers, no process left behind. **CI run 33949251306 then proved the Linux leak for real** — the port holder survived outside the tree — and the cause is recorded in the entry; the fix's Linux verdict was given by run 33960793977: all seven kill-tree checks green on `ubuntu-latest`, the real wrangler tree included, and no "still listening" warning anywhere in the job
 - [x] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement, and the rulebook corpus behind `Ctrl`/`⌘`+`K`. Verified by the orchestrator 2026-09-05; what remains of the search bullet is the banner field, recorded in the entry
@@ -1450,7 +1450,22 @@ code mutated to "last character's" went red on three theory cases.
 
 ### 21. Variants of one character are a naming convention doing a structure's job
 
-**Answered 2026-09-10: build it, with one constraint and one question still open.**
+**Answered 2026-09-10: build it. Slice one landed 2026-09-11.** What landed: `CharacterSheet.Variant`,
+null on every older sheet so every older export is byte-identical, three kinds as string constants
+(`later`, `as_seen_by`, `alternate_form`), two validator codes for a malformed link
+(`VARIANT_WITHOUT_ROOT`, `UNKNOWN_VARIANT_KIND`) and one browser-side finding for a root this
+account does not hold (`VARIANT_ROOT_NOT_HELD`, a Warning like `UNKNOWN_CAMPAIGN`); the roster's
+index gains `variant_of` and `variant_kind` (migration `0010`, stored and listed by a server that
+still parses no payload); `CharacterVariants.Group` draws the family over item 12's grouping
+component on the roster and in the banner's switcher; "Version of…" on a roster row makes the link
+and refuses a self-link or a cycle. **Two limits, stated:** the tree is one level deep — siblings
+of one root, which is every example the owner gave; a version of a version draws as its own
+orphan-shaped row and a test pins that — and **the rules engine is blind to the link by a guard**,
+so an alternate form is costed exactly as any character until slice two decides how Chapter 2's
+shared Resolve and paid-power-level budget reach a sheet.
+
+**The question that was open — Alternate Form — was answered by taking the recommendation**: it is a
+kind of variant now, and carries no rule until slice two.
 
 - **Open: should the Alternate Form Power use the same mechanism?** The owner raised it as a
   question, not a ruling — they have not read that Power. Chapter 2's `alternate_form` says the

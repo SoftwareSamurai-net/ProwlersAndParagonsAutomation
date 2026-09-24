@@ -41,12 +41,34 @@
             }
             else
             {
+                @* **Item 21: a root draws with its versions beneath it, exactly as the roster
+                   does.** Built over the whole account/browser list rather than over `_others`
+                   alone, so a root that happens to be the character on screen still tells its
+                   children apart from an orphan — see `Families`'s own remarks. *@
                 <ul>
-                    @foreach (var one in _others)
+                    @foreach (var family in Families)
                     {
-                        <li>
-                            <button type="button" @onclick="() => Open(one.Id)">@one.Label</button>
-                        </li>
+                        @if (family.Root is { } root && root.Id != CurrentId)
+                        {
+                            <li>
+                                <button type="button" @onclick="() => Open(root.Id)">@root.Name</button>
+                            </li>
+                        }
+
+                        @foreach (var child in family.Children.Where(c => c.Id != CurrentId))
+                        {
+                            <li class="variant-child">
+                                <button type="button" @onclick="() => Open(child.Id)">@child.Name</button>
+                                @if (family.Root is null)
+                                {
+                                    <span class="meta warning">Warning: @CharacterVariants.RootNotHeldMessage(child)</span>
+                                }
+                                else if (CharacterVariants.Label(child.Variant!.Kind) is { } label)
+                                {
+                                    <span class="meta">@label</span>
+                                }
+                            </li>
+                        }
                     }
                 </ul>
             }
@@ -68,6 +90,23 @@
     private bool _open;
     private IReadOnlyList<SavedCharacterSummary> _others = [];
     private bool _only;
+    private string _currentId = "";
+
+    /// <summary>
+    /// The id of the character on screen, so a family whose root happens to be it can still tell
+    /// its children apart from an orphan — see <see cref="Families"/>.
+    /// </summary>
+    private string CurrentId => _currentId;
+
+    /// <summary>
+    /// Item 21's tree, built over <em>every</em> character this refresh found — not
+    /// <see cref="_others"/> — so a root that is the character on screen is still a root the
+    /// grouping can see. Without this, opening the very character a version names would make
+    /// every version of it read as an orphan: <c>_others</c> excludes the open row by design, and
+    /// <see cref="CharacterVariants.Group"/> cannot tell "excluded from this view" from "this
+    /// account does not hold it" unless it is handed the whole list.
+    /// </summary>
+    private IReadOnlyList<VariantFamily> Families { get; set; } = [];
 
     /// <summary>
     /// What to call the character that is open.
@@ -118,10 +157,12 @@
     private async Task Refresh()
     {
         var listed = await Store.ListAsync();
-        var currentId = await Store.CurrentIdAsync();
+        _currentId = await Store.CurrentIdAsync();
 
-        _others = [.. listed.Characters.Where(c => c.Id != currentId)];
+        _others = [.. listed.Characters.Where(c => c.Id != _currentId)];
         _only = listed.Characters.Count == 1;
+
+        Families = CharacterVariants.Group(listed.Characters.Select(CharacterVariants.FromSummary));
     }
 
     private async Task Toggle()

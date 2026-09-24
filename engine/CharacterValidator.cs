@@ -186,6 +186,7 @@ public sealed class CharacterValidator
         CheckUnverifiedPowers(sheet, issues);
         CheckSources(sheet, issues);
         CheckUnitNames(sheet, issues);
+        CheckVariant(sheet, issues);
 
         return new ValidationResult(issues);
     }
@@ -399,6 +400,43 @@ public sealed class CharacterValidator
                 Limit       = max
             });
         }
+    }
+
+    /// <summary>
+    /// The two structural things this engine can say about a
+    /// <see cref="CharacterSheet.Variant"/> without seeing the roster: whether its kind is one of
+    /// the three this app knows, and whether it names a root at all.
+    ///
+    /// <para><b>Whether that root is actually held by anybody is not this method's question.</b>
+    /// The engine cannot see a roster at all — an id here could point at a live character or at
+    /// nothing, and answering that means asking storage — so <c>VARIANT_ROOT_NOT_HELD</c> is a
+    /// browser-side finding, the same shape as <c>UNKNOWN_CAMPAIGN</c>. A cycle (A of B, B of A)
+    /// or a self-link is refused where the link is made rather than reported after the fact, for
+    /// the same reason: repairing one here would mean walking every other character's own
+    /// <see cref="CharacterSheet.Variant"/>, which is exactly the roster this method cannot
+    /// see.</para>
+    /// </summary>
+    private static void CheckVariant(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        if (sheet.Variant is not { } variant) return;
+
+        if (string.IsNullOrWhiteSpace(variant.OfCharacterId))
+            issues.Add(new(ValidationSeverity.Error, "VARIANT_WITHOUT_ROOT",
+                "This character is recorded as a version of another one, but names no root "
+                + "character. Name which character this is a version of, or clear the link.")
+            {
+                SubjectKind = ValidationSubject.Character
+            });
+
+        if (!CharacterVariant.Kinds.Contains(variant.Kind, StringComparer.Ordinal))
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_VARIANT_KIND",
+                $"'{variant.Kind}' is not a kind of version this app knows. Choose one of the "
+                + "kinds below, or clear the link.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                SubjectId   = variant.Kind,
+                Options     = CharacterVariant.Kinds
+            });
     }
 
     /// <summary>

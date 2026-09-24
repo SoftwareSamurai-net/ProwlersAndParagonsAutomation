@@ -1791,8 +1791,10 @@ public sealed class HeadlessBuildTests : IDisposable
         using var stderr = new StringWriter();
         var wizardRan = false;
 
+        var build = new BuildCommand(_f.Rules, _f.Costs, _f.Derived, _f.Validator);
         var exit = new CommandLine(
-                new BuildCommand(_f.Rules, _f.Costs, _f.Derived, _f.Validator),
+                build,
+                new PushCommand(build, _f.Costs, new HeadlessPushTests.NoDatabase()),
                 () => wizardRan = true,
                 () => interactive)
             .Run(args, RulesFixture.RepoRoot, stdout, stderr, new StringReader(""));

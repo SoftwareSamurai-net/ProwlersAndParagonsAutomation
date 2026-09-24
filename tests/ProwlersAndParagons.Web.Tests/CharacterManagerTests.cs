@@ -461,4 +461,183 @@ public sealed class CharacterManagerTests
     // WebPresentationTests, which scans every .razor file — a per-component copy here would be a
     // second, narrower version of the same guard, and it would have to distinguish `title=` the
     // HTML attribute from `Title=` the Panel parameter this file actually carries.
+
+    // ── Item 21: the variant tree, and the chooser that makes a link ────────────────────────
+
+    private static IElement RowByExactName(IRenderedComponent<CharacterManager> cut, string label) =>
+        cut.FindAll("ul.character-list > li")
+            .Single(row => row.QuerySelector(".nm")!.TextContent.Trim() == label);
+
+    /// <summary>
+    /// A root with two versions draws as a tree: the root's own row first, then both children,
+    /// each carrying what kind of version it is — and in the order <see cref="CharacterVariants.Label"/>
+    /// itself defines, not the order they were saved in.
+    /// </summary>
+    [Fact]
+    public async Task ARootWithTwoVariantsDrawsTheTreeInOrder()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+
+        var root = SampleCharacters.Hero();
+        root.Name = "Cael Hughes — Emergence";
+        var rootId = SavedCharacters.NewId();
+        await account.SaveAsync(rootId, root.Name, root, SheetMode.Hero);
+
+        // Saved in an order that would be wrong if the tree merely echoed it back.
+        var seenBy = SampleCharacters.Hero();
+        seenBy.Name = "Cael Hughes — As Seen By The Bureau";
+        seenBy.Variant = new CharacterVariant(rootId, CharacterVariant.AsSeenBy);
+        await account.SaveAsync(SavedCharacters.NewId(), seenBy.Name, seenBy, SheetMode.Hero);
+
+        var later = SampleCharacters.Hero();
+        later.Name = "Cael Hughes — Realised";
+        later.Variant = new CharacterVariant(rootId, CharacterVariant.Later);
+        await account.SaveAsync(SavedCharacters.NewId(), later.Name, later, SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        var names = cut.FindAll("ul.character-list > li .nm").Select(e => e.TextContent).ToList();
+        var rootIndex = names.IndexOf(root.Name);
+        var laterIndex = names.IndexOf(later.Name);
+        var seenByIndex = names.IndexOf(seenBy.Name);
+
+        Assert.True(rootIndex >= 0 && laterIndex >= 0 && seenByIndex >= 0, string.Join(", ", names));
+        Assert.True(rootIndex < laterIndex && laterIndex < seenByIndex,
+            "expected the root, then the later version, then the as-seen-by version");
+
+        var laterRow = RowByExactName(cut, later.Name);
+        Assert.Contains("variant-child", laterRow.ClassList);
+        Assert.Contains("later version", laterRow.TextContent, StringComparison.Ordinal);
+
+        var rootRow = RowByExactName(cut, root.Name);
+        Assert.DoesNotContain("variant-child", rootRow.ClassList);
+    }
+
+    /// <summary>
+    /// A version whose root this account does not hold draws flat — no indentation, because there
+    /// is no root row to sit under — with the browser-side <c>VARIANT_ROOT_NOT_HELD</c> finding
+    /// printed on its own row.
+    /// </summary>
+    [Fact]
+    public async Task AnOrphanedVersionShowsTheWarningOnItsOwnRow()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+
+        var orphan = SampleCharacters.Hero();
+        orphan.Name = "Lena (as observed)";
+        orphan.Variant = new CharacterVariant("c_" + new string('0', 22), CharacterVariant.AsSeenBy);
+        await account.SaveAsync(SavedCharacters.NewId(), orphan.Name, orphan, SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        var row = RowByExactName(cut, orphan.Name);
+        Assert.DoesNotContain("variant-child", row.ClassList);
+        Assert.Contains("Warning:", row.TextContent, StringComparison.Ordinal);
+        Assert.Contains(CharacterVariants.RootNotHeldMessage(new VariantRow("ignored", orphan.Name, orphan.Variant)),
+            row.TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The chooser offers every held character except the row itself and anything naming it back —
+    /// a self-link and a direct cycle, refused where the link is made because the engine cannot
+    /// see the roster to refuse either on its own.
+    /// </summary>
+    [Fact]
+    public async Task TheChooserRefusesSelfAndACycle()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+
+        var a = SampleCharacters.Hero();
+        a.Name = "Alpha";
+        var aId = SavedCharacters.NewId();
+        await account.SaveAsync(aId, a.Name, a, SheetMode.Hero);
+
+        // B already names A as its root — offering B back to A would close a two-character loop.
+        var b = SampleCharacters.Hero();
+        b.Name = "Beta";
+        b.Variant = new CharacterVariant(aId, CharacterVariant.Later);
+        var bId = SavedCharacters.NewId();
+        await account.SaveAsync(bId, b.Name, b, SheetMode.Hero);
+
+        var unrelated = SampleCharacters.Hero();
+        unrelated.Name = "Gamma";
+        await account.SaveAsync(SavedCharacters.NewId(), unrelated.Name, unrelated, SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        // Open Alpha's own chooser.
+        await RowByExactName(cut, a.Name).QuerySelectorAll("button")
+            .First(btn => btn.TextContent.Contains("Version of", StringComparison.Ordinal))
+            .ClickAsync(new());
+
+        var options = cut.FindAll($"select[id='version-of-root-{aId}'] option")
+            .Select(o => o.TextContent).ToList();
+
+        Assert.Contains(unrelated.Name, options);
+        Assert.DoesNotContain(a.Name, options);
+        Assert.DoesNotContain(b.Name, options);
+    }
+
+    /// <summary>
+    /// Saving the chooser's choice writes <see cref="CharacterSheet.Variant"/> onto the character
+    /// through the ordinary store, and the tree on screen reflects it on the very next render —
+    /// not only after a manual reload, which is what a fire-and-forget write would leave behind.
+    /// </summary>
+    [Fact]
+    public async Task SavingTheChooserPersistsTheLinkAndTheTreeUpdates()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+
+        var root = SampleCharacters.Hero();
+        root.Name = "Root Character";
+        var rootId = SavedCharacters.NewId();
+        await account.SaveAsync(rootId, root.Name, root, SheetMode.Hero);
+
+        var plain = SampleCharacters.Hero();
+        plain.Name = "Plain Character";
+        var plainId = SavedCharacters.NewId();
+        await account.SaveAsync(plainId, plain.Name, plain, SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        // Before: two unrelated rows.
+        Assert.DoesNotContain("variant-child", RowByExactName(cut, plain.Name).ClassList);
+
+        await RowByExactName(cut, plain.Name).QuerySelectorAll("button")
+            .First(btn => btn.TextContent.Contains("Version of", StringComparison.Ordinal))
+            .ClickAsync(new());
+
+        await cut.Find($"select[id='version-of-root-{plainId}']")
+            .ChangeAsync(new() { Value = rootId });
+
+        await cut.Find($"select[id='version-of-kind-{plainId}']")
+            .ChangeAsync(new() { Value = CharacterVariant.AlternateForm });
+
+        await RowByExactName(cut, plain.Name).QuerySelectorAll("button")
+            .First(btn => btn.TextContent.Contains("Save", StringComparison.Ordinal))
+            .ClickAsync(new());
+
+        // After: the store actually holds the link —
+        var stored = (await account.LoadAsync(plainId))!.Value.Sheet;
+        Assert.NotNull(stored.Variant);
+        Assert.Equal(rootId, stored.Variant!.OfCharacterId);
+        Assert.Equal(CharacterVariant.AlternateForm, stored.Variant.Kind);
+
+        // — and the panel drew it without anybody reloading the page.
+        var childRow = RowByExactName(cut, plain.Name);
+        Assert.Contains("variant-child", childRow.ClassList);
+        Assert.Contains("alternate form", childRow.TextContent, StringComparison.Ordinal);
+    }
 }
