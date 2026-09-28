@@ -1,3 +1,6 @@
+using System.Text;
+using System.Text.Json;
+
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
@@ -100,6 +103,122 @@ public sealed class PowerDescriptionTests
         Assert.True(offending.Count == 0,
             $"Power '{id}' has no rank ({power.RankType}) but its description says " +
             $"\"{string.Join("\", \"", offending)}\": {power.Description}");
+    }
+
+    /// <summary>
+    /// <b>A description here is this project's own words, never the book's.</b> The descriptions
+    /// were rewritten to carry each entry's mechanics — what is rolled, against what, and what
+    /// the net successes buy — which is exactly the rewrite most likely to drift into the page's
+    /// phrasing. <c>data/rules/</c> is what the public site serves and <c>data/rulebook/</c> is
+    /// not; see <c>docs/guide/rules-engine.md</c>.
+    ///
+    /// <para>Ten consecutive words, the same measure <c>PlayRulesDataTests</c> uses, and covering
+    /// each Power's own Pros and Cons as well as the Power, since a tooltip is drawn from both.</para>
+    /// </summary>
+    [Fact]
+    public void NoPowerTextRepeatsARunOfTheBooksOwnWords()
+    {
+        const int run = 10;
+        var corpus = CorpusWords();
+
+        // Positive control: a sentence printed in Shockwave's own entry has to be found, or a
+        // normaliser that produced an empty haystack would pass everything below.
+        var control = Runs(Normalise(
+            "With 3 or more net successes, the target is also knocked prone and loses their next turn to act."),
+            run).ToList();
+        Assert.NotEmpty(control);
+        Assert.All(control, phrase => Assert.True(
+            corpus.Contains(phrase, StringComparison.Ordinal),
+            $"The control phrase '{phrase}' was not found in the corpus, so this test is measuring nothing."));
+
+        var texts = _f.Rules.Powers.SelectMany(p =>
+            p.PowerPros.Select(o => ($"{p.Id}/{o.Id}", o.Description))
+                .Concat(p.PowerCons.Select(o => ($"{p.Id}/{o.Id}", o.Description)))
+                .Prepend((p.Id, p.Description)));
+
+        var faults = texts
+            .SelectMany(t => Runs(Normalise(t.Item2 ?? string.Empty), run)
+                .Where(phrase => corpus.Contains(phrase, StringComparison.Ordinal))
+                .Take(1)
+                .Select(phrase => $"{t.Item1}: repeats the book verbatim — '{phrase.Trim()}'"))
+            .ToList();
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>
+    /// <b>The summary has to carry the numbers the entry turns on.</b> The originals were accurate
+    /// about what a Power was and silent about what it did: Shockwave's said three net successes
+    /// knock a target "further and harder" where the page says prone and a lost turn, and the
+    /// owner played the Power without knowing. Each row is a Power and a fact its printed entry
+    /// states, in the words a reader would look for.
+    /// </summary>
+    [Theory]
+    [InlineData("shockwave", "3 or more")]
+    [InlineData("shockwave", "prone")]
+    [InlineData("shockwave", "lose their next turn")]
+    [InlineData("shockwave", "-1d")]
+    [InlineData("hyper_breath", "prone")]
+    [InlineData("stun", "1 page per 2 net successes")]
+    [InlineData("mind_control", "1 page per 2 net successes")]
+    [InlineData("dazzle", "does not stack")]
+    [InlineData("deflection", "-2d")]
+    [InlineData("slick", "-2d")]
+    [InlineData("danger_sense", "surprised")]
+    [InlineData("teleportation", "6 or less")]
+    [InlineData("nullify", "1 Resolve")]
+    [InlineData("omni_power", "1d")]
+    [InlineData("super_speed", "2 Minions")]
+    public void ASummaryStatesTheMechanicItsEntryTurnsOn(string id, string fact) =>
+        Assert.Contains(fact, _f.Rules.GetPower(id)!.Description, StringComparison.Ordinal);
+
+    private static string CorpusWords()
+    {
+        var builder = new StringBuilder(" ");
+        var folder = Path.Combine(RulesFixture.RepoRoot, "data", "rulebook");
+
+        foreach (var file in Directory.EnumerateFiles(folder, "ch*.json").Order(StringComparer.Ordinal))
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(file));
+
+            foreach (var section in document.RootElement.GetProperty("sections").EnumerateArray())
+                builder.Append(Normalise(section.GetProperty("text").GetString() ?? string.Empty)).Append(' ');
+        }
+
+        return builder.ToString();
+    }
+
+    /// <summary>Letters and digits only, lower-cased and single-spaced, so re-punctuating a lifted clause hides nothing.</summary>
+    private static string Normalise(string text)
+    {
+        var builder = new StringBuilder(" ");
+        var lastWasSpace = true;
+
+        foreach (var c in text)
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                builder.Append(char.ToLowerInvariant(c));
+                lastWasSpace = false;
+            }
+            else if (!lastWasSpace)
+            {
+                builder.Append(' ');
+                lastWasSpace = true;
+            }
+        }
+
+        if (!lastWasSpace) builder.Append(' ');
+
+        return builder.ToString();
+    }
+
+    private static IEnumerable<string> Runs(string normalised, int length)
+    {
+        var words = normalised.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        for (var i = 0; i + length <= words.Length; i++)
+            yield return " " + string.Join(' ', words.Skip(i).Take(length)) + " ";
     }
 
     [Fact]

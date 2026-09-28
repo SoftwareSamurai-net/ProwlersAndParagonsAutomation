@@ -9,7 +9,7 @@
     "cost_flat": 12,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Your body adapts instantly to hostile or alien surroundings, letting you breathe, move, sense and survive there — growing gills and pressure resistance underwater, for instance. One flat purchase covers any environment; there are no ranks.",
+    "description": "Your body adapts at once to whatever environment you are in, so you can breathe, move, sense and survive in hostile or alien surroundings — underwater you would grow gills and fins and ignore the pressure and cold. No roll and no rank: one purchase covers every environment.",
     "prerequisite": null,
     "tags": [
       "survival",
@@ -37,7 +37,7 @@
     "cost_unit_label": "power level",
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can turn into a different form, built as a separate character with its own Hero Point budget at the power level you pay for. Both forms must pay for this Power, and they share one Resolve pool — you use the lowest Resolve among them. Buy it again for each extra form.",
+    "description": "You can change into another form, built as a separate character. Its power level can be anything up to yours and sets only its Hero Point budget, never its Trait Cap. Every form pays this Power's full cost, and buying it again adds another form — with two extra forms, all three pay for both. Each form has its own Traits and may share Perks and Flaws. You have one pool of Resolve: the lowest figure any of your forms would have alone.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -75,7 +75,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can make animals do what you want for the Power's duration, whether by domination or friendly persuasion. Roll against the animal's Willpower.",
+    "description": "Roll Animal Control against an animal's Willpower to make it do what you want, whether by domination or friendly persuasion. Like any special effect it lasts 1 page per 2 net successes, rounded up.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -123,7 +123,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You share an empathic understanding with animals. They will not attack you without good reason, and even then you may be able to talk them down.",
+    "description": "Animals sense that you understand them. One will not attack you without good reason, such as an injury or young to protect, and even then you may be able to talk it down. No roll and no rank. Actually speaking with animals is the Speech Pro.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -160,7 +160,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can take on an animal's Powers, and its Agility, Might, Perception and Toughness, at the lower of the animal's rank or yours — and only where the animal's is higher than your own. Switching animals is a free action, once per page.",
+    "description": "Mimic any natural animal you know, living or extinct, and gain all of its Powers at the lower of its rank and yours — even ones that need body parts you lack. You also take its Agility, Might, Perception and Toughness, capped at your rank, wherever they beat your own. Choosing or changing the animal is a free action, once per page, or twice if you give up your next turn. Magical creatures are the GM's call.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -168,7 +168,7 @@
         "name": "Enhanced",
         "cost_type": "flat",
         "cost_modifier": 4,
-        "description": "When mimicking an animal you may use your Power rank in place of its highest-ranked Trait — one Trait per animal."
+        "description": "When mimicking an animal you may substitute your Power rank for that animal's highest-ranked Trait — one Trait per animal, your choice if several tie."
       },
       {
         "id": "selection",
@@ -203,7 +203,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can bring images and objects to life until the scene ends or you dismiss them. An animated thing has Agility, Might and Toughness plus whatever Powers suit it: one Trait at your full rank, the rest at half. They obey your mental commands. You cannot animate anything whose Structure beats your rank.",
+    "description": "Bring images and objects to life until the scene ends or you dismiss them. Each has Agility, Might and Toughness plus any Powers it plainly should have: you pick one Trait to sit at your full rank and the rest are at half. They are mindless and act only on your mental commands. Each extra thing animated at once lowers your effective rank by 1d, and an object whose Structure is above your rank cannot be animated.",
     "prerequisite": null,
     "tags": [
       "control",
@@ -231,7 +231,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "Armour or a personal force field that turns damage aside. Use it as a passive defence against both physical and energy attacks, and ignore any attack whose rank is at or below half your Armor rank unless it is Penetrating.",
+    "description": "A passive defence against physical and energy attacks, whatever type of damage they deal. An attack whose rank is no more than half your Armor rank cannot hurt you at all unless it has the Penetrating Pro; for Minions, compare their unmodified Threat. Baseline is half your Toughness.",
     "prerequisite": {
       "relationship": "baseline_half",
       "ability": "toughness",
@@ -280,7 +280,7 @@
     "cost_flat": 12,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Your astral form can leave your body, gaining Invisibility, Phasing and Astral Sight, and flying as though you had Flight at your Willpower rank. Your body lies dormant meanwhile, though you know at once if it is moved or harmed.",
+    "description": "Your astral form leaves your body. In that form you have Invisibility, Phasing (Intangible) and Super Senses (Astral Sight), can choose to be seen, and fly as if you had Flight at your Willpower rank. Your body lies dormant while you are out, but you know immediately if it is moved or hurt.",
     "prerequisite": null,
     "tags": [
       "mental",
@@ -309,7 +309,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You are attuned to an aspect of nature, a place, or the cosmos, and sense coming disturbances within it. Basic warnings arrive free; spend 1 Resolve to ask the GM for detail. What you learn may be incomplete, but it is never false.",
+    "description": "You are attuned to an aspect of nature, a place, or the cosmos, and know when something dramatic or unusual is about to happen within it. Attuned to a place, you also sense powerful beings arriving and leaving. The narrower the scope, the finer the detail. Basic information is automatic; spend 1 Resolve to ask the GM for more. Answers can be incomplete or misleading but are never false.",
     "prerequisite": null,
     "tags": [
       "sensory",
@@ -336,7 +336,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "Your body deals a chosen type of energy damage on contact — anyone touching or striking you in unarmed combat takes an attack at your Aura rank, resisted only by passive defences. You can also attack with it in close combat, and mundane objects weaker than your rank burn or melt near you.",
+    "description": "Your body deals one chosen type of energy damage on contact. Anyone who touches you, or hits you unarmed — even when your passive defence stops the blow — takes an attack at your Aura rank that only passive defences resist. You can also make close combat attacks with it; if you have another close combat attack at this rank or higher, use that rank +1d instead. Mundane objects with Structure below your rank (wood is 6d, bullets and metal 9d) cannot damage you.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -374,7 +374,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can banish a target to another time, place or dimension, resisted by Willpower (or Toughness, if you define it that way) and by active defences. You cannot send anyone somewhere harmful or inescapable.",
+    "description": "Roll Banish against the target's Willpower or an active defence to send them to another time, place or dimension, chosen at purchase. You may define yours as resisted by Toughness instead of Willpower; active defences apply either way. You cannot send anyone somewhere harmful or inescapable. You can keep using it on somebody already banished until they are defeated, and a banished character still gets their actions wherever they have landed.",
     "prerequisite": null,
     "tags": [
       "control",
@@ -402,7 +402,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A damaging ranged attack. Name the type of damage it inflicts when you buy it.",
+    "description": "A ranged attack reaching Distant Range that deals 1 damage per net success, of one damage type named at purchase. The target resists with the better of an active defence and a passive one such as Armor.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -410,7 +410,7 @@
         "name": "Block",
         "cost_type": "flat",
         "cost_modifier": 2,
-        "description": "You can shoot incoming ranged attacks down, using the Power as an active defence against them — though not against area attacks."
+        "description": "An active defence against ranged physical and energy attacks, by shooting them down; never against area attacks. Give up your next action and it becomes a blast duel, a contest of 3 exchanges of Blast against Blast: one at once, one on your next turn, one on your opponent's. The winner hits for successes equal to their own Blast rank, resisted by passive defences only."
       },
       {
         "id": "melee",
@@ -433,7 +433,7 @@
         "name": "Weapons",
         "cost_type": "flat",
         "cost_modifier": -1,
-        "description": "The Power is mastery of a group of weapons, as broad or narrow as you like, and you must be armed with one to use it."
+        "description": "The Power is skill with a group of weapons, however broad or narrow, and you must be armed with one to use it. Armed, you roll your Blast rank to attack instead of Ability plus Weapon Bonus; the weapon otherwise behaves as normal and deals its usual type of damage."
       }
     ],
     "tags": [
@@ -465,7 +465,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Your colouring shifts to match your surroundings, giving +3d on Covert rolls to avoid being seen. Stay still and you can roll Covert at half rank to go unnoticed even in the open.",
+    "description": "Your colouring shifts to match your surroundings: +3d on Covert rolls to avoid being seen. If you keep still you can also go unseen in plain view, rolling half your Covert rank, halved after the +3d is added.",
     "prerequisite": null,
     "tags": [
       "stealth",
@@ -491,7 +491,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can blind a living target for the Power's duration, resisted by Toughness or an active defence. A blinded target takes -3d on attack and active defence rolls unless something like Blind Fighting or Radar covers for the loss.",
+    "description": "Roll Blind against a living target's Toughness or an active defence. A blinded target takes -3d on attack and active defence rolls unless a Power such as Blind Fighting or Radar compensates. Like any special effect it lasts 1 page per 2 net successes, rounded up. A version that hits another sense is possible, with any effect in combat agreed with the GM.",
     "prerequisite": null,
     "tags": [
       "attack",
@@ -518,7 +518,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You do not rely on sight in a fight, so darkness or an unseen opponent costs you nothing, whatever the cause.",
+    "description": "You do not depend on sight in a fight: you take no penalty for darkness or for an opponent you cannot see, whatever the cause. That cancels the -3d from Powers such as Blind, Darkness and Invisibility.",
     "prerequisite": null,
     "tags": [
       "combat",
@@ -545,7 +545,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You flicker in and out of reality mid-fight — phasing, shifting size, stepping through portals, however you describe it. Use Blink in place of Might for close combat attacks and in place of Agility for active defence and movement rolls. It does not actually make you faster.",
+    "description": "You flicker in and out of reality in a fight — phasing, teleporting round opponents, changing size, however you describe it. Roll Blink instead of Might for close combat attacks and instead of Agility for active defence and movement rolls. If you already have one of those Traits, or a Power such as Evasion, Martial Arts or Strike, at this rank or higher, use that rank +1d instead. Not a Travel Power: you move no faster.",
     "prerequisite": null,
     "tags": [
       "movement",
@@ -571,7 +571,7 @@
     "cost_type": "special",
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can raise one nominated Ability, Talent or Power up to this Power's rank. It costs as much per rank as the Trait it raises and uses that Trait as its baseline. It needs Cons describing when and how it works, or it means nothing.",
+    "description": "Raises one Ability, Talent or Power, named at purchase, up to this Power's rank. It costs what that Trait costs for each rank and takes that Trait's rank as its baseline. It must carry Cons saying when and how it works — without them it means nothing.",
     "prerequisite": {
       "relationship": "baseline_selected_trait",
       "ability": null,
@@ -613,7 +613,7 @@
     "cost_flat": 12,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Spend 1 Resolve to bolster yourself and every ally in the area with +1d on all challenge rolls for the rest of the scene. Allies must stay in the area to keep it. Activating costs an action; sustaining it is free. Buff never stacks, not even from different Sources.",
+    "description": "Spend an action and 1 Resolve: you and every ally in the zone get +1d on every challenge roll until the scene ends, for as long as they stay inside the area. Keeping it up afterwards is a free action. It always ends with the scene. Buffs never stack, even from different characters or Sources.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -649,7 +649,7 @@
     "cost_flat": 9,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can see distant places as though you stood there, at any distance. A shielded location calls for a Willpower roll against the shielding rank; another dimension needs a Superhuman (6) Willpower roll. You can focus on a familiar person or object instead, though that will not tell you where they are.",
+    "description": "See a distant place as though you were standing in it, at any range. A shielded location needs a Willpower roll against the shielding's rank, and another dimension a Superhuman (6) Willpower roll. You can watch a person or object instead if you know them or hold something that links you, but that does not reveal where they are unless what you see gives it away.",
     "prerequisite": null,
     "tags": [
       "sensory",
@@ -676,7 +676,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You cloud the minds of everyone within Distant Range, becoming undetectable to them by any sense. A target only gets a Willpower roll to shake it off if you close to Close Range or do something that gives you away. Costs an action each page to maintain.",
+    "description": "No living being within Distant Range can see, hear or otherwise sense you. A target only gets to resist — Willpower against your Cloud Minds — once you come within Close Range of them or do something that makes your presence obvious. Keeping it up costs 1 action every page.",
     "prerequisite": null,
     "tags": [
       "mental",
@@ -703,7 +703,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can detect, receive, store and transmit across whatever networks the setting has, worldwide or further, with no need for towers or satellites. It works by itself, though secure channels may call for a Technology roll.",
+    "description": "Detect, receive, store and send across whatever networks the setting has, worldwide or further if that fits, with no need for towers or satellites. It works without a roll; breaking into a secure network or channel may take a Technology roll.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -733,7 +733,7 @@
     "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can build and move shapes of solid force — cages, ramps, walls, hammers, nets and the like. They have Structure equal to your rank and exert force with an effective Might equal to it.",
+    "description": "Create and reshape objects of solid force — walls, cages, ramps, hands, nets. A construct has Structure equal to your rank and grabs, lifts or pushes with Might equal to your rank. Attack by dropping or hurling them, and defend against physical and energy attacks with momentary shields. They last until the scene ends, you dismiss them or they are destroyed. Each extra construct held at once lowers your effective rank by 1d, on top of the usual multiple action penalty.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -770,7 +770,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You feel immediate physical danger coming, even from sources no sense could reach, such as a bomb beneath the floor. Use this Power instead of Perception both to notice danger and to work out your Edge, and you may make active defence rolls even when taken by surprise.",
+    "description": "You sense immediate physical danger, even from something no sense could reach, like a bomb under the floor. Roll it instead of Perception to detect danger, and it replaces Perception in your Edge. You also keep your active defence when surprised, rolling the lower of that defence's rank and your Danger Sense. Baseline is your Perception.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -803,7 +803,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You fill the zone with darkness, fog, smoke or another obscuring element that only you and those equipped for it can see through. Anyone else takes -3d on attack and active defence rolls unless a Power compensates.",
+    "description": "Fill the zone around you with darkness, fog, smoke or similar, defined at purchase along with what can see through it. You can; everyone else caught in it takes -3d on attack and active defence rolls unless a Power such as Blind Fighting or Radar, or a Super Sense that suits the obstruction, compensates. No roll.",
     "prerequisite": null,
     "tags": [
       "control",
@@ -833,7 +833,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A blinding flash that overwhelms every living being in range, friend and foe alike, resisted by Willpower or an active defence. Targets are stunned for one page — unable to move or act — and then blinded for the rest of the duration.",
+    "description": "Roll Dazzle against the Willpower or an active defence of every living being in the zone, allies included. Those affected are stunned for one page — no movement and no actions until after your next turn — then blinded (-3d on attack and active defence rolls, as Blind) for the rest of the duration, which is 1 page per 2 net successes, rounded up. A target already under its effects cannot be hit again, so the duration does not stack.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -841,7 +841,7 @@
         "name": "Deafen",
         "cost_type": "flat",
         "cost_modifier": -1,
-        "description": "Targets are left deafened rather than blinded once the stun wears off — disorienting, and worth -1d on their rolls, but preferable to blindness."
+        "description": "Once the stun wears off, targets are deafened rather than blinded: disoriented, at -1d on all challenge rolls for what is left of the duration. Whether Blind Fighting or Radar lets a character ignore that is the GM's call."
       }
     ],
     "tags": [
@@ -870,7 +870,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can turn aside incoming ranged attacks of one chosen kind, physical or energy, using this rank as an active defence. When an attack fails to hurt you, spend a free action to send it back at the lower of its rank or yours. Area attacks cannot be deflected.",
+    "description": "An active defence against ranged attacks of one kind, physical or energy, chosen at purchase; never against area attacks. When such an attack fails to hurt you, a free action sends it back, rolling the lower of its rank and your Deflection rank. Deflecting is unlimited, but redirecting two or more on one page costs a cumulative -2d on those rolls. Covering both physical and energy doubles the price to 2 Hero Points a rank.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -878,7 +878,7 @@
         "name": "Physical and Energy",
         "cost_type": "per_rank",
         "cost_per_rank": 1,
-        "description": "You deflect both physical and energy attacks rather than picking one when the Power is bought. The rulebook states this as doubling the Power's cost to 2 Hero Points per rank; since nothing else changes its rate, adding 1 per rank is the same number."
+        "description": "You deflect both physical and energy attacks rather than choosing one at purchase. The book prices this as doubling the Power, to 2 Hero Points for each rank."
       }
     ],
     "power_cons": [
@@ -887,7 +887,7 @@
         "name": "Only X",
         "cost_type": "flat",
         "cost_modifier": -4,
-        "description": "You can only deflect one specific type of object or energy, named at purchase."
+        "description": "Only one specific kind of object or energy, named at purchase, can be deflected."
       }
     ],
     "tags": [
@@ -917,7 +917,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can make yourself denser, substituting this rank for your Might and Toughness and gaining Armor at it too; where you already match or beat that, use your own rank +1d. You also get much heavier — at 3d or more your weight rank equals your Density rank.",
+    "description": "While dense, use your current Density rank in place of Might and Toughness, and you have Armor at that rank. If you already have one of those Traits at that rank or higher, use it at +1d instead. From 3d your weight rank equals your Density rank, and ordinary floors struggle to hold you much past 6d.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -947,7 +947,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can sense and pinpoint something specific — a kind of energy, matter, creature, emotion or state. It usually works automatically, with a roll only for the faint or hidden, and unusually for a ranged Power it reaches Extreme Range.",
+    "description": "Sense the presence and exact location of one thing, chosen at purchase: a kind of energy, matter, being or object, an emotion, life itself. Normally no roll; things that are faint, hidden or hard to notice need a challenge roll at your rank. Unlike other ranged Powers it reaches Extreme Range.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -983,7 +983,7 @@
     "cost_unit_label": "resolve",
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Your determination is a byword even among Heroes. Every 5 Hero Points spent here gives you 1 extra Resolve at the start of each issue. It has no rank and cannot be absorbed, drained or mimicked. Heroes only.",
+    "description": "Every 5 Hero Points spent here gives you 1 more Resolve at the start of every issue. It has no rank and cannot be absorbed, drained, mimicked or otherwise affected. Only Heroes can use it.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -1011,7 +1011,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can travel to other dimensions, at the cost of an action. An unfamiliar dimension drops you somewhere random; after that you return where you left, or spend 1 Resolve to arrive somewhere familiar. Free uses per issue equal your Willpower, then 1 Resolve each.",
+    "description": "Spend an action to travel to another dimension. Your first visit to one lands you wherever the GM decides; after that you arrive where you last left it, or spend 1 Resolve to arrive at another place you know there. Free uses in an issue equal your Willpower; further uses cost 1 Resolve each.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1047,7 +1047,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can end any ongoing Power affecting a being or object, resisted by that Power's rank. It does not stop the Power working again — it only cuts the current duration short. Limited to one Source, chosen at purchase. Also usable as an active defence against special effects.",
+    "description": "Roll Dispel against the rank of an ongoing Power affecting a being or object in range: success ends that Power's duration. It does not stop the Power being used again. Works on Powers of one Source, chosen at purchase. It also serves as an active defence against Powers that inflict special effects.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1086,7 +1086,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can drain Abilities, Talents and Powers of one chosen Source, rolling against the target's highest-ranked Trait of that Source. Drained Abilities and Talents fall to 1d and drained Powers stop entirely for the duration. Traits of other Sources are untouched and cannot resist.",
+    "description": "Roll Drain against the target's highest-ranked Trait of one Source, chosen at purchase. For the duration — 1 page per 2 net successes, rounded up — their Abilities and Talents of that Source drop to 1d and their Powers of that Source stop working. Traits from other Sources are unaffected and cannot be used to resist.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1137,7 +1137,7 @@
     "cost_flat": 25,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Spend an action to create an exact duplicate of yourself, minus this Power. Duplicates share your limited-use Powers and have no Resolve of their own, though you may spend yours for them. A duplicate vanishes when either of you is defeated, and cannot return that scene.",
+    "description": "Spend an action to create an exact copy of yourself, without this Power. Limited-use Powers such as Healing or Dimensional Travel draw on one shared tally. The copy has no Resolve, though you can spend yours for it. It vanishes when either of you is defeated and cannot be made again that scene. Buy the Power again for more copies. The GM may limit or forbid it.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -1164,7 +1164,7 @@
     "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You create and control one element — fire, ice, gravity, sound, plants, whatever you choose — and through it imitate other Powers at this rank, so long as the effect makes comic-book sense for your element.",
+    "description": "Create and control one element, chosen at purchase — fire, ice, gravity, magnetism, plants, sound, weather and so on. Through it you imitate other Powers at this rank, so long as the effect makes comic-book sense for the element: in practice Constructs, a narrow Omni-Power, or both. Matter you create is unstable and gone by the end of the scene.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1172,7 +1172,7 @@
         "name": "Matter Creation",
         "cost_type": "per_rank",
         "cost_per_rank": 1.0,
-        "description": "Matter you create is normally unstable and gone by the end of the scene; this lets you make it permanent."
+        "description": "Matter you create is normally unstable and gone by the end of the scene. With this you can make it last like ordinary matter by spending Resolve equal to its weight rank, minimum 1. Your element must be a type of matter."
       }
     ],
     "power_cons": [
@@ -1210,7 +1210,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can flood anyone in range with an overwhelming feeling: rage, fear, love, confusion, despair. Resisted by Willpower. The GM decides how the target acts, and the reaction is often powerful and irrational.",
+    "description": "Roll Emotion Control against the Willpower of anyone in range to fill them with an emotion or mental state — anger, confusion, fear, love, sadness. The GM decides how they react; the feeling runs anywhere from mild to overwhelming, and reactions tend to be powerful and irrational. Like any special effect it lasts 1 page per 2 net successes, rounded up.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -1225,7 +1225,7 @@
         "name": "Pheromones",
         "cost_type": "flat",
         "cost_modifier": -2,
-        "description": "The Power is chemical. Targets resist with the greater of Toughness or Willpower, and anything that does not breathe — or is sealed against the air — is immune."
+        "description": "The Power is chemical. Targets resist with the greater of Toughness or Willpower. Anyone who does not breathe, is on life support, or is immune to toxins is unaffected."
       }
     ],
     "tags": [
@@ -1256,7 +1256,7 @@
     },
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can absorb one type of energy, siphoned from a source or taken from an attack, up to the lesser of its rank and yours. You are immune to energy attacks at or below your rank and can use this as a passive defence above it. Absorbed energy must be spent at once — boosting a physical Ability, granting +1d to all rolls, firing out as a Blast, or healing damage.",
+    "description": "Absorb one type of energy, chosen at purchase, from a nearby source or an attack that hits you, up to the lower of its rank and yours. Energy attacks at or below your rank cannot hurt you; above it, this is a passive defence. Absorbed energy must be used at once: raise Agility, Might or Toughness to the absorbed rank, or take +1d on all rolls, either until the end of the next page; fire it as a Blast at the absorbed rank; or heal 1 damage per 2 full ranks. Absorbing kinetic energy — every physical attack — triples the price and needs GM approval.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1296,7 +1296,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can bind a target in ice, webbing, vines or the like so they cannot take physical actions, resisted by Might, an active defence, or Aura used as a passive defence.",
+    "description": "Roll Ensnare against the target's Might or an active defence; Aura also works as a passive defence against it. A target bound in your ice, vines or webbing can take no physical actions. Like any special effect it lasts 1 page per 2 net successes, rounded up.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1304,7 +1304,7 @@
         "name": "Line",
         "cost_type": "flat",
         "cost_modifier": 2,
-        "description": "A line or tether that also lets you reel an ensnared target in, provided their weight rank does not exceed your rank."
+        "description": "A tether of some kind, with which you can reel an ensnared target in, provided their weight rank is no more than your Ensnare rank. A target heavier than you can lift may drag you to them instead."
       }
     ],
     "power_cons": [
@@ -1344,7 +1344,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You are never standing still. Use Evasion in place of Agility for active defence rolls, movement rolls, and combat stunts. It does not actually make you faster.",
+    "description": "Roll Evasion instead of Agility for active defence rolls, movement rolls, and performing or resisting combat stunts. Not a Travel Power: you move no faster. Baseline is your Agility.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "agility",
@@ -1376,7 +1376,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A specialisation — an area of knowledge, proficiency or skill that sits under one of your Abilities or Talents, named when you buy it. Use this Power's rank in place of that Trait whenever the specialisation applies. Its baseline rank is that Trait's rank.",
+    "description": "A specialisation you name, sitting under one of your Abilities or Talents — Agility: Firearms, say, or Technology: Robotics. Roll this rank in place of that Trait whenever the specialisation applies. Baseline is that Trait's rank.",
     "prerequisite": {
       "relationship": "baseline_selected_trait",
       "ability": null,
@@ -1416,7 +1416,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Extra arms, tentacles, a prehensile tail or similar, worth +2d on attack and defence rolls when grappling. The GM may extend that to anything else more limbs would plainly help, like climbing.",
+    "description": "Extra arms, tentacles, a prehensile tail or the like: +2d on attack and defence rolls when grappling. The GM may give the same bonus to other actions more limbs would plainly help, such as climbing or swimming.",
     "prerequisite": null,
     "tags": [
       "physical",
@@ -1443,7 +1443,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A Travel Power: you can fly. Flight needs room to manoeuvre, so halve your effective rank indoors unless the space is unusually large.",
+    "description": "A Travel Power: you can fly, and your rank is your top speed on the Speed table. Flying needs room to manoeuvre, so halve your effective rank indoors unless the space is exceptionally large.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1510,7 +1510,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A projected field that shields everyone inside it. Protected characters use your rank as a passive defence against physical and energy attacks, and are immune to any attack at or below half your rank.",
+    "description": "Project a field that everyone inside uses as a passive defence, at your rank, against physical and energy attacks. An attack whose rank is no more than half yours cannot hurt them at all; for Minions, compare unmodified Threat. It does not stop mental attacks, harmless ambient energy or indirect effects such as Darkness. Raising it takes an action and keeping it up is free. Each extra field held at once lowers your effective rank by 1d. Shape it as you like, from a flat plane to a bubble over you and those adjacent; the Zone, Ranged or Area Pro extends it.",
     "prerequisite": null,
     "pros_allowed_by_own_text": [
       {
@@ -1534,14 +1534,14 @@
         "name": "Inviolate",
         "cost_type": "per_rank",
         "cost_per_rank": 1.0,
-        "description": "Spend 1 Resolve when raising the field and it repels Power effects of equal or lower rank as well as direct attacks."
+        "description": "When you raise a field, spend 1 Resolve and it also repels every Power effect of its rank or lower, not only direct attacks, and works as a passive defence against mental attacks too."
       },
       {
         "id": "permeable",
         "name": "Permeable",
         "cost_type": "flat",
         "cost_modifier": 6,
-        "description": "You can let attacks pass out through the field in one direction, so you and your allies can attack from inside it."
+        "description": "Attacks can pass freely through the field in one direction, so you and your allies attack normally from inside it. A field cannot be both Permeable and Inviolate."
       }
     ],
     "power_cons": [
@@ -1589,7 +1589,7 @@
     "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can become one type of energy, gaining Aura and Flight at this rank. You are weightless and immune to physical and energy attacks, but you can carry and touch nothing, objects and force fields can still contain you, and whatever affects your energy affects you.",
+    "description": "Turn into one type of energy, chosen at purchase, with Aura and Flight at this rank. You weigh nothing, and neither physical nor energy attacks and effects can touch you. You cannot carry or touch anything, but you are not intangible — objects and force fields can hold you — and whatever affects that kind of energy can affect you.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1626,7 +1626,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can become a gas with 1d Flight — weightless, immune to physical and energy attacks, and able to slip through any opening a gas could. You can touch nothing physical, and you become vulnerable to what affects gases.",
+    "description": "Turn into a gas with Flight 1d. You are weightless, immune to physical and energy attacks and effects, and can pass through any opening a gas could. You cannot carry, touch or affect anything physical, and whatever affects gases can affect you.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -1653,7 +1653,7 @@
     "cost_flat": 12,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can become a liquid or a mass of fine particles, immune to physical but not energy attacks, and able to flow through any gap a liquid could. You can still solidify enough to handle things and attack. Your body remains physical, so it can be contained or shoved.",
+    "description": "Turn into a liquid or a mass of fine particles such as sand. You are immune to physical attacks but not energy attacks, and fit through any opening a liquid could, yet can firm up enough to handle objects and make physical attacks. Your body is still a physical thing: it can be contained, moved and shoved, including by force fields.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -1680,7 +1680,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can become solid matter — ice, metal, stone, wood. Substitute this rank for your Might and Toughness and gain Armor at it; where you already match or beat that, use your own rank +1d.",
+    "description": "Turn into solid matter such as ice, metal, stone or wood. In that form use this rank in place of Might and Toughness, and you have Armor at this rank. If you already have one of those Traits at this rank or higher, use it at +1d instead.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -1708,7 +1708,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Requires the Alter Ego Flaw. Your powered form is two people merged, each alter ego a separate character with their own Abilities, Talents and possibly Powers. Further alter egos cost 3 Hero Points each.",
+    "description": "Needs the Alter Ego Flaw. Your powered form is two people merged: each alter ego is a separate character with their own Abilities, Talents and perhaps Powers. Each alter ego beyond two costs another 3 Hero Points.",
     "prerequisite": null,
     "tags": [
       "special",
@@ -1735,7 +1735,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can grow enormous. From 4d your weight rank equals your Growth rank. Substitute this rank for your Might and Toughness, gain Armor at it, and gain Running at half it for the length of your stride; where you already match or beat those, use your own rank +1d.",
+    "description": "Grow as large as the Growth table allows for your rank. Use your current Growth rank in place of Might and Toughness, with Armor at that rank and Running at half it. If you already have one of those Traits at the rank this would give, or higher, use your own at +1d instead. From 4d your weight rank equals your Growth rank.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -1765,7 +1765,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You are hard to kill — it would take something extreme, like beheading or a volcano. Characters with this Power know it about themselves and can be played accordingly.",
+    "description": "You can be killed, but only by something extreme — beheading, acid, a volcano. Heroes cannot die in standard play, so this mostly tells you how to play the character; in a game where Heroes can die the GM should charge more, between 3 and 6 Hero Points.",
     "prerequisite": null,
     "tags": [
       "defense",
@@ -1793,7 +1793,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can heal anyone you touch. Your rank is the maximum damage you can heal per day. The GM may let it cure disease on a successful roll, or for Resolve.",
+    "description": "Heal the injuries of anyone you touch. Your rank is the total points of damage you can heal in a day. The GM may also let it cure a disease, on a successful Healing roll or for Resolve.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -1834,7 +1834,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can enter suspended animation for as long as you like, barely ageing and needing no air, food or drink. You stay aware of your surroundings and can wake yourself at will.",
+    "description": "Enter suspended animation for as long as you like. While in it you barely age and need no air, food or water, you stay fully aware of your surroundings, and you can wake whenever you choose.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -1862,7 +1862,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can exhale gale-force wind to push or pull, rolling against the greater of each target's Might or weight rank. One or two net successes move them to you or out to Distant Range; three or more also knock them prone and cost them their next turn. Hits everyone in Close Range, or one target further out.",
+    "description": "Pull or push with gale-force breath: roll Hyper Breath against each target's Might or weight rank, whichever is greater, hitting either everyone within Close Range or one target within Distant Range. 1 or 2 net successes pull the target to you or push them out to Distant Range. 3 or more also knock them prone and cost them their next turn. It also disperses gases, or inhales and holds them for as long as you can hold your breath, with no protection from toxic ones.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1901,7 +1901,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can create illusions of any size up to the whole area, with sight and sound. They exist in the world and register on cameras and microphones. Observers accept them until given reason to doubt, then may roll Perception against your rank to see through them.",
+    "description": "Create illusory sights and sounds of any size up to the whole zone. They are really there, so cameras and microphones pick them up. Observers believe them unless they have reason to doubt, and then roll Perception against your rank to see through them. A hand passes straight through and gives the illusion away, unless it is laid over a real object.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -1909,7 +1909,7 @@
         "name": "Mental",
         "cost_type": "per_rank",
         "cost_per_rank": 2.0,
-        "description": "The illusions form in the minds of living beings, so a doubting observer resists with Willpower rather than Perception."
+        "description": "The illusions exist only in living minds: cameras and microphones register nothing, and a doubting observer rolls Willpower rather than Perception. A victim can be made to believe they are blinded, bound, hurt or helpless, which works like Stun, rolling your Illusions rank against their Willpower — one target at a time unless you also have the Zone Pro."
       }
     ],
     "tags": [
@@ -1940,7 +1940,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You cannot die, or cannot stay dead, and you will not die of age. In a game where Heroes can die, GMs should charge more for this — somewhere between 6 and 12 Hero Points.",
+    "description": "You cannot die, or do not stay dead, and you will not die of old age. Heroes cannot die in standard play, so this mostly tells you how to play the character; in a game where Heroes can die the GM should charge more, between 6 and 12 Hero Points.",
     "campaign_cost_min": 6,
     "campaign_cost_max": 12,
     "prerequisite": null,
@@ -1982,7 +1982,7 @@
     "units_are_named": true,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You are immune to specific attacks, energies, conditions, hazards or Powers. Each immunity is named and paid for separately.",
+    "description": "Each immunity is named and paid for separately, at 3 Hero Points apiece: a type of physical attack or weapon; a type of energy other than kinetic; environmental hazards (pressure, radiation, temperature); fatigue and the need for sleep; life support (no need to breathe, eat or drink, plus airborne toxins); negative mental states such as fear; sensory overload such as Dazzle; or toxins (disease, drugs, poison). You may invent others.",
     "prerequisite": null,
     "tags": [
       "defense",
@@ -2011,7 +2011,7 @@
     "cost_flat": 9,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You are not alive in the ordinary sense — a construct, a robot, undead, something stranger. You are immune to physical attacks and to Powers that only touch the living, helpful ones included, and you effectively have Immunity (Life Support, Toxins). Your mind or spirit is still open to mental Powers. No rank, and it cannot be absorbed, drained or mimicked.",
+    "description": "You are not alive in the usual sense — a construct, robot, undead, spirit. You are immune to physical attacks and to Powers that only work on living beings, helpful ones included, and in effect you have Immunity (Life Support, Toxins). Your mind or spirit remains, so mental attacks and Powers still work on you. It has no rank and cannot be absorbed, drained, mimicked or otherwise affected. Its Source, which cannot be Trained, says what kind of being you are.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2049,7 +2049,7 @@
     "cost_flat": 9,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can turn invisible. Other senses, Powers like Radar and Super Senses, and traces you leave in the world can still find you. Enemies who cannot see you take -3d on attack and active defence rolls against you, or -2d if they can detect you some other way.",
+    "description": "Turn invisible. Enemies who cannot see you take -3d on attack rolls and active defence rolls against you unless a Power such as Blind Fighting or Radar compensates. That drops to -2d for enemies who can detect you some other way — other senses, Attuned, Radar, Super Senses, or signs such as footprints and disturbed rain.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2094,7 +2094,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You fill the area around you with something wretched — stinging sand, howling wind, gas, a swarm of insects. Everyone but you takes -2d on all challenge rolls except passive defences unless their Toughness (or Willpower, if you define it so) beats your rank. Activating costs an action; sustaining it is free.",
+    "description": "Fill the zone with a sandstorm, gale, noxious gas, insect swarm or similar. Everyone in it but you takes -2d on all challenge rolls except passive defence rolls, unless their Toughness is higher than your rank — no roll is made. You may define yours as resisted by Willpower instead. Starting it takes an action; keeping it up is free.",
     "prerequisite": null,
     "tags": [
       "attack",
@@ -2123,7 +2123,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You speak a number of extra languages equal to your Intellect, chosen in advance or on the spot.",
+    "description": "Beyond the one or two languages everybody has, you speak extra languages equal to your Intellect. Name them in advance or as they come up in play.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2168,7 +2168,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You lead your team in battle. While you can see and speak to them, spend a free action to let each ally reroll one challenge roll per combat scene.",
+    "description": "While you can see and communicate with your team, a free action lets each ally reroll one challenge roll. Each ally gets one such reroll in a combat scene.",
     "prerequisite": null,
     "tags": [
       "support",
@@ -2198,7 +2198,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A Travel Power: you jump enormous distances. Subtract 1d from your rank to find how high you can jump straight up. Its baseline is half your Might.",
+    "description": "A Travel Power: jump the distance the Leaping table gives for your rank, and straight up as though your rank were 1d lower. It needs overhead clearance, so indoors your rank is capped at your Agility for movement rolls. Also an active defence against falling damage. Baseline is half your Might.",
     "prerequisite": {
       "relationship": "baseline_half",
       "ability": "might",
@@ -2231,7 +2231,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You drain the life from a living being you touch, resisted by Toughness (or Willpower, if you define it so) and by active defences, inflicting 1 damage per net success. If you are wounded, you heal 1 point for every 2 you inflict.",
+    "description": "Roll Life Drain against a touched living target's Toughness or an active defence, dealing 1 damage per net success. You may define yours as resisted by Willpower instead of Toughness; active defences apply either way. If you are wounded you heal 1 for every 2 full points dealt. You need not be wounded to use it.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2239,7 +2239,7 @@
         "name": "Vampirism",
         "cost_type": "flat",
         "cost_modifier": 1,
-        "description": "The Power inflicts real physical damage rather than draining life energy, so targets resist it as they would any physical attack."
+        "description": "The Power deals physical damage, so targets resist it like any physical attack — Armor, half Toughness, or an active defence. It can attack inanimate objects and beings, but you only heal from damage dealt to the living."
       }
     ],
     "tags": [
@@ -2268,7 +2268,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You generate light — visible, or ultraviolet if you prefer — effortlessly, always as a free action. It can fill your zone or focus into a beam or harmless laser out to Distant Range, at any brightness short of incapacitating. Blinding people outright is Dazzle.",
+    "description": "Generate visible light, or ultraviolet if you prefer, as a free action with no effort. Fill the zone around you, or narrow it to a beam or harmless laser reaching Distant Range. It can be as bright as you like short of incapacitating anyone — that is Dazzle. Bought as Effect, it produces some other harmless but useful environmental effect instead.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -2295,7 +2295,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Your reflexes are extraordinary: your Edge goes up by 6. You can also draw or stow any weapon instantly, which under the Gritty Combat Rules makes it impossible for anyone to get the drop on you.",
+    "description": "Your Edge goes up by 6. Any weapon you carry can also be drawn or put away in an instant, which under the Gritty Combat Rules means nobody can get the drop on you.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -2332,7 +2332,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You are absurdly lucky, or so skilled it looks that way. Each issue you gain Luck dice equal to your rank, addable to either side of any challenge roll involving you — spend them to boost your own roll, or to roll against someone acting on you and subtract your successes from theirs.",
+    "description": "At the start of every issue you get Luck dice equal to your rank. Spend them on any challenge roll that involves you: add them to your own roll (3 dice is +3d), or roll them against somebody acting against you and take your successes off theirs. Spending them is automatic and takes no action.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2340,14 +2340,14 @@
         "name": "Control",
         "cost_type": "flat",
         "cost_modifier": 4,
-        "description": "You bend probability deliberately rather than merely being lucky, letting you use Luck on yourself or anyone within Distant Range."
+        "description": "You alter probability on purpose. Use Luck on yourself or anyone you choose within Distant Range, as a free action at any time, not only on your turn, so long as you are conscious and aware."
       },
       {
         "id": "unbelievable",
         "name": "Unbelievable",
         "cost_type": "per_rank",
         "cost_per_rank": 1.0,
-        "description": "You can also spend Luck dice on lucky breaks, and they tend to be more extreme than ones bought with Resolve."
+        "description": "Spend Luck dice on lucky breaks (Chapter 5) as well. Breaks bought this way tend to be more extreme and unlikely than ones bought with Resolve, and still need the GM's approval."
       }
     ],
     "tags": [
@@ -2376,7 +2376,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can control machines and electronics out to Distant Range — hacking a computer, killing a camera, driving a car from afar. Substitute this rank for whatever Trait operating the machine would normally need. Controlling several at once costs effectiveness.",
+    "description": "Control machines and electronics within Distant Range — hack a computer, shut off a camera, drive a car remotely — rolling this rank in place of whatever Trait would normally operate the device. Each extra machine controlled at once lowers your effective rank by 1d, on top of the usual -2d for multiple attacks or actions in combat.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -2413,7 +2413,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You are a master of unarmed combat, using this Power to make and defend against close combat attacks. Substitute it for Might on grabs, holds, escapes and combat stunts, and for your Ability ranks when fighting with mundane melee weapons.",
+    "description": "Roll it to make and to defend against close combat attacks, in place of Might for grabs, holds, escapes and combat stunts, and in place of your Ability when attacking or defending with a mundane melee weapon (the Gear Limit still applies). Unarmed it deals subdual damage, unlike most attack Powers; a lethal weapon still deals lethal damage. Baseline is your Might.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "might",
@@ -2465,7 +2465,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can build convincing disguises inside a short scene given basic materials, and you mimic voice and manner expertly. Roll Charm, usually against the target's Perception.",
+    "description": "Build a very convincing disguise in one short scene or less, given materials — household goods will do in a pinch — and imitate other people's voices and mannerisms. Roll Charm, usually against the target's Perception. An Item Con on this Power has to mean more than needing supplies, which is assumed.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -2494,7 +2494,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You take on the properties of objects you touch for the rest of the scene. It works like Solid Form at the lesser of your rank or the object's Structure, and you also pick up its energetic properties as Aura — the heat of lava, for instance — at the lesser of your rank or that energy's.",
+    "description": "Take on the properties of an object you touch for the rest of the scene. It works as Solid Form at the lower of your rank and the object's Structure. You also gain Aura from any energy it gives off, such as lava's heat, at the lower of your rank and that energy's rank. That energy only hurts you if its rank is above yours, and then this Power is a passive defence against it.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -2521,7 +2521,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A mental attack on the mind or spirit that inflicts psychic damage on living beings, resisted by Willpower. It does nothing to inanimate objects and passes straight through them unless they have a psychic presence.",
+    "description": "Roll Mind Blast against a living target's Willpower to deal psychic damage, 1 per net success. It does nothing to inanimate objects and passes straight through them, unless they have a psychic presence.",
     "prerequisite": null,
     "tags": [
       "attack",
@@ -2549,7 +2549,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can make any living being within Distant Range obey you for the duration, resisted by Willpower. Command them now, or spend 1 Resolve to plant a suggestion to trigger later, even months on. Targets get +2d to resist orders that are wholly against their nature.",
+    "description": "Roll Mind Control against the Willpower of a living being within Distant Range; they do as you wish for the duration, 1 page per 2 net successes (rounded up). Or spend 1 Resolve to plant a suggestion that triggers later — even years on — with the duration starting then. Targets get +2d to resist commands that are self-destructive or wholly against their nature.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -2564,7 +2564,7 @@
         "name": "Pheromones",
         "cost_type": "flat",
         "cost_modifier": -2,
-        "description": "The Power is chemical. Targets resist with the greater of Toughness or Willpower, and anything that does not breathe is immune."
+        "description": "The Power is chemical. Targets resist with the greater of Toughness or Willpower. Anyone who does not breathe, is on life support, or is immune to toxins is unaffected."
       }
     ],
     "tags": [
@@ -2595,7 +2595,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A dampening field that shuts down the Abilities, Talents and Powers of everyone in range, friend and foe alike. Nullified Abilities and Talents drop to 1d, nullified Powers stop entirely. It works automatically on any Trait at or below your rank, no roll needed, but only against one chosen Source, and you must concentrate to hold it.",
+    "description": "A dampening field over everyone in the zone, allies included, against Traits of one Source chosen at purchase. Any such Trait ranked at or below your Nullify rank is shut down with no roll: Abilities and Talents drop to 1d and Powers stop. Holding it takes concentration — half speed, and no attacks, active defences or other actions unless you spend 1 Resolve. A target can pay 1 Resolve for each page or use to force a nullified Trait to work.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2637,7 +2637,7 @@
     },
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A versatile ability that mimics other Powers at this rank. You can switch between them instantly and use as many per page as you like, but every use after the first on the same page drops your effective rank by 1d for the rest of that page. A narrow Omni-Power costs less per rank than a broad one.",
+    "description": "Mimic other Powers at this rank, switching instantly. Every use after the first on a page — any action, movement or challenge roll with it — lowers your effective rank by 1d for the rest of that page, separately from the multiple action penalty. A Power with no rank can only be mimicked if your current rank is at least its Hero Point cost. Add a Pro to a mimicked Power for 1 Resolve, or 2 if the Pro costs 4 Hero Points or more. Narrow versions cover a limited set of abilities and broad ones a wide array; say which, and what it does, at purchase.",
     "prerequisite": null,
     "tags": [
       "special",
@@ -2665,7 +2665,7 @@
     "cost_flat": 9,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can shift out of phase with the physical world — immune to physical and energy attacks though not mental ones, and able to pass through solid matter but not force fields. You can touch nothing physical while phased. Switching on or off is a free action, but not both in the same turn.",
+    "description": "Shift out of phase with the physical world. You are immune to physical attacks and effects, energy included, but not to mental ones, and you pass through solid objects but not force fields. While phased you cannot carry, touch or affect anything physical. Switching it on or off is a free action, though never both on one turn.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2704,7 +2704,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "Your body is rubbery and elastic, so you can mould yourself into shapes and squeeze through the narrowest gaps. Shape yourself to imitate effects at this rank — a ball to Leap, a coil to hold something in place instead of using Might, a canopy to serve as a parachute.",
+    "description": "Your body is elastic: reshape yourself and squeeze through the tightest gap. Shapes produce effects at this rank — a ball imitates Leaping, wrapping round something holds it in place of Might, and you can parachute anything whose weight rank is no more than your rank. In combat it is a passive defence against physical attacks, not energy, and replaces Might for grappling and close combat attacks. If your Might is higher than this rank, use Might +1d instead.",
     "prerequisite": null,
     "tags": [
       "physical",
@@ -2732,7 +2732,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can turn a living being into something harmless or helpless — a frog, a statue — resisted by Toughness (or Willpower, if you define it so) and by active defences. The change lasts for the duration.",
+    "description": "Roll Polymorph against a living target's Toughness or an active defence to turn them into something harmless or helpless — a frog, a sheep, a statue. You may define yours as resisted by Willpower instead of Toughness; active defences apply either way. The change lasts for the duration, 1 page per 2 net successes (rounded up).",
     "prerequisite": null,
     "tags": [
       "control",
@@ -2761,7 +2761,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can reach a store of mundane weapons, armour, gear and even vehicles from anywhere — teleported in, pulled from a bag, conjured, however you describe it. What you draw lasts until the scene ends unless you have Resources or Wealth.",
+    "description": "Produce mundane weapons, armour, gear and even vehicles wherever you are — teleported from a warehouse, pulled from a magic bag, made from thin air. They vanish when the scene ends unless you have Resources or Wealth, in which case they may simply be your own things fetched from storage.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -2791,7 +2791,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can take over a living body within Distant Range, resisted by Willpower. You use the host's physical Traits and your own mental ones. Your body lies dormant, though you know at once if it is moved or harmed, and you snap back to it if the host is defeated.",
+    "description": "Roll Possession against the Willpower of a living being within Distant Range to take over their body. You use the host's physical Abilities, Talents and Powers and your own mental ones, the GM deciding which is which. Your own body lies dormant, though you know at once if it is moved or hurt, and you return to it automatically if the host is knocked out or killed. Like any special effect it lasts 1 page per 2 net successes, rounded up.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2829,7 +2829,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can steal a character's Abilities, Talents and Powers of one chosen Source by touch, rolling against their highest-ranked Trait of that Source or an active defence. Success knocks them out and you hold the stolen Traits at their rank for the duration. Traits you already have at equal or higher rank are unaffected.",
+    "description": "By touch, roll against the target's highest-ranked Trait of one Source (chosen at purchase) or an active defence. On a success they fall unconscious and you hold their Abilities, Talents and Powers of that Source, at their ranks, for the duration — 1 page per 2 net successes, rounded up. A Trait you already have at that rank or higher is unchanged. Holding several characters' Traits at once lowers your effective rank by 1d per extra character. It needs physical contact: a target fully sealed in artificial armour or a force field is safe.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2879,7 +2879,7 @@
     "cost_flat": 12,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can rewrite what has just happened — through foresight, prediction, or actually winding time back. Spend Resolve to cancel an event; in combat that erases a character's turn and moves you straight to your next turn ahead of them. Declare it the moment their turn ends.",
+    "description": "Spend Resolve to undo something that has just happened. In combat this erases a character's turn, and you take your own next turn immediately, before they take theirs again. Declare it by the time that character finishes their turn; once somebody else starts acting you can go back no further than the start of that turn. It costs 1 Resolve the first time in a scene, 2 the second, 3 the third and so on. Resolve and Adversity spent in the erased turn stay spent. The GM may disallow it.",
     "prerequisite": null,
     "tags": [
       "sensory",
@@ -2910,7 +2910,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can copy a character's Abilities, Talents and Powers of one chosen Source by touch, rolling against their highest-ranked Trait of that Source or an active defence. You gain them at their rank for the duration and the target loses nothing. Traits you already have at equal or higher rank are unaffected.",
+    "description": "By touch, roll against the target's highest-ranked Trait of one Source (chosen at purchase) or an active defence. On a success you copy their Abilities, Talents and Powers of that Source, at their ranks, for the duration — 1 page per 2 net successes, rounded up — and the target loses nothing. A Trait you already have at that rank or higher is unchanged. Copying several characters at once lowers your effective rank by 1d per extra character. It needs physical contact: a target fully sealed in artificial armour or a force field is safe.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -2960,7 +2960,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Your meticulous research and planning make your narrations far more effective when your preparation explains them — declaring that you brought exactly the right tool, that you memorised the layout, that you planned for this.",
+    "description": "Any Hero can spend 1 Resolve to narrate a minor detail into the scene. With this Power that narration goes much further whenever research and planning would explain it: you brought exactly the right mundane item, you prepared this location beforehand, you already have the information, you know or have pull with an Extra. The GM can still veto anything unreasonable. It has no rank and cannot be absorbed, drained, mimicked or otherwise affected.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -2987,7 +2987,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "Your mental and spiritual defences are honed. Use this instead of Willpower against mental attacks and to resist mental damage and effects. You also know when someone tries to read your surface thoughts, and can use this Power to stop them probing your mind.",
+    "description": "Roll Psi-Screen instead of Willpower to defend against mental attacks and to resist mental damage and effects. You know when someone uses Telepathy to read your surface thoughts, and you roll this to resist that and any attempt to probe your mind. Baseline is your Willpower.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "willpower",
@@ -3028,7 +3028,7 @@
     "cost_flat": 9,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "By touching an inanimate object you read impressions from it and may ask the GM its basic history. Spend 1 Resolve for depth about a person or event connected to it. What you learn may be incomplete or misleading, but it is always truthful and always on point.",
+    "description": "Touch an inanimate object and ask the GM for its basic history. Spend 1 Resolve to ask in depth about one person or event connected to it, if there is anything to learn. Answers may be incomplete or misleading, but they are never false and must address what you asked.",
     "prerequisite": null,
     "tags": [
       "sensory",
@@ -3056,7 +3056,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can change clothes and grooming in an instant. Describe how. Using it takes an action.",
+    "description": "Change your clothes and grooming — hair, make-up — in an instant; say how it works. It takes an action.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -3093,7 +3093,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "A radar sense giving you a three-dimensional picture of your surroundings. It cannot read flat images — print, photographs, screens.",
+    "description": "A radar sense that gives you a three-dimensional picture of your surroundings. It cannot read flat images such as print, photographs or screens. It compensates for the -3d of fighting without sight that Blind, Darkness and Invisibility impose.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -3137,7 +3137,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You heal 1 point of damage per hour. Knocked unconscious, you wake as soon as you heal a point, unless revived sooner.",
+    "description": "You heal 1 point of damage every hour. If knocked unconscious you wake as soon as you have healed 1 point, unless somebody revives you first.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -3184,7 +3184,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You shrug off radiation, temperature extremes and toxins — disease, drugs and poison. Use this instead of Toughness to resist such hazards.",
+    "description": "Roll Resistance instead of Toughness against radiation, extremes of temperature and toxins — disease, drugs, poison. Baseline is your Toughness.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "toughness",
@@ -3217,7 +3217,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A Travel Power: you run faster than any human, or roll, skate or bounce if you prefer. Its 3d baseline is ordinary human running speed, so purchased ranks are what make you fast.",
+    "description": "A Travel Power: your rank is your top speed on the Speed table, whether you run, roll, skate or bounce. The 3d baseline is ordinary human running speed, so every rank bought is speed beyond that.",
     "prerequisite": {
       "relationship": "baseline_fixed",
       "ability": null,
@@ -3260,7 +3260,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can detach parts of your body without bleeding or screaming. Detached parts act independently and can do whatever a healthy detached part reasonably could, taking your other Powers into account.",
+    "description": "Detach parts of your body with none of the usual consequences. Each part acts on its own and can do whatever a healthy detached part plausibly could, your other Powers included: a hand can crawl about and handle objects, and if you can fly, it probably can too.",
     "prerequisite": null,
     "tags": [
       "physical",
@@ -3287,7 +3287,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A concussive wave striking everyone in range, friend and foe alike, rolled against the greater of each target's Might or weight rank. One or two net successes push them back with -1d on all rolls until after your next turn; three or more knock them further and harder.",
+    "description": "Roll Shockwave against the greater of Might or weight rank for everyone in the zone, allies included. 1 or 2 net successes: the target is pushed away — no longer adjacent, still within Close Range — and takes -1d on all challenge rolls until after your next turn. 3 or more: they are also knocked prone and lose their next turn. It shatters fragile materials such as ordinary glass and ice in the area.",
     "prerequisite": null,
     "tags": [
       "attack",
@@ -3317,7 +3317,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can shrink, dropping your weight rank by your current Shrinking rank until it reaches 0d. Substitute this rank for your Agility, and gain Leaping and Strike at half it; where you already match or beat those, use your own rank +1d. Being small also changes how easily you are hit.",
+    "description": "Shrink as small as the Shrinking table allows for your rank, your weight rank falling by your current Shrinking rank to a minimum of 0d. Use that rank in place of Agility, with Leaping and Strike at half it. If you already have one of those Traits at the rank this would give, or higher, use your own at +1d instead. Your size can also make it easier to hit human-sized enemies and to avoid their attacks.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -3347,7 +3347,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can wound a living target you touch, resisted by Toughness (or Willpower, if you define it so) and by active defences, inflicting 2 damage per net success. Armor does not protect against it at all.",
+    "description": "Roll Slay against a touched living target's Toughness or an active defence, dealing 2 damage per net success. Armor does nothing against it. You may define yours as resisted by Willpower instead of Toughness; active defences apply either way.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -3384,7 +3384,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can make any part of the ground in range slippery for the rest of the scene or until you dismiss it. Crossing it calls for an Agility roll against your rank or the character falls prone; standing again costs an action and another roll.",
+    "description": "Make any of the ground in the zone slippery until the scene ends or you dismiss it. Anyone crossing rolls Agility against your rank or falls prone. Standing takes an action and another Agility roll against your rank; until they make it they cannot leave on foot and take -2d on attack and active defence rolls. A driver rolls Vehicles against your rank or loses control and crashes.",
     "prerequisite": null,
     "tags": [
       "control",
@@ -3414,7 +3414,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can briefly animate the dead to talk to them, asking a number of questions equal to your rank, which must be answered truthfully. The dead know only what they knew alive and speak only languages they knew. You need a body, or at least a head.",
+    "description": "Briefly animate a dead body — or at least its head — and ask it as many questions as your rank. It must answer truthfully, but knows only what it knew in life and speaks only a language it knew.",
     "prerequisite": null,
     "tags": [
       "sensory",
@@ -3443,7 +3443,7 @@
     "cost_flat": 0,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Free, and only in Street Level and Low Level games. It gives each Hero one thing they alone excel at, so otherwise-similar characters stay distinct. One Specialty per Hero, and no two Heroes may share one.",
+    "description": "Free, and only in Street Level and Low Level games. Each Hero picks one Specialty that no other Hero has. It gives +1d on a particular kind of challenge roll, even past the Trait Cap, and on those rolls you can spend 1 Resolve to make your 6s explode: reroll each 6 for more successes, and keep rerolling while 6s come up. The GM may allow one combat and one non-combat Specialty each. It has no rank and cannot be absorbed, drained, mimicked or otherwise affected.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -3472,7 +3472,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can spin on your axis at superhuman speed. Use Spinning in place of Might for close combat attacks and defence, grabs, holds, escapes and combat stunts, and in place of Agility where spinning would serve.",
+    "description": "Spin at superhuman speed. Roll Spinning in place of Might for close combat attack and defence rolls and for grabs, holds, escapes and combat stunts, and in place of Agility to defend against physical attacks, not energy. If the Ability is at this rank or higher, use it at +1d instead. You can still move, talk and interact normally.",
     "prerequisite": null,
     "tags": [
       "physical",
@@ -3502,7 +3502,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can transport yourself instantly to distant worlds, at the cost of an action. An unfamiliar world drops you somewhere random; after that you return where you left, or spend 1 Resolve for a familiar destination. Free uses per issue equal your Willpower, then 1 Resolve each.",
+    "description": "Spend an action to transport yourself instantly to a distant world. Your first visit to one lands you wherever the GM decides; after that you arrive where you last left it, or spend 1 Resolve to arrive at another place you know there. Free uses in an issue equal your Willpower; further uses cost 1 Resolve each.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -3544,7 +3544,7 @@
     },
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can stretch or extend your body, making close combat and grappling attacks against targets who are not adjacent. The reach you pay for sets the range: Close, Distant or Extreme.",
+    "description": "Stretch or extend your body to make close combat and grappling attacks on targets who are not adjacent. What you pay sets the reach: Close Range for 1 Hero Point, Distant for 3, Extreme for 6. Out of combat, those are about how far you can reach.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -3582,7 +3582,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A damaging close combat attack — claws, energised fists, a signature melee weapon — used both to attack and to defend in close combat. Name the damage type when you buy it. Its baseline is the greater of your Might and your Martial Arts.",
+    "description": "A close combat attack — claws, energised fists, a signature weapon — that deals 1 damage per net success, of one damage type named at purchase. Roll it both to attack and to defend in close combat. Baseline is the greater of your Might and your Martial Arts.",
     "prerequisite": {
       "relationship": "baseline_greater_of",
       "ability": "might",
@@ -3618,7 +3618,7 @@
         "name": "Sweep",
         "cost_type": "flat",
         "cost_modifier": 4,
-        "description": "The Power becomes an area attack covering a 90-degree arc within 5 to 25 feet — friend and foe alike, as area attacks always are."
+        "description": "An area attack on everyone — friend and foe — in a 90-degree arc reaching 5 to 25 feet from you, or out to 50 feet if the Power also has Reach. You choose how far it reaches each time."
       }
     ],
     "power_cons": [
@@ -3634,7 +3634,7 @@
         "name": "Weapons",
         "cost_type": "flat",
         "cost_modifier": -1,
-        "description": "The Power is mastery of a group of weapons, as broad or narrow as you like, and you must be armed with one to use it."
+        "description": "The Power is skill with a group of weapons, however broad or narrow, and you must be armed with one to use it. Armed, you roll your Strike rank instead of Ability plus Weapon Bonus, both to attack and to defend in close combat; the weapon otherwise behaves as normal and deals its usual type of damage."
       }
     ],
     "tags": [
@@ -3669,7 +3669,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can take a living opponent out of the action — stunned, paralysed, asleep, disabled, however you describe it — resisted by Toughness (or Willpower, if you define it so) and by active defences.",
+    "description": "Roll Stun against a living target's Toughness or an active defence to take them out of the action — stunned, paralysed, asleep. A stunned target cannot move or act. You may define yours as resisted by Willpower instead of Toughness; active defences apply either way. Like any special effect it lasts 1 page per 2 net successes, rounded up.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -3724,7 +3724,7 @@
     "cost_type": "special",
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can call Minions to serve you, your rank setting how many per scene. You fix their Threat rank at purchase, up to the Trait Cap −6d, or −3d if you summon no more than ten per scene. The cost per rank rises with the Threat you give them.",
+    "description": "Call Minions to serve you. Your rank sets how many you can summon in a scene, on the Summoning table. Their Threat is fixed at purchase, up to the Trait Cap -6d, or -3d if you can summon no more than 10 a scene, and the price is 1 Hero Point a rank for every 2d of Threat, rounded up. They fight in close combat unless you add the Shooters Pro. Summoning takes an action, and they act on the page they appear.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -3735,7 +3735,7 @@
           "narrow_selection": 1,
           "wide_variety": 2
         },
-        "description": "Your Minions are animals with the advantages that implies — keen senses, speed. Worth more for a wide variety than a narrow selection."
+        "description": "Your Minions are animals, with abilities to match such as keen senses and speed beyond a human's; agree the details with your GM. +1 per rank for a narrow selection of animals, +2 for a wide variety with different abilities."
       },
       {
         "id": "automatons",
@@ -3749,7 +3749,7 @@
         "name": "Duplicates",
         "cost_type": "per_rank",
         "cost_per_rank": 2.0,
-        "description": "Your Minions are copies of you. They fight as Minions using their Threat, but share your distinctive abilities."
+        "description": "Your Minions are copies of you. They work as ordinary Minions, rolling Threat for everything, but share your distinctive abilities: if you can fly or phase through walls, so can they. Large numbers of duplicates have big narrative uses, so agree expectations with your GM."
       },
       {
         "id": "shooters",
@@ -3767,7 +3767,7 @@
           "moderate": 2,
           "major": 4
         },
-        "description": "Your Minions have abilities that would be Powers on a real character — acute senses, flight, walking through walls. Priced by how big an advantage it is."
+        "description": "Your Minions have abilities that would be Powers on a full character — acute senses, flight, walking through walls — agreed with the GM and subject to their approval. +1 per rank for a minor advantage, +2 for a moderate one, +4 for a major one."
       }
     ],
     "tags": [
@@ -3797,7 +3797,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "One sense is hyper-acute, chosen at purchase. Substitute this rank for your Perception on challenge rolls involving that sense — but not when working out your Edge.",
+    "description": "One sense, chosen at purchase, is hyper-acute: roll this rank instead of Perception for challenge rolls using that sense, though not for your Edge. Baseline is your Perception. All Super Senses count as one Power, ranked at the greater of your Perception and this.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -3828,7 +3828,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can use one chosen sense to read the basic physical properties of whatever you concentrate on, including chemical make-up and whether it is organic.",
+    "description": "Concentrate with one sense, chosen at purchase, to learn the basic physical properties of something, including its chemical make-up and whether it is organic.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -3859,7 +3859,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can see into the astral realm, letting you deal with invisible spirits and astral projectors, and spot living beings hidden by Powers like Blending or Invisibility.",
+    "description": "See into the astral realm, the psychic energy tied to the physical world. You can interact with invisible spirits and characters using Astral Projection, and you detect living beings hidden by Powers such as Blending or Invisibility.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -3890,7 +3890,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You effectively have a 360-degree field of view.",
+    "description": "You effectively see all around you at once, a full 360 degrees.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -3921,7 +3921,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can catch sounds too faint, distant or muffled for ordinary ears with a Perception roll at a GM-set threshold of 4 or higher, and you hear infrasound and ultrasound.",
+    "description": "Hear sounds too faint, distant or muffled for a human ear with a Perception roll; the GM sets the threshold, at 4 or higher. You also hear infrasound and ultrasound.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -3952,7 +3952,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Your touch is fine enough to read print with your fingertips, or to work out what is happening in the next room from the vibrations through a wall.",
+    "description": "Your touch is fine enough to read print with your fingertips, or to tell what is happening in the next room from the vibrations in a door or wall.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -3983,7 +3983,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can tell when someone within Close Range is lying. Automatic, unless they are shielded from it, which calls for a Perception roll.",
+    "description": "You know when someone within Close Range is lying. No roll, unless they are somehow protected from it, which may call for a Perception roll.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4014,7 +4014,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Concentrating, you can see microscopic detail — down to atomic or quantum scale if the story asks for it.",
+    "description": "Concentrate to see microscopic detail, down to the atomic or quantum scale — whatever magnification the story needs.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4045,7 +4045,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can see in absolute darkness.",
+    "description": "You can see in absolute darkness, which Ultra Vision and its starlight cannot do.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4107,7 +4107,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can pick out small details at extreme distance, as far as the story needs.",
+    "description": "Make out small details at extreme distances — as far as the story needs.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4138,7 +4138,7 @@
     "cost_flat": 2,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You see heat, letting you look through thin objects and follow faint residual warmth. It also serves in the dark, though extreme ambient temperatures or perfectly matched body heat can defeat it.",
+    "description": "See heat, which lets you see through thin objects, follow the faintest leftover warmth, and see in the dark. Extreme ambient temperatures, or a being whose body exactly matches its surroundings, can defeat it.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4169,7 +4169,7 @@
     "cost_flat": 1,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can identify, recognise and track people by scent, and even read their mood. These call for Perception rolls at thresholds of 4 to 6 in good conditions.",
+    "description": "Identify, recognise and track people by scent, and even read their emotional state. Each takes a Perception roll against a threshold of 4 to 6 in ideal conditions.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4200,7 +4200,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Concentrating, you see a being's true form through disguise, illusion and transformation of any kind, Blending and Invisibility included. Automatic unless the subject is shielded, which calls for a Perception roll.",
+    "description": "Concentrate to see a being's true form through any disguise, illusion or transformation, Blending and Invisibility included. No roll, unless the subject is somehow shielded, which may call for a Perception roll.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4231,7 +4231,7 @@
     "cost_flat": 2,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You see ultraviolet light, and you have low-light vision down to starlight — though not in total darkness.",
+    "description": "See ultraviolet light, and see in light as dim as starlight — but not in absolute darkness.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4262,7 +4262,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "Concentrating, you can see through solid objects.",
+    "description": "Concentrate to see through solid objects.",
     "prerequisite": {
       "relationship": "baseline_equal",
       "ability": "perception",
@@ -4293,7 +4293,7 @@
     "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You move at superhuman speed. You run at Power rank speed, your Agility effectively equals this rank, and your Edge equals this rank times 3. Use it to attack and defend in close combat, and in place of Might when defending a grapple. At 9d or more you cross two range classes a page, run over water and up walls, and effectively gain Quick Change and Vanish.",
+    "description": "A Travel Power and more. You run at this rank's speed, your Agility effectively equals this rank, and your Edge is this rank times 3. Roll it to make and defend against close combat attacks, and in place of Might to defend in a grapple. At 9d or more you cross 2 range classes a page, run across water and up walls, defeat 2 Minions per net success in close combat, and effectively have Quick Change and Vanish.",
     "prerequisite": null,
     "tags": [
       "movement",
@@ -4325,7 +4325,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A Travel Power: you move through water at speed, breathe it, move and sense as freely below as above, and shrug off oceanic pressure and temperature.",
+    "description": "A Travel Power: your rank is your top speed through water. You also breathe water, move and sense as freely beneath it as in air, and are immune to the pressure and temperature of the deep ocean.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -4362,7 +4362,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A Travel Power: you ascend, descend and swing from place to place. It needs outdoors or a large indoor space, and anchors — buildings or tall trees — within Distant Range. Your lines have Structure equal to half your rank.",
+    "description": "A Travel Power: swing, climb and descend between anchor points. Outdoors only, or in an indoor space with room overhead, and something stable to tether to — a building, a tall tree — must stay within Distant Range. Your lines have Structure equal to half your rank.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -4400,7 +4400,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can move objects out to Distant Range with your mind, using this rank as your effective Might, to attack, immobilise, lift or throw. It also serves as an active defence against ranged attacks: physical ones directly, energy ones only by interposing an object.",
+    "description": "Move things within Distant Range with your mind, this rank standing in for Might, to attack, hold, lift or throw beings and objects. Also an active defence against ranged attacks: physical ones directly; energy ones only by putting an object in the way, rolling the lower of your rank and that object's Structure (or a vehicle's Body). Each extra object controlled at once lowers your effective rank by 1d, on top of the usual multiple action penalty.",
     "prerequisite": null,
     "power_cons": [
       {
@@ -4437,7 +4437,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can read minds and send thoughts within Distant Range. You sense the sentient minds around you, though other telepaths may cloak themselves. Reading surface thoughts is rolled against the higher of the target's Willpower or Telepathy, and telepaths feel it happen. You can also probe memories.",
+    "description": "Read minds and send your thoughts to anyone within Distant Range. You sense sentient minds in range; a telepath who cloaks theirs must be beaten in an opposed Telepathy roll. Reading surface thoughts, or probing memories for something specific, is a Telepathy roll against the higher of the target's Willpower or Telepathy. Telepaths feel their thoughts being read; a probe takes a few minutes of total concentration and anybody can feel it. A probe reaches ordinary, repressed and altered memories.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -4445,14 +4445,14 @@
         "name": "Alter Memories",
         "cost_type": "flat",
         "cost_modifier": 6,
-        "description": "Three or more net successes on a mind probe let you rewrite the subject's memories. The change lasts the scene."
+        "description": "Roll 3 or more net successes on a mind probe and you can rewrite the subject's memories as you wish. The change lasts for the rest of the scene, or permanently if you spend 1 Resolve."
       },
       {
         "id": "cloak_others",
         "name": "Cloak Others",
         "cost_type": "flat",
         "cost_modifier": 2,
-        "description": "You can hide the mental presence of everyone within Close Range of you, not just your own."
+        "description": "You can hide the minds of everyone within Close Range of you from Telepathy, not only your own."
       },
       {
         "id": "dream_travel",
@@ -4505,7 +4505,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can travel instantly, through solid objects but not force fields. Places you can see or know well give no trouble. Teleporting somewhere unfamiliar means rolling two dice: 6 or less and you nearly materialise inside something solid, so the Power fails, you snap back, and the shock knocks you out.",
+    "description": "Travel instantly, as far as the Teleportation table gives for your rank, through solid objects but not force fields. Somewhere you can see or know well is safe. For an unfamiliar place roll two dice: on a result of 6 or less the Power fails, you reappear where you started, and the shock knocks you out for the rest of the scene unless you spend 1 Resolve. Each use is a move, however far. Spend 1 Resolve to teleport twice in a page, using 1 action, within your maximum total distance.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -4550,7 +4550,7 @@
     "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can freeze time in the area for a number of pages equal to your rank, or until you release it. The first use in a scene costs 1 Resolve, the second 2, and so on. Everything in the area is stuck; you can move about and move objects and people around freely.",
+    "description": "Stop time across the zone for as many pages as your rank, or until you release it. It costs 1 Resolve the first time in a scene, 2 the second, 3 the third and so on. Everyone and everything else in the area is frozen. You move freely and can reposition people and objects you have the Might to shift, but cannot otherwise affect or harm anything frozen. Forces still act on you, not on them. The GM may disallow it.",
     "prerequisite": null,
     "tags": [
       "special",
@@ -4578,7 +4578,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can travel through time in either direction, at the cost of an action. Talk to your GM first — they decide how time travel works in the setting and may set conditions.",
+    "description": "Spend an action to travel forward or back in time, as far as you like. Agree it with your GM first: they decide how time travel works in the setting, including whether changing the past changes the present, and may restrict it however they wish.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -4614,7 +4614,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You remember anything you paid attention to, automatically, and can roll Intellect against a GM threshold to recall background detail you never consciously noted.",
+    "description": "You remember whatever you paid attention to, with no roll. For a background detail you were not attending to, roll Intellect against a threshold the GM sets.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -4622,7 +4622,7 @@
         "name": "Playback",
         "cost_type": "flat",
         "cost_modifier": 1,
-        "description": "Common among cyborgs and robots: your memories can be transferred, stored, copied and shown to others."
+        "description": "Common among cyborgs and robots: your memories can be copied, stored, moved elsewhere and shown to others."
       }
     ],
     "tags": [
@@ -4652,7 +4652,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can tag objects you touch and follow them anywhere in the world for the rest of the story. Automatic, unless the object reaches somewhere that blocks the Power, which calls for an Intellect roll. Anyone suspecting a tracer needs a Daunting (3) Perception roll to find it.",
+    "description": "Tag an object you touch and you can follow it across the world until the story ends. No roll, unless it goes somewhere that blocks the Power, which may take an Intellect roll. Somebody who suspects a tag needs a Daunting (3) Perception roll to find it.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -4690,7 +4690,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can turn into animals, taking their look, form, size and weight, and gaining their Agility, Might, Perception, Toughness and Powers at the lesser of their rank or yours. Any natural animal you know, living or extinct; magical creatures are the GM's call.",
+    "description": "Turn into any natural animal you know, living or extinct, taking its appearance, form, size and weight. You get its Agility, Might, Perception and Toughness and its Powers, each at the lower of its rank and yours. Magical creatures are the GM's call. Changing form is a free action on your own turn; at any other time it costs you your next turn.",
     "prerequisite": null,
     "power_pros": [
       {
@@ -4698,7 +4698,7 @@
         "name": "Enhanced",
         "cost_type": "flat",
         "cost_modifier": 4,
-        "description": "When you take an animal's shape you may use your Power rank in place of its highest-ranked Trait — one Trait per animal."
+        "description": "When you take an animal's shape you may substitute your Power rank for that animal's highest-ranked Trait — one Trait per animal, your choice if several tie."
       }
     ],
     "power_cons": [
@@ -4738,7 +4738,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can become an exact duplicate of anyone you have seen, so long as they are roughly humanoid and near your size. You will fool biometrics and even DNA analysis, but you gain none of their Abilities, Talents or Powers.",
+    "description": "Become an exact duplicate of anyone you have ever seen, provided they are roughly humanoid and close to your size. You pass biometric scanners and even DNA analysis, but gain none of their Abilities, Talents or Powers. Changing form is a free action on your own turn; at any other time it costs you your next turn.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -4768,7 +4768,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can turn into objects, from simple shapes to tools, weapons, machines and vehicles. As a shape you exert force or resistance at your rank; as a tool or weapon you add half your rank to the rolls of whoever wields you; as a machine or vehicle you gain its capabilities.",
+    "description": "Turn into objects. As a simple shape you exert force or resistance at your rank. As a tool or weapon you add half your rank to the rolls of whoever uses you, their total capped at your rank. As a machine or vehicle you have its characteristics at the lower of its rank and yours. You can also be as large or small as Growth or Shrinking at this rank would make you, without changing your Traits. Changing form is a free action on your own turn; at any other time it costs you your next turn.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -4796,7 +4796,7 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can reshape your body at will. You have Hero Points equal to your rank to spend temporarily on raising Agility, Might and Toughness and on buying Powers representing claws, wings, gills, hide and the like. Nothing may exceed the game's Trait Cap.",
+    "description": "Reshape your body at will. You have Hero Points equal to your rank to spend, temporarily, on raising Agility, Might and Toughness and on Powers for claws, wings, gills, tough hide and the like; nothing may pass the Trait Cap. For working out Resolve, this counts as your Shapeshifting rank plus your highest of Agility, Might and Toughness. Changing form is a free action on your own turn; at any other time it costs you your next turn.",
     "prerequisite": null,
     "tags": [
       "transformation",
@@ -4823,17 +4823,8 @@
     "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can alter the chemical make-up of inanimate matter you touch, and gas within Close Range automatically. Liquids and solids are rolled against the greater of their Structure or weight rank. You can raise Structure up to your rank or lower it freely, turning solids to liquids or gases and back.",
+    "description": "Change the chemical make-up of inanimate matter you touch. Gas within Close Range is affected automatically; for a liquid or solid roll Transmutation against the greater of its Structure or weight rank. Raise Structure as high as your rank or lower it as far as you like, even turning solids to liquid or gas and back. Harmful substances you make act at your rank. Effects last until the scene ends or you dismiss them; 1 Resolve makes one permanent, and 1 Resolve is also the price of creating a material unique to the setting.",
     "prerequisite": null,
-    "power_cons": [
-      {
-        "id": "fighting_marksmanship",
-        "name": "Fighting/Marksmanship",
-        "cost_type": "flat",
-        "cost_modifier": -1,
-        "description": "The Power applies only in close combat or only at range, and its bonus to mundane weapons is limited to that kind."
-      }
-    ],
     "tags": [
       "control",
       "matter",
@@ -4859,7 +4850,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You vanish from sight in an instant and move as far as you can in one page without anyone seeing where you went, often behind a flash or a puff of smoke. It costs both an action and your movement.",
+    "description": "Disappear in an instant and move as far as one page allows without anybody seeing where you went. It uses both an action, to vanish, and your movement, to get away.",
     "prerequisite": null,
     "tags": [
       "stealth",
@@ -4886,7 +4877,7 @@
     "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "A Travel Power: you travel by digging through the ground. Collapse the tunnel behind you or leave it open for others. Nothing shows above ground, which makes it an excellent way to surprise people.",
+    "description": "A Travel Power: your rank is your top speed digging through the ground. Collapse the tunnel behind you or leave it open for others to follow. Nothing shows on the surface, which makes it a good way to surprise people.",
     "prerequisite": null,
     "tags": [
       "movement",
@@ -4914,7 +4905,7 @@
     "cost_flat": 6,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can become two-dimensional, like a shadow, weightless and silent, while still affecting and being affected by the three-dimensional world. You can slide along any surface ignoring gravity, and slip through any crack wide enough for your form.",
+    "description": "Become flat, like a shadow: weightless and silent, yet the three-dimensional world still affects you, and you it. As well as moving normally you can slide along any surface, ignoring gravity, and slip through any crack wide enough for your outline.",
     "prerequisite": null,
     "tags": [
       "physical",
@@ -4943,8 +4934,17 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You fight with both hands. Spend 1 Resolve to defeat twice the usual Minions — 2 per net success — on a physical attack, and you may decide after rolling. It adds nothing to attacks that already work that way. Dual-wielding mundane weapons also raises their Weapon Bonus by +1d.",
+    "description": "Spend 1 Resolve on a physical attack to defeat 2 Minions per net success instead of 1; you may decide after you roll. No gain on attacks that already do so — area attacks, Super Speed attacks, the Ricochet Pro. Wielding two mundane weapons also adds +1d to their Weapon Bonus, which does not apply to Powers with the Item or Weapons Con. It never grants extra attacks.",
     "prerequisite": null,
+    "power_cons": [
+      {
+        "id": "fighting_marksmanship",
+        "name": "Fighting/Marksmanship",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "Bought as Fighting, the Power works only in close combat and its Weapon Bonus only on melee weapons; as Marksmanship, only in ranged combat and only on ranged weapons."
+      }
+    ],
     "tags": [
       "combat",
       "melee",
@@ -4970,7 +4970,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "A different version of a Power you already have. It costs a flat 3 Hero Points but must be worth as many Hero Points as the original, so the difference has to be made up with Cons.",
+    "description": "A different version of a Power you already have. You pay a flat 3 Hero Points, but the Variant must be worth exactly what the original cost: a Variant that does more has to carry Cons that make up the difference. Not available for any Power that affects other Traits — Boost, Drain, Nullify, Power Absorption and Power Mimicry among them — nor for Alternate Form, Elemental Control or Omni-Power.",
     "prerequisite": null,
     "tags": [
       "special",
@@ -4998,7 +4998,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You are a master of mimicry and ventriloquism, able to imitate almost any sound or voice and throw it so it seems to come from elsewhere. Roll Charm, usually against the target's Perception.",
+    "description": "Mimic almost any sound, imitate other people convincingly, and throw your voice so it seems to come from somewhere else. Roll Charm, usually against the target's Perception.",
     "prerequisite": null,
     "tags": [
       "utility",
@@ -5027,7 +5027,7 @@
     "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can stick to walls and ceilings and move along them at your normal speed. If this rank is lower than your Might, it limits how much you can carry while crawling. Unusually slick surfaces may call for a roll.",
+    "description": "Stick to walls and ceilings and move along them at your normal speed. If this rank is below your Might, it sets how much weight you can carry while doing so. An unusually slick surface may call for a Wall-Crawling roll.",
     "prerequisite": null,
     "tags": [
       "movement",
@@ -5056,7 +5056,7 @@
     "cost_flat": 3,
     "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can find the weak point of any person or object you observe in person. Spend 1 Resolve and your physical and energy attacks gain the Penetrating Pro against that target for the rest of the scene. It also tells you, free, about an object's structural flaws and stress points.",
+    "description": "Study a person or object in person to find its weak points. Spend 1 Resolve and your physical and energy attacks have the Penetrating Pro against it for the rest of the scene. At no cost, it also gives you narrative information about an object's structural flaws and stress points.",
     "prerequisite": null,
     "tags": [
       "sensory",
