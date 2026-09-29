@@ -49,8 +49,8 @@ states one, the description `data/rules/play/resolve.json` already carries, and 
 drawn from — never the book's own printed text, which is what `/rules` offers behind the sign-in
 wall. Split into three blocks: for players, for the GM, and the handful of rules stated to bind
 both economies at once. `ResolveReferenceBlocks.BlockFor` decides which block an entry lands in,
-in one place, and `ResolveReferenceBlockTests` holds every entry in the file to landing in exactly
-one — so a 29th entry added later cannot silently miss all three.
+in one place, and `ResolveReferenceTests.EveryEntryLandsInExactlyOneBlock` holds every entry in
+the file to landing in exactly one — so a 29th entry added later cannot silently miss all three.
 
 **This is the one narrow exemption in this project to `data/rules/play/` staying out of the
 payload**, and it belongs to [`play-rules.md`](play-rules.md)'s placement argument rather than to

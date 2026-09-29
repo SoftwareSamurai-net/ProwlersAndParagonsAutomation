@@ -78,9 +78,13 @@ public static class ResolveReferenceBlocks
     /// <summary>
     /// The cost or effect in plain words, where the entry's own data states one plainly enough
     /// to say in a phrase — never the description, which is prose for a reader with time to read
-    /// it. Null for the nine entries that state a rule rather than a figure: the two section
-    /// openers, the exceptions list, and the four narrative spends that defer to Chapter 4 or
-    /// hand the decision to the GM with no number attached.
+    /// it. Null for the five entries with no fact field this can turn into a figure: the two
+    /// section-opening overviews (<c>resolve_earning_overview</c>, <c>resolve_spending_overview</c>),
+    /// the exceptions list (<c>resolve_exceptions</c>), and the two spends that defer to Chapter 4
+    /// or to whatever Power is being imitated (<c>spend_combat</c>, <c>spend_using_powers</c>).
+    /// Also null, conditionally, for the handful of other cases below whose own data object is
+    /// absent on a given entry — this switch's <c>_ => null</c> default is not the only route
+    /// to a null result, only the one this list counts.
     /// </summary>
     public static string? CostWords(ResolveEntry entry)
     {
