@@ -3318,6 +3318,19 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// The Vehicles/Headquarters/Gadgets/campaign-assets page starts a page of its own, in print,
+    /// rather than running on from the foot of page one — see docs/guide/printed-sheet.md.
+    /// </summary>
+    [Fact]
+    public void TheAssetsPageStartsOnAPageOfItsOwn()
+    {
+        var rule = PrintRuleFor(".sheet-assets-page");
+
+        Assert.True(rule is not null, "The print block has no rule for .sheet-assets-page.");
+        Assert.Contains("break-before:page", Normalise(rule!), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The two boxes that can be taller than a page opt back out, and they have to.
     ///
     /// <para><c>break-inside: avoid</c> is a request Chrome honours by moving the whole box to
