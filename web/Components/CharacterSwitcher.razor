@@ -2,6 +2,7 @@
 @inject AccountCharacterStore Store
 @inject CharacterSession Session
 @inject Accounts Accounts
+@inject AlternateForms Forms
 
 @* Which character is open, and a way to reach another from any step.
 
@@ -52,6 +53,10 @@
                         {
                             <li>
                                 <button type="button" @onclick="() => Open(root.Id)">@root.Name</button>
+                                @if (FamilyPoolFor(root.Id) is { } pool)
+                                {
+                                    <span class="meta">@pool</span>
+                                }
                             </li>
                         }
 
@@ -66,6 +71,14 @@
                                 else if (CharacterVariants.Label(child.Variant!.Kind) is { } label)
                                 {
                                     <span class="meta">@label</span>
+                                }
+                                @* Item 21's Trait Cap ruling and the rest of Ch.2 p.21 — the same
+                                   AlternateFormRosterNotes the roster draws its own row from. *@
+                                @foreach (var note in FamilyNotesFor(child.Id))
+                                {
+                                    <span class="meta @(note.Warning ? "warning" : "")">
+                                        @(note.Warning ? $"Warning: {note.Text}" : note.Text)
+                                    </span>
                                 }
                             </li>
                         }
@@ -107,6 +120,16 @@
     /// account does not hold it" unless it is handed the whole list.
     /// </summary>
     private IReadOnlyList<VariantFamily> Families { get; set; } = [];
+
+    /// <summary>Item 21's Alternate Form findings for this same list — see <see cref="AlternateFormRosterNotes"/>.</summary>
+    private AlternateFormRosterNotes.Result _formNotes = AlternateFormRosterNotes.Result.Empty;
+
+    private IReadOnlyList<AlternateFormRosterNotes.Note> FamilyNotesFor(string id) =>
+        _formNotes.ByMemberId.GetValueOrDefault(id, []);
+
+    private string? FamilyPoolFor(string id) => _formNotes.SharedResolveByRootId.GetValueOrDefault(id);
+
+    private async Task<CharacterSheet?> LoadSheetAsync(string id) => (await Store.ReadAsync(id))?.Sheet;
 
     /// <summary>
     /// What to call the character that is open.
@@ -163,6 +186,7 @@
         _only = listed.Characters.Count == 1;
 
         Families = CharacterVariants.Group(listed.Characters.Select(CharacterVariants.FromSummary));
+        _formNotes = await AlternateFormRosterNotes.BuildAsync(Families, Forms, LoadSheetAsync);
     }
 
     private async Task Toggle()

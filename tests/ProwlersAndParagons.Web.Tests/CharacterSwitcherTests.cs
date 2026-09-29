@@ -328,4 +328,45 @@ public sealed class CharacterSwitcherTests
         Assert.Contains(CharacterVariants.RootNotHeldMessage(new VariantRow(
             "ignored", orphan.Name, orphan.Variant)), row.TextContent, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Item 21's Trait Cap ruling in the banner too: the root's row carries the shared Resolve
+    /// pool, and a form built to the root's own cap draws no Trait Cap warning — the same
+    /// <c>AlternateFormRosterNotes</c> the roster reads from.
+    /// </summary>
+    [Fact]
+    public async Task TheSwitcherPrintsTheSharedPoolOnTheRootsRow()
+    {
+        await using var ctx = At("build/characteristics", signedIn: true);
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+
+        var root = SampleCharacters.Hero();
+        root.Name = "Aegis";
+        root.SelectedPowers.Clear();
+        root.SelectedPowers.Add(new SelectedPower(AlternateForms.PowerId, 0) { Units = 1 });
+        var rootId = SavedCharacters.NewId();
+        await account.SaveAsync(rootId, root.Name, root, SheetMode.Hero);
+
+        var form = SampleCharacters.Hero();
+        form.Name = "The Colossal Form";
+        form.SelectedTierId = "street_level";
+        form.TraitCapRank = rules.GetTier("standard")!.TraitCapRank;
+        form.Variant = new CharacterVariant(rootId, CharacterVariant.AlternateForm);
+        form.SelectedPowers.Clear();
+        form.SelectedPowers.Add(new SelectedPower(AlternateForms.PowerId, 0) { Units = 1 });
+        await account.SaveAsync(SavedCharacters.NewId(), form.Name, form, SheetMode.Hero);
+
+        var shell = ctx.Render<MainLayout>();
+        await shell.Find(".character-switch-name").ClickAsync(new());
+        await shell.WaitForElementAsync("#character-switch-list li button");
+
+        var rows = shell.FindAll("#character-switch-list li").ToList();
+        var rootRow = rows.Single(li => li.TextContent.Contains(root.Name, StringComparison.Ordinal));
+        var formRow = rows.Single(li => li.TextContent.Contains(form.Name, StringComparison.Ordinal));
+
+        Assert.Contains("Shared Resolve pool:", rootRow.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain("Trait Cap", formRow.TextContent, StringComparison.Ordinal);
+    }
 }

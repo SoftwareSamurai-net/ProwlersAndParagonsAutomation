@@ -68,6 +68,7 @@ public sealed class RenderContext : BunitContext
         Services.AddSingleton(validator);
         Services.AddSingleton(new ProConApplicability(rules));
         Services.AddSingleton(new SourceGrouping(rules));
+        Services.AddSingleton(new AlternateForms(rules, costs, derived));
 
         Services.AddScoped<CharacterSession>();
 
