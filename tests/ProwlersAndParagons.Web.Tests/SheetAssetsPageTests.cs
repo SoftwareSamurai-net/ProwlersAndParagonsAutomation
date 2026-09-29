@@ -8,7 +8,8 @@ namespace ProwlersAndParagons.Web.Tests;
 /// <summary>
 /// <b>The sheet's second page</b> — vehicles, headquarters, Gadgets and campaign-asset
 /// contributions, rendered only when the character owns at least one of the four. See
-/// docs/guide/printed-sheet.md, "The printed sheet has no Vehicles or Bases box".
+/// docs/guide/printed-sheet.md, "Vehicles, Headquarters, Gadgets and campaign assets print on a
+/// second page — only when owned".
 ///
 /// <para><b>Every line asserted here comes off <see cref="AssetFormatter"/></b>, exactly as
 /// the page itself is built — a test written against invented text would pass while the page

@@ -90,23 +90,47 @@ Rasterising the result needs a PDF library, and none is installed for either run
 - The Villain deliberately leaves one Power without a Source, so the sheet shows the plain `POWERS` fallback heading and the review step shows a warning. Both are things a preview should exercise; it is not an oversight.
 
 
-## The printed sheet has no Vehicles or Bases box, and that is a decision
+## Vehicles, Headquarters, Gadgets and campaign assets print on a second page — only when owned
 
 Chapter 6's vehicles, headquarters and Gadgets are on the character (`CharacterSheet.Vehicles`,
 `.Headquarters`, `.Gadgets`, `.CampaignAssets`) and in both exports — `RenderText` writes a
-**VEHICLES, BASES & GADGETS** block and `RenderJson` four arrays — but `SheetView` draws none of
-them.
+**VEHICLES, BASES & GADGETS** block and `RenderJson` four arrays. `SheetView` used to draw none of
+them; it now draws a second page, `.sheet-assets-page`, and only for the character who owns at
+least one of the four.
 
-**Two reasons, and the first is the page.** The sheet is one page and stays one page: three columns
-of equal height with one `fill` box in each absorbing the difference. A fifth section on a page
-already balanced that way is not a box to slot in, it is a re-layout — and it would be an empty box
-on nearly every character in the game, because most own no vehicle and no base.
+**This used to say the sheet has no Vehicles or Bases box, full stop, and the two reasons it gave
+still explain why that box does not exist — on page one.** The first was the page: the sheet is one
+page and stays one page for the character who owns nothing, three columns of equal height with one
+`fill` box in each absorbing the difference, and a fifth section slotted into that layout would have
+been a re-layout for an empty box on nearly every character in the game. **The fix keeps the
+guarantee rather than relaxing it**: the second page is a sibling of the first inside the same
+`<article class="sheet">`, gated on `SheetView.HasAssets`, and a character who owns nothing renders
+exactly as before — no extra element, no empty box, page one unchanged. The one-page promise was
+always "for the character who owns nothing"; it still is.
 
-**The second is that a machine is not a character.** A vehicle has four ranks, a feature list and a
-budget of its own; it is closer to a second stat block than to a line on somebody's sheet, and
-squeezing it into a ruled box would print the name and lose everything that makes it a machine. A
-sheet for a vehicle is its own thing if it is ever wanted.
+**The second reason — a machine is not a character — is why the page reads as a second stat block
+and not as a fifth ruled box squeezed beside Gear.** A vehicle has four ranks, a feature list and a
+budget of its own; printing it as a `power-entry` under a `Vehicles` heading, the same idiom the
+Powers column already uses for a Power's name, rank and stat line, gives it room without inventing a
+new one. Headquarters, Gadgets and campaign-asset contributions each get their own heading the same
+way, in the order the `.txt` export already writes them (`CharacterSheetRenderer.WriteAssets`), so
+the two tellings agree.
 
-**What a reader gets meanwhile** is the `.txt` export, which prints all of it, and the browser's
-Vehicles & bases step, which is where it is built. If this changes, the constraint to design against
-is the one at the top of this file: it has to still be one page for a character who owns nothing.
+**Every line on the page comes off `AssetFormatter`**, exactly as the Powers column's lines come off
+`PowerFormatter` — `SheetView` holds no rule and no ad-hoc figure. A feature or a Gadget's spend
+that cannot be priced (an id the rulebook does not have) prints the fallback sentence
+`AssetFormatter.Reachable` already computes rather than taking the render down; nothing in
+`SheetView` needs its own `catch` for this family the way it does for gear, because `AssetFormatter`
+routes every cost lookup through `Reachable` before `SheetView` ever calls it.
+
+**A campaign asset prints this character's contribution and nothing else** —
+`AssetFormatter.Describe(CampaignAssetContribution)`, never the pooled object or another member's
+share, which this sheet cannot see and must not claim to.
+
+**The page break is `break-before: page` in the print block**, on `.sheet-assets-page`, so it starts
+a fresh sheet of paper rather than running on from the foot of page one. It gets `page N of M` in
+its own top margin for free: the `@page` margin box above counts every page Chrome lays out, and
+`RunningHead` already pushes the character's name onto the document the moment `SheetView` renders,
+which is true whether the sheet is one page or two. On screen, where there is no page to break to,
+a rule and a gap stand in so a reader scrolling past it sees a second sheet under the first rather
+than a fifth section of the one above it.
