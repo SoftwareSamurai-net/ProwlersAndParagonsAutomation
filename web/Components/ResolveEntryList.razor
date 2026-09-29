@@ -1,0 +1,35 @@
+@* One block of the Resolve reference page: a plain list of entries, each with its name, a
+   plain-words cost where the data gives one, its description, and the printed page it comes
+   from. No new stylesheet rules — every class here is one an existing panel already uses. *@
+
+@if (Rows is null || !Rows.Any())
+{
+    <EmptyState>Nothing landed in this block.</EmptyState>
+}
+else
+{
+    <ul class="chosen">
+        @foreach (var entry in Rows)
+        {
+            <li>
+                <div class="chosen-row">
+                    <div class="body">
+                        <div>
+                            <b>@entry.Name</b>
+                            @if (ResolveReferenceBlocks.CostWords(entry) is { } cost)
+                            {
+                                <span class="tag">@cost</span>
+                            }
+                        </div>
+                        <div class="small muted">@entry.Description</div>
+                    </div>
+                    <span class="cost">@ResolveReferenceBlocks.PrintedPage(entry.SourceRef)</span>
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    [Parameter] public IEnumerable<ResolveEntry>? Rows { get; set; }
+}
