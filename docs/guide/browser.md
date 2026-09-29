@@ -61,11 +61,9 @@ specifically:
 - **`ResolveReferenceReader`** (`web/Services/`) is a small, strict, *display-only* reader —
   `JsonUnmappedMemberHandling.Disallow`, so a field the file gains that its models in
   `ResolveReferenceModels.cs` do not name throws rather than being quietly dropped. It computes
-  nothing: no cost, no rank, no derived stat, and nothing it reads ever reaches a character. Both
-  it and the csproj's staging target split the play directory's name across two constants (or two
-  MSBuild properties) rather than spelling `data/rules/play/` as one run of text, because that
-  spelling is still refused under `web/` exactly as it always was — see `play-rules.md`'s note on
-  the guard.
+  nothing: no cost, no rank, no derived stat, and nothing it reads ever reaches a character. It
+  and the csproj's staging target spell `data/rules/play/resolve.json` whole, because that one
+  path is what the guard exempts — see `play-rules.md`'s note on the guard.
 - **Fetched lazily, on the one page that shows it.** Unlike `RulesRepository.DataFileNames`, which
   `Program.cs` fetches before the first render because the engine cannot answer a half-loaded
   question, nothing here is needed before somebody actually visits `/reference/resolve` — so the

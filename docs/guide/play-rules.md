@@ -78,13 +78,15 @@ of a browser payload is unchanged; this is one file, named once, for one reason.
   file is needed before somebody actually opens the reference page — so the reader fetches it the
   first time that page asks, and caches it for the rest of the visit.
 
-**`PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile` is narrowed to match**: it permits
-exactly the token `resolve.json`, and only under `web/`. Every other tree — `engine/`, `sheets/`,
-`cli/`, `mcp/` — is still forbidden all seven tokens, `resolve.json` included; `web/` is still
-forbidden the other six, and the two directory spellings (`rules/play`, `rules\play`) are still
-forbidden everywhere, `web/` included — which is why `ResolveReferenceReader` and the csproj target
-above each split the play directory's name across two constants or two MSBuild properties rather
-than spelling `data/rules/play/` as one run of text. The exemption carries its own positive
+**`PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile` is narrowed to match**: under
+`web/`, and nowhere else, it removes the one whole path — `rules/play/resolve.json`, in either
+separator — before it scans. Nothing shorter is exempt. The directory spelled on its own, another
+file under it, or `resolve.json` on its own are all still faults under `web/`, and every other tree
+(`engine/`, `sheets/`, `cli/`, `mcp/`) is still forbidden all seven tokens, the exempt path
+included. **So the path is spelled whole, and must be**: the first build split it across two
+constants and two MSBuild properties so the scan could not see the directory, which reached the
+exemption by hiding from the guard rather than by being what it permits — and a split spelling
+now fails on the bare file name it leaves behind. The exemption carries its own positive
 control, the same shape `TheSecondEngineIsTheOneProjectThatNamesAPlayRulesFile` uses: `web/` is
 required to actually name `resolve.json` somewhere, or the allowance would excuse a tree that had
 stopped reading the one file it exists for.
