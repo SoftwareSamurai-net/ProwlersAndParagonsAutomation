@@ -86,6 +86,22 @@
                Label="@($"How many {Power.CostUnitLabel ?? "unit"}s? ({Power.CostPerUnit} HP each)")">
             <input id="pe-units" type="number" min="1" @bind="_units" @bind:after="Recompute" />
         </Field>
+
+        @* One box per unit bought, because each immunity is its own purchase with its own name
+           (Ch.2 p.31). Blank is allowed — the validator warns rather than blocks — so a player
+           can buy now and decide later. Names past the count are kept while the count is being
+           changed, and dropped only when the Power is saved. *@
+        @if (Power.UnitsAreNamed)
+        {
+            @for (var i = 0; i < _units; i++)
+            {
+                var index = i;
+                <Field For="@($"pe-unit-name-{index}")" Label="@($"What is {Power.UnitNoun(1)} {index + 1} against?")">
+                    <input id="pe-unit-name-@index" type="text" value="@UnitName(index)"
+                           @onchange="e => SetUnitName(index, e.Value as string)" />
+                </Field>
+            }
+        }
     }
     else if (Power.Id == "summoning")
     {
@@ -188,6 +204,7 @@
     private string _sourceId = "";
     private List<SelectedProCon> _pros = [];
     private List<SelectedProCon> _cons = [];
+    private List<string> _unitNames = [];
 
     private int? _cost;
     private int _effectiveRank;
@@ -201,7 +218,31 @@
         _sourceId        = Existing?.SourceId ?? "";
         _pros            = Existing?.Pros.ToList() ?? [];
         _cons            = Existing?.Cons.ToList() ?? [];
+        _unitNames       = Existing?.UnitNames?.ToList() ?? [];
         Recompute();
+    }
+
+    private string UnitName(int index) => index < _unitNames.Count ? _unitNames[index] : "";
+
+    private void SetUnitName(int index, string? name)
+    {
+        while (_unitNames.Count <= index) _unitNames.Add("");
+        _unitNames[index] = name ?? "";
+    }
+
+    /// <summary>
+    /// The names to save: one per unit bought, trimmed, with trailing blanks dropped so an
+    /// untouched box does not become an entry, and null when nothing was named — which is how
+    /// a character that never named anything is stored. A Power whose units are counted rather
+    /// than named keeps whatever it arrived with, since this editor offers no way to change it.
+    /// </summary>
+    private IReadOnlyList<string>? UnitNamesToSave()
+    {
+        if (!Power.UnitsAreNamed) return Existing?.UnitNames;
+
+        var names = _unitNames.Take(Math.Max(0, _units)).Select(n => n.Trim()).ToList();
+        while (names.Count > 0 && names[^1].Length == 0) names.RemoveAt(names.Count - 1);
+        return names.Count == 0 ? null : names.AsReadOnly();
     }
 
     private bool NeedsBaselineTrait =>
@@ -263,6 +304,7 @@
         {
             CostVariantKey  = string.IsNullOrEmpty(_costVariantKey) ? null : _costVariantKey,
             Units           = _units,
+            UnitNames       = UnitNamesToSave(),
             BaselineTraitId = string.IsNullOrEmpty(_baselineTraitId) ? null : _baselineTraitId,
             SourceId        = string.IsNullOrEmpty(_sourceId) ? null : _sourceId
         };

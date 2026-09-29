@@ -1039,6 +1039,8 @@ public sealed class ValidationIssueStructureTests
         ["POWER_COST_AT_MINIMUM"]           = [ValidationSubject.Power],
         ["POWER_WITHOUT_SOURCE"]            = [ValidationSubject.Power],
         ["RANKLESS_POWER_WITHOUT_SOURCE"]   = [ValidationSubject.Power],
+        ["POWER_UNIT_NAMES_BELOW_UNITS"]    = [ValidationSubject.Power],
+        ["POWER_UNIT_NAMES_EXCEED_UNITS"]   = [ValidationSubject.Power],
         ["POWER_MECHANICS_UNVERIFIED"]      = [ValidationSubject.Power],
 
         // The one finding with no subject at all, and deliberately: it names every Power whose
@@ -1381,7 +1383,7 @@ public sealed class ValidationIssueStructureTests
         "house cap above the tier", "house cap below one",
         "a table's price for immortality",
         "a vehicle", "a headquarters", "a gadget", "assets without names", "a shared asset",
-        "a variant", "a proposal"
+        "a variant", "a proposal", "unnamed units"
     ];
 
     /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
@@ -1428,6 +1430,22 @@ public sealed class ValidationIssueStructureTests
 
             // Ch.2 p.31 puts a table's price between 6 and 12; 20 is outside it and is charged
             // as written, the way every other bad figure here is.
+            // Immunity bought three times with one name, and a name recorded past the count on a
+            // second, counted Power — both findings from one sheet.
+            case "unnamed units":
+            {
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("immunity", 0)
+                {
+                    Units = 3, SourceId = "tech", UnitNames = ["Toxins"]
+                });
+                sheet.SelectedPowers.Add(new SelectedPower("determination", 0)
+                {
+                    Units = 1, SourceId = "innate", UnitNames = ["", "Grit"]
+                });
+                return sheet;
+            }
+
             case "a table's price for immortality":
             {
                 var sheet = Legal();
