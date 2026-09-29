@@ -123,6 +123,12 @@ that cannot be priced (an id the rulebook does not have) prints the fallback sen
 `SheetView` needs its own `catch` for this family the way it does for gear, because `AssetFormatter`
 routes every cost lookup through `Reachable` before `SheetView` ever calls it.
 
+**A Gadget prints the Powers it holds under its headline**, one line each through
+`AssetFormatter.GadgetPower` (name, effective rank, stat line), with its immunity names, Pros and
+Cons below, the same as the Powers column. The headline only says what the Gadget cost, and what it
+does is what a player reads it for. The `.txt` export writes the same line, so the two tellings
+agree on that too.
+
 **A campaign asset prints this character's contribution and nothing else** —
 `AssetFormatter.Describe(CampaignAssetContribution)`, never the pooled object or another member's
 share, which this sheet cannot see and must not claim to.
