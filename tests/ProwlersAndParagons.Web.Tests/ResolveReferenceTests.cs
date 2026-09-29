@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Pages;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -156,12 +157,7 @@ public sealed class ResolveReferenceTests
     [Fact]
     public async Task ThePageRendersAllThreeBlocksFromTheRealFile()
     {
-        using var ctx = new BunitContext();
-        ctx.Services.AddScoped(_ => new HttpClient(new StaticJsonHandler(RealJson))
-        {
-            BaseAddress = new Uri("https://pp.example.test/"),
-        });
-        ctx.Services.AddScoped<ResolveReferenceReader>();
+        using var ctx = NewContext(new StaticJsonHandler(RealJson));
 
         var page = ctx.Render<ResolveReference>();
 
@@ -180,17 +176,51 @@ public sealed class ResolveReferenceTests
     [Fact]
     public async Task AFailedFetchSaysTheReferenceCouldNotBeLoaded()
     {
-        using var ctx = new BunitContext();
-        ctx.Services.AddScoped(_ => new HttpClient(new FailingHandler())
-        {
-            BaseAddress = new Uri("https://pp.example.test/"),
-        });
-        ctx.Services.AddScoped<ResolveReferenceReader>();
+        using var ctx = NewContext(new FailingHandler());
 
         var page = ctx.Render<ResolveReference>();
 
         await page.WaitForAssertionAsync(
             () => Assert.Contains("could not be loaded", page.Markup, StringComparison.OrdinalIgnoreCase), Patient);
+    }
+
+    /// <summary>
+    /// A minimal render context of this test's own, rather than <c>RenderContext</c>: that one
+    /// resolves <c>CharacterSession</c> inside its own constructor, which locks bUnit's service
+    /// provider before this page's <c>HttpClient</c> and <c>ResolveReferenceReader</c> could be
+    /// added. <c>ResolveEntryList</c> is built on <c>&lt;ChosenList&gt;</c>/<c>&lt;ChosenRow&gt;</c>
+    /// rather than hand-written markup, so those still need the same engine wiring
+    /// <c>RenderContext</c> gives every other rendered page — registered here, before anything
+    /// is resolved.
+    /// </summary>
+    private static BunitContext NewContext(HttpMessageHandler handler)
+    {
+        var ctx = new BunitContext();
+
+        var rules = RulesRepository.FromBasePath(RepoRoot());
+        var costs = new CostCalculator(rules);
+        var derived = new DerivedStatsCalculator(rules);
+        var validator = new CharacterValidator(rules, costs, derived);
+
+        ctx.Services.AddSingleton(rules);
+        ctx.Services.AddSingleton(costs);
+        ctx.Services.AddSingleton(derived);
+        ctx.Services.AddSingleton(validator);
+        ctx.Services.AddSingleton(new ProConApplicability(rules));
+        ctx.Services.AddSingleton(new SourceGrouping(rules));
+        ctx.Services.AddScoped<CharacterSession>();
+        ctx.Services.AddScoped<DismissedFindings>();
+        ctx.Services.AddScoped<Motion>();
+
+        ctx.Services.AddScoped(_ => new HttpClient(handler)
+        {
+            BaseAddress = new Uri("https://pp.example.test/"),
+        });
+        ctx.Services.AddScoped<ResolveReferenceReader>();
+
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+
+        return ctx;
     }
 
     private sealed class StaticJsonHandler(string json) : HttpMessageHandler

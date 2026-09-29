@@ -17,7 +17,7 @@ public enum ResolveBlock
 
 /// <summary>
 /// Decides which of the reference page's three blocks each entry lands in, in the one place the
-/// task asked for it decided — so <c>ResolveReferenceBlockTests</c> can hold every one of the
+/// task asked for it decided — so <c>ResolveReferenceTests</c> can hold every one of the
 /// 28 entries to landing in exactly one block, and a 29th entry added later has nowhere to fall
 /// silently through.
 ///

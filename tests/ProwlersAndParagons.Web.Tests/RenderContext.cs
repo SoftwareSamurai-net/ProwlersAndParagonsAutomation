@@ -129,6 +129,12 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
         Services.AddScoped<RulebookReader>();
 
+        // The one play rules file this project may read — see ResolveReferenceReader's own
+        // remarks. Registered exactly as Program.cs registers it, over the same HttpClient the
+        // accounts server above answers; a render that actually visits /reference/resolve gives
+        // it its own handler, the way ResolveReferenceTests does.
+        Services.AddScoped<ResolveReferenceReader>();
+
         // Every call into motion.js, with its failures swallowed. Registered here so a render
         // test exercises the same guarded path the app does rather than a bare IJSRuntime.
         Services.AddScoped<Motion>();

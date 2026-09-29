@@ -1,14 +1,11 @@
 @page "/reference/resolve"
-@using System.Text.Json
 @inject ResolveReferenceReader Reference
 
 @* A quick reference for Chapter 5, Resolve and Adversity — the project's own words about the
-   book, not the book's own pages, and readable without an account for that reason. `/rules`
-   behind the sign-in wall offers the rulebook's own printed text; this offers a summary built
-   from resolve.json's own descriptions (the one play rules file this project may name — see
-   ResolveReferenceReader), which docs/guide/rules-engine.md's rule already requires to be
-   original — see NoDescriptionRepeatsARunOfTheBooksOwnWords in PlayRulesDataTests, which this
-   page's descriptions are checked by exactly like every other play rules entry.
+   book, not the book's own pages, and readable without an account for that reason. The rules
+   reference behind the sign-in wall offers the rulebook's own printed text; this offers a
+   summary built from the one play rules file this project may name (see ResolveReferenceReader),
+   whose descriptions docs/guide/rules-engine.md's rule already requires to be original.
 
    Three blocks rather than one list, because "what can I do" and "what can the GM do" are two
    different questions at the table and a reader mid-scene is usually asking one of them, not
@@ -18,10 +15,8 @@
 
 <h1>Resolve and Adversity quick reference</h1>
 
-<p class="small muted">
-    A summary of Chapter 5, for the table rather than for a rules argument. Every entry names the
-    page it is drawn from — check the book itself for the full wording.
-</p>
+@* Every row names the printed page it summarises — check the book itself for the full wording. *@
+<p class="small muted">A table-side summary of Chapter 5, not a substitute for the book.</p>
 
 @if (_failed)
 {
@@ -65,7 +60,7 @@ else
         {
             _failed = true;
         }
-        catch (JsonException)
+        catch (System.Text.Json.JsonException)
         {
             // A schema this reader's strict models do not recognise, or malformed JSON. Either
             // is a fact worth showing as "could not be loaded" rather than a page that renders

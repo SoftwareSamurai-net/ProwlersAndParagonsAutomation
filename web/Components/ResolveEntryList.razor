@@ -1,6 +1,7 @@
 @* One block of the Resolve reference page: a plain list of entries, each with its name, a
    plain-words cost where the data gives one, its description, and the printed page it comes
-   from. No new stylesheet rules — every class here is one an existing panel already uses. *@
+   from. Built on <ChosenList>/<ChosenRow> rather than hand-written markup, so this is not a
+   second component writing the "chosen" and "chosen-row" classes those already own. *@
 
 @if (Rows is null || !Rows.Any())
 {
@@ -8,26 +9,23 @@
 }
 else
 {
-    <ul class="chosen">
+    <ChosenList>
         @foreach (var entry in Rows)
         {
-            <li>
-                <div class="chosen-row">
-                    <div class="body">
-                        <div>
-                            <b>@entry.Name</b>
-                            @if (ResolveReferenceBlocks.CostWords(entry) is { } cost)
-                            {
-                                <span class="tag">@cost</span>
-                            }
-                        </div>
-                        <div class="small muted">@entry.Description</div>
+            <ChosenRow Cost="@ResolveReferenceBlocks.PrintedPage(entry.SourceRef)">
+                <Body>
+                    <div>
+                        <b>@entry.Name</b>
+                        @if (ResolveReferenceBlocks.CostWords(entry) is { } cost)
+                        {
+                            <span class="tag">@cost</span>
+                        }
                     </div>
-                    <span class="cost">@ResolveReferenceBlocks.PrintedPage(entry.SourceRef)</span>
-                </div>
-            </li>
+                    <div class="small muted">@entry.Description</div>
+                </Body>
+            </ChosenRow>
         }
-    </ul>
+    </ChosenList>
 }
 
 @code {
