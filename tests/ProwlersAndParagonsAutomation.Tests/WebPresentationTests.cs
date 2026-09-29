@@ -1866,6 +1866,13 @@ public sealed class WebPresentationTests
     /// block — A5 landscape, margin 0 — won the cascade and was seen by nothing. It reads all of
     /// them and requires exactly one now, which is what makes stripping them here safe. A
     /// pseudo-page such as <c>@page :first</c> is stripped too, and counted there.</para>
+    ///
+    /// <para><b>The page box nests a margin box now, and the strip has to read past it.</b>
+    /// <c>@top-center { … }</c> inside <c>@page</c> is a second level of braces, and a pattern
+    /// that stops at the first <c>}</c> leaves the head's <c>7.5pt</c> and its <c>font-family</c>
+    /// in the region this file calls the screen half — where the unit ban would read a legitimate
+    /// paper size as a raw length. One level of nesting is allowed for, which is all CSS Paged
+    /// Media defines: a margin box cannot nest anything.</para>
     /// </summary>
     private static string ScreenHalfOfAppCss
     {
@@ -1881,7 +1888,7 @@ public sealed class WebPresentationTests
             // renamed would otherwise be silently un-excluded, which is the stale-exemption
             // shape this file has been caught by twice.
             Assert.Contains("@page", screen, StringComparison.Ordinal);
-            return Rx(@"@page\b[^{]*\{[^{}]*\}").Replace(screen, " ");
+            return PageRule.Replace(screen, " ");
         }
     }
 
@@ -1960,13 +1967,27 @@ public sealed class WebPresentationTests
     /// over every rule in theme.css, is invisible to both scans, and is not something the
     /// Content-Security-Policy has any opinion about. The one thing the app's scripts may do to
     /// the document element is set <c>data-mode</c>, which is the palette switch.</para>
+    ///
+    /// <para><b>A property no stylesheet declares is not a token, and a script may set one.</b>
+    /// <c>--sheet-name</c> is the character's name, written onto the document element so the
+    /// <c>@page</c> margin box can print it — a page context inherits from the root and from
+    /// nothing else, and a <c>&lt;style&gt;</c> in a component is forbidden by
+    /// <see cref="NoComponentCarriesItsOwnStylesheet"/>. It carries no colour, no face and no
+    /// length; it is data the cascade never holds. So the rule is now the one this test was
+    /// always for: a script may not set a property that <em>theme.css or app.css declares</em>,
+    /// because that is the write that beats the cascade. Declaring <c>--sheet-name</c> in either
+    /// would turn the exception back into a breach here, which is the right way round —
+    /// <see cref="EveryPrintedPageCarriesTheCharactersNameInItsTopMargin"/> forbids the
+    /// declaration for a reason of its own.</para>
     /// </summary>
     [Fact]
     public void NoScriptSetsAThemeTokenOrNamesAFace()
     {
-        var token = Rx(@"setProperty\s*\(\s*[""']--", RegexOptions.IgnoreCase);
+        var token = Rx(@"setProperty\s*\(\s*[""'](--[\w-]+)", RegexOptions.IgnoreCase);
         var face = Rx("font-family|--font-", RegexOptions.IgnoreCase);
         var colour = Rx(@"#[0-9A-Fa-f]{3,8}\b|\b(rgba?|hsla?|oklch)\s*\(", RegexOptions.IgnoreCase);
+
+        var declared = WithoutCssComments(ThemeCss) + "\n" + WithoutCssComments(AppCss);
 
         Assert.NotEmpty(Scripts);
 
@@ -1974,9 +1995,15 @@ public sealed class WebPresentationTests
         {
             var body = Rx(@"//[^\n]*|/\*.*?\*/", RegexOptions.Singleline).Replace(text, " ");
 
-            Assert.False(token.IsMatch(body),
-                $"{name} sets a custom property directly, which beats every rule in theme.css "
-                + "and no stylesheet scan can see. Set data-mode and let the cascade do it.");
+            foreach (Match set in token.Matches(body))
+            {
+                var property = set.Groups[1].Value;
+
+                Assert.False(declared.Contains(property + ":", StringComparison.Ordinal),
+                    $"{name} sets {property} directly, which beats every rule in theme.css "
+                    + "and no stylesheet scan can see. Set data-mode and let the cascade do it.");
+            }
+
             Assert.False(face.IsMatch(body), $"{name} names a typeface.");
             Assert.False(colour.IsMatch(body), $"{name} names a colour.");
         }
@@ -3170,7 +3197,7 @@ public sealed class WebPresentationTests
         // failure one at-rule over; the page box had no equivalent. A pseudo-page — `@page :first`
         // — counts as another one here rather than being tolerated, because it can restate the
         // size and the margin just as completely.
-        var pages = Rx(@"@page\b([^{]*)\{([^}]*)\}").Matches(WithoutCssComments(AppCss));
+        var pages = PageRule.Matches(WithoutCssComments(AppCss));
 
         Assert.True(pages.Count > 0, "app.css has no @page rule, so print uses whatever the browser guesses.");
         Assert.True(pages.Count == 1,
@@ -3181,6 +3208,93 @@ public sealed class WebPresentationTests
         var body = pages[0].Groups[2].Value;
         Assert.Contains("size:A4", Normalise(body), StringComparison.Ordinal);
         Assert.Matches(@"margin:\s*[\d.]+mm", body);
+    }
+
+    /// <summary>
+    /// The one <c>@page</c> rule, with the margin boxes it nests: <c>@page :first { … }</c>
+    /// or <c>@page { …; @top-center { … } }</c>. One level of nesting, which is all CSS Paged
+    /// Media allows a page box.
+    /// </summary>
+    private static readonly Regex PageRule = Rx(@"@page\b([^{]*)\{((?:[^{}]|\{[^{}]*\})*)\}");
+
+    /// <summary>
+    /// <b>Every printed page says whose it is, in its top margin.</b>
+    ///
+    /// <para>A Powers-heavy character runs past one page, and a page in the middle of a sheet used
+    /// to be anonymous: the name is in the masthead on page one and in the colophon on the last,
+    /// and every page between relied on the browser's own print header — which the person printing
+    /// can turn off, and is told to, because it is also where the web address comes from. A
+    /// <c>position: fixed</c> footer does not repeat (see
+    /// <see cref="TheNameTravelsByDocumentTitleAndNotByAFixedFooter"/>); a <c>@page</c> margin box
+    /// does, in Chrome since 131. <b>Measured on Chrome 153 rather than assumed</b>: the rendered
+    /// sheet, tripled to force three pages and printed headless, carried
+    /// <c>QUILL "THE" BOLD \ TESTER · PAGE 2 OF 3</c> in the top margin of page two, with the
+    /// browser's own header on and with it off. Firefox and Safari generate no margin boxes and
+    /// print the sheet as before.</para>
+    ///
+    /// <para><b>Three things hold the mechanism together, and each is asserted.</b> The box's
+    /// content reads <c>var(--sheet-name)</c> and both page counters. <c>--sheet-name</c> is
+    /// declared in <em>no</em> stylesheet — download.js sets it on the document element for the
+    /// sheet on the page and removes it when the sheet goes, and an unset <c>var()</c> is what
+    /// makes the box vanish on a page with no sheet, leaving the browser's header to stand in.
+    /// And the script writes it as a quoted CSS string with the quote and the backslash escaped:
+    /// a character is named by whoever built it, and one unescaped quote makes the declaration
+    /// invalid and the head disappear without a word.</para>
+    /// </summary>
+    [Fact]
+    public void EveryPrintedPageCarriesTheCharactersNameInItsTopMargin()
+    {
+        var page = Assert.Single(PageRule.Matches(WithoutCssComments(AppCss)).Cast<Match>());
+        var box = Rx(@"@top-(left|center|right)\s*\{([^{}]*)\}").Match(page.Groups[2].Value);
+
+        Assert.True(box.Success, "The @page rule has no top margin box, so a page in the middle of a printed sheet is anonymous.");
+
+        var content = Rx(@"content\s*:\s*([^;]+);").Match(box.Groups[2].Value);
+        Assert.True(content.Success, $"The @top-{box.Groups[1].Value} box declares no content.");
+
+        var value = content.Groups[1].Value;
+        Assert.Contains("var(--sheet-name)", value, StringComparison.Ordinal);
+        Assert.Contains("counter(page)", value, StringComparison.Ordinal);
+        Assert.Contains("counter(pages)", value, StringComparison.Ordinal);
+
+        // The mechanism: undeclared, so an unset property collapses the box. A fallback in
+        // `var()` or a declaration in either stylesheet would print " · page 1 of 1" over every
+        // page of the roster.
+        Assert.DoesNotMatch(@"var\(--sheet-name\s*,", value);
+        Assert.DoesNotContain("--sheet-name:", WithoutCssComments(AppCss), StringComparison.Ordinal);
+        Assert.DoesNotContain("--sheet-name:", WithoutCssComments(ThemeCss), StringComparison.Ordinal);
+
+        // The script that sets it, and takes it down.
+        var script = Scripts.SingleOrDefault(s => s.Name == "download.js");
+        Assert.False(script.Text is null, "download.js has gone; point this test at wherever ppSetSheetName lives now.");
+
+        var js = WithoutJsComments(script.Text);
+        var setter = js.IndexOf("window.ppSetSheetName", StringComparison.Ordinal);
+        Assert.True(setter >= 0, "download.js does not define ppSetSheetName, so nothing puts the name on the document.");
+
+        var body = js[setter..];
+        Assert.Contains("setProperty(\"--sheet-name\"", body, StringComparison.Ordinal);
+        Assert.Contains("removeProperty(\"--sheet-name\"", body, StringComparison.Ordinal);
+
+        // Escaped as a CSS string: the backslash and the double quote, before the value is
+        // wrapped in quotes. `JSON.stringify` is not that — it escapes a newline as `\n`,
+        // which CSS reads as the letter n.
+        Assert.Matches(@"replace\(/\[\\\\""\]/g", body);
+        Assert.DoesNotContain("JSON.stringify", body, StringComparison.Ordinal);
+
+        // **And wrapped in quotes, which the escaping is for.** The review of this feature wrote
+        // the escaped value bare — `setProperty("--sheet-name", escaped)` — and every assertion
+        // above held: `content: Lynchpin " · page " …` is an invalid value, the box is not
+        // generated, and the sheet prints as anonymous as it did before, without a word. So the
+        // write is held to the quoted template literal, not merely to naming the property.
+        Assert.Matches(@"setProperty\(""--sheet-name"",\s*`""\$\{escaped\}""`\)", body);
+
+        // A line break cannot be escaped into a CSS string by a backslash alone — `\` followed by
+        // a newline is a line continuation, which drops the break rather than printing it — and a
+        // margin box has nowhere to put one anyway, so the script folds every run of them to one
+        // space. This, too, survived being deleted: only the quote-and-backslash escaper above was
+        // being read.
+        Assert.Matches(@"replace\(/\[\\r\\n\\f\]\+/g,\s*"" ""\)", body);
     }
 
     /// <summary>
@@ -3539,8 +3653,10 @@ public sealed class WebPresentationTests
     /// <summary>
     /// A running footer positioned with <c>position: fixed</c> looks correct and is not:
     /// Chrome's print output renders it once, at the top of page two, over the content. What
-    /// carries the character's name across every page is the document title, which the
-    /// browser prints in its own header — so the review page's title leads with the name.
+    /// carries the character's name across every page in Chrome is the <c>@page</c> margin box
+    /// (<see cref="EveryPrintedPageCarriesTheCharactersNameInItsTopMargin"/>); in a browser that
+    /// prints no margin boxes it is the document title, which the browser prints in its own
+    /// header — so the review page's title still leads with the name.
     /// </summary>
     [Fact]
     public void TheNameTravelsByDocumentTitleAndNotByAFixedFooter()

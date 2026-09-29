@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject CharacterSession Session
+@inject RunningHead Head
 
 @* The character sheet, laid out the way the published Ultimate Edition Hero Sheet is:
    three columns under a masthead, every section in its own ruled box under a centred
@@ -326,7 +327,10 @@
 
            It was a running footer on every page first, and that does not work: `position:
            fixed` in Chrome's print output lands the element at the top of page two rather
-           than in each page's bottom margin. *@
+           than in each page's bottom margin. What does repeat on every page is the `@page`
+           margin box in app.css, fed the name through RunningHead (see OnAfterRenderAsync
+           below) — so the pages between the first and this one are no longer anonymous. The
+           colophon stays: a margin box is Chrome's, and Firefox and Safari print none. *@
         <footer class="sheet-footer">
             @DisplayName · Prowlers &amp; Paragons@(Tier is null ? "" : $" · {Tier.Name}")
         </footer>
@@ -412,11 +416,35 @@
     {
         _subscribed = Character is null;
         if (_subscribed) Session.Changed += StateHasChanged;
+        Head.Take();
+    }
+
+    /// <summary>The name last pushed onto the document by this instance, so a re-render that
+    /// changed nothing about it costs no interop.</summary>
+    private string? _headed;
+
+    /// <summary>
+    /// Put this sheet's name on the document, so every printed page carries it.
+    ///
+    /// <para><b>From here and not from the layout</b>, because the layout knows the session's
+    /// character and this component is the one thing that knows which character is actually on
+    /// the page — a stored one on <c>/sheet/{id}</c>, a recorded one in a replay, a submitted one
+    /// on the approval page. The printed sheet is whatever this component drew, and its running
+    /// head has to say so.</para>
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var name = DisplayName;
+        if (name == _headed) return;
+
+        _headed = name;
+        await Head.Show(name);
     }
 
     public void Dispose()
     {
         if (_subscribed) Session.Changed -= StateHasChanged;
+        Head.Release();
     }
 
     /// <summary>

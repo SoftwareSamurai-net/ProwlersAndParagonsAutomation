@@ -1,15 +1,21 @@
 @* Where the browser's own print furniture is turned off.
 
-   The web address, the date and the page number across the top of a printed page are the
-   browser's furniture, not part of the sheet — and no page can turn them off, because the
-   setting belongs to whoever is printing. Saying where the switch is takes one line and is the
+   The web address and the page number along the foot of a printed page are the browser's
+   furniture, not part of the sheet — and no page can turn them off, because the setting
+   belongs to whoever is printing. Saying where the switch is takes one line and is the
    difference between a sheet you would hand somebody and one you would not.
+
+   **The band across the top is the sheet's own now, and the switch does not touch it.** The
+   `@page` margin box in app.css puts the character's name and the page count there, on every
+   page, and Chrome drops its own date-and-title line where a page has filled the slot —
+   measured, not assumed. So the sentence names the foot only: the address is what is left of
+   the browser's furniture, and the head is not something to tell anyone to turn off.
 
    **One component because two pages print a sheet**, and the sentence was identical in both. *@
 
 <p class="small muted @Class">
     One page. Turn <b>Headers and footers</b> off under <b>More settings</b> to drop the
-    browser's own address-and-date band.
+    browser's own web-address band; the name and page count across the top are the sheet's.
 </p>
 
 @code {

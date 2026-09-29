@@ -91,7 +91,7 @@ as in scope. **Nothing here is a defect.**
 **Recorded, with nothing asking for them**
 
 - [ ] **[1b](#1b-semantic-procon-constraints-are-still-unenforced)** — semantic Pro/Con constraints, no consumer
-- [ ] **[2](#2-what-the-sheet-still-cannot-say)** — a mid-sheet page is anonymous, with no portable CSS answer
+- [x] **[2](#2-what-the-sheet-still-cannot-say)** — every printed page carries the character's name and `page N of M` in a `@page` margin box, in Chrome (measured on 153); Firefox and Safari print no margin boxes, so the document title and colophon stay as their fallback. Verified by the orchestrator 2026-09-23: a SheetView that never publishes the name turned five `RunningHeadTests` red. Not driven in a real browser on CI — the margin box was proved by hand on a dev server
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
 - [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
@@ -361,7 +361,7 @@ across Chapter 2's Power entries to check"*.
 
 Found by an adversarial audit during the sheet-polish slice; real, and out of scope for it.
 
-**A printed page in the middle of a sheet is anonymous.** Much less pressing now the sheet is one page for an ordinary character, but a Powers-heavy one still runs over. The name is on page one and in a colophon on the last; every page between them relies on the browser's own print header, which the user can switch off — and unticking it is exactly what the review step now tells them to do, because that header is also where the web address comes from. CSS has no portable answer: `position: fixed` renders once at the top of page two in Chrome, and Chrome supports neither `@page` margin boxes nor `counter(page)`. The only mechanism that genuinely repeats per page is a table `<thead>`, which would mean rebuilding the sheet as one table.
+**A printed page in the middle of a sheet is anonymous.** Much less pressing now the sheet is one page for an ordinary character, but a Powers-heavy one still runs over. The name is on page one and in a colophon on the last; every page between them relies on the browser's own print header, which the user can switch off — and unticking it is exactly what the review step now tells them to do, because that header is also where the web address comes from. `position: fixed` renders once at the top of page two in Chrome. **Closed for Chrome 2026-09-23**: Chrome has honoured `@page` margin boxes and `counter(page)`/`counter(pages)` since 131, so every page now prints the name and `page N of M` in its top margin — how it is wired, and why `--sheet-name` has no fallback, is in `docs/guide/printed-sheet.md`. **Firefox and Safari generate no margin boxes**; for them the document title and the colophon remain the answer, and nothing portable is left to try short of rebuilding the sheet as one table under a `<thead>`.
 
 **The second half of this item is closed: a finding on the GM review step now names the step that
 caused it.** `web/Services/FindingRoute.cs` is a sibling of `SheetFindings` under the same rule — it
@@ -395,7 +395,7 @@ on arrival rather than landing the reader on a list of what they own.
   `docs/guide/testing.md` records three proof pages falling into. `proof-review-findings.html` is
   generated to be looked at; `FindingRouteTests` is what holds it.
 
-**The printed-page half above stays open** — CSS still has no portable answer for a running header.
+**The printed-page half above is closed for Chrome** (see its paragraph); Firefox and Safari keep the title-and-colophon fallback.
 
 **The 0d half of this item turned out to be a rules gap rather than a UI wrinkle, and is closed.** It was recorded as "a fresh sheet starts every Ability at 0d although the editor's floor is 1d without anything objecting". The floor was right and nearly everything else was wrong: Ch.2 states, once for Abilities (p.17) and again for Talents (p.18), that **no rank can be lower than 1d** and that ordinary people have 2d in every one — so a character has all eighteen Traits, 0d is not a low rank but a Trait nobody can be without, and the Talents editor's floor of 0d contradicted the book outright.
 

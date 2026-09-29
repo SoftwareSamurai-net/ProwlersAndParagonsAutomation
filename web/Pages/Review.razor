@@ -6,10 +6,11 @@
 @inject NavigationManager Nav
 @inject DismissedFindings Dismissed
 
-@* The character's name leads the title because the browser prints the document title in
-   its own page header, which is the one thing that reliably repeats on every printed page.
-   That is what identifies page three of a sheet lying face-up on a table — so an unnamed
-   character says so rather than falling back to the name of the step. *@
+@* The character's name leads the title because a browser prints the document title in its
+   own page header. In Chrome the sheet's own running head — the `@page` margin box in app.css,
+   fed by RunningHead — is what identifies page three of a sheet lying face-up on a table; in a
+   browser that prints no margin boxes, the title is still the one thing that repeats on every
+   page. So an unnamed character says so rather than falling back to the name of the step. *@
 <PageTitle>@(string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed character" : Session.Sheet.Name) — Prowlers &amp; Paragons</PageTitle>
 
 <h1>GM review</h1>
