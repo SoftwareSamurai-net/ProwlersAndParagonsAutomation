@@ -616,7 +616,14 @@ public sealed class CharacterTools
             ["families"] = array
         };
 
-        if (unreadable.Count > 0) report["unreadable"] = unreadable;
+        // A member that did not parse is not a member the engine judged, so the family cannot be
+        // called fine: "ok" is false whenever one was left out, the same refusal the browser's
+        // roster makes by reporting nothing about a family it could not read in full.
+        if (unreadable.Count > 0)
+        {
+            report["ok"]         = false;
+            report["unreadable"] = unreadable;
+        }
 
         return Write(report);
     }

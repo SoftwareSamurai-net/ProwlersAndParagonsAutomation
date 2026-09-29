@@ -2349,7 +2349,7 @@ public sealed class McpServerTests
 
         var report = Parse(Tools().CheckAlternateForms(Element(array.ToJsonString())));
 
-        Assert.True(report["ok"]!.GetValue<bool>());
+        Assert.False(report["ok"]!.GetValue<bool>());
         Assert.Empty(report["families"]!.AsArray());
         var unreadable = report["unreadable"]!.AsArray().Single();
         Assert.Equal("airmid", unreadable!["id"]!.GetValue<string>());
