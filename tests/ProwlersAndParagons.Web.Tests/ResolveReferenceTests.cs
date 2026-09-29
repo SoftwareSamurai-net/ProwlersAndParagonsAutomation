@@ -141,6 +141,27 @@ public sealed class ResolveReferenceTests
         Assert.Equal(expected, ResolveReferenceBlocks.CostWords(entry));
     }
 
+    /// <summary>
+    /// Every figure in the cost column is read off the entry, never written beside it. The
+    /// assisting rate is the one a reviewer found spelled out as "2": this doubles the field in
+    /// the real file's own bytes and requires the words to move with it, which a literal cannot.
+    /// </summary>
+    [Fact]
+    public void TheAssistingRateIsReadFromTheEntryNotWrittenHere()
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(RealJson)!;
+        var assisting = node["entries"]!.AsArray()
+            .Single(e => (string?)e!["id"] == "spend_assisting_allies")!;
+        var rate = (int)assisting["spend"]!["cost_per_point_shared_when_unable_to_assist"]!;
+        assisting["spend"]!["cost_per_point_shared_when_unable_to_assist"] = rate * 2;
+
+        var entry = ResolveReferenceReader.Parse(node.ToJsonString()).Entries
+            .Single(e => e.Id == "spend_assisting_allies");
+
+        Assert.Contains($"({rate * 2} per point if unable to assist)",
+            ResolveReferenceBlocks.CostWords(entry), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void PrintedPageReadsTheTrailingPageNumberOffASourceRef()
     {

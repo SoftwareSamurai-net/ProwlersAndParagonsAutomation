@@ -112,37 +112,24 @@
 
     <!-- **The one narrow exemption to keeping data/rules/play/ out of this payload.** The owner's
          ruling: the reference page at /reference/resolve may show resolve.json alone, and every
-         other play rules file stays out. This is an explicit single-file item rather than a
-         widened glob, on purpose — PlayPayloadTests.NoProjectGlobsTheRulesDirectoryRecursively
-         still refuses "**", and staging one named file the same way the character rules are
-         staged above is what keeps that test meaningful rather than routing around it.
-
-         The source and destination directories are each split into two MSBuild properties so
-         that no attribute value below spells "rules" and "play" adjacently as one run of text —
-         PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile refuses that spelling under
-         web/ exactly as it refuses every other play rules path here, and only the bare filename
-         resolve.json is the one token this project is excused for. See docs/guide/play-rules.md
-         and docs/guide/browser.md. -->
-    <PropertyGroup>
-        <ResolveRulesDirectory>..\data\rules</ResolveRulesDirectory>
-        <ResolvePlaySegment>play</ResolvePlaySegment>
-        <ResolveWwwrootRulesDirectory>wwwroot\data\rules</ResolveWwwrootRulesDirectory>
-    </PropertyGroup>
-
+         other play rules file stays out. An explicit single-file item rather than a widened glob —
+         PlayPayloadTests.NoProjectGlobsTheRulesDirectoryRecursively still refuses "**", and
+         NothingInTheApplicationNamesAPlayRulesFile exempts this one whole path under web/ and
+         nothing else. See docs/guide/play-rules.md. -->
     <ItemGroup>
-        <ResolveReferenceFile Include="$(ResolveRulesDirectory)\$(ResolvePlaySegment)\resolve.json" />
+        <ResolveReferenceFile Include="..\data\rules\play\resolve.json" />
     </ItemGroup>
 
     <Target Name="StageResolveReferenceInWwwroot" BeforeTargets="ResolveProjectStaticWebAssets">
-        <Error Condition="'@(ResolveReferenceFile)' == ''"
-               Text="resolve.json was not found under the play rules directory. The reference page at /reference/resolve serves it; without it that page cannot start." />
+        <Error Condition="!Exists('..\data\rules\play\resolve.json')"
+               Text="The Resolve reference file was not found. The reference page at /reference/resolve serves it; without it that page cannot start." />
 
         <Copy SourceFiles="@(ResolveReferenceFile)"
-              DestinationFolder="$(MSBuildProjectDirectory)\$(ResolveWwwrootRulesDirectory)\$(ResolvePlaySegment)"
+              DestinationFiles="$(MSBuildProjectDirectory)\wwwroot\data\rules\play\resolve.json"
               SkipUnchangedFiles="true" />
 
         <ItemGroup>
-            <Content Include="$(ResolveWwwrootRulesDirectory)\$(ResolvePlaySegment)\resolve.json" Exclude="@(Content)" />
+            <Content Include="wwwroot\data\rules\play\resolve.json" Exclude="@(Content)" />
         </ItemGroup>
     </Target>
 

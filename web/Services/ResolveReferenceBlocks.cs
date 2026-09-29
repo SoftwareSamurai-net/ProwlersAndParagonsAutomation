@@ -82,7 +82,8 @@ public static class ResolveReferenceBlocks
     /// section-opening overviews (<c>resolve_earning_overview</c>, <c>resolve_spending_overview</c>),
     /// the exceptions list (<c>resolve_exceptions</c>), and the two spends that defer to Chapter 4
     /// or to whatever Power is being imitated (<c>spend_combat</c>, <c>spend_using_powers</c>).
-    /// Also null, conditionally, for the handful of other cases below whose own data object is
+    /// Null too for the two rules that carry no figure, <c>carryover</c> and
+    /// <c>boost_and_shapeshifting_count_at_maximum</c>, whose descriptions say them. Also null, conditionally, for the handful of other cases below whose own data object is
     /// absent on a given entry — this switch's <c>_ => null</c> default is not the only route
     /// to a null result, only the one this list counts.
     /// </summary>
@@ -95,9 +96,11 @@ public static class ResolveReferenceBlocks
             "starting_resolve" =>
                 entry.StartingResolve is { } s ? $"{s.ResolvePerRankBelowCap} Resolve per rank below the Trait Cap" : null,
 
-            "boost_and_shapeshifting_count_at_maximum" => "counts at the raising Power's maximum possible rank",
+            // A rule with no figure: the entry's own description says it, and a sentence written
+            // here would be web/ stating a rule the data does not carry.
+            "boost_and_shapeshifting_count_at_maximum" => null,
 
-            "carryover" => "unspent Resolve is lost at the end of the issue",
+            "carryover" => null,
 
             "earn_defeat" => Award(entry.Earning, "once per battle"),
             "earn_flaw" => Award(entry.Earning, null),
@@ -107,7 +110,10 @@ public static class ResolveReferenceBlocks
             "earn_sacrifice" => Award(entry.Earning, "then unconscious until the end of the scene"),
 
             "spend_assisting_allies" => entry.Interpretation?.InferredCostPerPointShared is { } par
-                ? $"{par} Resolve per point shared (2 per point if unable to assist)"
+                ? $"{par} Resolve per point shared"
+                  + (entry.Spend?.CostPerPointSharedWhenUnableToAssist is { } unable
+                      ? $" ({unable} per point if unable to assist)"
+                      : "")
                 : null,
             "spend_challenge_roll_dice" => Cost(entry.Spend, "per extra die"),
             "spend_reroll_challenge_roll" => Cost(entry.Spend, "to reroll the whole challenge roll"),

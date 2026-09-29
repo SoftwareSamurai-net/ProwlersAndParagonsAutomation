@@ -415,6 +415,15 @@ public sealed class PlayPayloadTests
     private const string WebExemptToken = "resolve.json";
 
     /// <summary>
+    /// The exemption as whole paths, in both separators — what the scan below removes from a
+    /// <c>web/</c> source before it looks for any token. The file name alone is not exempt: a bare
+    /// <c>resolve.json</c> under <c>web/</c> is still a fault, so the exemption cannot be reached
+    /// by splitting the path into pieces the scan cannot see together.
+    /// </summary>
+    private static readonly string[] WebExemptPaths =
+        ["rules/play/" + WebExemptToken, @"rules\play\" + WebExemptToken];
+
+    /// <summary>
     /// <b>Nothing in the application names a play rules file — and "the application" no longer
     /// means "everything".</b> <c>PlayRulesRepository</c> exists now, in <c>play/</c>, and reads all
     /// five; the claim this guard makes has narrowed from "nothing reads them" to "exactly one
@@ -453,15 +462,19 @@ public sealed class PlayPayloadTests
 
                 var text = WithoutComments(File.ReadAllText(file));
 
+                // The one narrow exemption: under web/, the one whole path to resolve.json is
+                // taken out before the scan, and nothing else is. So the directory may be spelled
+                // there only as the way to that file — "rules/play/combat.json", or the directory
+                // on its own, still names 'rules/play' — and a split spelling that hides the
+                // directory from this scan is never needed to get the exemption.
+                if (string.Equals(tree, "web", StringComparison.Ordinal))
+                {
+                    foreach (var path in WebExemptPaths)
+                        text = text.Replace(path, "", StringComparison.OrdinalIgnoreCase);
+                }
+
                 foreach (var token in PlayFileTokens)
                 {
-                    // The one narrow exemption: web/ may name resolve.json, and nothing else.
-                    if (string.Equals(tree, "web", StringComparison.Ordinal)
-                        && string.Equals(token, WebExemptToken, StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-
                     if (text.Contains(token, StringComparison.OrdinalIgnoreCase))
                     {
                         faults.Add($"{Path.GetRelativePath(RepoRoot, file)} names '{token}'");

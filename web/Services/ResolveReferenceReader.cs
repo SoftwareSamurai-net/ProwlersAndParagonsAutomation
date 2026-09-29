@@ -38,16 +38,11 @@ public sealed class ResolveReferenceReader(HttpClient http)
     };
 
     /// <summary>
-    /// Where the character rules live, split from <see cref="PlaySegment"/> so that no line of
-    /// code in this project spells "rules" and "play" adjacently as one run of text —
-    /// <c>PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile</c> still refuses that
-    /// spelling under <c>web/</c>, exactly as it refuses every other play rules path here. Only
-    /// the bare filename, <c>resolve.json</c>, is the one token this project is excused for.
+    /// The one play rules file this project may name, spelled whole —
+    /// <c>PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile</c> exempts exactly this
+    /// path under <c>web/</c> and nothing shorter or longer.
     /// </summary>
-    private const string RulesRoot = "data/rules";
-
-    /// <summary>The subdirectory <c>data/rules/play/</c> is named for, kept apart for the same reason.</summary>
-    private const string PlaySegment = "play";
+    private const string FilePath = "data/rules/play/resolve.json";
 
     private ResolveDocument? _cached;
 
@@ -60,7 +55,7 @@ public sealed class ResolveReferenceReader(HttpClient http)
     {
         if (_cached is { } cached) return cached;
 
-        var json = await http.GetStringAsync($"{RulesRoot}/{PlaySegment}/resolve.json");
+        var json = await http.GetStringAsync(FilePath);
         _cached = Parse(json);
         return _cached;
     }
@@ -72,5 +67,5 @@ public sealed class ResolveReferenceReader(HttpClient http)
     /// </summary>
     public static ResolveDocument Parse(string json) =>
         JsonSerializer.Deserialize<ResolveDocument>(json, Options)
-            ?? throw new JsonException($"{RulesRoot}/{PlaySegment}/resolve.json parsed to a null document.");
+            ?? throw new JsonException($"{FilePath} parsed to a null document.");
 }
