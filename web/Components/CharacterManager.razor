@@ -276,8 +276,8 @@
                            calls the engine about a family rather than about one sheet. *@
                         @foreach (var extra in FamilyNotesFor(one.Id))
                         {
-                            <span class="meta @(extra.Warning ? "warning" : "")">
-                                @(extra.Warning ? $"Warning: {extra.Text}" : extra.Text)
+                            <span class="meta warning">
+                                @(extra.Warning ? $"Warning: {extra.Text}" : $"Error: {extra.Text}")
                             </span>
                         }
                         @if (FamilyPoolFor(one.Id) is { } pool)

@@ -76,8 +76,8 @@
                                    AlternateFormRosterNotes the roster draws its own row from. *@
                                 @foreach (var note in FamilyNotesFor(child.Id))
                                 {
-                                    <span class="meta @(note.Warning ? "warning" : "")">
-                                        @(note.Warning ? $"Warning: {note.Text}" : note.Text)
+                                    <span class="meta warning">
+                                        @(note.Warning ? $"Warning: {note.Text}" : $"Error: {note.Text}")
                                     </span>
                                 }
                             </li>
