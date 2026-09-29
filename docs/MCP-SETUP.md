@@ -215,7 +215,7 @@ Claude reads the question policy, asks you what it genuinely cannot infer, propo
 
 You will be asked about two or three things and told about the rest: the tier, whether an effect you described is one Power or several, and what your character is deliberately ordinary at. Everything else — ranks, talents, which package, which flaw — is decided and shown to you, because a questionnaire is a worse interface than the wizard this repository already has. Ask for the sheet at the end and you get the printed one, not JSON.
 
-## The six tools, and why six
+## The seven tools, and why seven
 
 | | |
 |---|---|
@@ -223,7 +223,8 @@ You will be asked about two or three things and told about the rest: the tier, w
 | `list_options` | Tiers, packages, abilities, talents, sources, perks, flaws, pros, cons, gear features |
 | `search_powers` | Which Powers could realise a described effect, with how each row matched — by name, or only on a word inside its description, which cuts both ways and says so |
 | `power_detail` | One Power in full, with only the Pros and Cons it may legally take |
-| `check_character` | **The judge.** Costs and validates, and reports what was spent on what |
+| `check_character` | **The judge.** Costs and validates one character, and reports what was spent on what |
+| `check_alternate_forms` | The one rule that needs two sheets at once — Ch.2 p.21's Alternate Form family, checked over a roster `check_character` cannot see |
 | `character_sheet` | The printed sheet, as text |
 
 **Costing and validating are one tool on purpose.** `cost_character` beside `validate_character` is the engine's API rather than the conversation's: no turn of a conversation wants a price without knowing whether the thing priced is allowed, and a separate costing tool is an invitation to quote a number for a character that breaks a rule.

@@ -1,6 +1,6 @@
 # The two assisted-creation surfaces
 
-Read before touching `mcp/`, `mcp-play/`, `mcp-shared/` or `cli/Headless/`: the question policy, the six tools, the standard-output discipline, the `build --from` contract, and the second server that runs fights.
+Read before touching `mcp/`, `mcp-play/`, `mcp-shared/` or `cli/Headless/`: the question policy, the seven tools, the standard-output discipline, the `build --from` contract, and the second server that runs fights.
 
 > Part of the guide set indexed by [`CLAUDE.md`](../../CLAUDE.md). Read that first; it carries the
 > disciplines that apply whatever you are working on. **Open work lives in
@@ -81,7 +81,7 @@ questions about the rules. It does not replace `build --from`; both call the sam
   deliberately ordinary at, and Source** — and the second is the one a model is most tempted
   to answer silently. Everything else is decided and *shown*. The reasoning for each is in the
   document; do not re-derive it from the tool descriptions.
-- **Six tools, chosen by what a conversation needs rather than by mirroring the engine.**
+- **Seven tools, chosen by what a conversation needs rather than by mirroring the engine.**
   `cost_character` beside `validate_character` is the engine's API: no turn of a conversation
   wants a price without knowing whether the thing priced is allowed, and a separate costing
   tool is an invitation to quote a number for a character that breaks a rule. So
@@ -89,6 +89,16 @@ questions about the rules. It does not replace `build --from`; both call the sam
   catalogues are one `list_options` for the same reason in reverse — ten tools for a dozen
   entries each would crowd out the ones that matter. Powers get two tools of their own because
   141 entries are searched rather than listed.
+- **`check_alternate_forms` is the seventh, and the one rule that needs two sheets at once.**
+  `check_character` takes exactly one character and cannot see a root beside its forms, so
+  Ch.2 p.21's Alternate Form family — both forms must pay for the Power and pay the same, a
+  form's power level is one the root paid a purchase for and not above the root's own, one
+  Resolve pool at the lowest of the forms, and a form may carry the root's own Trait Cap above
+  its own tier — is a roster question folded onto it would make instead. It takes an array of
+  `{id, character}`, mirroring engine `RosterEntry`, calls `AlternateForms.Families` the same
+  way `build --from`'s `roster.alternate_forms` does (see below), and refuses two entries under
+  one id exactly as the engine does. A member whose own JSON does not parse is named in
+  `unreadable` and left out of the roster passed to the engine, rather than guessed at.
 - **Standard output carries the protocol and nothing else.** Everything said to a human goes to
   standard error. `McpStdioTests` checks this twice, and needs both: it reads the source for
   `Console.` followed by anything but `Error` (not for `Console.WriteLine`, because

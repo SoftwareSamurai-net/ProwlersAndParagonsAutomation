@@ -14,7 +14,7 @@ public sealed class AlternateFormRosterNotesTests
     private static RulesRepository Rules { get; } = RulesRepository.FromBasePath(RepoRoot());
     private static CostCalculator Costs { get; } = new(Rules);
     private static DerivedStatsCalculator Derived { get; } = new(Rules);
-    private static AlternateForms Forms => new(Rules, Costs, Derived);
+    private static AlternateFormEngine Forms => new(new AlternateForms(Rules, Costs, Derived));
 
     private static string RepoRoot()
     {

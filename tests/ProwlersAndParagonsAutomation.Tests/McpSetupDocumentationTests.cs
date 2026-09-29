@@ -10,7 +10,7 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// The setup guide at <c>docs/MCP-SETUP.md</c>, held to the code it describes.
 ///
 /// <para><b>It is the one document a stranger follows with nothing else open</b>, and it names
-/// things that rot silently: six tool names, an environment variable, a project path, and the
+/// things that rot silently: seven tool names, an environment variable, a project path, and the
 /// binary a client is pointed at. None of those breaks a build when it goes stale — it breaks
 /// somebody's afternoon, at the point where they have no way to tell whether the instructions
 /// or their machine is wrong.</para>
@@ -41,7 +41,7 @@ public sealed class McpSetupDocumentationTests
         ScanRegex.Build(pattern, options);
 
     /// <summary>
-    /// The six wire names, as literals.
+    /// The seven wire names, as literals.
     ///
     /// <para>Not the constants on <c>CharacterServer</c>, for the reason
     /// <see cref="McpServerTests"/> already records: comparing a document with the constant it
@@ -53,7 +53,7 @@ public sealed class McpSetupDocumentationTests
     /// </summary>
     private static readonly string[] WireNames =
     [
-        "character_sheet", "check_character", "creation_guide",
+        "character_sheet", "check_alternate_forms", "check_character", "creation_guide",
         "list_options", "power_detail", "search_powers"
     ];
 
@@ -68,7 +68,7 @@ public sealed class McpSetupDocumentationTests
     /// </summary>
     private static List<string> ToolsTheGuideNames()
     {
-        var section = Rx("^## The six tools.*?(?=^## )", RegexOptions.Multiline | RegexOptions.Singleline)
+        var section = Rx("^## The seven tools.*?(?=^## )", RegexOptions.Multiline | RegexOptions.Singleline)
             .Match(Guide);
 
         Assert.True(section.Success, "The guide no longer has a section listing the tools.");
@@ -543,7 +543,7 @@ public sealed class McpSetupDocumentationTests
     /// <para>Both are published from different projects to different directories, and the failure
     /// worth guarding is the one that looks right in every other test here: a copy-and-paste that
     /// leaves both entries running the same assembly. A client would then register two servers,
-    /// connect both, and get the character builder's six tools under two names — with nothing
+    /// connect both, and get the character builder's seven tools under two names — with nothing
     /// anywhere saying why the encounter tools never appeared.</para>
     /// </summary>
     [Fact]

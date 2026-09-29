@@ -9,7 +9,7 @@ using ProwlersAndParagonsAutomation.Sheets;
 namespace ProwlersAndParagonsAutomation.Mcp;
 
 /// <summary>
-/// The six tools, and the reasoning behind there being six.
+/// The seven tools, and the reasoning behind there being seven.
 ///
 /// <para><b>They were chosen by asking what a conversation needs, not by mirroring the
 /// engine.</b> Someone describes a character out loud; the assistant has to find out which
@@ -26,9 +26,17 @@ namespace ProwlersAndParagonsAutomation.Mcp;
 ///
 /// <para><b>The small lists are one tool too.</b> Tiers, packages, abilities, talents,
 /// sources, perks, flaws, pros, cons and gear features are ten catalogues of a dozen entries
-/// each; ten tools for them would crowd out the six that matter in every client's tool list.
-/// Powers are the exception — 141 entries, searched rather than listed, which is a different
-/// job and gets its own two tools.</para>
+/// each; ten tools for them would crowd out the seven that matter in every client's tool
+/// list. Powers are the exception — 141 entries, searched rather than listed, which is a
+/// different job and gets its own two tools.</para>
+///
+/// <para><b>The one rule that needs two sheets at once is a seventh tool, not a flag on the
+/// sixth.</b> <see cref="CheckCharacter"/> takes one character; an <c>alternate_form</c>
+/// family's findings — Ch.2 p.21 — are about a root and its forms together, which
+/// <see cref="CheckCharacter"/> structurally cannot answer for a single sheet. Folding a
+/// roster parameter onto it would make the common case, one character, carry the shape of
+/// the rare one. <see cref="CheckAlternateForms"/> is the engine's own
+/// <see cref="AlternateForms.Families"/>, called the same way <c>build --from</c> calls it.</para>
 ///
 /// <para><b>Nothing here computes a Hero Point</b> and nothing decides legality. Every figure
 /// comes back from <see cref="Judgement"/>, which asks the engine. See QUESTION-POLICY.md,
@@ -43,6 +51,7 @@ public sealed class CharacterTools
     private readonly CharacterValidator _validator;
     private readonly ProConApplicability _applicability;
     private readonly Judgement _judgement;
+    private readonly AlternateForms _forms;
     private readonly Func<DateTime> _now;
     private readonly Func<string> _guide;
 
@@ -72,6 +81,7 @@ public sealed class CharacterTools
         _validator     = validator;
         _applicability = new ProConApplicability(rules);
         _judgement     = new Judgement(rules, costs, derived, validator);
+        _forms         = new AlternateForms(rules, costs, derived);
         _now           = now ?? (() => DateTime.Now);
         _guide         = guide ?? (() => QuestionPolicy.Text);
     }
@@ -82,7 +92,7 @@ public sealed class CharacterTools
     ///
     /// <para><b>It has to touch every catalogue, not one.</b> A repository loads each file
     /// lazily on first use, so warming <c>tiers</c> alone let a directory holding nothing but
-    /// <c>tiers.json</c> start cleanly and then throw out of five of the six tools — the exact
+    /// <c>tiers.json</c> start cleanly and then throw out of six of the seven tools — the exact
     /// failure this is here to prevent, passing its own check. The guide is read here too: it
     /// is an embedded resource, and the way it goes missing is a csproj edit that no test in
     /// the world would connect to a conversation starting with an empty document.</para>
@@ -534,6 +544,139 @@ public sealed class CharacterTools
             return Write(problem);
 
         return Write(_judgement.Judge(read));
+    }
+
+    // ── The one rule that needs two sheets at once ────────────────────────
+
+    [Description(
+        "Checks an ALTERNATE FORM family across two or more sheets at once -- the one rule "
+        + "check_character cannot see, because it takes one sheet. Both forms must pay for "
+        + "the Power and pay the same, a form's power level has to be one the root paid a "
+        + "purchase for and not above the root's own, and the family shares one Resolve "
+        + "pool: the lowest of its members'. Ch.2 p.21: a form may also carry the root's own "
+        + "Trait Cap above its own tier, and that is checked here rather than by "
+        + "check_character, which cannot see the root either.")]
+    public string CheckAlternateForms(
+        [Description(
+            "Every member of the roster, as an array of {id, character} objects. \"id\" is "
+            + "what another member's Variant.OfCharacterId names as its root; \"character\" "
+            + "is the JSON object creation_guide describes. Two entries under the same id "
+            + "are refused, the same way the engine refuses a roster with two files "
+            + "reducing to one id.")]
+        JsonElement roster)
+    {
+        if (!TryReadRoster(roster, out var entries, out var unreadable, out var problem))
+            return Write(problem);
+
+        IReadOnlyList<AlternateFormFamily> families;
+        try
+        {
+            families = _forms.Families(entries);
+        }
+        catch (ArgumentException e)
+        {
+            return Write(Judgement.Problem("DUPLICATE_ROSTER_ID", e.Message));
+        }
+
+        var array = new JsonArray();
+        var ok = true;
+
+        foreach (var family in families)
+        {
+            var members = new JsonArray();
+
+            void Member(RosterEntry entry, string role) =>
+                members.Add(new JsonObject
+                {
+                    ["id"]      = entry.Id,
+                    ["role"]    = role,
+                    ["name"]    = string.IsNullOrWhiteSpace(entry.Sheet.Name) ? null : entry.Sheet.Name,
+                    ["tier"]    = entry.Sheet.SelectedTierId,
+                    ["resolve"] = family.Resolve[entry.Id]
+                });
+
+            if (family.Root is { } root) Member(root, "root");
+            foreach (var form in family.Forms) Member(form, "form");
+
+            if (family.Issues.Any(i => i.Severity == ValidationSeverity.Error)) ok = false;
+
+            array.Add(new JsonObject
+            {
+                ["root_id"]        = family.RootId,
+                ["root_in_roster"] = family.Root is not null,
+                ["members"]        = members,
+                ["shared_resolve"] = family.SharedResolve,
+                ["issues"]         = Judgement.Issues(family.Issues)
+            });
+        }
+
+        var report = new JsonObject
+        {
+            ["ok"]       = ok,
+            ["families"] = array
+        };
+
+        if (unreadable.Count > 0) report["unreadable"] = unreadable;
+
+        return Write(report);
+    }
+
+    /// <summary>
+    /// The roster <see cref="CheckAlternateForms"/> takes, read the same strict way one
+    /// character is: a member whose own JSON does not parse is named in
+    /// <paramref name="unreadable"/> and left out of <paramref name="entries"/> rather than
+    /// guessed at — this class cannot vouch for a family missing a member's real sheet, and
+    /// the caller can see which id to fix.
+    /// </summary>
+    private bool TryReadRoster(
+        JsonElement roster, out List<RosterEntry> entries, out JsonArray unreadable, out JsonObject problem)
+    {
+        entries    = [];
+        unreadable = [];
+        problem    = new JsonObject();
+
+        if (roster.ValueKind != JsonValueKind.Array)
+        {
+            problem = Judgement.Problem("NO_ROSTER",
+                "No roster arrived. Pass an array of {id, character} objects.");
+            return false;
+        }
+
+        foreach (var item in roster.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object
+                || !item.TryGetProperty("id", out var idElement)
+                || idElement.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(idElement.GetString()))
+            {
+                problem = Judgement.Problem("ROSTER_ENTRY_UNREADABLE",
+                    "Every roster entry needs a non-empty \"id\" string and a \"character\" — "
+                    + "one entry arrived without a usable id.");
+                return false;
+            }
+
+            var id = idElement.GetString()!;
+
+            if (!item.TryGetProperty("character", out var characterElement))
+            {
+                problem = Judgement.Problem("ROSTER_ENTRY_UNREADABLE",
+                    $"'{id}' has no \"character\" — every roster entry needs one.");
+                return false;
+            }
+
+            if (!TryReadCharacter(characterElement, out var sheet, out var characterProblem))
+            {
+                // .DeepClone(): the node TryReadCharacter handed back is already parented to
+                // characterProblem, and a JsonNode can hold only one parent — assigning it
+                // straight into a second object throws.
+                unreadable.Add(new JsonObject { ["id"] = id, ["problem"] = characterProblem["problem"]!.DeepClone() });
+                continue;
+            }
+
+            entries.Add(new RosterEntry(id, sheet));
+        }
+
+        return true;
     }
 
     [Description(

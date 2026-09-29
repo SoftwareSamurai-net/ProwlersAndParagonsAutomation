@@ -41,7 +41,11 @@ public static class AlternateFormRosterNotes
     /// Every family <see cref="CharacterVariants.Group"/> found, of any kind — this walks past
     /// every one that is not an <c>alternate_form</c> family.
     /// </param>
-    /// <param name="forms">The engine's own family calculator, over the rules this browser holds.</param>
+    /// <param name="forms">
+    /// <see cref="AlternateFormEngine"/>, the indirection over the engine's own family
+    /// calculator that keeps <c>AlternateForms</c> — a name <c>WebPresentationTests</c> bans
+    /// from markup — off an <c>@inject</c> line.
+    /// </param>
     /// <param name="load">
     /// Reads one member's full sheet by id — <c>AccountCharacterStore.ReadAsync</c>, or the
     /// equivalent on whichever store abstraction is asking — and answers null when this build
@@ -50,7 +54,7 @@ public static class AlternateFormRosterNotes
     /// </param>
     public static async Task<Result> BuildAsync(
         IReadOnlyList<VariantFamily> families,
-        AlternateForms forms,
+        AlternateFormEngine forms,
         Func<string, Task<CharacterSheet?>> load)
     {
         ArgumentNullException.ThrowIfNull(families);

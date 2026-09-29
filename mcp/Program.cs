@@ -50,7 +50,7 @@ var tools = CharacterServer.ToolsFor(rulesDirectory);
 // with an error the client shows as a tool failure. One line on standard error and a
 // non-zero exit is something a person can act on — and it reads *everything*, because warming
 // one catalogue let a directory holding a single rules file start cleanly and then throw out
-// of five of the six tools, which is the failure this check is here to prevent.
+// of six of the seven tools, which is the failure this check is here to prevent.
 try
 {
     _ = CharacterServer.Tools(tools).ToList();
