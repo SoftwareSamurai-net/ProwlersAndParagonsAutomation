@@ -82,6 +82,28 @@ public static class AssetFormatter
     }
 
     /// <summary>
+    /// One Power a Gadget holds, as the line a sheet prints under it:
+    /// <c>Blast 8d — Ranged · Baseline Rank (Power) · 2 HP per rank</c>.
+    ///
+    /// <para><b>A Gadget's headline says what it cost and nothing about what it does</b>, and what
+    /// it does is what a player reads it for at the table. The rank is the engine's effective rank,
+    /// as for the character's own Powers, and an id that resolves to nothing prints as the id.</para>
+    /// </summary>
+    public static string GadgetPower(
+        SelectedPower power, CharacterSheet sheet, RulesRepository rules, DerivedStatsCalculator derived)
+    {
+        ArgumentNullException.ThrowIfNull(power);
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(rules);
+        ArgumentNullException.ThrowIfNull(derived);
+
+        if (rules.GetPower(power.PowerId) is not { } model) return power.PowerId;
+
+        var rank = Reachable(() => derived.GetEffectiveRank(power, sheet)) ?? 0;
+        return $"{model.Name}{(rank > 0 ? $" {N(rank)}d" : "")} — {PowerFormatter.StatLine(model)}";
+    }
+
+    /// <summary>
     /// What this character put into a campaign's shared vehicle or base.
     ///
     /// <para><b>Only what they put in.</b> What the object came out as is the campaign's answer,

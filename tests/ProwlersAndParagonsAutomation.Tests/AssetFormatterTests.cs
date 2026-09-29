@@ -220,6 +220,30 @@ public sealed class AssetFormatterTests
         Assert.DoesNotContain("Teamwork", Text(sheet), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The text export lists what a Gadget holds under its headline, the same line the printed
+    /// sheet's second page prints — so the two tellings agree on what the Gadget does, not only on
+    /// what it cost.
+    /// </summary>
+    [Fact]
+    public void TheTextExportListsEachPowerAGadgetHolds()
+    {
+        var sheet = SampleCharacters.Hero();
+        var armor = new SelectedPower("armor", 4);
+        sheet.Gadgets.Add(new BuiltGadget("Kinetic Plate") { Complexity = 5, Powers = [armor] });
+
+        var line = AssetFormatter.GadgetPower(armor, sheet, _f.Rules, _f.Derived);
+
+        Assert.StartsWith("Armor ", line, StringComparison.Ordinal);
+        Assert.Contains($"      - {line}", Text(sheet), StringComparison.Ordinal);
+    }
+
+    /// <summary>A Power id the rules do not have prints as the id, and never throws.</summary>
+    [Fact]
+    public void AGadgetPowerThatResolvesToNothingPrintsItsId() =>
+        Assert.Equal("not_a_power", AssetFormatter.GadgetPower(
+            new SelectedPower("not_a_power", 2), SampleCharacters.Hero(), _f.Rules, _f.Derived));
+
     private string Text(CharacterSheet sheet) =>
         CharacterSheetRenderer.RenderText(sheet, _f.Rules, _f.Costs, _f.Derived,
             _f.Validator.Validate(sheet), new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc));

@@ -67,7 +67,7 @@ public static class CharacterSheetRenderer
         WritePerks(sb, sheet, rules, costs);
         WriteFlaws(sb, sheet, rules);
         WriteGear(sb, sheet, rules, costs);
-        WriteAssets(sb, sheet, rules, costs);
+        WriteAssets(sb, sheet, rules, costs, derived);
         WriteDerived(sb, sheet, derived);
         WriteNarrative(sb, sheet);
         WriteValidation(sb, validation, generatedAt);
@@ -311,7 +311,7 @@ public static class CharacterSheetRenderer
     /// heading over four empty lines on every sheet would be furniture.</para>
     /// </summary>
     private static void WriteAssets(StringBuilder sb, CharacterSheet sheet,
-        RulesRepository rules, CostCalculator costs)
+        RulesRepository rules, CostCalculator costs, DerivedStatsCalculator derived)
     {
         if (sheet.Vehicles.Count == 0 && sheet.Headquarters.Count == 0
             && sheet.Gadgets.Count == 0 && sheet.CampaignAssets.Count == 0) return;
@@ -336,7 +336,21 @@ public static class CharacterSheetRenderer
         }
 
         foreach (var gadget in sheet.Gadgets)
+        {
             sb.AppendLine($"  • {AssetFormatter.Describe(gadget, costs, sheet.ImmortalityCost)}");
+
+            foreach (var sp in gadget.Powers)
+            {
+                sb.AppendLine($"      - {AssetFormatter.GadgetPower(sp, sheet, rules, derived)}");
+
+                if (PowerFormatter.UnitNamesLine(rules.GetPower(sp.PowerId), sp) is { } unitNames)
+                    sb.AppendLine($"        {unitNames}");
+                if (sp.Pros.Count > 0)
+                    sb.AppendLine("        Pros: " + PowerFormatter.ModifierLine(sp.Pros, Keyed));
+                if (sp.Cons.Count > 0)
+                    sb.AppendLine("        Cons: " + PowerFormatter.ModifierLine(sp.Cons, Keyed));
+            }
+        }
 
         foreach (var contribution in sheet.CampaignAssets)
             sb.AppendLine($"  • {AssetFormatter.Describe(contribution)}");

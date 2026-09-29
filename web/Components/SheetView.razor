@@ -379,6 +379,25 @@
                         {
                             <div class="power-entry">
                                 <div class="head"><span class="pname">@AssetFormatter.Describe(gadget, Session.Costs, Sheet.ImmortalityCost)</span></div>
+                                @* What the Gadget does, which is what a player reads it for: each
+                                   Power it holds, as the Powers column prints the character's own. *@
+                                @foreach (var sp in gadget.Powers)
+                                {
+                                    var power = Session.Rules.GetPower(sp.PowerId);
+                                    <div class="statline">@AssetFormatter.GadgetPower(sp, Sheet, Session.Rules, Session.Derived)</div>
+                                    @if (UnitNames(power, sp) is { } unitNames)
+                                    {
+                                        <div class="statline">@unitNames</div>
+                                    }
+                                    @if (sp.Pros.Count > 0)
+                                    {
+                                        <div class="statline">Pros: @PowerFormatter.ModifierLine(sp.Pros, c => Label(c, power))</div>
+                                    }
+                                    @if (sp.Cons.Count > 0)
+                                    {
+                                        <div class="statline">Cons: @PowerFormatter.ModifierLine(sp.Cons, c => Label(c, power))</div>
+                                    }
+                                }
                             </div>
                         }
                     </SheetSection>

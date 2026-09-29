@@ -120,6 +120,30 @@ public sealed class SheetAssetsPageTests
     }
 
     /// <summary>
+    /// A Gadget's headline says what it cost; what it does is the Powers it holds, and those are
+    /// what a player reads the page for. Each prints through <see cref="AssetFormatter.GadgetPower"/>,
+    /// the same line the text export writes, and its Cons print beside it.
+    /// </summary>
+    [Fact]
+    public void AGadgetPrintsEachPowerItHolds()
+    {
+        using var ctx = new RenderContext();
+        var sheet = Character();
+        var armor = new SelectedPower("armor", 4, [], [new SelectedProCon("item")]);
+        var gadget = new BuiltGadget("Kinetic Plate") { Complexity = 5, Powers = [armor] };
+        sheet.Gadgets.Add(gadget);
+        ctx.Session.RestoreBeforeFirstRender(sheet, SheetMode.Hero);
+
+        var page = ctx.Render<SheetView>();
+        var text = SheetText.Visible(page.Find(".sheet-assets-page"));
+
+        var line = AssetFormatter.GadgetPower(armor, sheet, ctx.Session.Rules, ctx.Session.Derived);
+        Assert.StartsWith("Armor", line, StringComparison.Ordinal);
+        Assert.Contains(line, text, StringComparison.Ordinal);
+        Assert.Contains("Cons:", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// A campaign contribution prints what this character put in — never the pooled object or
     /// another member's share, which this sheet cannot see and must not claim to.
     /// </summary>
