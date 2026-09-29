@@ -370,6 +370,7 @@ fill.
       "SourceId": "tech",
       "CostVariantKey": null,            // required where cost_type is *_variable
       "Units": 1,                        // for a per_unit Power
+      "UnitNames": null,                 // Immunity: one name per unit, e.g. [ "toxins" ]
       "BaselineTraitId": null            // required for Boost and Expertise
     }
   ],
@@ -452,6 +453,8 @@ they want different things:
   both look rankable and are not).
 - **27 Powers start from another Trait.** `power_detail` says which, and how.
 - **`Units` is only for a `per_unit` Power** — Immunity, Determination, Alternate Form.
+  Each immunity is named and paid for separately, so give Immunity one `UnitNames` entry
+  per unit — what it is immune to. A missing name is a warning, not an error.
 - **Mundane gear is free and untracked.** Only custom features and Pros and Cons cost.
 - Halves always round **up**.
 

@@ -66,6 +66,31 @@ public record SelectedPower(
     public int Units { get; init; } = 1;
 
     /// <summary>
+    /// What each unit is, for a Power whose units are named rather than counted — Immunity,
+    /// whose entry says each one "is named and paid for separately" (Ch.2 p.31). One entry per
+    /// unit, in the order they were bought; an entry may be blank while the player decides.
+    ///
+    /// <para><b>Null and not an empty list when nothing was recorded</b>, so a character written
+    /// before this field existed writes back byte for byte the same, and so the record's equality
+    /// is not broken by two empty lists that happen to be different objects.</para>
+    ///
+    /// <para><b>It costs nothing and is never read by a price.</b> <see cref="Units"/> is what is
+    /// paid for; a list longer or shorter than it is <c>CharacterValidator</c>'s to report, never
+    /// this record's to repair. Which Powers name their units is
+    /// <see cref="Models.PowerModel.UnitsAreNamed"/>.</para>
+    /// </summary>
+    public IReadOnlyList<string>? UnitNames { get; init; }
+
+    /// <summary>
+    /// The names of the units actually bought: the first <see cref="Units"/> entries of
+    /// <see cref="UnitNames"/>, trimmed, blanks left out. What a sheet prints.
+    /// </summary>
+    public IReadOnlyList<string> BoughtUnitNames() =>
+        [.. (UnitNames ?? []).Take(Math.Max(0, Units))
+                             .Where(n => !string.IsNullOrWhiteSpace(n))
+                             .Select(n => n.Trim())];
+
+    /// <summary>
     /// The Trait the player nominated for a baseline_selected_trait Power (Boost,
     /// Expertise). For Boost this also sets the per-rank cost, which matches the affected
     /// Trait's own cost per rank.

@@ -185,6 +185,7 @@ public sealed class CharacterValidator
         if (selectionsResolvable && modifiersResolvable) CheckPowerCosts(sheet, issues);
         CheckUnverifiedPowers(sheet, issues);
         CheckSources(sheet, issues);
+        CheckUnitNames(sheet, issues);
         CheckVariant(sheet, issues);
 
         return new ValidationResult(issues);
@@ -2250,6 +2251,63 @@ public sealed class CharacterValidator
         }
 
         return priceable;
+    }
+
+    /// <summary>
+    /// Named units: Immunity's "Each immunity is named and paid for separately" (Ch.2 p.31).
+    ///
+    /// <para><b>Warnings, never errors.</b> A name costs nothing and changes no number, so an
+    /// Immunity bought before the player has decided what it is against is a legal character
+    /// with a question open — the same standing as a Power with no Source.</para>
+    ///
+    /// <para><b>More names than units is reported on any Power, not only a named one</b>: a
+    /// sheet prints the first <see cref="SelectedPower.Units"/> names and no more, so a name past
+    /// the end describes something that was never paid for and would silently not print.</para>
+    /// </summary>
+    private void CheckUnitNames(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        foreach (var sp in sheet.SelectedPowers)
+        {
+            if (sp.Units <= 0) continue;
+
+            var power = Power(sp.PowerId);
+            var named = sp.BoughtUnitNames().Count;
+
+            if (power is { UnitsAreNamed: true } && named < sp.Units)
+            {
+                var unnamed = sp.Units - named;
+                var which   = unnamed == sp.Units ? (unnamed == 1 ? "it is not" : "none of them is")
+                            : unnamed == 1       ? "1 is not"
+                            :                      $"{unnamed} are not";
+                issues.Add(new(ValidationSeverity.Warning, "POWER_UNIT_NAMES_BELOW_UNITS",
+                    $"{power.Name} has {sp.Units} {power.UnitNoun(sp.Units)} and {which} named. "
+                    + $"Each {power.UnitNoun(1)} is named and paid for separately, so the sheet "
+                    + "should say what each one is against.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Value       = named,
+                    Limit       = sp.Units
+                });
+            }
+
+            // Counted by position, not by how many are filled in: a name in the third slot of a
+            // Power bought twice is the one that does not print, however blank the first two are.
+            var names = sp.UnitNames ?? [];
+            var slots = names.Count - names.Reverse().TakeWhile(string.IsNullOrWhiteSpace).Count();
+            if (slots > sp.Units)
+                issues.Add(new(ValidationSeverity.Warning, "POWER_UNIT_NAMES_EXCEED_UNITS",
+                    $"{PowerName(sp.PowerId)} records {slots} names but is bought {sp.Units} "
+                    + $"{(sp.Units == 1 ? "time" : "times")}. The sheet prints only the first "
+                    + $"{(sp.Units == 1 ? "name" : $"{sp.Units} names")}, so buy another or remove "
+                    + "the extra names.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Value       = slots,
+                    Limit       = sp.Units
+                });
+        }
     }
 
     /// <summary>

@@ -40,6 +40,27 @@ public record PowerModel
     public string? CostUnitLabel { get; init; }
 
     /// <summary>
+    /// True when each unit bought is a different thing the player names, rather than more of
+    /// the same thing. Immunity alone: "Each immunity is named and paid for separately"
+    /// (Ch.2 p.31). Determination's Resolve and Alternate Form's power levels are counted.
+    /// A character records the names in <see cref="SelectedPower.UnitNames"/>.
+    /// </summary>
+    public bool UnitsAreNamed { get; init; }
+
+    /// <summary>
+    /// <see cref="CostUnitLabel"/> for a count: "1 immunity", "3 immunities". "unit" where the
+    /// data carries no label.
+    /// </summary>
+    public string UnitNoun(int count)
+    {
+        var label = string.IsNullOrEmpty(CostUnitLabel) ? "unit" : CostUnitLabel;
+        if (count == 1) return label;
+        return label.EndsWith('y') && !label.EndsWith("ey", StringComparison.Ordinal)
+            ? label[..^1] + "ies"
+            : label + "s";
+    }
+
+    /// <summary>
     /// Selectable cost values for the two variable cost types, keyed by variant name —
     /// e.g. Omni-Power { narrow: 3, broad: 5 }, Stretching { close_range: 1, ... }.
     /// The value is HP per rank for per_rank_variable and total HP for flat_variable.
