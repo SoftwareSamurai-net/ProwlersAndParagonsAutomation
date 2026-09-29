@@ -248,8 +248,9 @@ public sealed class CharacterVariantTests
         }
 
         Assert.True(offenders.Count == 0,
-            "These price or derive a character and must not be able to see a character's "
-            + "variant link — this slice carries no rule consequences:\n  "
+            "These price or derive ONE character and must not be able to see its variant link. "
+            + "A link's rule consequences are about a set of sheets and live in "
+            + "engine/AlternateForms.cs, which is handed a roster:\n  "
             + string.Join("\n  ", offenders));
     }
 

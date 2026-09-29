@@ -73,6 +73,7 @@ builder.Services.AddScoped<Motion>();
 builder.Services.AddScoped<Commands>();
 builder.Services.AddScoped<Shortcuts>();
 builder.Services.AddScoped<Theme>();
+builder.Services.AddScoped<RunningHead>();
 builder.Services.AddScoped<ReplayLoader>();
 builder.Services.AddScoped<Sliders>();
 

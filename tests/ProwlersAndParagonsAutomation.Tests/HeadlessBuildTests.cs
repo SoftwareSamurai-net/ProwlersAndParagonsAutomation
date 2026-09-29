@@ -1422,6 +1422,189 @@ public sealed class HeadlessBuildTests : IDisposable
             c => c!["issues"]!.AsArray().Any(i => (string?)i!["code"] == "EXPORT_NAME_COLLISION"));
     }
 
+    // ── Alternate forms: the one rule that needs two sheets ───────────────
+
+    /// <summary>
+    /// A character file under a name of the test's choosing, in its own directory so two
+    /// tests' names cannot meet. The name is the whole point here: it is what another sheet's
+    /// <c>Variant</c> has to say to link to it.
+    /// </summary>
+    private string NamedCharacterFile(string fileName, CharacterSheet sheet)
+    {
+        var dir = Path.Combine(_scratch, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, fileName);
+        File.WriteAllText(path, CharacterSheetJson.Write(sheet));
+        return path;
+    }
+
+    /// <summary>
+    /// One of the two Heralds, legal on her own. Scáthach rebuilds one Hero Point over 125
+    /// (<c>PrebuiltHeroTests.HeroRebuildsToItsKnownResidual</c>), which is a fact about the corpus
+    /// and not about alternate forms, so her rankless Weakness Detection comes off — it moves
+    /// neither her Resolve nor her Alternate Form purchase. Every test below needs each
+    /// character legal alone, so that an exit of 1 can only have come from the family.
+    /// </summary>
+    private CharacterSheet Herald(string which)
+    {
+        var hero  = PrebuiltHeroes.All.Single(h => h.Name == $"Herald ({which})");
+        var sheet = PrebuiltHeroSheets.Build(_f.Rules, _f.Derived, hero);
+        sheet.Name = hero.Name;
+
+        var before = _f.Derived.CalculateResolve(sheet);
+        sheet.SelectedPowers.RemoveAll(p => p.PowerId == "weakness_detection");
+        Assert.Equal(before, _f.Derived.CalculateResolve(sheet));
+
+        Assert.True(_f.Validator.Validate(sheet).IsValid,
+            $"{hero.Name} must be legal alone for these tests to mean anything: "
+            + string.Join(", ", _f.Validator.Validate(sheet).Issues.Select(i => i.Code)));
+        return sheet;
+    }
+
+    /// <summary>
+    /// The book's own pair, Airmid and Scáthach (pp.134–135), linked by naming the root's
+    /// file: <c>airmid.json</c> is <c>airmid</c>, and the browser's own
+    /// <c>.character.json</c> suffix comes off as one extension. The family is reported with
+    /// every figure the engine's, the pool is the 5 both pages print, and the run is legal.
+    /// </summary>
+    [Fact]
+    public void AnAlternateFormFamilyIsReportedWithThePoolAndLinksByFileName()
+    {
+        var airmid   = Herald("Airmid");
+        var scathach = Herald("Scathach");
+        scathach.Variant = new CharacterVariant("airmid", CharacterVariant.AlternateForm);
+
+        var rootFile = NamedCharacterFile("airmid.json", airmid);
+        var formFile = NamedCharacterFile("scathach.character.json", scathach);
+
+        var run = Invoke("--from", rootFile, "--from", formFile, "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.True((bool)run.Report["ok"]!);
+
+        var family = Assert.Single(run.Report["roster"]!["alternate_forms"]!.AsArray());
+
+        Assert.Equal("airmid", (string?)family!["root_id"]);
+        Assert.True((bool)family["root_in_roster"]!);
+        Assert.Empty(family["issues"]!.AsArray());
+
+        var members = family["members"]!.AsArray();
+        Assert.Equal(["airmid", "scathach"], members.Select(m => (string?)m!["id"]));
+        Assert.Equal(["root", "form"], members.Select(m => (string?)m!["role"]));
+        Assert.Equal([rootFile, formFile], members.Select(m => (string?)m!["source"]));
+        Assert.Equal([airmid.Name, scathach.Name], members.Select(m => (string?)m!["name"]));
+        Assert.Equal(["standard", "standard"], members.Select(m => (string?)m!["tier"]));
+
+        // The engine's figures, not constants — and the book's, as the control on the engine.
+        Assert.Equal(_f.Derived.CalculateResolve(airmid),   (int)members[0]!["resolve"]!);
+        Assert.Equal(_f.Derived.CalculateResolve(scathach), (int)members[1]!["resolve"]!);
+        Assert.Equal(5, (int)family["shared_resolve"]!);
+    }
+
+    /// <summary>
+    /// <b>A rule the roster breaks as a set is exit 1, and it is on no character's own
+    /// report.</b> Scáthach without the Power is a legal character on her own page — the
+    /// control below says so — and an illegal pair, because "both forms must pay for this
+    /// Power" is about two sheets. So the roster's <c>ok</c> and <c>exit_code</c> say 1 while
+    /// each character's own <c>exit_code</c> stays 0, which is where a caller learns it is the
+    /// family and not a sheet.
+    /// </summary>
+    [Fact]
+    public void AFamilyBreakingARuleIsTheRostersExitCodeAndNotACharacters()
+    {
+        var airmid   = Herald("Airmid");
+        var scathach = Herald("Scathach");
+        scathach.Variant = new CharacterVariant("airmid", CharacterVariant.AlternateForm);
+        scathach.SelectedPowers.RemoveAll(p => p.PowerId == AlternateForms.PowerId);
+
+        var run = Invoke("--from", NamedCharacterFile("airmid.json", airmid),
+                         "--from", NamedCharacterFile("scathach.json", scathach), "--no-export");
+
+        Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
+        Assert.Equal(BuildCommand.CharacterIllegal, (int)run.Report["exit_code"]!);
+        Assert.False((bool)run.Report["ok"]!);
+
+        // The control: every character is legal on its own, so the 1 came from the family.
+        Assert.All(run.Report["characters"]!.AsArray(),
+            c => Assert.Equal(BuildCommand.Ok, (int)c!["exit_code"]!));
+
+        var family = Assert.Single(run.Report["roster"]!["alternate_forms"]!.AsArray());
+        var issue  = Assert.Single(family!["issues"]!.AsArray());
+
+        Assert.Equal("ALTERNATE_FORM_NOT_PAID", (string?)issue!["code"]);
+        Assert.Equal("error", (string?)issue["severity"]);
+        Assert.Equal("character", (string?)issue["subject_kind"]);
+        Assert.Equal("scathach", (string?)issue["subject_id"]);
+        Assert.Equal("airmid", (string?)issue["owner_id"]);
+    }
+
+    /// <summary>
+    /// A form whose root is not in the run is a warning and a legal run — the roster may be
+    /// partial, and the root's absence is said rather than guessed around.
+    /// </summary>
+    [Fact]
+    public void AFormWhoseRootIsNotInTheRunIsAWarningAndStillLegal()
+    {
+        var scathach = Herald("Scathach");
+        scathach.Variant = new CharacterVariant("airmid", CharacterVariant.AlternateForm);
+
+        var run = Invoke("--from", NamedCharacterFile("scathach.json", scathach),
+                         "--from", SampleHeroFile(), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.True((bool)run.Report["ok"]!);
+
+        var family = Assert.Single(run.Report["roster"]!["alternate_forms"]!.AsArray());
+        Assert.False((bool)family!["root_in_roster"]!);
+        Assert.Equal("airmid", (string?)family["root_id"]);
+        Assert.Null(family["shared_resolve"]);
+        Assert.Equal(["scathach"], family["members"]!.AsArray().Select(m => (string?)m!["id"]));
+
+        var issue = Assert.Single(family["issues"]!.AsArray());
+        Assert.Equal("ALTERNATE_FORM_ROOT_NOT_IN_ROSTER", (string?)issue!["code"]);
+        Assert.Equal("warning", (string?)issue["severity"]);
+    }
+
+    [Fact]
+    public void ARosterWithNoLinkReportsNoFamilies()
+    {
+        var (first, second, _, _) = Pair();
+
+        var run = Invoke("--from", first, "--from", second, "--no-export");
+
+        Assert.Empty(run.Report["roster"]!["alternate_forms"]!.AsArray());
+    }
+
+    /// <summary>
+    /// <b>Two files reducing to one id is answered, not guessed at.</b> <c>a/airmid.json</c> and
+    /// <c>b/airmid.json</c> are both <c>airmid</c>, and a link naming it could mean either — so
+    /// the section is the refusal, and the characters themselves are all still judged.
+    /// </summary>
+    [Fact]
+    public void TwoFilesUnderOneNameLeaveTheFamiliesUnansweredAndTheCharactersJudged()
+    {
+        var run = Invoke("--from", NamedCharacterFile("airmid.json", Herald("Airmid")),
+                         "--from", NamedCharacterFile("airmid.json", Herald("Scathach")), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.Equal(2, run.Report["characters"]!.AsArray().Count);
+
+        var section = run.Report["roster"]!["alternate_forms"]!.AsObject();
+        Assert.Contains("airmid", (string?)section["unanswered"] ?? "", StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("airmid.json", "airmid")]
+    [InlineData("c_abc123.character.json", "c_abc123")]
+    [InlineData("Cael_Hughes_20260911_101500.JSON", "Cael_Hughes_20260911_101500")]
+    [InlineData("Herald.Airmid.json", "Herald.Airmid")]
+    [InlineData("-", "-")]
+    public void ARosterIdIsTheFileNameWithItsExtensionOff(string fileName, string expected)
+    {
+        var path = fileName == "-" ? "-" : Path.Combine(_scratch, "roster", fileName);
+        Assert.Equal(expected, BuildCommand.RosterId(path));
+    }
+
     // ── Cross-sheet questions ─────────────────────────────────────────────
 
     /// <summary>

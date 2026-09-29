@@ -3085,6 +3085,33 @@ label {
 @page {
     size: A4 portrait;
     margin: 14mm 13mm;
+
+    /* **Every printed page says whose it is.** A Powers-heavy character runs past one page,
+       and a page in the middle of a sheet used to be anonymous: the name is on page one and
+       in the colophon on the last, and the pages between relied on the browser's own print
+       header, which the person printing can turn off — and is told to, because that header
+       is also where the web address comes from.
+
+       This is a page margin box, which Chrome has honoured since 131 (measured on 153): the
+       box prints in the top margin of every page, whether or not the browser's own header is
+       on, and stands in for that header. `--sheet-name` is not declared in any stylesheet —
+       download.js sets it on the document element for whichever sheet is on the page, as a
+       quoted, escaped CSS string, and removes it when the sheet goes. That is the mechanism,
+       not an omission: an unset `var()` makes this `content` invalid, the box is not
+       generated, and the browser's header stands in on a page with no sheet on it. Firefox
+       and Safari print no margin boxes; there the document title still carries the name.
+
+       The typography is the colophon's (`.sheet-footer` in the print block): the same small
+       tracked capitals in muted ink, so the head reads as furniture rather than as a line
+       of the sheet. */
+    @top-center {
+        content: var(--sheet-name) " · page " counter(page) " of " counter(pages);
+        font-family: var(--font-display);
+        font-size: 7.5pt;
+        letter-spacing: var(--label-track);
+        text-transform: uppercase;
+        color: var(--muted);
+    }
 }
 
 @media print {

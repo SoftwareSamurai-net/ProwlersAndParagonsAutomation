@@ -141,6 +141,7 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<Commands>();
         Services.AddScoped<Shortcuts>();
         Services.AddScoped<Theme>();
+        Services.AddScoped<RunningHead>();
 
         // The Home/End guard on every rank slider. Registered here for the same reason as the
         // three above it: a row that could not resolve it would throw on every render, not only

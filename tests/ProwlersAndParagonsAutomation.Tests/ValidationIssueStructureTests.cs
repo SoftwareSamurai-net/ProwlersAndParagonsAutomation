@@ -601,6 +601,59 @@ public sealed class ValidationIssueStructureTests
     }
 
     /// <summary>
+    /// <b>A Power whose own entry says to buy it again is not "listed twice".</b> Ch.2 p.21:
+    /// "Buy this Power multiple times if you want multiple forms"; p.27: "You can buy this
+    /// Power multiple times if you want to be able to create multiple duplicates". Found by the
+    /// alternate-form slice, whose own remedy for a second form — every member pays the Power
+    /// again — drew a <c>DUPLICATE_POWER</c> warning on every member's own report for doing
+    /// what the book says. The mark is <c>repeatable</c> on the entry, the shape an option
+    /// that may be bought again already uses; the test below holds it to the printed text.
+    /// </summary>
+    [Theory]
+    [InlineData("alternate_form")]
+    [InlineData("duplication")]
+    public void APowerWhoseEntrySaysToBuyItAgainIsNotADuplicate(string powerId)
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower(powerId, 0) { SourceId = "tech", Units = 3 });
+        sheet.SelectedPowers.Add(new SelectedPower(powerId, 0) { SourceId = "tech", Units = 3 });
+
+        Assert.True(_f.Rules.GetPower(powerId)!.Repeatable);
+        Assert.False(Reports(sheet, "DUPLICATE_POWER"));
+
+        // Both are still charged for: the mark changes the warning, not the arithmetic.
+        Assert.Equal(2 * _f.Costs.PowerCost(sheet.SelectedPowers[^1]),
+            _f.Costs.TotalPowersCost(sheet) - _f.Costs.TotalPowersCost(Legal()));
+    }
+
+    /// <summary>
+    /// The <c>repeatable</c> mark on a Power is a record of printed text and nothing else: the
+    /// entries marked are exactly the ones whose Ch.2 text says "buy this Power multiple
+    /// times". Dazzle's "attacking the same target multiple times" is not that sentence.
+    /// </summary>
+    [Fact]
+    public void ThePowersMarkedRepeatableAreExactlyThoseWhoseEntrySaysToBuyThemAgain()
+    {
+        using var chapter = System.Text.Json.JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "data", "rulebook", "ch02-characters.json")));
+        var says = new Regex(@"buy this Power multiple times", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(5));
+
+        var printed = chapter.RootElement.GetProperty("sections").EnumerateArray()
+            .Where(s => says.IsMatch(s.GetProperty("text").GetString() ?? ""))
+            .Select(s => s.GetProperty("heading").GetString()!)
+            .Order()
+            .ToList();
+
+        var marked = _f.Rules.Powers.Where(p => p.Repeatable)
+            .Select(p => p.Name.ToUpperInvariant())
+            .Order()
+            .ToList();
+
+        Assert.Equal(["ALTERNATE FORM", "DUPLICATION"], printed);
+        Assert.Equal(printed, marked);
+    }
+
+    /// <summary>
     /// A Power listed twice is a warning, not an error: the rulebook does not forbid it, and
     /// two Blasts with different Pros is a shape a player might want. What is certainly wrong
     /// is that the budget charges for both while the sheet shows the first.
@@ -1110,6 +1163,16 @@ public sealed class ValidationIssueStructureTests
         ["VARIANT_WITHOUT_ROOT"]            = [ValidationSubject.Character],
         ["UNKNOWN_VARIANT_KIND"]            = [ValidationSubject.Character],
 
+        // Item 21 slice two: AlternateForms is handed a roster and reports about whole sheets —
+        // SubjectId is the roster id of the form or root at fault and OwnerId the root's, which
+        // is what a caller with two files open needs to know which one to edit.
+        ["ALTERNATE_FORM_ROOT_NOT_IN_ROSTER"] = [ValidationSubject.Character],
+        ["ALTERNATE_FORM_NOT_PAID"]           = [ValidationSubject.Character],
+        ["ALTERNATE_FORM_COST_DIFFERS"]       = [ValidationSubject.Character],
+        ["ALTERNATE_FORM_ABOVE_ROOT_LEVEL"]   = [ValidationSubject.Character],
+        ["ALTERNATE_FORM_LEVEL_NOT_PAID"]     = [ValidationSubject.Character],
+        ["ALTERNATE_FORM_PAID_NOT_IN_ROSTER"] = [ValidationSubject.Character],
+
         // Ruling 7: reported against the character when CheckCampaignAssets finds it on a
         // contribution, and against the shared object when CheckSharedAsset finds it while
         // walking every member's contribution to that object.
@@ -1181,7 +1244,8 @@ public sealed class ValidationIssueStructureTests
         "PRO_VARIANT_NOT_CHOSEN", "CON_VARIANT_NOT_CHOSEN", "RANKLESS_POWER_WITHOUT_SOURCE",
         "POWER_WITHOUT_SOURCE", "MODIFIER_ON_UNBOUGHT_ABILITY", "FLAW_MIN_NOT_MET",
         "UNKNOWN_ASSET_FEATURE", "ASSET_FEATURE_NEEDS_GRADE", "UNKNOWN_CAMPAIGN_ASSET_KIND",
-        "UNKNOWN_GADGET_ABILITY", "UNKNOWN_GADGET_TALENT", "UNKNOWN_VARIANT_KIND"
+        "UNKNOWN_GADGET_ABILITY", "UNKNOWN_GADGET_TALENT", "UNKNOWN_VARIANT_KIND",
+        "ALTERNATE_FORM_LEVEL_NOT_PAID"
     };
 
     /// <summary>
@@ -1899,7 +1963,7 @@ public sealed class ValidationIssueStructureTests
     /// exempt from the structural rules, because adding it fails this test until a sheet that
     /// produces it exists.</para>
     /// </summary>
-    private static readonly string[] UnprovokableCodes =
+    internal static readonly string[] UnprovokableCodes =
     [
         "POWER_MECHANICS_UNVERIFIED", "POWER_DESCRIPTION_UNVERIFIED", "CHARACTER_NOT_PRICEABLE",
 
@@ -1908,7 +1972,16 @@ public sealed class ValidationIssueStructureTests
         // campaign's own asset rather than a CharacterSheet — nothing Validate(sheet) walks can
         // ever reach it, by the same no-storage line CheckSharedAsset is exempt for. Exercised
         // directly by CampaignAssetTests instead.
-        "CAMPAIGN_ASSET_KIND_MISMATCH"
+        "CAMPAIGN_ASSET_KIND_MISMATCH",
+
+        // Item 21 slice two: the six ALTERNATE_FORM_* codes come only out of
+        // AlternateForms.Families, which takes a roster — two sheets at once is the whole point
+        // of them, and Validate(sheet) has one. Every one is provoked, with its structure used
+        // for a repair, by AlternateFormTests instead; that file's own scan holds its case list
+        // to this one.
+        "ALTERNATE_FORM_ROOT_NOT_IN_ROSTER", "ALTERNATE_FORM_NOT_PAID", "ALTERNATE_FORM_COST_DIFFERS",
+        "ALTERNATE_FORM_ABOVE_ROOT_LEVEL", "ALTERNATE_FORM_LEVEL_NOT_PAID",
+        "ALTERNATE_FORM_PAID_NOT_IN_ROSTER"
     ];
 
     /// <summary>
