@@ -2263,6 +2263,12 @@ public sealed class CharacterValidator
     /// <para><b>More names than units is reported on any Power, not only a named one</b>: a
     /// sheet prints the first <see cref="SelectedPower.Units"/> names and no more, so a name past
     /// the end describes something that was never paid for and would silently not print.</para>
+    ///
+    /// <para><b>A Gadget's Powers are named the same way</b> — p.94 buys them under the ordinary
+    /// rules, so an Immunity bought inside a Gadget is still "named and paid for separately". The
+    /// clauses above walk <see cref="CharacterSheet.SelectedPowers"/> alone; this one walks
+    /// <see cref="CharacterSheet.Gadgets"/>, same shape as the Gadget sweep in
+    /// <see cref="CheckQuantities"/>.</para>
     /// </summary>
     private void CheckUnitNames(CharacterSheet sheet, List<ValidationIssue> issues)
     {
@@ -2307,6 +2313,54 @@ public sealed class CharacterValidator
                     Value       = slots,
                     Limit       = sp.Units
                 });
+        }
+
+        // A Gadget's Powers are named the same way and were nowhere: an Immunity bought inside
+        // a Gadget is still "named and paid for separately", and the clauses above walk
+        // `sheet.SelectedPowers` alone. Same shape as the Gadget sweep in CheckQuantities.
+        foreach (var gadget in sheet.Gadgets.Where(g => g.Name is not null))
+        {
+            foreach (var sp in gadget.Powers)
+            {
+                if (sp.Units <= 0) continue;
+
+                var power = Power(sp.PowerId);
+                var named = sp.BoughtUnitNames().Count;
+                var name  = GadgetPowerName(gadget, sp);
+
+                if (power is { UnitsAreNamed: true } && named < sp.Units)
+                {
+                    var unnamed = sp.Units - named;
+                    var which   = unnamed == sp.Units ? (unnamed == 1 ? "it is not" : "none of them is")
+                                : unnamed == 1       ? "1 is not"
+                                :                      $"{unnamed} are not";
+                    issues.Add(new(ValidationSeverity.Warning, "POWER_UNIT_NAMES_BELOW_UNITS",
+                        $"{name} has {sp.Units} {power.UnitNoun(sp.Units)} and {which} named. "
+                        + $"Each {power.UnitNoun(1)} is named and paid for separately, so the "
+                        + "sheet should say what each one is against.")
+                    {
+                        SubjectKind = ValidationSubject.Gadget,
+                        SubjectId   = gadget.Name,
+                        Value       = named,
+                        Limit       = sp.Units
+                    });
+                }
+
+                var names = sp.UnitNames ?? [];
+                var slots = names.Count - names.Reverse().TakeWhile(string.IsNullOrWhiteSpace).Count();
+                if (slots > sp.Units)
+                    issues.Add(new(ValidationSeverity.Warning, "POWER_UNIT_NAMES_EXCEED_UNITS",
+                        $"{name} records {slots} names but is bought {sp.Units} "
+                        + $"{(sp.Units == 1 ? "time" : "times")}. The sheet prints only the "
+                        + $"first {(sp.Units == 1 ? "name" : $"{sp.Units} names")}, so buy "
+                        + "another or remove the extra names.")
+                    {
+                        SubjectKind = ValidationSubject.Gadget,
+                        SubjectId   = gadget.Name,
+                        Value       = slots,
+                        Limit       = sp.Units
+                    });
+            }
         }
     }
 

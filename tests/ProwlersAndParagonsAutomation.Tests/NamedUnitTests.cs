@@ -179,6 +179,81 @@ public sealed class NamedUnitTests
         Assert.Empty(Issues(sheet, "POWER_UNIT_NAMES_BELOW_UNITS"));
     }
 
+    // ── A Gadget's Powers are named the same way ─────────────────────────────
+
+    /// <summary>
+    /// The same <c>CheckUnitNames</c> gate, one budget down: p.94 buys a Gadget's Powers under
+    /// the ordinary rules, so an Immunity bought inside one is still "named and paid for
+    /// separately" — and the character-only sweep never walked <c>sheet.Gadgets</c>.
+    /// </summary>
+    private CharacterSheet WithGadgetImmunity(int units, params string[] names)
+    {
+        var sheet = _f.LegalSheet();
+        sheet.TalentRanks["technology"] = 6;
+        sheet.Gadgets.Add(new BuiltGadget("Vault Breaker")
+        {
+            Complexity = 3,
+            Powers     = [Immunity(units, names)]
+        });
+        return sheet;
+    }
+
+    [Fact]
+    public void AGadgetImmunityBelowUnitsIsAWarningOnTheGadget()
+    {
+        var sheet = WithGadgetImmunity(2, "Toxins");
+        var result = _f.Validator.Validate(sheet);
+
+        var issue = Assert.Single(result.Issues, i => i.Code == "POWER_UNIT_NAMES_BELOW_UNITS");
+        Assert.Equal(ValidationSeverity.Warning, issue.Severity);
+        Assert.Equal(ValidationSubject.Gadget, issue.SubjectKind);
+        Assert.Equal("Vault Breaker", issue.SubjectId);
+        Assert.Equal(1, issue.Value);
+        Assert.Equal(2, issue.Limit);
+        Assert.StartsWith("Vault Breaker's Immunity has 2 immunities and 1 is not named.",
+            issue.Message, StringComparison.Ordinal);
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void AGadgetImmunityWithNamesPastTheCountIsAWarningOnTheGadget()
+    {
+        var sheet = WithGadgetImmunity(2, "Toxins", "Fire", "Cold");
+        var result = _f.Validator.Validate(sheet);
+
+        var issue = Assert.Single(result.Issues, i => i.Code == "POWER_UNIT_NAMES_EXCEED_UNITS");
+        Assert.Equal(ValidationSeverity.Warning, issue.Severity);
+        Assert.Equal(ValidationSubject.Gadget, issue.SubjectKind);
+        Assert.Equal("Vault Breaker", issue.SubjectId);
+        Assert.Equal(3, issue.Value);
+        Assert.Equal(2, issue.Limit);
+        Assert.StartsWith("Vault Breaker's Immunity records 3 names but is bought 2 times.",
+            issue.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AGadgetImmunityFullyNamedIsNoFinding()
+    {
+        var sheet = WithGadgetImmunity(2, "Toxins", "Fire");
+
+        Assert.Empty(Issues(sheet, "POWER_UNIT_NAMES_BELOW_UNITS"));
+        Assert.Empty(Issues(sheet, "POWER_UNIT_NAMES_EXCEED_UNITS"));
+    }
+
+    /// <summary>
+    /// A nameless Gadget is skipped the same way <c>CheckQuantities</c>' sweep skips one — there
+    /// is nothing to attribute the finding to.
+    /// </summary>
+    [Fact]
+    public void ANamelessGadgetsUnnamedImmunityIsNotReported()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.TalentRanks["technology"] = 6;
+        sheet.Gadgets.Add(new BuiltGadget(null!) { Complexity = 3, Powers = [Immunity(2, "Toxins")] });
+
+        Assert.Empty(Issues(sheet, "POWER_UNIT_NAMES_BELOW_UNITS"));
+    }
+
     /// <summary>
     /// A name past the count is one nobody paid for, and the sheet will not print it. Counted by
     /// position, so a blank slot inside the count does not hide the one outside it.
