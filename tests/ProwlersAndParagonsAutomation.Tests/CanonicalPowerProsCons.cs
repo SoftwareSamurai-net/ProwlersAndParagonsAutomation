@@ -125,6 +125,8 @@ public static class CanonicalPowerProsCons
         new("tracer", "pro", "tracking", "flat=3"),
         new("transformation_animal_forms", "pro", "enhanced", "flat=4"),
         new("transformation_animal_forms", "con", "only_x", "flat_variable=narrow:-4,standard:-2"),
-        new("transmutation", "con", "fighting_marksmanship", "flat=-1"),
+        // Ch.2 p.47 prints this under Two-Fisted. It was recorded on Transmutation, the entry
+        // above it on the page, which has no options of its own.
+        new("two_fisted", "con", "fighting_marksmanship", "flat=-1"),
     ];
 }
