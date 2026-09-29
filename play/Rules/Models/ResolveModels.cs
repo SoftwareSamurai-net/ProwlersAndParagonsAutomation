@@ -185,6 +185,7 @@ public sealed record ResolveEntry(
     string PrintedUnder,
     ResolveStartingResolveModel? StartingResolve,
     string Description,
+    string Summary,
     IReadOnlyList<string> VerifiedFields,
     string SourceRef,
     IReadOnlyList<string>? CorroboratedBy,

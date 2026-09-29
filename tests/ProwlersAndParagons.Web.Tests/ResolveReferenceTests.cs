@@ -194,6 +194,40 @@ public sealed class ResolveReferenceTests
         Assert.Contains("p.85", page.Markup);
     }
 
+    /// <summary>
+    /// <b>The page shows the player-facing <c>summary</c>, never the maintainer's <c>description</c>.</b>
+    /// The owner's ruling was that a visitor reads what a rule does, not a transcription note
+    /// naming <c>DerivedStatsCalculator</c> or talking about "the engine". Checked both ways on a
+    /// known entry: the summary's own words are present, and a phrase that appears in the
+    /// description and nowhere in the summary is absent — so a component reverted to
+    /// <c>@entry.Description</c> fails this rather than merely failing to fail. Broken by mutating
+    /// <see cref="ResolveEntryList"/>'s <c>@entry.Summary</c> back to <c>@entry.Description</c> and
+    /// watching it go red on both assertions.
+    /// </summary>
+    [Fact]
+    public async Task ThePageShowsTheSummaryNotTheDescription()
+    {
+        using var ctx = NewContext(new StaticJsonHandler(RealJson));
+
+        var document = ResolveReferenceReader.Parse(RealJson);
+        var entry = document.Entries.Single(e => e.Id == "starting_resolve");
+
+        Assert.False(string.IsNullOrWhiteSpace(entry.Summary));
+        Assert.DoesNotContain("DerivedStatsCalculator", entry.Summary, StringComparison.Ordinal);
+        Assert.Contains("DerivedStatsCalculator", entry.Description, StringComparison.Ordinal);
+
+        var page = ctx.Render<ResolveReference>();
+
+        await page.WaitForAssertionAsync(() => Assert.Contains("Starting Resolve", page.Markup), Patient);
+
+        // The summary's own words, taken from the real file rather than typed out twice here.
+        Assert.Contains("left three dice unbought opens on 6", page.Markup, StringComparison.Ordinal);
+
+        // A phrase that only the description carries — naming the engine type that computes this
+        // figure — must never reach the rendered page.
+        Assert.DoesNotContain("DerivedStatsCalculator", page.Markup, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AFailedFetchSaysTheReferenceCouldNotBeLoaded()
     {

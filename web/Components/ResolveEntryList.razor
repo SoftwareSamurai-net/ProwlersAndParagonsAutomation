@@ -1,7 +1,9 @@
 @* One block of the Resolve reference page: a plain list of entries, each with its name, a
-   plain-words cost where the data gives one, its description, and the printed page it comes
-   from. Built on <ChosenList>/<ChosenRow> rather than hand-written markup, so this is not a
-   second component writing the "chosen" and "chosen-row" classes those already own. *@
+   plain-words cost where the data gives one, its player-facing summary, and the printed page it
+   comes from. The entry's `description` is a maintainer's transcription note and is never shown
+   here — see docs/guide/play-rules.md. Built on <ChosenList>/<ChosenRow> rather than
+   hand-written markup, so this is not a second component writing the "chosen" and "chosen-row"
+   classes those already own. *@
 
 @if (Rows is null || !Rows.Any())
 {
@@ -21,7 +23,7 @@ else
                             <span class="tag">@cost</span>
                         }
                     </div>
-                    <div class="small muted">@entry.Description</div>
+                    <div class="small muted">@entry.Summary</div>
                 </Body>
             </ChosenRow>
         }

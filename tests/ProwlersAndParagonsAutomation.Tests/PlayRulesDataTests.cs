@@ -805,6 +805,7 @@ public sealed class PlayRulesDataTests
         string Name,
         string Kind,
         string Description,
+        string Summary,
         IReadOnlyList<string> VerifiedFields,
         string SourceRef,
         IReadOnlyList<string>? CorroboratedBy,
@@ -6166,6 +6167,10 @@ public sealed class PlayRulesDataTests
     ///   <item><c>verified_fields</c> —
     ///   <see cref="EveryEntryDeclaresVerifiedFieldsDrawnFromTheClosedList"/></item>
     ///   <item><c>description</c> — <see cref="NoDescriptionRepeatsARunOfTheBooksOwnWords"/></item>
+    ///   <item><c>summary</c> — the player-facing text <c>ResolveEntryList</c> renders instead of
+    ///   <c>description</c>; the same run-of-ten-words check covers it (see
+    ///   <see cref="NoDescriptionRepeatsARunOfTheBooksOwnWords"/>), and
+    ///   <see cref="NoSummaryNamesProgramVocabulary"/> is the narrower cheap check beside it</item>
     ///   <item><c>kind</c> — <see cref="EveryEntryDeclaresAKindFromTheClosedList"/></item>
     ///   <item><c>ambiguity</c> —
     ///   <see cref="TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect"/></item>
@@ -6184,8 +6189,8 @@ public sealed class PlayRulesDataTests
     private static readonly HashSet<string> EnvelopeFields =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            "id", "name", "kind", "description", "verified_fields", "source_ref", "corroborated_by",
-            "ambiguity", "printed_under", "who"
+            "id", "name", "kind", "description", "summary", "verified_fields", "source_ref",
+            "corroborated_by", "ambiguity", "printed_under", "who"
         };
 
     /// <summary>
@@ -7793,7 +7798,13 @@ public sealed class PlayRulesDataTests
             .Concat(Equipment().Entries.Select(e => ("equipment.json", e.Id, e.SourceRef, e.CorroboratedBy)))
             .Concat(Environment().Entries.Select(e => ("environment.json", e.Id, e.SourceRef, e.CorroboratedBy)));
 
-    /// <summary>The descriptions of one file, as (id, description) pairs.</summary>
+    /// <summary>
+    /// The descriptions of one file, as (id, description) pairs. <c>resolve.json</c> is the one
+    /// file that also carries a <c>summary</c> — the player-facing text <c>ResolveEntryList</c>
+    /// renders instead of <c>description</c> — so its rows are doubled up rather than swapped:
+    /// <see cref="NoDescriptionRepeatsARunOfTheBooksOwnWords"/> has to catch a lifted run in
+    /// either field, not just the one it used to check.
+    /// </summary>
     private static IEnumerable<(string Id, string Description)> DescriptionsIn(string fileName) => fileName switch
     {
         "play_meta.json" => Meta().Entries.Select(e => ($"play_meta.json/{e.Id}", e.Description)),
@@ -7802,6 +7813,69 @@ public sealed class PlayRulesDataTests
         "gritty.json" => Gritty().Entries.Select(e => ($"gritty.json/{e.Id}", e.Description)),
         "equipment.json" => Equipment().Entries.Select(e => ($"equipment.json/{e.Id}", e.Description)),
         "environment.json" => Environment().Entries.Select(e => ($"environment.json/{e.Id}", e.Description)),
-        _ => Resolve().Entries.Select(e => ($"resolve.json/{e.Id}", e.Description))
+        _ => Resolve().Entries.SelectMany(e => new[]
+        {
+            ($"resolve.json/{e.Id}/description", e.Description),
+            ($"resolve.json/{e.Id}/summary", e.Summary)
+        })
     };
+
+    // ── Summary: the player-facing text ─────────────────────────────────────
+
+    /// <summary>
+    /// Every one of the 28 entries carries a non-empty <c>summary</c> — the page has no other
+    /// source of player-facing text, so a blank one is a blank row rather than a fallback to
+    /// <c>description</c>.
+    /// </summary>
+    [Fact]
+    public void EveryEntryCarriesANonEmptySummary()
+    {
+        var faults = Resolve().Entries
+            .Where(e => string.IsNullOrWhiteSpace(e.Summary))
+            .Select(e => e.Id)
+            .ToList();
+
+        Assert.True(faults.Count == 0, $"missing summary: {string.Join(", ", faults)}");
+    }
+
+    /// <summary>
+    /// <b>A cheap denylist, and its doc comment says what it cannot do</b> — per <c>CLAUDE.md</c>'s
+    /// rule that a denylist of spellings cannot make a verdict honest. This catches the obvious
+    /// slip — a maintainer's note leaking into the player-facing <c>summary</c> field by naming a
+    /// type, a test, a file format or the act of transcription — and nothing more. It cannot prove
+    /// a summary is <em>good</em> prose, only that it does not carry one of these tells.
+    /// A PascalCase identifier (an internal capital with a lowercase run before it, e.g.
+    /// <c>DerivedStatsCalculator</c>) is the shape a C# type or member name takes and a summary
+    /// should never need one; requiring that lowercase run is what keeps an all-caps abbreviation
+    /// the book itself uses — GM, NPC — from tripping the check. The six words are the vocabulary
+    /// a maintainer reaches for when explaining the data rather than the rule.
+    /// </summary>
+    [Fact]
+    public void NoSummaryNamesProgramVocabulary()
+    {
+        var pascalCase = new Regex(@"\b[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*\b");
+        string[] bannedWords = ["engine", "test", "file", "json", "transcri", "recorded"];
+
+        var faults = new List<string>();
+
+        foreach (var entry in Resolve().Entries)
+        {
+            var summary = entry.Summary;
+
+            if (pascalCase.IsMatch(summary))
+            {
+                faults.Add($"{entry.Id}: summary contains a PascalCase identifier — '{pascalCase.Match(summary).Value}'");
+            }
+
+            foreach (var word in bannedWords)
+            {
+                if (summary.Contains(word, StringComparison.OrdinalIgnoreCase))
+                {
+                    faults.Add($"{entry.Id}: summary names program vocabulary — '{word}'");
+                }
+            }
+        }
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
 }

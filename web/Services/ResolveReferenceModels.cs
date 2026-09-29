@@ -266,6 +266,7 @@ public sealed record ResolveEntry
     public string PrintedUnder { get; init; } = "";
     public string? Who { get; init; }
     public string Description { get; init; } = "";
+    public string Summary { get; init; } = "";
     public IReadOnlyList<string> VerifiedFields { get; init; } = [];
     public string SourceRef { get; init; } = "";
     public IReadOnlyList<string>? CorroboratedBy { get; init; }
