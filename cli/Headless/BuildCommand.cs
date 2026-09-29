@@ -115,9 +115,17 @@ public sealed class BuildCommand
          JSON document: `characters` holds each character's own report, in the order they
          were given and each with its own exit_code and the `source` it was read from;
          `roster` answers the questions that are about all of them; `exit_code` is the
-         highest of theirs ({InputUnusable} beats {CharacterIllegal} beats {Ok}); and `ok` is
-         true only when every character is legal. A file that cannot be read is one exit-{InputUnusable}
-         report inside `characters`, not the end of the run.
+         highest of theirs ({InputUnusable} beats {CharacterIllegal} beats {Ok}), or {CharacterIllegal} when
+         the roster breaks a rule as a set; and `ok` is true only when nothing does. A file
+         that cannot be read is one exit-{InputUnusable} report inside `characters`, not the end of
+         the run.
+
+         `roster.alternate_forms` is the one rule that needs two sheets at once: a character
+         whose `Variant` names another as its `alternate_form` root is checked against it —
+         both pay for the Power and pay the same, the form's power level is one the root paid
+         for and not above the root's own — and the family's one Resolve pool is the lowest
+         of its forms. A sheet is known by its file name without the extension
+         (`c_abc.character.json` is `c_abc`), which is what a `Variant` has to name.
          """;
 
     /// <summary>
@@ -175,20 +183,25 @@ public sealed class BuildCommand
             return reports[0].ExitCode;
         }
 
-        var exitCode = reports.Max(r => r.ExitCode);
-
         for (var i = 0; i < reports.Count; i++)
             reports[i].Report["source"] = inputs[i].Path;
 
+        var rosterSection = Roster(inputs, options, out var rosterBreaksARule);
+
+        // The exit code is the worst news in the run, so a caller looping over a roster
+        // learns from one number that something needs attention — and each character
+        // keeps its own, so they learn which. A rule the roster breaks as a set — two forms
+        // of one character paying differently for Alternate Form — is a rule broken, so it
+        // is exit CharacterIllegal too, and it is on no character's own report because it is
+        // true of neither sheet alone.
+        var exitCode = Math.Max(reports.Max(r => r.ExitCode), rosterBreaksARule ? CharacterIllegal : Ok);
+
         var roster = new JsonObject
         {
-            // The exit code is the worst news in the run, so a caller looping over a roster
-            // learns from one number that something needs attention — and each character
-            // keeps its own, so they learn which.
-            ["ok"]         = reports.TrueForAll(r => r.ExitCode == Ok),
+            ["ok"]         = exitCode == Ok,
             ["exit_code"]  = exitCode,
             ["characters"] = new JsonArray([.. reports.Select(r => (JsonNode)r.Report)]),
-            ["roster"]     = Roster(inputs, options)
+            ["roster"]     = rosterSection
         };
 
         stdout.WriteLine(roster.ToJsonString(Formatting));
@@ -465,7 +478,7 @@ public sealed class BuildCommand
     /// sheet to ask about. Their reports are in <c>characters</c> with exit
     /// <see cref="InputUnusable"/>, which is where a caller finds out.</para>
     /// </summary>
-    private JsonObject Roster(IReadOnlyList<Input> inputs, Options options)
+    private JsonObject Roster(IReadOnlyList<Input> inputs, Options options, out bool breaksARule)
     {
         var read = inputs.Where(i => i.Sheet is not null).ToList();
 
@@ -482,8 +495,97 @@ public sealed class BuildCommand
 
         roster["spending"]    = new JsonArray([.. read.Select(Spending)]);
         roster["perks_by_id"] = PerksById(read);
+        roster["alternate_forms"] = AlternateFormFamilies(read, out breaksARule);
 
         return roster;
+    }
+
+    /// <summary>
+    /// The id a sheet in this run is known by, which is what another sheet's
+    /// <see cref="CharacterVariant.OfCharacterId"/> has to name to link to it: the file name
+    /// with its extension off, and the browser's <c>.character.json</c> counted as one
+    /// extension. A sheet carries no id of its own — the browser keeps it in the storage
+    /// envelope — so a file pulled out of an account and saved under its id links up, and a
+    /// hand-written roster links up by naming its files.
+    /// </summary>
+    public static string RosterId(string path)
+    {
+        var name = Path.GetFileName(path);
+
+        const string kept = ".character.json";
+        if (name.EndsWith(kept, StringComparison.OrdinalIgnoreCase))
+            return name[..^kept.Length];
+
+        return Path.GetFileNameWithoutExtension(name);
+    }
+
+    /// <summary>
+    /// Every alternate-form family in the run, as <see cref="AlternateForms"/> answers it —
+    /// the one cross-sheet rule there is, and the reason the roster section exists at all.
+    ///
+    /// <para><b>Every figure is the engine's.</b> Each member's own Resolve and the pool are
+    /// <see cref="AlternateFormFamily.Resolve"/> and <see cref="AlternateFormFamily.SharedResolve"/>;
+    /// this method copies them out and names which file each id came from. An error in a
+    /// family is a rule the roster breaks, and <paramref name="breaksARule"/> carries that to
+    /// the exit code.</para>
+    ///
+    /// <para><b>Two files reducing to one id is answered rather than guessed at.</b> <c>a/c_1.json</c>
+    /// and <c>b/c_1.json</c> are both <c>c_1</c>, and a link naming it could mean either; the
+    /// engine refuses the roster, and this section becomes the refusal rather than a list that
+    /// silently checked one of them. It is not an exit-code matter: the characters themselves
+    /// are all still judged.</para>
+    /// </summary>
+    private JsonNode AlternateFormFamilies(IReadOnlyList<Input> read, out bool breaksARule)
+    {
+        breaksARule = false;
+
+        var entries = read.Select(i => new RosterEntry(RosterId(i.Path), i.Sheet!)).ToList();
+        var sources = new Dictionary<string, Input>(StringComparer.Ordinal);
+        foreach (var input in read) sources.TryAdd(RosterId(input.Path), input);
+
+        IReadOnlyList<AlternateFormFamily> families;
+        try
+        {
+            families = new AlternateForms(_rules, _costs, _derived).Families(entries);
+        }
+        catch (ArgumentException e)
+        {
+            return new JsonObject { ["unanswered"] = e.Message };
+        }
+
+        var array = new JsonArray();
+
+        foreach (var family in families)
+        {
+            var members = new JsonArray();
+
+            void Member(RosterEntry entry, string role) =>
+                members.Add(new JsonObject
+                {
+                    ["id"]      = entry.Id,
+                    ["role"]    = role,
+                    ["source"]  = sources[entry.Id].Path,
+                    ["name"]    = string.IsNullOrWhiteSpace(entry.Sheet.Name) ? null : entry.Sheet.Name,
+                    ["tier"]    = entry.Sheet.SelectedTierId,
+                    ["resolve"] = family.Resolve[entry.Id]
+                });
+
+            if (family.Root is { } root) Member(root, "root");
+            foreach (var form in family.Forms) Member(form, "form");
+
+            if (family.Issues.Any(i => i.Severity == ValidationSeverity.Error)) breaksARule = true;
+
+            array.Add(new JsonObject
+            {
+                ["root_id"]        = family.RootId,
+                ["root_in_roster"] = family.Root is not null,
+                ["members"]        = members,
+                ["shared_resolve"] = family.SharedResolve,
+                ["issues"]         = Issues(family.Issues)
+            });
+        }
+
+        return array;
     }
 
     /// <summary>
@@ -642,11 +744,13 @@ public sealed class BuildCommand
                 ["units"] = Answer(() => g.Sum(p => p.Units))
             })]);
 
-    private static JsonArray Issues(ValidationResult validation)
+    private static JsonArray Issues(ValidationResult validation) => Issues(validation.Issues);
+
+    private static JsonArray Issues(IEnumerable<ValidationIssue> issues)
     {
         var array = new JsonArray();
 
-        foreach (var issue in validation.Issues)
+        foreach (var issue in issues)
         {
             var node = new JsonObject
             {

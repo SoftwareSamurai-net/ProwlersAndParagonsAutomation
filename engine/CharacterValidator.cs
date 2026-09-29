@@ -1230,12 +1230,21 @@ public sealed class CharacterValidator
     /// deciding a rules question it cannot cite. What is certainly wrong is that the two
     /// disagree: the budget charges for both while <c>CharacterSheet.GetPower</c> answers with
     /// the first, so the sheet shows one Power and the total pays for two.</para>
+    ///
+    /// <para><b>Except where the entry says to buy it again.</b> Alternate Form (p.21) and
+    /// Duplication (p.27) each print "buy this Power multiple times", and a second purchase of
+    /// either is the book's own instruction — one per extra form, one per extra duplicate. Those
+    /// entries carry <see cref="PowerModel.Repeatable"/>, and a second purchase of one is not
+    /// warned about here: the alternate-form check's own remedy for a second form is that every
+    /// member pays again, and a warning on the sheet for taking it would contradict the roster.</para>
     /// </summary>
     private void CheckDuplicatePowers(CharacterSheet sheet, List<ValidationIssue> issues)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var sp in sheet.SelectedPowers.Where(p => p.PowerId is not null && !seen.Add(p.PowerId)))
+        foreach (var sp in sheet.SelectedPowers.Where(p => p.PowerId is not null
+                                                         && !seen.Add(p.PowerId)
+                                                         && Power(p.PowerId)?.Repeatable != true))
             issues.Add(new(ValidationSeverity.Warning, "DUPLICATE_POWER",
                 $"{PowerName(sp.PowerId)} is listed more than once. Both are charged for, but "
                 + "a sheet shows the first, so check this is what was meant.")
