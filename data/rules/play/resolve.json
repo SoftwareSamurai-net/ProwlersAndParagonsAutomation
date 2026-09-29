@@ -70,7 +70,7 @@
         "gm_has_final_say": true
       },
       "description": "Not every Trait is looked at when the opening pool is worked out. Talents are out altogether, on the grounds that a trained skill is not the same order of thing as a superpower. So is any Power that cannot be turned on somebody or something - eleven are named as illustrations rather than as a closed list, and the sentence naming them is hedged at both ends: it opens by offering them as examples and stops short of saying they never count. One of the eleven carries a carve-out of its own, since an Expertise is exempt only while it is not a combat skill. The last word belongs to the GM in every case.",
-      "summary": "Talents never count toward this figure, and neither does a Power that can't be used to attack, defend or otherwise affect anyone or anything else - Detection, Flight, Super Senses and Teleportation are among the examples given, and Expertise counts too once it isn't a combat skill. The GM always has final say over a borderline case.",
+      "summary": "Talents never count toward this figure, and neither does a Power that can't be used to attack, defend or otherwise affect anyone or anything else - Detection, Flight, Super Senses and Teleportation are among the examples given, and so is an Expertise that isn't a combat skill. The GM always has final say over a borderline case.",
       "verified_fields": ["effect", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
       "ambiguity": "The eleven Powers are introduced as examples of the criterion rather than as the exhaustive list, and the sentence carrying them says they do not USUALLY count, so a simulator cannot treat the list as a lookup table without deciding what the hedge is worth. The Expertise entry carves out combat skills without saying how a combat skill is told from any other: the phrase is used once in the whole book and is never defined, and the page calls them skills where the book's own word for the twelve on p.18 is Talents. So the carve-out cannot be applied without a reading, and this file does not carry one - what this repository reads it as, and why, is in powers.json and docs/guide/rules-engine.md. What belongs here is the shape of the guess: any reading has to decide which nominations count, an Expertise that counts lowers the gap the pool is measured from, and so erring towards counting errs towards LESS opening Resolve for a Hero. The GM has the final say in any case, which the page states outright. Nor is it said whether the criterion is judged against the Power as printed or against the use a particular character has put it to."
@@ -103,7 +103,7 @@
         "gm_carryover_should_be_rare": true
       },
       "description": "Whatever is left in a pool when the session ends is gone, and the stated purpose of that is to stop anybody saving. A GM is permitted to waive it now and again, and is warned in the same breath that doing so often produces exactly the hoarding the rule exists to prevent.",
-      "summary": "Unused Resolve disappears at the end of a session; none of it rolls into the next issue. A GM may let a character keep some anyway, but doing that regularly tends to encourage saving points instead of spending them.",
+      "summary": "Unused Resolve disappears when an issue ends; none of it rolls into the next one. A GM may let a character keep some anyway, but doing that regularly tends to encourage saving points instead of spending them.",
       "verified_fields": ["duration", "effect", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
       "ambiguity": null
@@ -139,7 +139,7 @@
         "limit_per_battle": 1
       },
       "description": "Going down earns a point, and the point is capped at one for each fight however many times the character is put down inside it. The trigger is deliberately wider than combat: a plan that collapses or a rescue that fails counts as readily as being knocked out.",
-      "summary": "A character earns 1 Resolve for a serious defeat, failure or setback, inside a fight or out of one, but only once per encounter no matter how many times they go down in it.",
+      "summary": "A character earns 1 Resolve for a serious defeat, failure or setback, inside a fight or out of one, but only once per battle, however many times they go down in it.",
       "verified_fields": ["trigger", "effect", "duration", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
       "ambiguity": "The cap is written per battle and the trigger explicitly reaches setbacks that involve no battle at all, so nothing bounds how often a character can earn this away from a fight. Whether 'significant' is the GM's judgement or the player's is also unstated, though the surrounding section puts every other award in the GM's hands."
@@ -156,7 +156,7 @@
         "some_flaws_award_per_issue_instead": 1
       },
       "description": "A player who lets one of their own weaknesses bite, and pays for it, takes a point. The weakness has to be plausible where it lands - the book's own example refuses a fear of heights invoked at sea level. Some Flaws are priced differently and simply hand over a point once a session instead.",
-      "summary": "Letting one of your Flaws cause trouble for you or an ally, in a scene where it plausibly fits, earns 1 Resolve. A handful of Flaws instead pay 1 Resolve once per session regardless of whether they come up.",
+      "summary": "Letting one of your Flaws cause trouble for you or an ally, in a scene where it plausibly fits, earns 1 Resolve. A handful of Flaws work differently and pay 1 Resolve once per issue instead.",
       "verified_fields": ["trigger", "effect", "duration", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.83",
       "ambiguity": "Which Flaws pay once an issue rather than on use is not stated here and has to be read off each Flaw's own entry in Chapter 2. Nor is it said whether one Flaw can be brought into play more than once in an issue, or whether a Hero who owns several may earn from each of them in the same scene."
@@ -444,7 +444,7 @@
         "should_not_be_as_easy_to_earn_as_resolve": true
       },
       "description": "The GM opens each session with one point per Hero - which Heroes are counted is a question the chapter leaves open, and the ambiguity below carries it - and, like the players, keeps nothing at the end of it. The chapter is explicit that this side of the economy is meant to be tighter: the GM may invent further ways to earn, but is told not to make them as easy as the players'.",
-      "summary": "The GM opens every session holding 1 Adversity for each Hero at the table and loses whatever's left over once it ends - the pool is meant to build more slowly than the players' Resolve does.",
+      "summary": "The GM opens every issue holding 1 Adversity for each Hero in the game and loses whatever is left when the issue ends - the pool is meant to build more slowly than the players' Resolve does.",
       "verified_fields": ["effect", "duration", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
       "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.11"],
@@ -532,7 +532,7 @@
         "npcs_cannot_choose_when_their_flaws_bite": true
       },
       "description": "On the GM's side a Flaw is not a way to earn anything - it is a weakness that surfaces whenever the fiction gives it the chance, which is the whole of why a Villain's slots are worth spending carefully. One point buys a character out of one for the remainder of a scene, and no character may be bought out twice in the same session.",
-      "summary": "1 Adversity keeps a Villain's, Foe's or Extra's own Flaw from getting the better of them for the rest of the scene, and the same character can be bought out of a Flaw at most once per session.",
+      "summary": "1 Adversity keeps a Villain's, Foe's or Extra's own Flaw from getting the better of them for the rest of the scene, and the same character can be bought out of a Flaw at most once per issue.",
       "verified_fields": ["trigger", "effect", "duration", "cost", "description"],
       "source_ref": "Ultimate Edition, Ch.5 Resolve and Adversity, p.85",
       "ambiguity": "Three grades of character are named as eligible and Minions are not among them, which reads either as a deliberate exclusion or as an oversight in a sentence that lists three of the four kinds the previous paragraph had just enumerated. The limit is written per character per issue and it is not said whether it is per character or per Flaw, which differ for anyone carrying two. Nor is it said whether the point may be spent pre-emptively or only once the Flaw is already in play."
