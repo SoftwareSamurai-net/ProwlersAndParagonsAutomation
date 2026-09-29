@@ -352,6 +352,76 @@ public sealed class AlternateFormTests
         Assert.Empty(unpaid.Options);
     }
 
+    // ── "Not its Trait Cap": the form declares, the family verifies ───────
+
+    /// <summary>
+    /// A Street Level form of the Standard root, built to the root's own 12d cap rather than
+    /// Street Level's own 8d. Ch.2 p.21: the form's power level sets its Hero Points and nothing
+    /// else, so the cap — and the Resolve it drives — stay the root's, and the book's printed
+    /// figure of 5 for each of the pair holds even though the form's own tier changed.
+    /// </summary>
+    [Fact]
+    public void AFormMayCarryTheRootsCapAboveItsOwnTierAndResolveFollowsIt()
+    {
+        var (root, form) = Herald();
+        Replace(root.Sheet, Purchase(root.Sheet) with { Units = 1 });
+        Replace(form.Sheet, Purchase(form.Sheet) with { Units = 1 });
+        form.Sheet.SelectedTierId = "street_level";
+        form.Sheet.TraitCapRank = 12;
+
+        Assert.Equal(12, _f.Rules.GetTier("standard")!.TraitCapRank);
+        Assert.Equal(8, _f.Rules.GetTier("street_level")!.TraitCapRank);
+
+        var family = Family(root, form);
+        Assert.Empty(family.Issues);
+
+        Assert.Equal(5, _f.Derived.CalculateResolve(root.Sheet));
+        Assert.Equal(5, _f.Derived.CalculateResolve(form.Sheet));
+        Assert.Equal(5, family.Resolve["airmid"]);
+        Assert.Equal(5, family.Resolve["scathach"]);
+        Assert.Equal(5, family.SharedResolve);
+
+        // And the single-sheet validator waives TRAIT_CAP_ABOVE_TIER on the form alone, on trust
+        // that this family check has verified it.
+        Assert.DoesNotContain(_f.Validator.Validate(form.Sheet).Issues, i => i.Code == "TRAIT_CAP_ABOVE_TIER");
+    }
+
+    /// <summary>A cap at or below the form's own tier is an ordinary house cap and draws nothing here.</summary>
+    [Fact]
+    public void AFormsCapAtOrBelowItsOwnTierIsAnOrdinaryHouseCapAndIsNotReported()
+    {
+        var (root, form) = Herald();
+        Replace(root.Sheet, Purchase(root.Sheet) with { Units = 1 });
+        Replace(form.Sheet, Purchase(form.Sheet) with { Units = 1 });
+        form.Sheet.SelectedTierId = "street_level";
+        form.Sheet.TraitCapRank = 8;
+
+        Assert.DoesNotContain(Family(root, form).Issues, i => i.Code == "ALTERNATE_FORM_CAP_NOT_ROOTS");
+    }
+
+    /// <summary>
+    /// A cap above the form's own tier that is not the root's is a house cap dressed up as this
+    /// ruling, and is reported against the root's own cap.
+    /// </summary>
+    [Fact]
+    public void AFormsCapAboveItsOwnTierAndNotTheRootsIsReported()
+    {
+        var (root, form) = Herald();
+        Replace(root.Sheet, Purchase(root.Sheet) with { Units = 1 });
+        Replace(form.Sheet, Purchase(form.Sheet) with { Units = 1 });
+        form.Sheet.SelectedTierId = "street_level";
+        form.Sheet.TraitCapRank = 16;
+
+        var issue = Assert.Single(Family(root, form).Issues, i => i.Code == "ALTERNATE_FORM_CAP_NOT_ROOTS");
+
+        Assert.Equal(ValidationSeverity.Error, issue.Severity);
+        Assert.Equal(ValidationSubject.Character, issue.SubjectKind);
+        Assert.Equal("scathach", issue.SubjectId);
+        Assert.Equal("airmid", issue.OwnerId);
+        Assert.Equal(16, issue.Value);
+        Assert.Equal(12, issue.Limit);
+    }
+
     // ── A root the roster does not hold ───────────────────────────────────
 
     [Fact]
@@ -441,6 +511,13 @@ public sealed class AlternateFormTests
         (_, form) = Herald();
         all.AddRange(Family(form).Issues);
 
+        (root, form) = Herald();
+        Replace(root.Sheet, Purchase(root.Sheet) with { Units = 1 });
+        Replace(form.Sheet, Purchase(form.Sheet) with { Units = 1 });
+        form.Sheet.SelectedTierId = "street_level";
+        form.Sheet.TraitCapRank = 16;
+        all.AddRange(Family(root, form).Issues);
+
         return all;
     }
 
@@ -485,7 +562,7 @@ public sealed class AlternateFormTests
             .Where(c => c.StartsWith("ALTERNATE_FORM_", StringComparison.Ordinal))
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.True(declared.Count >= 6, "the scan has stopped finding codes: " + declared.Count);
+        Assert.True(declared.Count >= 7, "the scan has stopped finding codes: " + declared.Count);
         Assert.Equal(declared.Order(), provoked.Order());
         Assert.Equal(declared.Order(), exempted.Order());
     }
