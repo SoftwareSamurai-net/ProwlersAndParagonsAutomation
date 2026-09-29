@@ -384,7 +384,7 @@
                                 @foreach (var sp in gadget.Powers)
                                 {
                                     var power = Session.Rules.GetPower(sp.PowerId);
-                                    <div class="statline">@AssetFormatter.GadgetPower(sp, Sheet, Session.Rules, Session.Derived)</div>
+                                    <div class="statline">@AssetFormatter.GadgetPower(sp, Session.Rules)</div>
                                     @if (UnitNames(power, sp) is { } unitNames)
                                     {
                                         <div class="statline">@unitNames</div>

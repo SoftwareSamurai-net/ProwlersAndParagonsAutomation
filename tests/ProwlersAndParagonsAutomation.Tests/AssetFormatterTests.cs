@@ -232,9 +232,11 @@ public sealed class AssetFormatterTests
         var armor = new SelectedPower("armor", 4);
         sheet.Gadgets.Add(new BuiltGadget("Kinetic Plate") { Complexity = 5, Powers = [armor] });
 
-        var line = AssetFormatter.GadgetPower(armor, sheet, _f.Rules, _f.Derived);
+        var line = AssetFormatter.GadgetPower(armor, _f.Rules);
 
-        Assert.StartsWith("Armor ", line, StringComparison.Ordinal);
+        // What was bought, not an effective rank: whose Abilities a Gadget Power's baseline reads
+        // is a reading nothing here has made.
+        Assert.StartsWith("Armor, 4 ranks bought — ", line, StringComparison.Ordinal);
         Assert.Contains($"      - {line}", Text(sheet), StringComparison.Ordinal);
     }
 
@@ -242,7 +244,7 @@ public sealed class AssetFormatterTests
     [Fact]
     public void AGadgetPowerThatResolvesToNothingPrintsItsId() =>
         Assert.Equal("not_a_power", AssetFormatter.GadgetPower(
-            new SelectedPower("not_a_power", 2), SampleCharacters.Hero(), _f.Rules, _f.Derived));
+            new SelectedPower("not_a_power", 2), _f.Rules));
 
     private string Text(CharacterSheet sheet) =>
         CharacterSheetRenderer.RenderText(sheet, _f.Rules, _f.Costs, _f.Derived,

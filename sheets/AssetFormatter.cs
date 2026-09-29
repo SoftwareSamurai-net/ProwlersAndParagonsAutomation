@@ -83,24 +83,28 @@ public static class AssetFormatter
 
     /// <summary>
     /// One Power a Gadget holds, as the line a sheet prints under it:
-    /// <c>Blast 8d — Ranged · Baseline Rank (Power) · 2 HP per rank</c>.
+    /// <c>Armor, 4 ranks bought — Self · Baseline Rank (½ Toughness) · 1 HP per rank</c>.
     ///
     /// <para><b>A Gadget's headline says what it cost and nothing about what it does</b>, and what
-    /// it does is what a player reads it for at the table. The rank is the engine's effective rank,
-    /// as for the character's own Powers, and an id that resolves to nothing prints as the id.</para>
+    /// it does is what a player reads it for at the table.</para>
+    ///
+    /// <para><b>The ranks bought, not an effective rank.</b> Ch.6 p.94 has the pool buy "Abilities,
+    /// Talents, and Powers that represent your new Gadget", and nothing says whether a Gadget
+    /// Power's baseline reads the Gadget's own Abilities or its wielder's. The engine has never
+    /// answered that, so this line does not either: it prints what was bought, and the stat line
+    /// says what the baseline is taken from. An id that resolves to nothing prints as the id.</para>
     /// </summary>
-    public static string GadgetPower(
-        SelectedPower power, CharacterSheet sheet, RulesRepository rules, DerivedStatsCalculator derived)
+    public static string GadgetPower(SelectedPower power, RulesRepository rules)
     {
         ArgumentNullException.ThrowIfNull(power);
-        ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(rules);
-        ArgumentNullException.ThrowIfNull(derived);
 
         if (rules.GetPower(power.PowerId) is not { } model) return power.PowerId;
 
-        var rank = Reachable(() => derived.GetEffectiveRank(power, sheet)) ?? 0;
-        return $"{model.Name}{(rank > 0 ? $" {N(rank)}d" : "")} — {PowerFormatter.StatLine(model)}";
+        var bought = model.RankType is "default" or "special" || power.PurchasedRanks <= 0
+            ? ""
+            : $", {N(power.PurchasedRanks)} {(power.PurchasedRanks == 1 ? "rank" : "ranks")} bought";
+        return $"{model.Name}{bought} — {PowerFormatter.StatLine(model)}";
     }
 
     /// <summary>

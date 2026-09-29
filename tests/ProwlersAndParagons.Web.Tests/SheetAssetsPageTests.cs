@@ -137,7 +137,7 @@ public sealed class SheetAssetsPageTests
         var page = ctx.Render<SheetView>();
         var text = SheetText.Visible(page.Find(".sheet-assets-page"));
 
-        var line = AssetFormatter.GadgetPower(armor, sheet, ctx.Session.Rules, ctx.Session.Derived);
+        var line = AssetFormatter.GadgetPower(armor, ctx.Session.Rules);
         Assert.StartsWith("Armor", line, StringComparison.Ordinal);
         Assert.Contains(line, text, StringComparison.Ordinal);
         Assert.Contains("Cons:", text, StringComparison.Ordinal);

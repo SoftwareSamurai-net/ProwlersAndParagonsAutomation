@@ -124,7 +124,8 @@ that cannot be priced (an id the rulebook does not have) prints the fallback sen
 routes every cost lookup through `Reachable` before `SheetView` ever calls it.
 
 **A Gadget prints the Powers it holds under its headline**, one line each through
-`AssetFormatter.GadgetPower` (name, effective rank, stat line), with its immunity names, Pros and
+`AssetFormatter.GadgetPower` (name, ranks bought, stat line — not an effective rank, since
+whose Abilities a Gadget Power's baseline reads is a reading the engine has not made), with its immunity names, Pros and
 Cons below, the same as the Powers column. The headline only says what the Gadget cost, and what it
 does is what a player reads it for. The `.txt` export writes the same line, so the two tellings
 agree on that too.
