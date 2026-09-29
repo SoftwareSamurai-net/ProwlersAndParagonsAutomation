@@ -326,6 +326,7 @@ because no Trait can be lower than 1d. A tier and a flaw alone comes back with e
       "SourceId": "tech",                // one of the six; a Power has no default
       "CostVariantKey": null,            // required where cost_type is *_variable
       "Units": 1,                        // for a per_unit Power
+      "UnitNames": null,                 // Immunity: one name per unit, e.g. [ "toxins" ]
       "BaselineTraitId": null            // required for Boost and Expertise
     }
   ],

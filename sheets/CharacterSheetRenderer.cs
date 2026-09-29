@@ -210,6 +210,9 @@ public static class CharacterSheetRenderer
                       $"(baseline {baseline}d + purchased {sp.PurchasedRanks}d)  — {cost} HP"
                     : $"    No rank  — {cost} HP");
 
+                if (PowerFormatter.UnitNamesLine(power, sp) is { } unitNames)
+                    sb.AppendLine($"    {unitNames}");
+
                 if (sp.Pros.Count > 0)
                     sb.AppendLine("    Pros: " + PowerFormatter.ModifierLine(sp.Pros, Keyed));
 
@@ -554,6 +557,10 @@ public static class CharacterSheetRenderer
                     ["baseline_trait"]  = sp.BaselineTraitId,
                     ["effective_rank"]  = effective,
                     ["units"]           = sp.Units,
+                    // The names of the units bought, and only those: a name past Units is one
+                    // nobody paid for, and the validator says so rather than this printing it.
+                    ["unit_names"]      = new JsonArray(sp.BoughtUnitNames()
+                                              .Select(n => (JsonNode)JsonValue.Create(n)!).ToArray()),
                     ["cost_variant"]    = sp.CostVariantKey,
                     ["cost"]            = powerCost,
                     ["source"]          = sp.SourceId,

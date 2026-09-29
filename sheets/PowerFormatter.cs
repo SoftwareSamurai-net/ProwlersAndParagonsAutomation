@@ -44,6 +44,27 @@ public static class PowerFormatter
             parts.Select(t => counts[t] > 1 ? $"{t} ×{counts[t].ToString(CultureInfo.InvariantCulture)}" : t));
     }
 
+    /// <summary>
+    /// What each unit of a Power is, as one line — "Immunities: Toxins, Fire" — or null when
+    /// there is nothing to say. Shared by the text export and the browser's sheet so the two
+    /// cannot word it differently.
+    ///
+    /// <para>A named Power still short of names says how many are missing — "1 unnamed" — so a
+    /// sheet bought for three immunities never reads as though it were bought for two.</para>
+    /// </summary>
+    public static string? UnitNamesLine(PowerModel? power, SelectedPower selection)
+    {
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var parts   = selection.BoughtUnitNames().ToList();
+        var unnamed = power?.UnitsAreNamed == true ? Math.Max(0, selection.Units - parts.Count) : 0;
+        if (unnamed > 0) parts.Add($"{unnamed.ToString(CultureInfo.InvariantCulture)} unnamed");
+        if (parts.Count == 0) return null;
+
+        var noun = power?.UnitNoun(2) ?? "units";
+        return $"{char.ToUpper(noun[0], CultureInfo.InvariantCulture)}{noun[1..]}: {string.Join(", ", parts)}";
+    }
+
     private static string Range(PowerModel p) => p.Range switch
     {
         "self"    => "Self",

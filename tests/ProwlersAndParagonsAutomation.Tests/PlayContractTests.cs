@@ -129,11 +129,9 @@ public sealed class PlayContractTests
                      // A second checkout parked under `.claude/worktrees/` (the desktop app's own
                      // isolation) carries every csproj a second time; scanning it doubled the test
                      // project in this list on a developer machine while CI, which has no such
-                     // directory, stayed green. **Relative to the root, not anywhere in the
-                     // path**: a checkout that *is* such a worktree has `.claude` above its root,
-                     // and matching the absolute path excluded every project it owns — this list
-                     // came back empty in every workflow worktree and green on CI, which is the
-                     // wrong way round for a guard.
+                     // directory, stayed green. Asked of the path below the root, because
+                     // when this checkout is itself one of those worktrees every path contains
+                     // `.claude` and the filter emptied the list it was protecting.
                      && !Path.GetRelativePath(RepoRoot, f).StartsWith($".claude{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .Where(f => !string.Equals(Path.GetFileName(f), $"{PlayAssembly}.csproj", StringComparison.Ordinal))
             .Where(f => File.ReadAllText(f).Contains($"{PlayAssembly}.csproj", StringComparison.Ordinal))

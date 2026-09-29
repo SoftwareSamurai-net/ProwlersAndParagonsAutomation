@@ -42,7 +42,7 @@
              What the package *does* ship is its own Node driver (~90 MB of node.exe under
              .playwright/), which is why there is still no package.json and no npm dependency —
              the rule was about npm, and this is a NuGet restore. -->
-        <PackageReference Include="Microsoft.Playwright" Version="1.62.0" />
+        <PackageReference Include="Microsoft.Playwright" Version="1.63.0" />
 
         <!-- axe-core, run inside the page Playwright is already driving. This is the half of the
              work that is genuinely new rather than a port: `theme.css` writes contrast ratios into
