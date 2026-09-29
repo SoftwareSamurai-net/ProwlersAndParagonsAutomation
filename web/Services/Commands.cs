@@ -40,7 +40,9 @@ public enum CommandKind
     Passage,
 
     /// <summary>
-    /// Go to the roster, <c>/characters</c> — every character this browser or account holds.
+    /// Go to the roster, <c>/characters</c> — every character this browser or account holds — or
+    /// to the other page that is not a creation step, the Resolve and Adversity reference at
+    /// <c>/reference/resolve</c>. Both are a plain navigation and neither is counted as a step.
     ///
     /// <para><b>Its own kind rather than <see cref="Step"/>, though both are a plain navigation
     /// to <see cref="Commands.Run"/>.</b> The roster is not one of the seven creation steps and is
@@ -151,6 +153,18 @@ public sealed class Commands
         "Your characters",
         "Open, switch, or start another",
         ["roster", "characters", "switch", "manage"]);
+
+    /// <summary>
+    /// The Resolve and Adversity reference, offered from the palette rather than from the step
+    /// band: the band is drawn by the four shell goldens, and a link in it would move every one of
+    /// them for a page nobody building a character is on their way to.
+    /// </summary>
+    private static readonly Command ResolveReferenceCommand = new(
+        CommandKind.Roster,
+        "reference/resolve",
+        "Resolve and Adversity reference",
+        "What each point buys, and where it is earned",
+        ["resolve", "adversity", "reference", "spend", "earn"]);
 
     /// <summary>Whether the palette is on screen.</summary>
     public bool IsOpen { get; private set; }
@@ -468,6 +482,9 @@ public sealed class Commands
 
         if (OptionFilter.Matches(query, [RosterCommand.Label, RosterCommand.Detail, .. RosterCommand.Keywords]))
             found.Add(RosterCommand);
+
+        if (OptionFilter.Matches(query, [ResolveReferenceCommand.Label, ResolveReferenceCommand.Detail, .. ResolveReferenceCommand.Keywords]))
+            found.Add(ResolveReferenceCommand);
 
         foreach (var power in _session.Rules.Powers.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
         {
