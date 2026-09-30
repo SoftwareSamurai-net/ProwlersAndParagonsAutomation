@@ -56,7 +56,7 @@ public sealed class CampaignJoinMessageTests
         var page = ctx.Render<Campaigns>();
 
         page.Find("#join-code").Input(code);
-        page.FindAll("button").Single(b => b.TextContent.Trim() == "Join").Click();
+        page.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Join", StringComparison.Ordinal)).Click();
 
         return page.Markup;
     }

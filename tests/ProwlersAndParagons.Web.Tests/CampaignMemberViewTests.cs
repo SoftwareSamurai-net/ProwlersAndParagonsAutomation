@@ -49,7 +49,7 @@ public sealed class CampaignMemberViewTests
         var page = ctx.Render<Campaigns>();
 
         await page.Find("#join-code").InputAsync(new() { Value = code });
-        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Join").ClickAsync(new());
+        await page.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Join", StringComparison.Ordinal)).ClickAsync(new());
 
         return (ctx, page);
     }
@@ -567,7 +567,7 @@ public sealed class CampaignMemberViewTests
         var page = ctx.Render<Campaigns>();
 
         await page.Find("#join-code").InputAsync(new() { Value = code });
-        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Join").ClickAsync(new());
+        await page.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Join", StringComparison.Ordinal)).ClickAsync(new());
 
         // The control: two memberships, and the character on screen is in the second one.
         var mine = await memberships.MineAsync();
