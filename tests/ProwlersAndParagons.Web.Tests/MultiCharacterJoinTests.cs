@@ -409,6 +409,73 @@ public sealed class MultiCharacterJoinTests
         release.SetResult();
     }
 
+    /// <summary>
+    /// <b><c>EmptySubmissions.AmongAsync</c> reads its rows at once too.</b> Two memberships each
+    /// hold a submission, so the page's own refresh has two membership-detail reads to make; both
+    /// are seen before either is allowed to answer, which one after another cannot manage.
+    /// </summary>
+    [Fact]
+    public async Task EmptySubmissionsChecksEveryRowAtOnce()
+    {
+        await using var ctx = new RenderContext(storesForReal: true);
+
+        const string GameA = "g_AAAAAAAAAAAAAAAAAAAAAA";
+        const string GameB = "g_BBBBBBBBBBBBBBBBBBBBBB";
+        const string AlphaId = "c_1111111111111111111111";
+        const string BetaId = "c_2222222222222222222222";
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var codeA = ctx.Api.Campaign(GameA, "Game A",
+            StoredCampaign.Write(new Campaign(GameA, "Game A", null, null, false)));
+        var codeB = ctx.Api.Campaign(GameB, "Game B",
+            StoredCampaign.Write(new Campaign(GameB, "Game B", null, null, false)));
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        var joinedA = await memberships.JoinAsync(codeA, AlphaId, "Alpha");
+        var joinedB = await memberships.JoinAsync(codeB, BetaId, "Beta");
+
+        Assert.NotNull(joinedA);
+        Assert.NotNull(joinedB);
+
+        Assert.NotNull(await memberships.SubmitAsync(
+            joinedA!.Value.Id, new CharacterSheet { Name = "Alpha" }, SheetMode.Hero));
+        Assert.NotNull(await memberships.SubmitAsync(
+            joinedB!.Value.Id, new CharacterSheet { Name = "Beta" }, SheetMode.Hero));
+
+        await ctx.Services.GetRequiredService<SavedCharacters>().SetCurrentAsync(AlphaId);
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var release = new TaskCompletionSource();
+
+        ctx.Api.Holding = async request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+
+            // Only a single membership's own detail address — not the list, the inbox, or join.
+            if (!path.StartsWith("/api/memberships/", StringComparison.Ordinal)
+                || path.EndsWith("/inbox", StringComparison.Ordinal)
+                || path.EndsWith("/join", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            lock (seen) seen.Add(path);
+
+            await release.Task;
+        };
+
+        ctx.Render<Campaigns>();
+
+        await Until(() => { lock (seen) return seen.Count == 2; },
+            "both membership detail reads were in flight at once");
+
+        release.SetResult();
+    }
+
     /// <summary>Wait for something the renderer will not redraw when it happens.</summary>
     private static async Task Until(Func<bool> ready, string what)
     {
