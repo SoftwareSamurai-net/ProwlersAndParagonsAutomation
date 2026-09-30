@@ -159,6 +159,14 @@ public sealed class MultiCharacterJoinTests
             campaignTierId: "standard", onScreenTierId: null, otherTierId: "low_level");
         await using var _ = ctx;
 
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+
+        // The stamp a save moves, read before anything happens — the positive control that
+        // catches a write with nothing observably different in it. A redundant PUT of
+        // byte-identical content still bumps a real server's `updated_at`, so a guard reading
+        // only the sheet's own fields would pass over a save that should never have been made.
+        var before = (await account.ListAsync()).Characters.Single(c => c.Id == OtherId).UpdatedAt;
+
         var page = ctx.Render<Campaigns>();
 
         await page.Find("#join-code").InputAsync(new() { Value = code });
@@ -169,12 +177,15 @@ public sealed class MultiCharacterJoinTests
             "Subject X-02: Pinnacle City is played at a different tier. Nothing was changed.",
             page.Markup, StringComparison.Ordinal);
 
-        // Nothing about the disagreeing character moved.
-        var stored = await ctx.Services.GetRequiredService<ApiCharacterStore>().LoadAsync(OtherId);
+        // Nothing about the disagreeing character moved, and it was not written down at all.
+        var stored = await account.LoadAsync(OtherId);
 
         Assert.NotNull(stored);
         Assert.Null(stored!.Value.Sheet.CampaignId);
         Assert.Equal("low_level", stored.Value.Sheet.SelectedTierId);
+
+        var after = (await account.ListAsync()).Characters.Single(c => c.Id == OtherId).UpdatedAt;
+        Assert.Equal(before, after);
 
         // The character on screen was not caught by the other one's disagreement.
         Assert.Contains("Ninefold: Joined Pinnacle City.", page.Markup, StringComparison.Ordinal);
