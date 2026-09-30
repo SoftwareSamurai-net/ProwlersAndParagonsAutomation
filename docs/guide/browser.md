@@ -1789,6 +1789,30 @@ works and nobody can reach.
   obvious fixture ids (`code`, `flight`) are written exactly the way their printed names are, so a
   case-insensitive check on those cannot tell a leak from a correct lookup. That took three goes at
   one fixture; the test records all three.
+- **A row's detail is drawn part by part, and `DiffRows` is the one component that draws a
+  row.** `Before → After` over a Power's line printed a rank, a Source and six modifiers twice and
+  left the GM to find the three words that differed — the owner's report of 2026-09-30, on a Life
+  Drain. `DiffRow.Parts` (`CampaignDiff.PartsOf`) splits both sides on the separator every detail
+  line is joined with and says of each part whether it stayed, went, arrived or changed form: what
+  is on both sides verbatim is kept, a part whose head — the text before its bracket or multiplier,
+  or "a rank", or a count's noun — is left over exactly once on each side is one change
+  (`8d → 6d`, `Conditional (Often Works) → Conditional (Occasionally Works)`), and the rest is
+  what went and what came, in the old side's order with arrivals last. **Two left over on one side
+  are never paired**, because a guess prints a change nobody made. One part each side is one
+  change whatever it is called, so `Might 6d → 8d` and `Fatal Damage on → off` read exactly as
+  they always have. On screen a removed part is a `<del>` struck through, an added one an `<ins>`
+  at the heading's weight, each with an `sr-only` word because neither element is reliably
+  announced, and kept parts recede to `--muted`; a whole-row addition or removal says its word
+  once. The list is a grid with a fixed name column, because as a wrapping flex row a long detail
+  dropped under its own name and the left edge a reader scans down was different on every other
+  row. The same component draws the member's table panel and an amended shared object.
+- **A row says when it was sent, and the diff says what it is measured against.** The server has
+  sent `pendingAt` and `approvedAt` since the memberships route existed and the GM's screen read
+  neither, so a request three weeks old and one from this morning were the same row. `.when` on
+  the roster row reads *Sent 3 days ago* or *Approved 2 weeks ago* through `Ages.Since`, and
+  `.diff-when` above the rows reads *Sent 3 days ago. The sheet it would replace was approved 2
+  weeks ago.* — the second time is what makes the first mean something. A server that sent no
+  time draws nothing, because `Ages` answers null for zero rather than "56 years ago".
 - **The Trait Cap row is the cap in force, not the field.** `Trait Cap 12d → 6d`, through
   `EffectiveTraitCap`, so the ceiling a GM decides about is the one the validator judged the
   submission by and the one its Resolve was measured from. A house cap written at exactly the
