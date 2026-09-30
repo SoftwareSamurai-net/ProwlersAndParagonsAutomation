@@ -71,6 +71,33 @@ public sealed class GadgetPowerChecksTests
         Assert.Equal("Vault Breaker", issue.SubjectId);
     }
 
+    /// <summary>
+    /// Two distinct Gadgets that happen to share a display name must not be merged into one
+    /// "seen" pool: each holds exactly one, non-duplicate copy of the same Power, so
+    /// <c>DUPLICATE_POWER</c> must stay silent. Grouping by <c>GadgetName</c> (a string) instead
+    /// of by which <see cref="BuiltGadget"/> the Power actually came from folds the second
+    /// Gadget's legitimate first copy into the first Gadget's "seen" set and reports it as a
+    /// repeat of a Power it has never seen.
+    /// </summary>
+    [Fact]
+    public void TwoGadgetsWithTheSameNameDoNotShareADuplicatePool()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.TalentRanks["technology"] = 6;
+        sheet.Gadgets.Add(new BuiltGadget("Toolkit")
+        {
+            Complexity = 3,
+            Powers     = [new SelectedPower("blast", 1)]
+        });
+        sheet.Gadgets.Add(new BuiltGadget("Toolkit")
+        {
+            Complexity = 3,
+            Powers     = [new SelectedPower("blast", 1)]
+        });
+
+        Assert.Empty(Issues(sheet, "DUPLICATE_POWER"));
+    }
+
     /// <summary>A repeatable Power (Alternate Form, Duplication) is exempt inside a Gadget too.</summary>
     [Fact]
     public void ARepeatablePowerTwiceInAGadgetIsNotADuplicate()

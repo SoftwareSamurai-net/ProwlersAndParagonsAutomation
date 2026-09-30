@@ -893,8 +893,15 @@ public sealed class CharacterValidator
     /// <see cref="GadgetName"/>, because for a Gadget's Power "which pool" and "what to call it"
     /// are the same fact).
     /// </summary>
+    /// <param name="Gadget">
+    /// The actual <see cref="BuiltGadget"/> instance this Power was bought from, or null for the
+    /// character's own — the identity a per-Gadget "seen" pool must partition on.
+    /// <see cref="GadgetName"/> is a display string and two different Gadgets may print the same
+    /// one, so grouping on it instead of on this would merge their pools.
+    /// </param>
     private sealed record PaidPower(
-        SelectedPower Power, ValidationSubject SubjectKind, string SubjectId, string? GadgetName);
+        SelectedPower Power, ValidationSubject SubjectKind, string SubjectId, string? GadgetName,
+        BuiltGadget? Gadget);
 
     /// <summary>
     /// Every <see cref="SelectedPower"/> a sheet pays for, character's own and every named
@@ -918,11 +925,12 @@ public sealed class CharacterValidator
     private static IEnumerable<PaidPower> EveryPaidPower(CharacterSheet sheet)
     {
         foreach (var sp in sheet.SelectedPowers)
-            yield return new PaidPower(sp, ValidationSubject.Power, sp.PowerId, null);
+            yield return new PaidPower(sp, ValidationSubject.Power, sp.PowerId, null, null);
 
         foreach (var gadget in sheet.Gadgets.Where(g => g.Name is not null))
             foreach (var sp in gadget.Powers)
-                yield return new PaidPower(sp, ValidationSubject.Gadget, gadget.Name, gadget.Name);
+                yield return new PaidPower(
+                    sp, ValidationSubject.Gadget, gadget.Name, gadget.Name, gadget);
     }
 
     private static ValidationIssue Negative(
@@ -1294,13 +1302,20 @@ public sealed class CharacterValidator
     /// same shape one budget down (p.94 buys them "under the ordinary rules"), so the same Power
     /// twice inside a Gadget is priced twice there too and drew nothing before this. "Seen"
     /// resets at the start of every group: the character's own Powers are one draw against one
-    /// budget (<c>GadgetName</c> null) and each Gadget draws against its own, so a Power the
+    /// budget (<c>Gadget</c> null) and each Gadget draws against its own, so a Power the
     /// character has and the same Power inside a Gadget are not duplicates of <em>each
     /// other</em>.</para>
+    ///
+    /// <para><b>Grouped by which <see cref="BuiltGadget"/>, never by its name.</b> Nothing stops
+    /// a player naming two Gadgets alike, and <c>GadgetName</c> is that display string — grouping
+    /// on it merges two distinct Gadgets' pools, so a Power bought once in each reads as a repeat
+    /// of itself. <see cref="ReferenceEqualityComparer.Instance"/> partitions on the actual
+    /// object (or on the shared <c>null</c>, for the character's own Powers) instead.</para>
     /// </summary>
     private void CheckDuplicatePowers(CharacterSheet sheet, List<ValidationIssue> issues)
     {
-        foreach (var group in EveryPaidPower(sheet).GroupBy(p => p.GadgetName))
+        foreach (var group in EveryPaidPower(sheet)
+                     .GroupBy(p => p.Gadget, ReferenceEqualityComparer.Instance))
         {
             var seen = new HashSet<string>(StringComparer.Ordinal);
 
