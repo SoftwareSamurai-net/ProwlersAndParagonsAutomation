@@ -97,6 +97,8 @@ as in scope. **Nothing here is a defect.**
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
 - [ ] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — four validator checks still skip a Gadget's Powers, found by the named-immunities follow-up; recorded, not fixed
+- [ ] **[37](#37-joining-a-campaign-is-one-character-at-a-time-and-each-join-re-reads-the-page)** — joining several characters is six clicks and a re-typed code each, and every join re-reads the page serially; a multi-character join box and a parallel refresh are pitched, with two questions for the owner
+- [ ] **[38](#38-a-villain-approved-into-a-campaign-becomes-the-gms-and-the-players-nemesis)** — the owner's idea: an approved Villain transfers to the GM and shows back to the player as their nemesis; recorded with its questions, not built
 - [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
@@ -2477,6 +2479,67 @@ character's own and for each named Gadget's, so the two walks cannot drift. The 
 single enumeration of every `SelectedPower` a sheet pays for, with its subject, that every
 per-Power check walks. Then a fifth check cannot be written that forgets Gadgets, and that is the
 real lesson of this shape shipping three times.
+
+### 37. Joining a campaign is one character at a time, and each join re-reads the page
+
+**The owner's report of 2026-09-30: adding several sheets to a campaign is painfully slow.** Two
+causes, measured by reading the page rather than timing it:
+
+- **The join box only joins the character on screen.** For each further sheet a player goes to
+  the character manager, opens it (a read and a pointer move), comes back to `/campaign`,
+  re-enters the code — the box empties after every join — and presses Join. About six clicks and
+  a paste per character.
+- **Every join then re-reads the whole page, serially.** `Refresh` awaits availability, the
+  campaigns list, the memberships, the inbox, the pointer, one `ReadAsync` per membership with
+  anything sent (`EmptySubmissions.AmongAsync`), and then the campaign resolve — roughly 7 + N
+  round trips one after another, so the third character costs more than the first.
+
+**Proposed, and pitched to the owner with a specimen; not built.**
+
+- **Who joins** becomes a checkbox list of the account's characters under the code box, the
+  on-screen one pre-ticked and rows already in that game shown disabled, under one button —
+  *Join with 2 characters*. Each is joined in turn by the existing route. A character not on
+  screen is read by id (`ReadAsync`, never `OpenAsync`), run through `CampaignJoin.Apply`, and
+  written back **by id** through the `RestoreAsync` path, which never moves the pointer and
+  answers whether the write landed; the on-screen one keeps today's session path, because a
+  stored read straight after an edit can lag the sheet on screen (item 31).
+- **The code stays in the box** after a join.
+- **`Refresh` runs its independent reads under `Task.WhenAll`**, the per-membership reads
+  included.
+
+**Faults said per row, nothing repaired**: a tier that disagrees (nothing written), a read that
+fails, an account-cap refusal on the write-back, an empty sheet skipped with its own sentence.
+
+**Two questions put to the owner**: the checkbox list against a single picker with a kept code;
+and whether a character not on screen may be written to from this page at all. The recommendation
+is the list and the by-id write.
+
+### 38. A Villain approved into a campaign becomes the GM's, and the player's nemesis
+
+**The owner's idea of 2026-09-30, recorded rather than built.** Today a campaign holds a *clone*
+and the player keeps their character whatever kind it is. The idea: when a Villain is submitted
+and approved, the sheet **transfers to the campaign's owner** — the player loses the sheet from
+their own roster — and the campaign screen shows it back to them as a nemesis they made. It sits
+well with two settled rules: Villains are GM material (only Heroes have Resolve; the GM spends
+Adversity on any NPC), and a Villain's Flaws are the players' handles.
+
+**What it would take, at a glance.**
+
+- **Server**: on approval of a sheet whose `IsVillain` is true, move the `characters` row to the
+  GM's account (or hand the GM the clone under a fresh id and delete the player's row), inside the
+  GM's character cap; the membership row records that it was handed over and by whom.
+- **Player's roster**: the row does not vanish silently — it reads *Given to Nightfall as a
+  nemesis* and opens nothing, the same rule as an unreadable row saying which state it is in.
+- **Campaign screen**: a *Your nemesis* block for the player, with the name and the villain
+  palette's flourish, and the GM's roster listing it under their own characters.
+- **The transfer is the one irreversible act a player can take from that screen**, so Send on a
+  Villain has to say so before it goes — *Sending a Villain hands it to the GM if approved* —
+  and a rejection leaves it exactly where it was.
+
+**Questions for the owner before any of it is built**: whether the player keeps a read-only view
+of the sheet or only the name; whether the GM can hand it back; whether it counts against the
+GM's cap or is exempt as campaign material; and whether the handover happens on approval or on a
+separate *Take as nemesis* the GM presses.
 
 ## Completed work
 
