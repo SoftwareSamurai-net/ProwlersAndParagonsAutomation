@@ -95,7 +95,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[2](#2-what-the-sheet-still-cannot-say)** — every printed page carries the character's name and `page N of M` in a `@page` margin box, in Chrome (measured on 153); Firefox and Safari print no margin boxes, so the document title and colophon stay as their fallback. Verified by the orchestrator 2026-09-23: a SheetView that never publishes the name turned five `RunningHeadTests` red. Not driven in a real browser on CI — the margin box was proved by hand on a dev server
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
-- [ ] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — four validator checks still skip a Gadget's Powers, found by the named-immunities follow-up; recorded, not fixed
+- [x] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — every per-Power validator check walks one enumeration of every Power a sheet pays for, `EveryPaidPower`, so a Gadget's Powers draw the same findings as the character's own and a further check cannot forget them; `GadgetPowerWalkReadTests` holds every remaining direct walk of `SelectedPowers` to a written reason and a count. Verified by the orchestrator 2026-09-30: dropping the Gadget branch of the enumeration turned seven probes red, pointing `CheckPowerCosts` back at `SelectedPowers` turned the source guard red naming the line, and keying the duplicate pool by Gadget name instead of identity turned the same-name-Gadgets test red. One residual is recorded in the entry
 - [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
@@ -2471,11 +2471,23 @@ throwaway probe against the shipped rules:
 - `CheckUnverifiedPowers` — latent: no Power carries `needs_review` or an unverified
   description today, so there is nothing for it to miss yet.
 
-**The fix is the one `CheckUnitNames` now has**: one method over a `SelectedPower`, called for the
-character's own and for each named Gadget's, so the two walks cannot drift. The better fix is a
-single enumeration of every `SelectedPower` a sheet pays for, with its subject, that every
-per-Power check walks. Then a fifth check cannot be written that forgets Gadgets, and that is the
-real lesson of this shape shipping three times.
+**Closed 2026-09-30 with the better fix** (see the pull request that carried it): one enumeration
+of every `SelectedPower` a sheet pays for, with its subject — `EveryPaidPower` in
+`CharacterValidator` — that the four checks above, `CheckUnitNames` and `CheckPowerRanks` (a fifth
+instance of the same shape, found while building the guard and not named here) all walk. A
+Gadget's finding carries the Gadget as its subject and routes to the Gadget's row. The review found
+the duplicate pool keyed by a Gadget's display name, so two Gadgets named alike merged their pools
+and a Power bought once in each read as a repeat; it is keyed by the Gadget instance now.
+`GadgetPowerWalkReadTests` holds every remaining direct walk of `sheet.SelectedPowers` to a
+one-line reason and an exact count, scans the whole file rather than a line at a time, and refuses
+a filter chained straight onto the enumeration — each of those three closing a way past it the
+review walked through.
+
+**One residual, recorded rather than fixed here**: `CheckQuantities`' `PER_UNIT_WITHOUT_UNITS`
+clause still walks the character's own Powers alone, so a per-unit Power bought at zero units
+inside a Gadget is not reported. The guard's allow-list names it as the gap it is; it is not one of
+the four this entry was written about, and it is a few lines on `EveryPaidPower` when somebody
+wants it.
 
 ## Completed work
 
