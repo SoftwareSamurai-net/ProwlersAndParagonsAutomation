@@ -2081,6 +2081,20 @@ label {
 .sheet-section.fill { flex: 1 1 auto; display: flex; flex-direction: column; }
 .sheet-section.fill > .ruled { flex: 1 1 auto; justify-content: space-between; gap: 0; min-height: 6rem; }
 
+/* The Vehicles/Headquarters/Gadgets/campaign-assets page — only ever rendered when the
+   character owns at least one of the four (see SheetView.HasAssets), so this rule never draws
+   an empty box on the ordinary sheet. A rule border and a gap on screen stand in for the page
+   boundary print gets from `break-before: page` below, so a reader scrolling past it sees a
+   second sheet rather than a fifth section tacked onto the first. */
+.sheet-assets-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px dashed var(--rule);
+}
+
 .identity .ident-name {
     font-family: var(--font-display);
     font-size: var(--text-2xl);
@@ -3330,6 +3344,19 @@ label {
        Powers-heavy character left the rest of column one blank underneath. The box that can
        exceed a page is the box that must be allowed to break. */
     .sheet-section.fill { break-inside: auto; page-break-inside: auto; }
+
+    /* The Vehicles/Headquarters/Gadgets/campaign-assets page starts a page of its own rather
+       than running on from the foot of page one — `break-before` is the property Chrome has
+       honoured since the `@page` margin box above was proved on 153, and the running head that
+       box draws already counts this as its own page (`page N of M`) with nothing further to
+       wire. Screen's dashed rule and gap are dropped here, since a page boundary needs neither. */
+    .sheet-assets-page {
+        break-before: page;
+        page-break-before: always;
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+    }
 
     /* Printed once, at the end. See the comment in SheetView for why this is not a running
        footer on every page. */

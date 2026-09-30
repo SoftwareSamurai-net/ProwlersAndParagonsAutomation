@@ -336,7 +336,21 @@ public static class CharacterSheetRenderer
         }
 
         foreach (var gadget in sheet.Gadgets)
+        {
             sb.AppendLine($"  • {AssetFormatter.Describe(gadget, costs, sheet.ImmortalityCost)}");
+
+            foreach (var sp in gadget.Powers)
+            {
+                sb.AppendLine($"      - {AssetFormatter.GadgetPower(sp, rules)}");
+
+                if (PowerFormatter.UnitNamesLine(rules.GetPower(sp.PowerId), sp) is { } unitNames)
+                    sb.AppendLine($"        {unitNames}");
+                if (sp.Pros.Count > 0)
+                    sb.AppendLine("        Pros: " + PowerFormatter.ModifierLine(sp.Pros, Keyed));
+                if (sp.Cons.Count > 0)
+                    sb.AppendLine("        Cons: " + PowerFormatter.ModifierLine(sp.Cons, Keyed));
+            }
+        }
 
         foreach (var contribution in sheet.CampaignAssets)
             sb.AppendLine($"  • {AssetFormatter.Describe(contribution)}");

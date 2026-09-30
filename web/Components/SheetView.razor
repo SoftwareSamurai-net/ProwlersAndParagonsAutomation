@@ -322,6 +322,101 @@
             </SheetSection>
         </div>
 
+        @* ── Vehicles, Headquarters, Gadgets and campaign assets ─────────────────
+           A second page, and only when the character owns at least one of the four —
+           most characters own none, and a box that would be empty on nearly every
+           sheet in the game does not belong on the one that has to stay one page. See
+           docs/guide/printed-sheet.md, "The printed sheet has no Vehicles or Bases
+           box" — this is what changed and why the one-page guarantee still holds for
+           everybody else.
+
+           `break-before: page` in print puts it on a page of its own; on screen it
+           reads as a second sheet under the first. It carries no rule of its own:
+           every line comes off AssetFormatter, exactly as the Powers column's lines
+           come off PowerFormatter, and an id that resolves to nothing prints the
+           fallback AssetFormatter already computes rather than throwing — the same
+           discipline as gear, above. *@
+        @if (HasAssets)
+        {
+            <div class="sheet-assets-page">
+                @if (Sheet.Vehicles.Count > 0)
+                {
+                    <SheetSection Title="Vehicles">
+                        @foreach (var vehicle in Sheet.Vehicles)
+                        {
+                            <div class="power-entry">
+                                <div class="head"><span class="pname">@AssetFormatter.Describe(vehicle, Session.Costs)</span></div>
+                                <div class="statline">@AssetFormatter.Characteristics(vehicle)</div>
+                                @foreach (var feature in vehicle.Features)
+                                {
+                                    <div class="statline">@AssetFormatter.Feature(feature, Session.Rules, onAVehicle: true)</div>
+                                }
+                            </div>
+                        }
+                    </SheetSection>
+                }
+
+                @if (Sheet.Headquarters.Count > 0)
+                {
+                    <SheetSection Title="Headquarters">
+                        @foreach (var headquarters in Sheet.Headquarters)
+                        {
+                            <div class="power-entry">
+                                <div class="head"><span class="pname">@AssetFormatter.Describe(headquarters, Session.Costs)</span></div>
+                                @foreach (var feature in headquarters.Features)
+                                {
+                                    <div class="statline">@AssetFormatter.Feature(feature, Session.Rules, onAVehicle: false)</div>
+                                }
+                            </div>
+                        }
+                    </SheetSection>
+                }
+
+                @if (Sheet.Gadgets.Count > 0)
+                {
+                    <SheetSection Title="Gadgets">
+                        @foreach (var gadget in Sheet.Gadgets)
+                        {
+                            <div class="power-entry">
+                                <div class="head"><span class="pname">@AssetFormatter.Describe(gadget, Session.Costs, Sheet.ImmortalityCost)</span></div>
+                                @* What the Gadget does, which is what a player reads it for: each
+                                   Power it holds, as the Powers column prints the character's own. *@
+                                @foreach (var sp in gadget.Powers)
+                                {
+                                    var power = Session.Rules.GetPower(sp.PowerId);
+                                    <div class="statline">@AssetFormatter.GadgetPower(sp, Session.Rules)</div>
+                                    @if (UnitNames(power, sp) is { } unitNames)
+                                    {
+                                        <div class="statline">@unitNames</div>
+                                    }
+                                    @if (sp.Pros.Count > 0)
+                                    {
+                                        <div class="statline">Pros: @PowerFormatter.ModifierLine(sp.Pros, c => Label(c, power))</div>
+                                    }
+                                    @if (sp.Cons.Count > 0)
+                                    {
+                                        <div class="statline">Cons: @PowerFormatter.ModifierLine(sp.Cons, c => Label(c, power))</div>
+                                    }
+                                }
+                            </div>
+                        }
+                    </SheetSection>
+                }
+
+                @if (Sheet.CampaignAssets.Count > 0)
+                {
+                    <SheetSection Title="Campaign Assets">
+                        @foreach (var contribution in Sheet.CampaignAssets)
+                        {
+                            <div class="power-entry">
+                                <div class="head"><span class="pname">@AssetFormatter.Describe(contribution)</span></div>
+                            </div>
+                        }
+                    </SheetSection>
+                }
+            </div>
+        }
+
         @* A colophon, printed once at the end and never shown on screen, so the last page
            of a sheet that has come apart on a table still says whose it is.
 
@@ -383,6 +478,16 @@
     [Parameter] public bool? ShowBudget { get; set; }
 
     private CharacterSheet Sheet => Character ?? Session.Sheet;
+
+    /// <summary>
+    /// Whether this character owns a vehicle, a headquarters, a Gadget or a stake in a campaign
+    /// asset — the one question the second page is gated on. False for nearly every character in
+    /// the game, which is exactly why the page does not exist until this says otherwise: see
+    /// docs/guide/printed-sheet.md.
+    /// </summary>
+    private bool HasAssets =>
+        Sheet.Vehicles.Count > 0 || Sheet.Headquarters.Count > 0
+        || Sheet.Gadgets.Count > 0 || Sheet.CampaignAssets.Count > 0;
 
     /// <summary>
     /// Redraw when the character being built changes.

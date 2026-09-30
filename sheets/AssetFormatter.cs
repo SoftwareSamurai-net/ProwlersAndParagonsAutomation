@@ -82,6 +82,32 @@ public static class AssetFormatter
     }
 
     /// <summary>
+    /// One Power a Gadget holds, as the line a sheet prints under it:
+    /// <c>Armor, 4 ranks bought — Self · Baseline Rank (½ Toughness) · 1 HP per rank</c>.
+    ///
+    /// <para><b>A Gadget's headline says what it cost and nothing about what it does</b>, and what
+    /// it does is what a player reads it for at the table.</para>
+    ///
+    /// <para><b>The ranks bought, not an effective rank.</b> Ch.6 p.94 has the pool buy "Abilities,
+    /// Talents, and Powers that represent your new Gadget", and nothing says whether a Gadget
+    /// Power's baseline reads the Gadget's own Abilities or its wielder's. The engine has never
+    /// answered that, so this line does not either: it prints what was bought, and the stat line
+    /// says what the baseline is taken from. An id that resolves to nothing prints as the id.</para>
+    /// </summary>
+    public static string GadgetPower(SelectedPower power, RulesRepository rules)
+    {
+        ArgumentNullException.ThrowIfNull(power);
+        ArgumentNullException.ThrowIfNull(rules);
+
+        if (rules.GetPower(power.PowerId) is not { } model) return power.PowerId;
+
+        var bought = model.RankType is "default" or "special" || power.PurchasedRanks <= 0
+            ? ""
+            : $", {N(power.PurchasedRanks)} {(power.PurchasedRanks == 1 ? "rank" : "ranks")} bought";
+        return $"{model.Name}{bought} — {PowerFormatter.StatLine(model)}";
+    }
+
+    /// <summary>
     /// What this character put into a campaign's shared vehicle or base.
     ///
     /// <para><b>Only what they put in.</b> What the object came out as is the campaign's answer,
