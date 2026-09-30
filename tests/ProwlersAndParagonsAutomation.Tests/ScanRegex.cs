@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace ProwlersAndParagons.Testing;
@@ -70,7 +71,30 @@ internal static class ScanRegex
     /// A scanning <see cref="Regex"/>: linear-time where the pattern permits it, and capped well
     /// clear of a loaded runner where it does not.
     /// </summary>
-    internal static Regex Build(string pattern, RegexOptions options = RegexOptions.None)
+    internal static Regex Build(string pattern, RegexOptions options = RegexOptions.None) =>
+        Built.GetOrAdd((pattern, options), static key => Construct(key.Pattern, key.Options));
+
+    /// <summary>
+    /// One <see cref="Regex"/> per distinct pattern and option set, for the life of the run.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Construction is where a <see cref="RegexOptions.NonBacktracking"/> pattern spends
+    /// its time, and the scans here build the same pattern inside loops.</b>
+    /// <c>WebPresentationTests.NoPageNamesATypeThisProjectDeclares</c> built one regex per declared
+    /// type per Razor file — files × types constructions of a pattern whose match takes
+    /// microseconds — and was 33 seconds on its own, in a class xunit runs serially and which was
+    /// therefore the whole engine suite's critical path. Measured: the class went from 74s to 7s
+    /// and the suite's wall from 76s to 21s on a sixteen-core machine, with the same 5,451 results.</para>
+    ///
+    /// <para>Nothing about a verdict changes. A <see cref="Regex"/> is immutable and thread-safe,
+    /// so two callers sharing one is the same as each holding its own; and
+    /// <see cref="ConcurrentDictionary{TKey,TValue}.GetOrAdd(TKey, Func{TKey,TValue})"/> caches
+    /// nothing when the factory throws, so a pattern the engine refuses still throws on every call
+    /// exactly as it did.</para>
+    /// </remarks>
+    private static readonly ConcurrentDictionary<(string Pattern, RegexOptions Options), Regex> Built = new();
+
+    private static Regex Construct(string pattern, RegexOptions options)
     {
         try
         {
