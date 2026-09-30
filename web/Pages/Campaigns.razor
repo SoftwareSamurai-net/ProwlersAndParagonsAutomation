@@ -358,15 +358,7 @@ else
 
             @if (TableChanges is { Count: > 0 } moved)
             {
-                <ul class="diff-rows">
-                    @foreach (var row in moved)
-                    {
-                        <li>
-                            <span class="what">@row.What</span>
-                            <span class="was">@Moved(row)</span>
-                        </li>
-                    }
-                </ul>
+                <DiffRows Rows="moved" />
                 <p class="small muted" role="status">
                     The character keeps its own until it joins again.
                 </p>
@@ -999,13 +991,6 @@ else
     /// agree between the two screens is the row — its name and its two values — and that is
     /// <see cref="CampaignDiff"/>'s, computed once.</para>
     /// </summary>
-    private static string Moved(DiffRow row) => row.Kind switch
-    {
-        DiffKind.Added => row.After is { } after ? $"added {after}" : "added",
-        DiffKind.Removed => row.Before is { } before ? $"removed {before}" : "removed",
-        _ => $"{row.Before} → {row.After}",
-    };
-
     private string RunAside => $"{_running.Count} to run";
 
     private string InAside => _playing is { } playing ? $"{playing.Count} joined" : "Not read";

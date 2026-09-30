@@ -1431,19 +1431,42 @@ label {
 
 /* One line per field that moved: what it is, then how it moved. Two columns rather than a sentence
    per row, because the thing a GM does here is scan down the left for the name and across for the
-   change — and a run of sentences cannot be scanned that way. */
+   change — and a run of sentences cannot be scanned that way.
+
+   **A grid, not a wrapping flex row.** As a flex row a long detail wrapped *under* its own name and
+   took the full width, so a Power with six modifiers broke the name column every other row and the
+   eye lost its place — the owner's report. The name column is fixed and the detail wraps inside
+   its own column, so the left edge a reader scans down is the same on every row. */
 .diff-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
 .diff-rows > li {
-    display: flex;
-    gap: var(--space-3);
+    display: grid;
+    grid-template-columns: minmax(8rem, 12rem) 1fr;
+    gap: var(--space-1) var(--space-3);
     align-items: baseline;
-    flex-wrap: wrap;
     font-size: var(--text-sm);
 }
-.diff-rows .what { flex: 0 1 12rem; font-weight: 600; }
+.diff-rows .what { font-weight: 600; }
 /* Tabular figures so a column of `6d → 8d` lines up on the arrow rather than drifting with the
-   width of each numeral. */
-.diff-rows .was { color: var(--ink); font-variant-numeric: tabular-nums; }
+   width of each numeral. The parts are flex items so that a row's detail wraps part by part rather
+   than mid-phrase, and a struck-through Con is never split across two lines. */
+.diff-rows .was {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-0) var(--space-2);
+    align-items: baseline;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+}
+/* **What moved is marked by weight and by a stroke, and only then by ink** — the rule every
+   finding follows, one panel over. A kept part recedes to `--muted` so the eye lands on the rest;
+   a removed part is struck through in the same muted ink, because what has gone is no longer the
+   character's; an added part is the heading's ink at the name's weight; a changed part keeps the
+   plain `6d → 8d` this list has always drawn. Underlines are what says "destination" in this app,
+   so `<ins>`'s default is taken off. */
+.diff-rows .kept { color: var(--muted); }
+.diff-rows .removed { color: var(--muted); text-decoration: line-through; }
+.diff-rows .added { color: var(--heading); font-weight: 600; text-decoration: none; }
+.diff-rows .verb { color: var(--muted); }
 
 /* ── Validation on the row that broke it ─────────────────────────────────── */
 
@@ -2325,6 +2348,10 @@ label {
     .rank-row { grid-template-columns: 1fr auto auto; }
     .rank-row .pips { display: none; }
     .rank-word { min-width: 0; }
+
+    /* The name over its detail on a phone, where two columns would leave the detail a few words
+       wide and wrap a six-part Power onto six lines. */
+    .diff-rows > li { grid-template-columns: 1fr; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

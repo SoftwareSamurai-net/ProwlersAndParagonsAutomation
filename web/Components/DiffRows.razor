@@ -1,0 +1,66 @@
+@* One line per field that moved: what it is, then how it moved — drawn here for the approval
+   screen, the member's table panel and an amended shared object alike, so that a change reads the
+   same wherever a reader meets one.
+
+   **A row's detail is drawn part by part, not as two strings around an arrow.** A Power's line is
+   a rank, a Source and every Pro and Con on it, and `Before → After` over that printed the whole
+   list twice and left the reader to find the three words that differed — the owner's report, on a
+   Life Drain with six modifiers. `DiffRow.Parts` says of each part whether it stayed, went,
+   arrived or changed form, and each is marked by a *word or a stroke as well as by ink*: a removed
+   part is a `<del>`, struck through; an added part is an `<ins>`, in the heading's weight; both
+   carry an `sr-only` word, because neither element is reliably announced on its own. Kept parts
+   are in `--muted`, so the eye lands on what moved. A one-part row — `Might 6d → 8d` — has one
+   changed part and reads exactly as it always did.
+
+   **A whole-row addition or removal says its word once, before the detail**, rather than marking
+   every part: "added 4d · Trained · Reach/Throw" is one fact, and six `<ins>`es would be the same
+   fact six times. *@
+
+<ul class="diff-rows">
+    @foreach (var row in Rows)
+    {
+        <li>
+            <span class="what">@row.What</span>
+            <span class="was">
+                @if (row.Kind is DiffKind.Added)
+                {
+                    <span class="verb">added</span>
+                    @if (row.After is { } after) { <span class="part">@after</span> }
+                }
+                else if (row.Kind is DiffKind.Removed)
+                {
+                    <span class="verb">removed</span>
+                    @if (row.Before is { } before) { <span class="part">@before</span> }
+                }
+                else
+                {
+                    @foreach (var part in row.Parts)
+                    {
+                        @switch (part.Kind)
+                        {
+                            case PartKind.Kept:
+                                <span class="part kept">@part.Text</span>
+                                break;
+                            case PartKind.Added:
+                                <ins class="part added"><span class="sr-only">added </span>@part.Text</ins>
+                                break;
+                            case PartKind.Removed:
+                                <del class="part removed"><span class="sr-only">removed </span>@part.Text</del>
+                                break;
+                            default:
+                                <span class="part changed">@part.Was → @part.Text</span>
+                                break;
+                        }
+                        @(" ")
+                    }
+                }
+            </span>
+        </li>
+    }
+</ul>
+
+@code {
+    /// <summary>The rows to draw, in the order the diff produced them.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<DiffRow> Rows { get; set; } = [];
+}

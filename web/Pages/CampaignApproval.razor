@@ -79,6 +79,16 @@ else
                                 {
                                     <span class="meta">@EmptySubmissions.Marker</span>
                                 }
+
+                                @* **When, beside the name, because a queue is read by age.** A
+                                   request sent three weeks ago and one sent this morning were
+                                   the same row, and a GM asking "is anyone waiting on me?" had to
+                                   open each to guess. The server has always sent both times; this
+                                   screen read neither. *@
+                                @if (When(one) is { } when)
+                                {
+                                    <span class="meta when">@when</span>
+                                }
                             </span>
 
                             @* **One control, and its word says which of the two things pressing
@@ -180,6 +190,11 @@ else
                                     @* **Drawn rather than put behind a second press.** Nothing is
                                        being decided here, so the sheet is not evidence supporting
                                        a decision — it is the whole of what was asked for. *@
+                                    @if (Ages.Since(one.ApprovedAt ?? 0, DateTimeOffset.UtcNow) is { } approved)
+                                    {
+                                        <p class="small muted diff-when">Approved @approved.</p>
+                                    }
+
                                     <SheetView Character="settled" ShowBudget="_approvedHasBudget" />
                                 }
                                 else if (_showing is Showing.Changes && _diff is { } diff)
@@ -227,12 +242,7 @@ else
                                                         This game already holds an object under this id.
                                                         Adopting replaces it.
                                                     </p>
-                                                    <ul class="diff-rows">
-                                                        @foreach (var row in AssetDiffRows(existing, contribution.Proposal!))
-                                                        {
-                                                            <li>@row</li>
-                                                        }
-                                                    </ul>
+                                                    <DiffRows Rows="AssetDiffRows(existing, contribution.Proposal!)" />
                                                 }
 
                                                 <div class="inline spaced">
@@ -255,6 +265,11 @@ else
                                        rather than anything read out of a payload or worked out
                                        here. *@
                                     <p class="diff-spend">@Spend(diff)</p>
+
+                                    @if (SentAndApproved(one) is { } sent)
+                                    {
+                                        <p class="small muted diff-when">@sent</p>
+                                    }
 
                                     @if (!diff.Ran)
                                     {
@@ -284,15 +299,7 @@ else
                                     }
                                     else
                                     {
-                                        <ul class="diff-rows">
-                                            @foreach (var row in diff.Rows)
-                                            {
-                                                <li>
-                                                    <span class="what">@row.What</span>
-                                                    <span class="was">@Was(row)</span>
-                                                </li>
-                                            }
-                                        </ul>
+                                        <DiffRows Rows="diff.Rows" />
                                         <p class="small muted">@diff.Compared fields compared.</p>
                                     }
 
@@ -723,13 +730,34 @@ else
             : $"{after}{budget} Hero Points";
     }
 
-    /// <summary>One row's movement, written the way the diff's own remarks describe.</summary>
-    private static string Was(DiffRow row) => row.Kind switch
+    /// <summary>
+    /// When the thing a row is about happened — the waiting snapshot's sending, or the clone's
+    /// approval — or null where the server sent no time. A GM deciding between two requests, or
+    /// wondering whether a player is still waiting on one, reads this before anything else.
+    /// </summary>
+    private static string? When(MembershipSummary one) =>
+        one.HasPending
+            ? Ages.Since(one.PendingAt ?? 0, DateTimeOffset.UtcNow) is { } sent ? $"Sent {sent}" : null
+            : one.HasApproved
+                ? Ages.Since(one.ApprovedAt ?? 0, DateTimeOffset.UtcNow) is { } approved ? $"Approved {approved}" : null
+                : null;
+
+    /// <summary>
+    /// The two times a decision is between, above the diff: when this was sent, and when the
+    /// sheet it would replace was approved. The second is what makes the first mean something —
+    /// "sent 3 days ago" over a clone approved yesterday is a request that has already been
+    /// overtaken.
+    /// </summary>
+    private static string? SentAndApproved(MembershipSummary one)
     {
-        DiffKind.Added => row.After is { } after ? $"added {after}" : "added",
-        DiffKind.Removed => row.Before is { } before ? $"removed {before}" : "removed",
-        _ => $"{row.Before} → {row.After}",
-    };
+        var now = DateTimeOffset.UtcNow;
+
+        if (Ages.Since(one.PendingAt ?? 0, now) is not { } sent) return null;
+
+        return Ages.Since(one.ApprovedAt ?? 0, now) is { } approved
+            ? $"Sent {sent}. The sheet it would replace was approved {approved}."
+            : $"Sent {sent}.";
+    }
 
     /// <summary>
     /// Read the campaign and what is waiting in it, once per id.
@@ -1030,15 +1058,23 @@ else
     /// <see cref="CampaignAsset"/> has, and a hand-written list is honest about there being few
     /// enough to name.
     /// </summary>
-    private static IEnumerable<string> AssetDiffRows(CampaignAsset before, CampaignAsset after)
+    private static IReadOnlyList<DiffRow> AssetDiffRows(CampaignAsset before, CampaignAsset after)
     {
-        if (before.Name != after.Name) yield return $"Name: {before.Name} → {after.Name}";
-        if (before.Body != after.Body) yield return $"Body: {before.Body}d → {after.Body}d";
-        if (before.Speed != after.Speed) yield return $"Speed: {before.Speed}d → {after.Speed}d";
-        if (before.Control != after.Control) yield return $"Control: {before.Control}d → {after.Control}d";
-        if (before.Weapons != after.Weapons) yield return $"Weapons: {before.Weapons}d → {after.Weapons}d";
-        if (before.Features.Count != after.Features.Count)
-            yield return $"Features: {before.Features.Count} → {after.Features.Count}";
+        var rows = new List<DiffRow>();
+
+        Moved("Name", before.Name, after.Name);
+        Moved("Body", $"{before.Body}d", $"{after.Body}d");
+        Moved("Speed", $"{before.Speed}d", $"{after.Speed}d");
+        Moved("Control", $"{before.Control}d", $"{after.Control}d");
+        Moved("Weapons", $"{before.Weapons}d", $"{after.Weapons}d");
+        Moved("Features", $"{before.Features.Count}", $"{after.Features.Count}");
+
+        return rows;
+
+        void Moved(string what, string was, string now)
+        {
+            if (was != now) rows.Add(new DiffRow(what, was, now, DiffKind.Changed));
+        }
     }
 
     /// <summary>
