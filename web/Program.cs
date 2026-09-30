@@ -33,6 +33,7 @@ builder.Services.AddSingleton(derived);
 builder.Services.AddSingleton(validator);
 builder.Services.AddSingleton(new ProConApplicability(rules));
 builder.Services.AddSingleton(new SourceGrouping(rules));
+builder.Services.AddSingleton(new AlternateFormEngine(new AlternateForms(rules, costs, derived)));
 builder.Services.AddScoped<CharacterSession>();
 // Accounts. This is the whole of what changed when the app stopped being anonymous-only: one
 // identity source that can answer something other than "nobody", and a store that puts the

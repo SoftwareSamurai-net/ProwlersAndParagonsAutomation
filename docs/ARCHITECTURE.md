@@ -165,7 +165,7 @@ ProwlersAndParagonsAutomation/
 │
 ├── mcp/                          # MCP server — the engine, in somebody else's Claude
 │   ├── QUESTION-POLICY.md        # The two or three questions worth asking. Embedded, and served verbatim
-│   ├── CharacterTools.cs         # The six tools, and why there are six
+│   ├── CharacterTools.cs         # The seven tools, and why there are seven
 │   ├── CharacterServer.cs        # Wire names, server instructions, the tool collection
 │   ├── Judgement.cs              # What the engine said, written down. Computes nothing
 │   ├── QuestionPolicy.cs         # Serves QUESTION-POLICY.md from the assembly, verbatim

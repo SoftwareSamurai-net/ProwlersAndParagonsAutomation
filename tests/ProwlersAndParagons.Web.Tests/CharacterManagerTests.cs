@@ -544,6 +544,83 @@ public sealed class CharacterManagerTests
     }
 
     /// <summary>
+    /// Item 21's Trait Cap ruling, surfaced: an alternate_form family's root row prints its shared
+    /// Resolve pool, and a form built to the root's own cap draws no Trait Cap warning of its
+    /// own — <see cref="AlternateFormRosterNotes"/> loaded both full sheets and asked the engine.
+    /// </summary>
+    [Fact]
+    public async Task AnAlternateFormFamilyPrintsTheSharedPoolOnTheRootRow()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+
+        var root = SampleCharacters.Hero();
+        root.Name = "Aegis";
+        root.SelectedPowers.Clear();
+        root.SelectedPowers.Add(new SelectedPower(AlternateForms.PowerId, 0) { Units = 1 });
+        var rootId = SavedCharacters.NewId();
+        await account.SaveAsync(rootId, root.Name, root, SheetMode.Hero);
+
+        var form = SampleCharacters.Hero();
+        form.Name = "Aegis (colossal)";
+        form.SelectedTierId = "street_level";
+        form.TraitCapRank = rules.GetTier("standard")!.TraitCapRank; // the root's own cap
+        form.Variant = new CharacterVariant(rootId, CharacterVariant.AlternateForm);
+        form.SelectedPowers.Clear();
+        form.SelectedPowers.Add(new SelectedPower(AlternateForms.PowerId, 0) { Units = 1 });
+        await account.SaveAsync(SavedCharacters.NewId(), form.Name, form, SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        var formRow = RowByExactName(cut, form.Name);
+        Assert.Contains("variant-child", formRow.ClassList);
+        Assert.DoesNotContain("Trait Cap", formRow.TextContent, StringComparison.Ordinal);
+
+        var rootRow = RowByExactName(cut, root.Name);
+        Assert.Contains("Shared Resolve pool:", rootRow.TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A family Error is labelled as one. A form carrying a cap that is neither its own tier's nor
+    /// the root's draws ALTERNATE_FORM_CAP_NOT_ROOTS, an Error, and the row has to say "Error" —
+    /// a bare sentence beside a Warning's labelled one would read as the milder of the two.
+    /// </summary>
+    [Fact]
+    public async Task AnAlternateFormFamilyErrorIsLabelledAsAnErrorOnTheFormsRow()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+
+        var root = SampleCharacters.Hero();
+        root.Name = "Aegis";
+        root.SelectedPowers.Clear();
+        root.SelectedPowers.Add(new SelectedPower(AlternateForms.PowerId, 0) { Units = 1 });
+        var rootId = SavedCharacters.NewId();
+        await account.SaveAsync(rootId, root.Name, root, SheetMode.Hero);
+
+        var form = SampleCharacters.Hero();
+        form.Name = "Aegis (colossal)";
+        form.SelectedTierId = "street_level";
+        form.TraitCapRank = rules.GetTier("high_level")!.TraitCapRank; // neither its tier's nor the root's
+        form.Variant = new CharacterVariant(rootId, CharacterVariant.AlternateForm);
+        form.SelectedPowers.Clear();
+        form.SelectedPowers.Add(new SelectedPower(AlternateForms.PowerId, 0) { Units = 1 });
+        await account.SaveAsync(SavedCharacters.NewId(), form.Name, form, SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        var formRow = RowByExactName(cut, form.Name);
+        Assert.Contains("Error: ", formRow.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Trait Cap", formRow.TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The chooser offers every held character except the row itself and anything naming it back —
     /// a self-link and a direct cycle, refused where the link is made because the engine cannot
     /// see the roster to refuse either on its own.

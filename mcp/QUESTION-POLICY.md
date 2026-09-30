@@ -323,6 +323,7 @@ nothing that does what they described:
 | `search_powers` | Which Powers could realise a described effect. Start here for every effect in the description. |
 | `power_detail` | One Power in full, with the Pros and Cons the rulebook allows on it. |
 | `check_character` | **The judge.** Costs and validates a whole character and reports what it spent on what. The only source of a Hero Point figure or of the word "legal". |
+| `check_alternate_forms` | An Alternate Form family across two or more sheets at once — Ch.2 p.21. `check_character` cannot see a root beside its forms; use this when a character is one of several forms of the same person. |
 | `character_sheet` | The printed sheet, for showing them. |
 
 The loop is: search for the effects, propose a whole character, `check_character`, repair,

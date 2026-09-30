@@ -238,11 +238,20 @@ public sealed class Judgement
         };
     }
 
-    private static JsonArray Issues(ValidationResult validation)
+    private static JsonArray Issues(ValidationResult validation) => Issues(validation.Issues);
+
+    /// <summary>
+    /// The same shape for a plain list of findings — <see cref="AlternateForms.Families"/>'s
+    /// own, which is not a <see cref="ValidationResult"/> because it is about a set of sheets
+    /// rather than one. Public so <see cref="CharacterTools.CheckAlternateForms"/> can print a
+    /// family's issues in exactly the words <see cref="CheckCharacter"/> would use for a
+    /// single sheet's.
+    /// </summary>
+    public static JsonArray Issues(IReadOnlyList<ValidationIssue> issues)
     {
         var array = new JsonArray();
 
-        foreach (var issue in validation.Issues)
+        foreach (var issue in issues)
         {
             var node = new JsonObject
             {

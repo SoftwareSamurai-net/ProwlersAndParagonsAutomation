@@ -381,6 +381,34 @@ public sealed class McpStdioTests
         yield return (CharacterServer.CheckCharacterTool,
             new JsonObject { ["character"] = unpriceable.DeepClone() }, "UNKNOWN_POWER");
 
+        // The seventh tool: the one rule that needs two sheets at once. The pair need not be a
+        // legal alternate_form family — this drives the roster being read and a family being
+        // built at all, which check_character's own coverage cannot reach.
+        var form = hero.DeepClone().AsObject();
+        form["Variant"] = new JsonObject { ["OfCharacterId"] = "root_1", ["Kind"] = "alternate_form" };
+
+        yield return (CharacterServer.CheckAlternateFormsTool,
+            new JsonObject
+            {
+                ["roster"] = new JsonArray
+                {
+                    new JsonObject { ["id"] = "root_1", ["character"] = hero.DeepClone() },
+                    new JsonObject { ["id"] = "form_1", ["character"] = form }
+                }
+            },
+            "root_in_roster");
+
+        yield return (CharacterServer.CheckAlternateFormsTool,
+            new JsonObject
+            {
+                ["roster"] = new JsonArray
+                {
+                    new JsonObject { ["id"] = "root_1", ["character"] = hero.DeepClone() },
+                    new JsonObject { ["id"] = "root_1", ["character"] = hero.DeepClone() }
+                }
+            },
+            "DUPLICATE_ROSTER_ID");
+
         // The masthead the text renderer writes, which the judge's JSON report cannot contain.
         yield return (CharacterServer.CharacterSheetTool,
             new JsonObject { ["character"] = hero.DeepClone() }, "CHARACTER SHEET");
@@ -857,7 +885,7 @@ public sealed class McpStdioTests
     /// <summary>
     /// <b>The startup check reads every rules file, not one.</b> It warmed the tiers alone, so
     /// a directory holding nothing but <c>tiers.json</c> started cleanly and then threw out of
-    /// five of the six tools — the exact failure the check exists to prevent, passing itself.
+    /// six of the seven tools — the exact failure the check exists to prevent, passing itself.
     /// </summary>
     [Fact]
     public void APartialRulesDirectoryIsRefusedAtStartupRatherThanAtTheFirstQuestion()

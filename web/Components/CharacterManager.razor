@@ -5,6 +5,7 @@
 @inject DiscardedCharacter Discarded
 @inject ApiMembershipStore Memberships
 @inject AccountCampaignStore Campaigns
+@inject AlternateFormEngine Forms
 
 @* The characters this browser — or this account — is holding, and the way between them.
 
@@ -269,6 +270,21 @@
                             </span>
                         }
 
+                        @* Item 21's Trait Cap ruling and the rest of Ch.2 p.21, surfaced beside a
+                           member's own row exactly as VARIANT_ROOT_NOT_HELD is above — computed
+                           by AlternateFormRosterNotes, which is the only place this component
+                           calls the engine about a family rather than about one sheet. *@
+                        @foreach (var extra in FamilyNotesFor(one.Id))
+                        {
+                            <span class="meta warning">
+                                @(extra.Warning ? $"Warning: {extra.Text}" : $"Error: {extra.Text}")
+                            </span>
+                        }
+                        @if (FamilyPoolFor(one.Id) is { } pool)
+                        {
+                            <span class="meta">@pool</span>
+                        }
+
                         @* No question first — see the comment on the panel above. Both kinds of
                            row are undoable from the banner the moment this fires: the one on
                            screen through the character's own buffer, any other row through
@@ -435,6 +451,15 @@
     private IReadOnlyList<SavedCharacterSummary> _characters = [];
     private IReadOnlyList<SavedCharacterSummary> _others = [];
     private string? _currentId;
+
+    /// <summary>
+    /// Item 21's Alternate Form findings, keyed by the member and by the root — see
+    /// <see cref="AlternateFormRosterNotes"/>. Recomputed every <see cref="Refresh"/>, the same
+    /// as every other whole-account read this panel makes, and empty for an account that holds
+    /// no alternate_form family at all, which costs nothing beyond the grouping <c>Arrange</c>
+    /// already does.
+    /// </summary>
+    private AlternateFormRosterNotes.Result _formNotes = AlternateFormRosterNotes.Result.Empty;
 
     /// <summary>What the reader has typed into the filter box. Empty admits everything.</summary>
     private string _query = "";
@@ -849,7 +874,28 @@
         // reader's own palette: the question is whether this list needs telling apart, not what
         // the person looking at it happens to be building.
         _showKinds = _others.Any(c => c.Kind == "hero") && _others.Any(c => c.Kind == "villain");
+
+        // Over the whole account, like _memberships and _names above it and for the same reason
+        // Arrange's own remarks give for VARIANT_ROOT_NOT_HELD: a family's root may be listed
+        // under a different heading than one of its forms, so this has to see every character
+        // this browser or account holds rather than one heading's worth.
+        var families = CharacterVariants.Group(_characters.Select(CharacterVariants.FromSummary));
+        _formNotes = await AlternateFormRosterNotes.BuildAsync(families, Forms, LoadSheetAsync);
     }
+
+    /// <summary>
+    /// The one load <see cref="AlternateFormRosterNotes"/> is handed — <see cref="Store"/>'s own
+    /// by-id read, with the mode it also returns dropped: a family's findings do not care whether
+    /// a member is a Hero or a Villain sheet, only what it paid and what tier it is built to.
+    /// </summary>
+    private async Task<CharacterSheet?> LoadSheetAsync(string id) => (await Store.ReadAsync(id))?.Sheet;
+
+    /// <summary>Every family finding this account's engine check has about one member, if any.</summary>
+    private IReadOnlyList<AlternateFormRosterNotes.Note> FamilyNotesFor(string id) =>
+        _formNotes.ByMemberId.GetValueOrDefault(id, []);
+
+    /// <summary>The shared Resolve pool to print on a family's root row, if this is one.</summary>
+    private string? FamilyPoolFor(string id) => _formNotes.SharedResolveByRootId.GetValueOrDefault(id);
 
     private void Reload() => _ = InvokeAsync(async () =>
     {

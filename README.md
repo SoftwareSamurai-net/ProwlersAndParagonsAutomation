@@ -50,7 +50,7 @@ and Talent listed, blank ruled space for what a pen fills in. White paper and re
 palettes: a Hero sheet prints navy, a Villain crimson, colour only as ink or a tint behind a heading
 bar, never as a fill.
 
-**Describe a character out loud.** The MCP server wraps the same engine in six tools over stdio, so
+**Describe a character out loud.** The MCP server wraps the same engine in seven tools over stdio, so
 your own Claude can ask you the two or three questions a description leaves open and hand back a
 costed, checked character. It handles no credentials and holds no key. →
 [Setting it up](docs/MCP-SETUP.md)
@@ -181,7 +181,7 @@ The MCP server lets you describe a character in ordinary words — *"a washed-up
 
 **Working in a checkout of this repository, one command sets it up** — `dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server`, and [`.mcp.json`](.mcp.json) registers that copy for any clone, machine or git worktree with no absolute path to install. It is a published copy rather than the build output because a server running out of `mcp/bin/` blocks a Release build of this repository. Claude Code asks once per checkout before it will start a server a repository proposed — answer it in the session, or list the server in `enabledMcpjsonServers` in that checkout's `.claude/settings.local.json`.
 
-**→ [Setting it up on your machine](docs/MCP-SETUP.md)** — that checked-in registration, publishing a copy for a client working outside the checkout, registering it with Claude Code or Claude Desktop, what the six tools are for, and what to check when it does not connect.
+**→ [Setting it up on your machine](docs/MCP-SETUP.md)** — that checked-in registration, publishing a copy for a client working outside the checkout, registering it with Claude Code or Claude Desktop, what the seven tools are for, and what to check when it does not connect.
 
 It is one file rather than a section here because the setup is the part a stranger needs and the part with the traps in it — and every one of them belongs to the published copy, which is why a checkout should not make one: the path has to outlive a git worktree, and the published server carries its own copy of the rules, so it keeps answering with old ones, perfectly happily, until you re-publish. A registration naming a path that stopped existing is how this server failed here once, reporting `CONNECTION_CLOSED` with no log to read because nothing had started.
 

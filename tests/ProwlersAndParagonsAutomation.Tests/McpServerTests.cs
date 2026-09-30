@@ -61,17 +61,17 @@ public sealed class McpServerTests
     /// asserted, so a tool that quietly stops being served fails here.
     /// </summary>
     /// <summary>
-    /// The six names a stranger's configuration and an assistant's tool calls use, written out
-    /// rather than taken from the constants that produce them.
+    /// The seven names a stranger's configuration and an assistant's tool calls use, written
+    /// out rather than taken from the constants that produce them.
     /// </summary>
     private static readonly string[] WireNames =
     [
-        "character_sheet", "check_character", "creation_guide",
+        "character_sheet", "check_alternate_forms", "check_character", "creation_guide",
         "list_options", "power_detail", "search_powers"
     ];
 
     [Fact]
-    public async Task TheServerServesTheSixToolsUnderTheirWireNames()
+    public async Task TheServerServesTheSevenToolsUnderTheirWireNames()
     {
         await WithClient(async client =>
         {
@@ -243,6 +243,32 @@ public sealed class McpServerTests
                 new Dictionary<string, object?> { ["character"] = CharacterSheetJson.Write(sheet) });
 
             Assert.Equal(_f.Costs.TotalCost(sheet), report["hero_points"]!["spent"]!.GetValue<int>());
+        });
+    }
+
+    /// <summary>
+    /// The seventh tool, over the wire: a root and its alternate form, sent as
+    /// <c>{id, character}</c> pairs, answered with the same family the engine builds in this
+    /// process — the same end-to-end claim <see cref="ACharacterSentOverTheWireIsCostedByTheEngine"/>
+    /// makes for <c>check_character</c>.
+    /// </summary>
+    [Fact]
+    public async Task ARosterSentOverTheWireIsAnsweredByAlternateFormsFamilies()
+    {
+        var airmid = Herald("Herald (Airmid)");
+        var scathach = Herald("Herald (Scathach)");
+        scathach.Variant = new CharacterVariant("airmid", CharacterVariant.AlternateForm);
+
+        var expected = _f.Derived.CalculateResolve(airmid);
+
+        await WithClient(async client =>
+        {
+            var report = await Call(client, CharacterServer.CheckAlternateFormsTool,
+                new Dictionary<string, object?> { ["roster"] = Roster(("airmid", airmid), ("scathach", scathach)) });
+
+            Assert.True(report["ok"]!.GetValue<bool>(), report.ToJsonString());
+            Assert.Equal(expected, report["families"]![0]!["shared_resolve"]!.GetValue<int>());
+            Assert.Empty(report["families"]![0]!["issues"]!.AsArray());
         });
     }
 
@@ -2223,5 +2249,119 @@ public sealed class McpServerTests
         Assert.Contains(issues, i => i.SubjectKind != ValidationSubject.None);
         Assert.Contains(issues, i => i.Severity == ValidationSeverity.Warning);
         Assert.Contains(issues, i => i.Severity == ValidationSeverity.Error);
+    }
+
+    // ── check_alternate_forms: the one rule that needs two sheets ──────────
+
+    private CharacterSheet Herald(string name) =>
+        PrebuiltHeroSheets.Build(_f.Rules, _f.Derived, PrebuiltHeroes.All.Single(h => h.Name == name));
+
+    private static JsonElement Roster(params (string Id, CharacterSheet Sheet)[] members)
+    {
+        var array = new JsonArray();
+        foreach (var (id, sheet) in members)
+            array.Add(new JsonObject
+            {
+                ["id"]        = id,
+                ["character"] = JsonNode.Parse(CharacterSheetJson.Write(sheet))
+            });
+
+        return Element(array.ToJsonString());
+    }
+
+    /// <summary>The book's own pair, over the tool — see <c>AlternateFormTests</c> for the same case in the engine.</summary>
+    [Fact]
+    public void CheckAlternateFormsAnswersTheBooksHeraldPairWithNoIssues()
+    {
+        var airmid   = Herald("Herald (Airmid)");
+        var scathach = Herald("Herald (Scathach)");
+        scathach.Variant = new CharacterVariant("airmid", CharacterVariant.AlternateForm);
+
+        var report = Parse(Tools().CheckAlternateForms(Roster(("airmid", airmid), ("scathach", scathach))));
+
+        Assert.True(report["ok"]!.GetValue<bool>(), report.ToJsonString());
+        var family = report["families"]!.AsArray().Single()!;
+        Assert.Equal("airmid", family["root_id"]!.GetValue<string>());
+        Assert.True(family["root_in_roster"]!.GetValue<bool>());
+        Assert.Equal(5, family["shared_resolve"]!.GetValue<int>());
+        Assert.Empty(family["issues"]!.AsArray());
+
+        var members = family["members"]!.AsArray();
+        Assert.Contains(members, m => m!["id"]!.GetValue<string>() == "airmid" && m["role"]!.GetValue<string>() == "root");
+        Assert.Contains(members, m => m!["id"]!.GetValue<string>() == "scathach" && m["role"]!.GetValue<string>() == "form");
+    }
+
+    /// <summary>
+    /// Ch.2 p.21's Trait Cap ruling, over the tool: a form built to the root's own cap above
+    /// its own tier reports no issue; the same form at a cap that is neither its own tier's nor
+    /// the root's is <c>ALTERNATE_FORM_CAP_NOT_ROOTS</c>.
+    /// </summary>
+    [Fact]
+    public void CheckAlternateFormsAppliesTheTraitCapRuling()
+    {
+        var airmid   = Herald("Herald (Airmid)");
+        var scathach = Herald("Herald (Scathach)");
+        scathach.Variant = new CharacterVariant("airmid", CharacterVariant.AlternateForm);
+        scathach.SelectedTierId = "street_level";
+        scathach.TraitCapRank = _f.Rules.GetTier("standard")!.TraitCapRank;
+
+        // Both rebuilt at the Street Level purchase rather than the printed Standard one, so
+        // root and form still pay the Power's whole cost alike.
+        var airmidPurchase = airmid.SelectedPowers.Single(p => p.PowerId == AlternateForms.PowerId);
+        airmid.SelectedPowers[airmid.SelectedPowers.IndexOf(airmidPurchase)] = airmidPurchase with { Units = 1 };
+        var scathachPurchase = scathach.SelectedPowers.Single(p => p.PowerId == AlternateForms.PowerId);
+        scathach.SelectedPowers[scathach.SelectedPowers.IndexOf(scathachPurchase)] = scathachPurchase with { Units = 1 };
+
+        var ok = Parse(Tools().CheckAlternateForms(Roster(("airmid", airmid), ("scathach", scathach))));
+        Assert.True(ok["ok"]!.GetValue<bool>(), ok.ToJsonString());
+
+        scathach.TraitCapRank = 16;
+        var bad = Parse(Tools().CheckAlternateForms(Roster(("airmid", airmid), ("scathach", scathach))));
+        Assert.False(bad["ok"]!.GetValue<bool>());
+        var issue = bad["families"]![0]!["issues"]!.AsArray()
+            .Single(i => i!["code"]!.GetValue<string>() == "ALTERNATE_FORM_CAP_NOT_ROOTS");
+        Assert.Equal("scathach", issue!["subject_id"]!.GetValue<string>());
+    }
+
+    /// <summary>Two entries under one id are refused, the same way <c>AlternateForms.Families</c> refuses a roster with two files reducing to one.</summary>
+    [Fact]
+    public void CheckAlternateFormsRefusesTwoEntriesUnderOneId()
+    {
+        var airmid = Herald("Herald (Airmid)");
+        var report = Parse(Tools().CheckAlternateForms(Roster(("airmid", airmid), ("airmid", Herald("Vector")))));
+
+        Assert.False(report["ok"]!.GetValue<bool>());
+        Assert.Equal("DUPLICATE_ROSTER_ID", report["problem"]!["code"]!.GetValue<string>());
+        Assert.Contains("airmid", report["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A member whose own JSON does not parse is named rather than guessed past: it is left out
+    /// of the roster the engine sees, so no family claims to answer for it.
+    /// </summary>
+    [Fact]
+    public void CheckAlternateFormsNamesAMemberThatDoesNotParse()
+    {
+        var array = new JsonArray
+        {
+            new JsonObject { ["id"] = "airmid", ["character"] = "not a character" }
+        };
+
+        var report = Parse(Tools().CheckAlternateForms(Element(array.ToJsonString())));
+
+        Assert.False(report["ok"]!.GetValue<bool>());
+        Assert.Empty(report["families"]!.AsArray());
+        var unreadable = report["unreadable"]!.AsArray().Single();
+        Assert.Equal("airmid", unreadable!["id"]!.GetValue<string>());
+        Assert.Equal("CHARACTER_UNREADABLE", unreadable["problem"]!["code"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void CheckAlternateFormsRefusesSomethingThatIsNotAnArray()
+    {
+        var report = Parse(Tools().CheckAlternateForms(Element("{\"id\": \"airmid\"}")));
+
+        Assert.False(report["ok"]!.GetValue<bool>());
+        Assert.Equal("NO_ROSTER", report["problem"]!["code"]!.GetValue<string>());
     }
 }

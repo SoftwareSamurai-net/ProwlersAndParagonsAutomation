@@ -61,14 +61,21 @@ public sealed record AlternateFormFamily(
 /// class only adds what is true of the set. A form whose Resolve is not the pool's is not
 /// given the pool's; the pool is reported beside it.</para>
 ///
-/// <para><b>One sentence of p.21 is deliberately not applied.</b> "Your other form's power
-/// level only affects the number of Hero Points you have to create it, not its Trait Cap" —
-/// so a Street Level form of a Standard Hero is built on 75 Hero Points and capped at 12d, not
-/// 8d. The engine's one way to say a cap is <see cref="CharacterSheet.TraitCapRank"/>, and a
-/// house cap above the tier's is <c>TRAIT_CAP_ABOVE_TIER</c> by the owner's own ruling on house
-/// caps; applying this sentence means deciding which of two rulings gives way, and that is the
-/// owner's to decide rather than this class's. Until then a form's own Resolve here is the
-/// figure its own tier's cap gives, which can be lower than the book's — and so can the pool.</para>
+/// <para><b>p.21's Trait Cap sentence is applied, by the owner's ruling: "the form declares, the
+/// family verifies."</b> "Your other form's power level only affects the number of Hero Points
+/// you have to create it, not its Trait Cap" — so a Street Level form of a Standard Hero may be
+/// built on 75 Hero Points and still capped at 12d, not 8d.
+/// <see cref="CharacterValidator"/> cannot see the root — it has one sheet — so it waives
+/// <c>TRAIT_CAP_ABOVE_TIER</c> outright on any sheet whose <see cref="CharacterVariant.Kind"/>
+/// is <see cref="CharacterVariant.AlternateForm"/>, on trust that the declared
+/// <see cref="CharacterSheet.TraitCapRank"/> really is the root's. This class holds that trust to
+/// account: a form's cap above its own tier that is not equal to the root's own — declared, if
+/// the root carries a house cap, or the root's tier's otherwise — is <c>ALTERNATE_FORM_CAP_NOT_ROOTS</c>.
+/// A form's cap at or below its own tier is an ordinary house cap and draws nothing here; it is
+/// already checked, and can already fail, as <c>TRAIT_CAP_BELOW_MINIMUM</c> on that sheet alone.
+/// Resolve and the shared pool below follow with no new code path:
+/// <see cref="DerivedStatsCalculator"/> already reads <see cref="CharacterSheet.TraitCapRank"/>
+/// as written, so a form built to the root's cap resolves against it.</para>
 ///
 /// <para><b>Who says what a sheet is called is the host.</b> A <see cref="CharacterVariant"/>
 /// names an id, and a sheet does not carry one; a browser has its storage key and the headless
@@ -256,6 +263,39 @@ public sealed class AlternateForms
                 OwnerId     = root.Id,
                 Value       = level,
                 Options     = Unspent()
+            });
+        }
+
+        // "Your other form's power level only affects the number of Hero Points you have to
+        // create it, not its Trait Cap": a form's own tier caps it as usual, but it may instead
+        // carry the root's own cap — declared, if the root set a house one, or the root's tier's
+        // otherwise. Anything else above the form's own tier is a house cap wearing this
+        // ruling's excuse, so CharacterValidator's single-sheet waiver of TRAIT_CAP_ABOVE_TIER on
+        // any alternate_form sheet is trusted only that far.
+        foreach (var form in forms)
+        {
+            if (form.Sheet.TraitCapRank is not { } formCap) continue;
+            if (form.Sheet.SelectedTierId is not { } formTierId) continue;
+
+            var ownTier = _rules.GetTier(formTierId);
+            if (ownTier is null || formCap <= ownTier.TraitCapRank) continue;
+
+            var rootTier = root.Sheet.SelectedTierId is { } rootTierId ? _rules.GetTier(rootTierId) : null;
+            var rootCap  = DerivedStatsCalculator.EffectiveTraitCap(root.Sheet, rootTier);
+            if (rootCap == formCap) continue;
+
+            issues.Add(new(ValidationSeverity.Error, "ALTERNATE_FORM_CAP_NOT_ROOTS",
+                $"{Name(form)} is built to a house Trait Cap of {formCap}d, above "
+                + $"{TierName(form.Sheet)}'s own {ownTier.TraitCapRank}d. A form's power level "
+                + $"does not affect its Trait Cap, so it may carry {Name(root)}'s cap "
+                + (rootCap is { } rc ? $"of {rc}d" : "— which cannot be worked out here")
+                + ", but not a cap of its own above its tier.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                SubjectId   = form.Id,
+                OwnerId     = root.Id,
+                Value       = formCap,
+                Limit       = rootCap
             });
         }
 
