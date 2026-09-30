@@ -906,7 +906,11 @@ public sealed class PaletteBookTests
         // before it and saw ["SURPRISE"]: the rows the drop is about, still up, and indeed still up
         // in a passing test.
         Assert.Empty(BookRows(page));
-        Assert.Empty(page.FindAll(".palette-group"));
+
+        // The book's heading goes with its rows. Not "no heading at all": the rules terms are
+        // matched in the browser and "trait cap" reaches several of them, and their heading is
+        // drawn on the same render — the book's is the one whose rows were dropped.
+        Assert.DoesNotContain("In the book", page.FindAll(".palette-group").Select(e => e.TextContent));
 
         held.SetResult();
         await page.WaitForAssertionAsync(() => Assert.Equal(["TRAIT CAP"], BookRows(page)), Patient);
@@ -919,7 +923,10 @@ public sealed class PaletteBookTests
         // ahead of it.
         await Occupying(
             page,
-            () => page.FindAll(".palette-group ~ .palette-row")[0].ClickAsync(new MouseEventArgs()),
+            // By kind, not `.palette-group ~ .palette-row`: that means "every row after any
+            // heading", and the day the rules terms got a heading of their own it clicked one of
+            // those — the trap this file's own remarks already record for the waits.
+            () => page.FindAll(".palette-row.kind-passage")[0].ClickAsync(new MouseEventArgs()),
             "the click on the book's row");
 
         Assert.Equal("trait cap", CommandsOf(ctx).TakeRequestedSearch());
@@ -1154,7 +1161,7 @@ public sealed class PaletteBookTests
         // `Assert.False(IsOpen)` read a palette that had not been told to close yet.
         await Occupying(
             page,
-            () => page.FindAll(".palette-group ~ .palette-row")[0].ClickAsync(new MouseEventArgs()),
+            () => page.FindAll(".palette-row.kind-passage")[0].ClickAsync(new MouseEventArgs()),
             "the click that chooses a passage");
 
         Assert.False(CommandsOf(ctx).IsOpen);
@@ -1192,7 +1199,7 @@ public sealed class PaletteBookTests
         // blaming the page. Behind a busy renderer, so that ordering is driven rather than lucky.
         await Occupying(
             page,
-            () => page.FindAll(".palette-group ~ .palette-row")[0].ClickAsync(new MouseEventArgs()),
+            () => page.FindAll(".palette-row.kind-passage")[0].ClickAsync(new MouseEventArgs()),
             "the click that chooses a passage before /rules exists");
 
         var rules = ctx.Render<RulesReference>();
@@ -1235,7 +1242,7 @@ public sealed class PaletteBookTests
         // Where the book starts in the one flat list. Read off the rendered ids rather than
         // counted here, because how many Powers "knockback" matches is not this test's business —
         // and the arrow keys move through exactly these positions.
-        var firstBookRow = page.FindAll(".palette-group ~ .palette-row")[0].Id;
+        var firstBookRow = page.FindAll(".palette-row.kind-passage")[0].Id;
         var steps = page.FindAll(".palette-row").Select(r => r.Id).ToList();
         var at = steps.IndexOf(firstBookRow);
 
