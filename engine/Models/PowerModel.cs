@@ -81,6 +81,14 @@ public record PowerModel
     /// </summary>
     public string Description { get; init; } = "";
 
+    /// <summary>
+    /// What the entry asks the player to write when they take it, in the entry's own words —
+    /// Expertise is "a specialisation you name", Animation has one Trait picked to sit at full
+    /// rank. Null for the 139 that ask nothing. The answer is <c>SelectedPower.Detail</c>;
+    /// the same field the Perks, Flaws, Pros and Cons carry for the same purpose.
+    /// </summary>
+    public string? NarrativeConstraint { get; init; }
+
     public PowerPrerequisiteModel? Prerequisite { get; init; }
 
     // There is deliberately no list of generic Pros and Cons here. The rulebook states

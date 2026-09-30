@@ -154,7 +154,7 @@
                                             whitespace inside an element following an expression,
                                             which printed "Armor8d" here once already. *@
                                             <Term Name="@(power?.Name ?? sp.PowerId)"
-                                                  Text="@power?.Description" Enabled="@Explain" />@Ranked(power, rank)</span>
+                                                  Text="@power?.Description" Enabled="@Explain" />@Named(sp)@Ranked(power, rank)</span>
                                         <span class="hp">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp, Sheet.ImmortalityCost))?.ToString() ?? "—") HP</span>
                                     </div>
                                     @if (power is not null)
@@ -655,6 +655,13 @@
         power is null || power.RankType is "default" or "special" ? "" : $" {rank}d";
 
     /// <summary>
+    /// What the player named on a Power that asks — <c>Expertise: Firearms</c> — in the one
+    /// expression with the name, for the whitespace reason <see cref="Ranked"/> is.
+    /// </summary>
+    private static string Named(SelectedPower sp) =>
+        string.IsNullOrWhiteSpace(sp.Detail) ? "" : $": {sp.Detail.Trim()}";
+
+    /// <summary>
     /// For a rankless Power with a Source: which Ability stands in for its rank when another
     /// Power acts on it, and what that comes to. Null for anything with a rank of its own,
     /// and for a rankless Power with no Source recorded — the validator warns about that.
@@ -739,6 +746,10 @@
                    ?? Session.Rules.GetPro(choice.Id)?.Name
                    ?? Session.Rules.GetCon(choice.Id)?.Name
                    ?? choice.Id;
-        return choice.VariantKey is null ? name : $"{name} ({Labels.Humanise(choice.VariantKey)})";
+        var labelled = choice.VariantKey is null ? name : $"{name} ({Labels.Humanise(choice.VariantKey)})";
+
+        // The player's words after the option — `Conditional (Often Works) — only at night` —
+        // so the sheet says what the condition is, which is what a GM reads it for.
+        return string.IsNullOrWhiteSpace(choice.Detail) ? labelled : $"{labelled} — {choice.Detail.Trim()}";
     }
 }

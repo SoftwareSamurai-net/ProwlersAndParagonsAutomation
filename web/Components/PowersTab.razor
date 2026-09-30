@@ -64,6 +64,10 @@ else
                                 {
                                     <div class="small muted">@unitNames</div>
                                 }
+                                @if (sp.Detail is { Length: > 0 } detail)
+                                {
+                                    <div class="small muted">@detail</div>
+                                }
                                 @* Labelled separately, as on the sheet. Run together into one
                                    list a player cannot tell which of these cost Hero Points
                                    and which paid for the rest — which is the whole question
@@ -215,6 +219,8 @@ else
                    ?? Session.Rules.GetPro(choice.Id)?.Name
                    ?? Session.Rules.GetCon(choice.Id)?.Name
                    ?? choice.Id;
-        return choice.VariantKey is null ? name : $"{name} ({Labels.Humanise(choice.VariantKey)})";
+        var labelled = choice.VariantKey is null ? name : $"{name} ({Labels.Humanise(choice.VariantKey)})";
+
+        return string.IsNullOrWhiteSpace(choice.Detail) ? labelled : $"{labelled} — {choice.Detail.Trim()}";
     }
 }

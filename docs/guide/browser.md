@@ -893,6 +893,16 @@ is one sheet in this app by design.
   and as a Power's own, and two terms sharing an id share one `aria-describedby` sentence. The
   printed words are unchanged — `ModifierLine` is now `Modifiers` joined — and the text export
   still writes the ids. With `Explain` off the line is the bare words, as before.
+- **Where an entry asks the player to write something, the editor asks in the entry's words and
+  Add waits for the answer.** The Flaws and Perks tabs did this from the start; `ProConPicker`
+  and `PowerEditor` do it since 2026-09-30, for the eleven Cons, three Pros, one of a Power's own
+  Cons and two Powers whose entries say "define…" or "name…" (`narrative_constraint` in the
+  data, answered in `SelectedProCon.Detail` / `SelectedPower.Detail`). Before that the picker
+  never printed the ask, so Conditional went onto the sheet with its condition nowhere. The sheet
+  prints the words after the option — `Conditional (Often Works) — only under an open sky` — and
+  a named Power as `Expertise: Firearms`; the Powers tab, both exports, the CLI's prompts, the MCP
+  option listings and the approval diff (as a part, so a rewritten condition is a change) all
+  carry them. Held by `NarrativeDetailEditorTests` and `NarrativeDetailTests`.
 - **The preview is on the characteristics step alone.** That is where the character is built and
   nothing there types letter by letter — the ranks are steppers and the lists are pickers, so the
   sheet redraws on a choice rather than on a keystroke. The finishing step is where the free text is.

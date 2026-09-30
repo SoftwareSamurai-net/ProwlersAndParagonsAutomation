@@ -65,6 +65,17 @@
         </Field>
     }
 
+    @* A Power whose own entry asks the player to name something — Expertise's specialisation,
+       the Trait an Animation holds at full rank — asks here, in the entry's words, and Add waits
+       for the answer. It is words on the sheet and never a figure: the Trait a baseline reads is
+       the nomination above, not this. *@
+    @if (Power.NarrativeConstraint is { } ask)
+    {
+        <Field For="pe-detail" Label="@ask">
+            <input id="pe-detail" type="text" class="wide" @bind="_detail" @bind:event="oninput" />
+        </Field>
+    }
+
     @if (Power.CostType is "per_rank_variable" or "flat_variable" && Power.CostVariants is { Count: > 0 } variants)
     {
         <Field For="pe-variant" Label="This Power's cost varies. Which version?">
@@ -180,7 +191,7 @@
         </span>
         <span class="spacer"></span>
         <button type="button" class="btn" @onclick="OnCancel">Cancel</button>
-        <button type="button" class="btn primary" disabled="@(_cost is null)" @onclick="Commit">
+        <button type="button" class="btn primary" disabled="@(_cost is null || !DetailAnswered)" @onclick="Commit">
             @(Existing is null ? "Add Power" : "Save changes")
         </button>
     </div>
@@ -205,6 +216,10 @@
     private List<SelectedProCon> _pros = [];
     private List<SelectedProCon> _cons = [];
     private List<string> _unitNames = [];
+    private string _detail = "";
+
+    /// <summary>The entry asked for nothing, or the player has answered.</summary>
+    private bool DetailAnswered => Power.NarrativeConstraint is null || !string.IsNullOrWhiteSpace(_detail);
 
     private int? _cost;
     private int _effectiveRank;
@@ -219,6 +234,7 @@
         _pros            = Existing?.Pros.ToList() ?? [];
         _cons            = Existing?.Cons.ToList() ?? [];
         _unitNames       = Existing?.UnitNames?.ToList() ?? [];
+        _detail          = Existing?.Detail ?? "";
         Recompute();
     }
 
@@ -306,7 +322,8 @@
             Units           = _units,
             UnitNames       = UnitNamesToSave(),
             BaselineTraitId = string.IsNullOrEmpty(_baselineTraitId) ? null : _baselineTraitId,
-            SourceId        = string.IsNullOrEmpty(_sourceId) ? null : _sourceId
+            SourceId        = string.IsNullOrEmpty(_sourceId) ? null : _sourceId,
+            Detail          = string.IsNullOrWhiteSpace(_detail) ? null : _detail.Trim()
         };
 
     /// <summary>

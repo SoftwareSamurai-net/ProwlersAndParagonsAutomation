@@ -28,6 +28,21 @@ public record SelectedProCon(string Id, string? VariantKey = null)
     /// which is what Alternate Form's Independent Forms wants.
     /// </summary>
     public int? Units { get; init; }
+
+    /// <summary>
+    /// What the player wrote beside the option, where its entry asks for something —
+    /// Conditional's condition, Side Effect's side effect, Signature's signature, the Item Con's
+    /// item. The ask is the option's <c>NarrativeConstraint</c>; this is the answer.
+    ///
+    /// <para><b>Fourteen generic options and one of a Power's own say "the player must
+    /// define…" and this field did not exist</b>, so the picker never asked and the sheet
+    /// printed <c>Conditional (Often Works)</c> with the condition nowhere. The Flaws and Perks
+    /// had <c>NarrativeDetail</c> from the start; this is the same thing on the third kind of
+    /// entry that asks. Null when nothing was written, so a character stored before the field
+    /// existed reads and writes back byte for byte. <b>Never read by a price</b>: it is words,
+    /// and the engine reports rather than repairs a missing one.</para>
+    /// </summary>
+    public string? Detail { get; init; }
 }
 
 /// <summary>
@@ -110,6 +125,15 @@ public record SelectedPower(
     /// the player has not said yet.
     /// </summary>
     public string? SourceId { get; init; }
+
+    /// <summary>
+    /// What the player wrote for a Power whose own entry asks them to name something — an
+    /// Expertise's specialisation ("Firearms"), the Trait an Animation holds at full rank. The
+    /// ask is the Power's <c>NarrativeConstraint</c>; this is the answer, and it is words: the
+    /// nominated Trait a baseline reads is <see cref="BaselineTraitId"/>, never this. Null when
+    /// nothing was written, so an older character round-trips unchanged.
+    /// </summary>
+    public string? Detail { get; init; }
 }
 
 /// <summary>
