@@ -743,12 +743,22 @@ start_server() {
   server_debug_dir="$wrangler_logs/$name"
   mkdir -p "$server_debug_dir"
 
+  # **An inspector port of its own, because the default is one port for every wrangler on the
+  # machine.** `wrangler pages dev` binds a DevTools inspector on 127.0.0.1:9229 unless told
+  # otherwise, and with the twins driven concurrently two servers starting in the same second
+  # race for it: on run 36666845115 the `villain-palette-missing` twin's server died at startup
+  # with `Address already in use (127.0.0.1:9229)` while three others were coming up, and the
+  # twin proved nothing. One thousand above the served port keeps the two ranges apart and
+  # distinct per server; `next_free_port` still steps over anything that happens to hold it.
+  local inspector
+  inspector="$(next_free_port "$((port + 1000))")"
+
   (
     cd "$root" || exit 1
     CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
       WRANGLER_LOG_PATH="$wrangler_logs_rel/$name" \
       exec npx --yes "wrangler@${wrangler_version}" pages dev "$dir" \
-        --ip 127.0.0.1 --port "$port" \
+        --ip 127.0.0.1 --port "$port" --inspector-port "$inspector" \
         --env-file "$env_file_rel" --binding 'ADMIN_EMAIL=' \
         --d1 "DB=${d1_database_id}" --persist-to "$db_state_rel" > "$log" 2>&1
   ) &
