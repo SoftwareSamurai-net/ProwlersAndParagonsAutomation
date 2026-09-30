@@ -790,12 +790,12 @@ public sealed class CharacterValidator
             // carry, one budget down, and the clauses above walk `sheet.SelectedPowers` alone.
             foreach (var sp in gadget.Powers.Where(p => p.PurchasedRanks < 0))
                 issues.Add(Negative("NEGATIVE_RANK", ValidationSubject.Gadget, gadget.Name,
-                    $"{GadgetPowerName(gadget, sp)} has {sp.PurchasedRanks} purchased ranks. A "
+                    $"{GadgetPowerName(gadget.Name, sp)} has {sp.PurchasedRanks} purchased ranks. A "
                     + "Power cannot have fewer than no ranks.", sp.PurchasedRanks));
 
             foreach (var sp in gadget.Powers.Where(p => p.Units < 0))
                 issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Gadget, gadget.Name,
-                    $"{GadgetPowerName(gadget, sp)} is bought {sp.Units} times. A Power cannot "
+                    $"{GadgetPowerName(gadget.Name, sp)} is bought {sp.Units} times. A Power cannot "
                     + "be bought fewer than no times.", sp.Units));
 
             foreach (var (id, rank) in gadget.AbilityRanks.Concat(gadget.TalentRanks).Where(e => e.Value < 0))
@@ -854,11 +854,14 @@ public sealed class CharacterValidator
         // Points of Power at 6, which is exactly a Complexity-3 pool, so the Gadget was inside
         // its pool with nothing said. The character's own Powers have reported this since the
         // per-rank-per-unit exploit was found; this collection arrived after that clause.
+        //
+        // Not built on EveryPaidPower: this also has to walk gear and Ability Pros/Cons, which
+        // are not SelectedPowers at all, so the shared enumeration is the wrong shape for it.
         foreach (var gadget in sheet.Gadgets)
         {
             foreach (var sp in gadget.Powers)
                 foreach (var p in sp.Pros.Concat(sp.Cons))
-                    if (p is not null) yield return (GadgetPowerName(gadget, sp), p);
+                    if (p is not null) yield return (GadgetPowerName(gadget.Name, sp), p);
         }
 
         foreach (var gear in sheet.Gear)
@@ -879,8 +882,48 @@ public sealed class CharacterValidator
     /// in a finding is indistinguishable from the character's own and the two have separate
     /// budgets.
     /// </summary>
-    private string GadgetPowerName(BuiltGadget gadget, SelectedPower power) =>
-        $"{gadget.Name}'s {PowerName(power.PowerId)}";
+    private string GadgetPowerName(string? gadgetName, SelectedPower power) =>
+        $"{gadgetName}'s {PowerName(power.PowerId)}";
+
+    /// <summary>
+    /// One <see cref="SelectedPower"/> a sheet pays for, with what to file a finding about it
+    /// against: the character's own (<see cref="ValidationSubject.Power"/>, keyed by the Power's
+    /// own id, <see cref="GadgetName"/> null) or a named Gadget's
+    /// (<see cref="ValidationSubject.Gadget"/>, keyed by the Gadget's name — which is also
+    /// <see cref="GadgetName"/>, because for a Gadget's Power "which pool" and "what to call it"
+    /// are the same fact).
+    /// </summary>
+    private sealed record PaidPower(
+        SelectedPower Power, ValidationSubject SubjectKind, string SubjectId, string? GadgetName);
+
+    /// <summary>
+    /// Every <see cref="SelectedPower"/> a sheet pays for, character's own and every named
+    /// Gadget's, as one walk.
+    ///
+    /// <para><b>Why this exists.</b> Five per-Power checks each ask the same question of every
+    /// Power a sheet pays for — duplicate names (<c>CheckDuplicatePowers</c>), cost floors
+    /// (<c>CheckPowerCosts</c>), Sources (<c>CheckSources</c>), named units
+    /// (<c>CheckUnitNames</c>) and unverified mechanics (<c>CheckUnverifiedPowers</c>) — and the
+    /// same shape shipped forgetting a Gadget's Powers three separate times: <c>EveryModifier</c>
+    /// and <c>CheckModifiers</c> (PROGRESS.md item 32), then <c>CheckUnitNames</c> alone (PR
+    /// #200), and then the four this fixes at once (item 36). A fourth hand-written sweep is a
+    /// fourth chance to forget it; walking this instead means a sixth check inherits the Gadget
+    /// half for free, and <c>GadgetPowerWalkReadTests</c> holds every remaining direct walk of
+    /// <see cref="CharacterSheet.SelectedPowers"/> to a written reason it is not built on this.</para>
+    ///
+    /// <para><b>Not <c>EveryModifier</c>'s shape</b>, on purpose: that one also has to walk gear
+    /// and Ability Pros/Cons, which are not <see cref="SelectedPower"/>s at all, so it keeps its
+    /// own Gadget loop rather than being rebuilt on this.</para>
+    /// </summary>
+    private static IEnumerable<PaidPower> EveryPaidPower(CharacterSheet sheet)
+    {
+        foreach (var sp in sheet.SelectedPowers)
+            yield return new PaidPower(sp, ValidationSubject.Power, sp.PowerId, null);
+
+        foreach (var gadget in sheet.Gadgets.Where(g => g.Name is not null))
+            foreach (var sp in gadget.Powers)
+                yield return new PaidPower(sp, ValidationSubject.Gadget, gadget.Name, gadget.Name);
+    }
 
     private static ValidationIssue Negative(
         string code, ValidationSubject kind, string id, string message, int value) =>
@@ -961,7 +1004,7 @@ public sealed class CharacterValidator
             foreach (var sp in gadget.Powers)
             {
                 var power = Power(sp.PowerId);
-                var name  = GadgetPowerName(gadget, sp);
+                var name  = GadgetPowerName(gadget.Name, sp);
 
                 resolvable &= CheckModifierList(sp.Pros, isPro: true, power, sp.PowerId, name, issues);
                 resolvable &= CheckModifierList(sp.Cons, isPro: false, power, sp.PowerId, name, issues);
@@ -1246,21 +1289,35 @@ public sealed class CharacterValidator
     /// entries carry <see cref="PowerModel.Repeatable"/>, and a second purchase of one is not
     /// warned about here: the alternate-form check's own remedy for a second form is that every
     /// member pays again, and a warning on the sheet for taking it would contradict the roster.</para>
+    ///
+    /// <para><b>Grouped by pool, over <see cref="EveryPaidPower"/>.</b> A Gadget's Powers are the
+    /// same shape one budget down (p.94 buys them "under the ordinary rules"), so the same Power
+    /// twice inside a Gadget is priced twice there too and drew nothing before this. "Seen"
+    /// resets at the start of every group: the character's own Powers are one draw against one
+    /// budget (<c>GadgetName</c> null) and each Gadget draws against its own, so a Power the
+    /// character has and the same Power inside a Gadget are not duplicates of <em>each
+    /// other</em>.</para>
     /// </summary>
     private void CheckDuplicatePowers(CharacterSheet sheet, List<ValidationIssue> issues)
     {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var group in EveryPaidPower(sheet).GroupBy(p => p.GadgetName))
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var sp in sheet.SelectedPowers.Where(p => p.PowerId is not null
-                                                         && !seen.Add(p.PowerId)
-                                                         && Power(p.PowerId)?.Repeatable != true))
-            issues.Add(new(ValidationSeverity.Warning, "DUPLICATE_POWER",
-                $"{PowerName(sp.PowerId)} is listed more than once. Both are charged for, but "
-                + "a sheet shows the first, so check this is what was meant.")
+            foreach (var entry in group.Where(p => p.Power.PowerId is not null
+                                                 && !seen.Add(p.Power.PowerId)
+                                                 && Power(p.Power.PowerId)?.Repeatable != true))
             {
-                SubjectKind = ValidationSubject.Power,
-                SubjectId   = sp.PowerId
-            });
+                var whose = entry.GadgetName is null ? "" : $"On the Gadget {entry.GadgetName}: ";
+                issues.Add(new(ValidationSeverity.Warning, "DUPLICATE_POWER",
+                    $"{whose}{PowerName(entry.Power.PowerId)} is listed more than once. Both are "
+                    + "charged for, but a sheet shows the first, so check this is what was meant.")
+                {
+                    SubjectKind = entry.SubjectKind,
+                    SubjectId   = entry.SubjectId
+                });
+            }
+        }
     }
 
     private void CheckFlawIds(CharacterSheet sheet, List<ValidationIssue> issues)
@@ -2274,23 +2331,18 @@ public sealed class CharacterValidator
     /// the end describes something that was never paid for and would silently not print.</para>
     ///
     /// <para><b>A Gadget's Powers are named the same way</b> — p.94 buys them under the ordinary
-    /// rules, so an Immunity bought inside a Gadget is still "named and paid for separately". The
-    /// clauses above walk <see cref="CharacterSheet.SelectedPowers"/> alone; this one walks
-    /// <see cref="CharacterSheet.Gadgets"/>, same shape as the Gadget sweep in
-    /// <see cref="CheckQuantities"/>.</para>
+    /// rules, so an Immunity bought inside a Gadget is still "named and paid for separately".
+    /// This walks <see cref="EveryPaidPower"/>, the one enumeration every per-Power check in this
+    /// file now shares, rather than a second sweep of <see cref="CharacterSheet.Gadgets"/> of its
+    /// own — PR #200 wrote that sweep by hand for this method alone, and item 36 folds it into
+    /// the shared walk beside the other four so a sixth check cannot rediscover the gap.</para>
     /// </summary>
     private void CheckUnitNames(CharacterSheet sheet, List<ValidationIssue> issues)
     {
-        foreach (var sp in sheet.SelectedPowers)
-            CheckUnitNamesOf(sp, null, ValidationSubject.Power, sp.PowerId, issues);
-
-        // A Gadget's Powers are named the same way and were nowhere: an Immunity bought inside
-        // a Gadget is still "named and paid for separately". Same shape as the Gadget sweep in
-        // CheckQuantities, and the same clauses as the character's own Powers, so the two cannot
-        // drift apart.
-        foreach (var gadget in sheet.Gadgets.Where(g => g.Name is not null))
-            foreach (var sp in gadget.Powers)
-                CheckUnitNamesOf(sp, GadgetPowerName(gadget, sp), ValidationSubject.Gadget, gadget.Name!, issues);
+        foreach (var entry in EveryPaidPower(sheet))
+            CheckUnitNamesOf(entry.Power,
+                entry.GadgetName is null ? null : GadgetPowerName(entry.GadgetName, entry.Power),
+                entry.SubjectKind, entry.SubjectId, issues);
     }
 
     /// <param name="gadgetName">
@@ -2352,6 +2404,11 @@ public sealed class CharacterValidator
     /// usually Innate, Talents usually Trained — so silence there means "on its default",
     /// not "unanswered". Powers have no such default, which is why they warn and Traits do
     /// not.</para>
+    ///
+    /// <para><b>A Gadget's Powers are Powers</b>, so the Power half walks
+    /// <see cref="EveryPaidPower"/> rather than <see cref="CharacterSheet.SelectedPowers"/>
+    /// alone — an Immunity bought inside a Gadget needs its own default rank against other
+    /// Powers exactly as one on the character's own does.</para>
     /// </summary>
     private void CheckSources(CharacterSheet sheet, List<ValidationIssue> issues)
     {
@@ -2360,16 +2417,19 @@ public sealed class CharacterValidator
         CheckTraitSources(sheet.TalentSources, ValidationSubject.Talent, "Talent", "Talents",
             id => _rules.GetTalent(id)?.Name, issues);
 
-        foreach (var sp in sheet.SelectedPowers)
+        foreach (var entry in EveryPaidPower(sheet))
         {
+            var sp    = entry.Power;
+            var whose = entry.GadgetName is null ? "" : $"On the Gadget {entry.GadgetName}: ";
+
             if (sp.SourceId is not null && _rules.GetSource(sp.SourceId) is null)
             {
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
-                    $"{PowerName(sp.PowerId)} names a Source, '{sp.SourceId}', that is not one "
-                    + "of the six the rulebook gives.")
+                    $"{whose}{PowerName(sp.PowerId)} names a Source, '{sp.SourceId}', that is not "
+                    + "one of the six the rulebook gives.")
                 {
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId,
+                    SubjectKind = entry.SubjectKind,
+                    SubjectId   = entry.SubjectId,
                     Options     = SourceIds
                 });
                 continue;
@@ -2380,21 +2440,21 @@ public sealed class CharacterValidator
 
             if (power.RankType is "default" or "special")
                 issues.Add(new(ValidationSeverity.Warning, "RANKLESS_POWER_WITHOUT_SOURCE",
-                    $"Power '{power.Name}' has no rank of its own, so it needs a Source to " +
+                    $"{whose}Power '{power.Name}' has no rank of its own, so it needs a Source to " +
                     "supply the default rank used when another Power acts on it " +
                     "(Drain, Nullify, Dispel, Power Absorption, Power Mimicry).")
                 {
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId,
+                    SubjectKind = entry.SubjectKind,
+                    SubjectId   = entry.SubjectId,
                     Options     = SourceIds
                 });
             else
                 issues.Add(new(ValidationSeverity.Warning, "POWER_WITHOUT_SOURCE",
-                    $"Power '{power.Name}' has no Source recorded. A published sheet groups " +
-                    "Powers under Source headings, so the sheet will list it as unsourced.")
+                    $"{whose}Power '{power.Name}' has no Source recorded. A published sheet " +
+                    "groups Powers under Source headings, so the sheet will list it as unsourced.")
                 {
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId,
+                    SubjectKind = entry.SubjectKind,
+                    SubjectId   = entry.SubjectId,
                     Options     = SourceIds
                 });
         }
@@ -2465,10 +2525,19 @@ public sealed class CharacterValidator
         }
     }
 
+    /// <summary>
+    /// Cons driven all the way to the rulebook's floor buy the character nothing more, which is
+    /// worth telling them before they spend a Hero Point learning it.
+    ///
+    /// <para><b>Walks <see cref="EveryPaidPower"/></b>: a Gadget's Powers are priced the same way
+    /// (p.94 buys them "under the ordinary rules"), so a Gadget Power at its floor used to say
+    /// nothing at all — the check only ever looked at <see cref="CharacterSheet.SelectedPowers"/>.</para>
+    /// </summary>
     private void CheckPowerCosts(CharacterSheet sheet, List<ValidationIssue> issues)
     {
-        foreach (var sp in sheet.SelectedPowers)
+        foreach (var entry in EveryPaidPower(sheet))
         {
+            var sp = entry.Power;
             if (!sp.Cons.Any()) continue;
 
             var power = Power(sp.PowerId);
@@ -2482,38 +2551,53 @@ public sealed class CharacterValidator
                 : cost <= Math.Max(1, (int)Math.Ceiling(sp.PurchasedRanks / 2.0));
 
             if (atFloor)
+            {
+                var whose = entry.GadgetName is null ? "" : $"On the Gadget {entry.GadgetName}: ";
                 issues.Add(new(ValidationSeverity.Warning, "POWER_COST_AT_MINIMUM",
-                    $"Power '{power.Name}' has reached the minimum cost the rulebook allows " +
+                    $"{whose}Power '{power.Name}' has reached the minimum cost the rulebook allows " +
                     $"({cost} HP) after its cons. Further cons will not reduce it.")
                 {
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId,
+                    SubjectKind = entry.SubjectKind,
+                    SubjectId   = entry.SubjectId,
                     Value       = cost,
                     Limit       = cost
                 });
+            }
         }
     }
 
     /// <summary>
     /// Powers the rulebook gives no rank cannot have ranks bought for them.
+    ///
+    /// <para><b>A fifth instance of item 36's shape, found while building its source guard and
+    /// not one of the four PROGRESS.md named.</b> This walked
+    /// <see cref="CharacterSheet.SelectedPowers"/> alone too — <c>GadgetSpend</c> prices a
+    /// Gadget's Powers through the same <c>PowerCost</c> as the character's own, so buying ranks
+    /// on a rankless one inside a Gadget spent nothing from the pool and said nothing either.
+    /// Folded into <see cref="EveryPaidPower"/> with the other five rather than left for a sixth
+    /// sighting.</para>
     /// </summary>
     private void CheckPowerRanks(CharacterSheet sheet, List<ValidationIssue> issues)
     {
-        foreach (var sp in sheet.SelectedPowers)
+        foreach (var entry in EveryPaidPower(sheet))
         {
+            var sp    = entry.Power;
             var power = Power(sp.PowerId);
             if (power is null) continue;
 
             if (power.MaxRank == 0 && sp.PurchasedRanks > 0)
+            {
+                var whose = entry.GadgetName is null ? "" : $"On the Gadget {entry.GadgetName}: ";
                 issues.Add(new(ValidationSeverity.Error, "POWER_HAS_NO_RANK",
-                    $"{power.Name} has no rank to buy — it is priced as a whole — but "
+                    $"{whose}{power.Name} has no rank to buy — it is priced as a whole — but "
                     + $"{sp.PurchasedRanks} {(sp.PurchasedRanks == 1 ? "rank was" : "ranks were")} bought.")
                 {
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId,
+                    SubjectKind = entry.SubjectKind,
+                    SubjectId   = entry.SubjectId,
                     Value       = sp.PurchasedRanks,
                     Limit       = 0
                 });
+            }
         }
     }
 
@@ -2655,26 +2739,38 @@ public sealed class CharacterValidator
     /// <summary>
     /// Reports powers whose mechanics have not been checked against the rulebook, and
     /// separately notes that descriptions are project paraphrase rather than rules text.
+    ///
+    /// <para><b>Latent today, on the character's own Powers and a Gadget's alike.</b> Every one
+    /// of the 141 entries is fully verified — <c>needs_review</c> is empty and every entry's
+    /// <c>verified_fields</c> includes <c>description</c> — so nothing the real rules load can
+    /// provoke either finding here right now. Walking <see cref="EveryPaidPower"/> rather than
+    /// <see cref="CharacterSheet.SelectedPowers"/> alone is still the fix: it is what makes this
+    /// the fifth check <c>GadgetPowerWalkReadTests</c> can hold to the shared walk instead of
+    /// allow-listing, so the day an entry's <c>verified_fields</c> regresses, a Gadget's copy of
+    /// it is not the one gap nobody notices.</para>
     /// </summary>
     private void CheckUnverifiedPowers(CharacterSheet sheet, List<ValidationIssue> issues)
     {
-        foreach (var sp in sheet.SelectedPowers)
+        foreach (var entry in EveryPaidPower(sheet))
         {
-            var power = Power(sp.PowerId);
+            var power = Power(entry.Power.PowerId);
             if (power is null) continue;
 
             if (power.NeedsReview)
+            {
+                var whose = entry.GadgetName is null ? "" : $"On the Gadget {entry.GadgetName}: ";
                 issues.Add(new(ValidationSeverity.Warning, "POWER_MECHANICS_UNVERIFIED",
-                    $"{power.Name} has not been fully checked against the rulebook here. "
+                    $"{whose}{power.Name} has not been fully checked against the rulebook here. "
                     + "Read its entry and agree the numbers with your GM before play.")
                 {
-                    SubjectKind = ValidationSubject.Power,
-                    SubjectId   = sp.PowerId
+                    SubjectKind = entry.SubjectKind,
+                    SubjectId   = entry.SubjectId
                 });
+            }
         }
 
-        var unverifiedText = sheet.SelectedPowers
-            .Select(sp => Power(sp.PowerId))
+        var unverifiedText = EveryPaidPower(sheet)
+            .Select(entry => Power(entry.Power.PowerId))
             .OfType<PowerModel>()
             .Where(p => !p.DescriptionVerified)
             .Select(p => p.Name)
