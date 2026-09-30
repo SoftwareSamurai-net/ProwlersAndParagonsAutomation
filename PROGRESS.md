@@ -99,6 +99,8 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — four validator checks still skip a Gadget's Powers, found by the named-immunities follow-up; recorded, not fixed
 - [ ] **[37](#37-joining-a-campaign-is-one-character-at-a-time-and-each-join-re-reads-the-page)** — joining several characters is six clicks and a re-typed code each, and every join re-reads the page serially; a multi-character join box and a parallel refresh are pitched, with two questions for the owner
 - [ ] **[38](#38-a-villain-approved-into-a-campaign-becomes-the-gms-and-the-players-nemesis)** — the owner's idea: an approved Villain transfers to the GM and shows back to the player as their nemesis; recorded with its questions, not built
+- [ ] **[39](#39-fourteen-pros-and-cons-ask-the-player-to-define-something-and-there-is-nowhere-to-write-it)** — eleven Cons and three Pros say "the player must define…" and `SelectedProCon` has no text field, so the picker never asks; Flaws and Perks already have the box. A detail field across the picker, the sheet, the exports, the CLI, the MCP shape and the diff is pitched
+- [ ] **[40](#40-a-powers-own-pros-and-cons-read-like-the-generic-ones)** — Immortality's own *Vulnerable* beside the *Vulnerability* Flaw reads as one thing; the picker's *this Power* chip is the only marking. Two headed groups in the picker are pitched, pending where the owner met it
 - [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
@@ -2540,6 +2542,49 @@ Adversity on any NPC), and a Villain's Flaws are the players' handles.
 of the sheet or only the name; whether the GM can hand it back; whether it counts against the
 GM's cap or is exempt as campaign material; and whether the handover happens on approval or on a
 separate *Take as nemesis* the GM presses.
+
+### 39. Fourteen Pros and Cons ask the player to define something, and there is nowhere to write it
+
+**The owner's ask of 2026-09-30: find every place the rules ask the player to describe something,
+and make sure they have somewhere sensible to do it.** Counted from `narrative_constraint` in
+`data/rules/`, forty entries ask — and the answer splits cleanly:
+
+- **19 Flaws and 7 Perks have a box.** `SelectedFlaw` and `SelectedPerk` carry `NarrativeDetail`,
+  the tab labels the box with the rule's own sentence, Add is dead until it is filled, and the
+  sheet, both exports, the CLI and the diff all carry it.
+- **11 Cons and 3 Pros have nothing.** `SelectedProCon` is an id, a grade and a unit count and no
+  text — `docs/guide/rules-engine.md` records the `(Item: armor)` half of this. `ProConPicker`
+  never prints the sentence either: its caveat is the description plus the applicability note,
+  so a player taking Conditional, Limited, Side Effect, Signature, Exclusive, Charges, Delayed,
+  Resource, Triggered, Item, Blocked or Concentration's kin is never told the book wants the
+  condition written down and has no box for it. Immortality's own *Vulnerable* — "describe how"
+  — is the same gap on a Power's own Con.
+- **Two Powers ask in their prose and not in a field**: Expertise is "a specialisation you name"
+  (the Trait is nominated; the name is not), and Animation has the player pick one Trait to sit
+  at full rank. Neither is modelled.
+
+**Proposed, and put to the owner; not built.** `SelectedProCon.Detail` (`string?`, null when
+absent so every stored sheet round-trips byte for byte and `StoredCharacter.CurrentVersion`
+stays 1), a text box in the picker's confirm panel labelled with the rule's own sentence and
+required exactly where the Flaws tab requires it, printed after the option on the sheet
+(`Conditional (Often Works) — only under an open sky`), in both exports, prompted by the CLI's
+`ProConSelector`, named in the MCP shape and the creation guide, and a part in the diff so a
+rewritten condition shows as a change. Expertise's name and Animation's Trait are two small
+fields of their own if the owner wants them in the same slice.
+
+### 40. A Power's own Pros and Cons read like the generic ones
+
+**The owner's report of 2026-09-30**: Immortality's own *Vulnerable* beside the *Vulnerability*
+Flaw is confusing — the same word for a Con printed inside one Power's entry and a Flaw anybody
+can take. Today `ProConPicker` marks a Power's own option with a *this Power* tag in both the
+offered and the chosen list, and nothing else distinguishes them: the sheet, the exports and the
+diff print the name alone, and the picker lists both kinds in one run.
+
+**Proposed, and put to the owner; not built.** The picker offers them as two headed groups —
+*Printed with Immortality* and *Any Power* — rather than one list with a chip; the chosen list
+keeps the chip. On the sheet a Power's own option already sits inside that Power's line, so it
+stays as it is. Whether the confusion was met in the picker, on the sheet or in the diff decides
+whether more than the picker moves, and the owner has been asked which.
 
 ## Completed work
 
