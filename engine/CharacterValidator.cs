@@ -330,7 +330,16 @@ public sealed class CharacterValidator
         // A house cap is a table tightening the tier's ceiling. Above it, it is not a house rule
         // at all — it is a character quietly playing above the power level everybody agreed on,
         // and it raises Resolve as well as the ranks, which is the half nobody would notice.
-        if (tier is not null && house > tier.TraitCapRank)
+        //
+        // An alternate form is the one exception, and it is the owner's ruling on Ch.2 p.21:
+        // "your other form's power level ... [does not affect] its Trait Cap" — a form's tier
+        // sets its Hero Points and nothing else, so it may carry the root's own Trait Cap even
+        // when that cap sits above the form's own tier. This method cannot see the root — it has
+        // one sheet — so it waives the finding on any alternate_form sheet outright, on trust
+        // that it really is the root's cap; AlternateForms.cs holds a family to that trust with
+        // ALTERNATE_FORM_CAP_NOT_ROOTS, which only that class can check.
+        var isAlternateForm = sheet.Variant is { Kind: CharacterVariant.AlternateForm };
+        if (tier is not null && house > tier.TraitCapRank && !isAlternateForm)
             issues.Add(new(ValidationSeverity.Error, "TRAIT_CAP_ABOVE_TIER",
                 $"This character is built to a house Trait Cap of {house}d, above the "
                 + $"{tier.Name} tier's {tier.TraitCapRank}d. A house cap tightens the tier's "

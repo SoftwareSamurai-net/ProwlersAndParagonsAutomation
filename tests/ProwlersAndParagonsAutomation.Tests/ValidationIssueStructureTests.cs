@@ -1172,6 +1172,7 @@ public sealed class ValidationIssueStructureTests
         ["ALTERNATE_FORM_ABOVE_ROOT_LEVEL"]   = [ValidationSubject.Character],
         ["ALTERNATE_FORM_LEVEL_NOT_PAID"]     = [ValidationSubject.Character],
         ["ALTERNATE_FORM_PAID_NOT_IN_ROSTER"] = [ValidationSubject.Character],
+        ["ALTERNATE_FORM_CAP_NOT_ROOTS"]      = [ValidationSubject.Character],
 
         // Ruling 7: reported against the character when CheckCampaignAssets finds it on a
         // contribution, and against the shared object when CheckSharedAsset finds it while
@@ -1974,14 +1975,14 @@ public sealed class ValidationIssueStructureTests
         // directly by CampaignAssetTests instead.
         "CAMPAIGN_ASSET_KIND_MISMATCH",
 
-        // Item 21 slice two: the six ALTERNATE_FORM_* codes come only out of
+        // Item 21 slice two (plus the p.21 Trait Cap ruling): the seven ALTERNATE_FORM_* codes come only out of
         // AlternateForms.Families, which takes a roster — two sheets at once is the whole point
         // of them, and Validate(sheet) has one. Every one is provoked, with its structure used
         // for a repair, by AlternateFormTests instead; that file's own scan holds its case list
         // to this one.
         "ALTERNATE_FORM_ROOT_NOT_IN_ROSTER", "ALTERNATE_FORM_NOT_PAID", "ALTERNATE_FORM_COST_DIFFERS",
         "ALTERNATE_FORM_ABOVE_ROOT_LEVEL", "ALTERNATE_FORM_LEVEL_NOT_PAID",
-        "ALTERNATE_FORM_PAID_NOT_IN_ROSTER"
+        "ALTERNATE_FORM_PAID_NOT_IN_ROSTER", "ALTERNATE_FORM_CAP_NOT_ROOTS"
     ];
 
     /// <summary>

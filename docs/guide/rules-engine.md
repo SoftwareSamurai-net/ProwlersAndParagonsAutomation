@@ -536,22 +536,25 @@ form costs and validates alone as the character it is, and the family's findings
   tier: `CalculateResolve` answers 0 there, and a minimum over a hole is a number that is not one.
 - A form whose root is not in the roster is `ALTERNATE_FORM_ROOT_NOT_IN_ROSTER`, a warning, and
   the family has no pool.
+- **"Your other form's power level ... not its Trait Cap"** — applied, by the owner's ruling:
+  "the form declares, the family verifies." `CharacterValidator` cannot see the root, so it
+  waives `TRAIT_CAP_ABOVE_TIER` outright on any sheet whose `Variant.Kind` is `alternate_form`.
+  This class holds that waiver to account: a form's `TraitCapRank` above its own tier's cap that
+  is not equal to the root's own — its declared house cap, or its tier's where it has none — is
+  `ALTERNATE_FORM_CAP_NOT_ROOTS`. A cap at or below the form's own tier is an ordinary house cap
+  and draws nothing here. Resolve and the pool need no new code path: `DerivedStatsCalculator`
+  already reads `TraitCapRank` as written, so a Street Level form built to a Standard root's 12d
+  resolves against 12d, not 8d.
 
 **The positive control is the book's own pair.** Herald prints twice, pp.134–135, as Airmid and
 Scáthach — both Standard, both with Alternate Form at the Standard level with Independent Forms,
 both at Resolve 5 — and linked they pass every check with a pool of 5. Every negative case in
-`AlternateFormTests` is that pair with one thing changed.
+`AlternateFormTests` is that pair with one thing changed, including the Trait Cap ruling above:
+`AFormMayCarryTheRootsCapAboveItsOwnTierAndResolveFollowsIt` rebuilds Scáthach as a Street Level
+form built to Airmid's 12d, and both still print Resolve 5 and a pool of 5, exactly as the book
+does at Standard.
 
-**One sentence of p.21 is deliberately not applied, and the reason is a collision of rulings.**
-"Your other form's power level only affects the number of Hero Points you have to create it, not
-its Trait Cap" — so a Street Level form of a Standard Hero is built on 75 HP and capped at 12d.
-The engine's one way to state a cap is `TraitCapRank`, and a house cap above the tier's is
-`TRAIT_CAP_ABOVE_TIER` by the owner's ruling on house caps (above). Applying the sentence means
-deciding which ruling gives way, and that is the owner's call. Until it is made, a form's own
-Resolve is measured from its own tier's cap, which can be lower than the book's — and so can the
-pool. Recorded in the class's own remarks as well as here.
-
-**The six codes are exempt from `ValidationIssueStructureTests`' provoked-case rule by name**, because
+**The seven codes are exempt from `ValidationIssueStructureTests`' provoked-case rule by name**, because
 `Validate(sheet)` has one sheet and cannot reach them, and `AlternateFormTests` holds the codes
 `AlternateForms.cs` declares, the codes it provokes, and that exemption list to each other.
 
