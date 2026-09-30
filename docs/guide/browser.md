@@ -335,8 +335,20 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   question: it is the longest text on any of these rows and it made the palette answer "kno" with
   Hidden, whose entry says a route few people *know*, burying the rulebook passage the reader was
   after. The step it lands on is where the prose belongs.
+- **The rules terms are the fifth group, and every row says its kind before its description.**
+  The generic Pros and Cons, the Perks, the Flaws and each Power's own Pros and Cons, under a
+  **"Rules terms"** heading, matched in the browser and capped like the Powers. The detail line
+  is `Con · …`, `Flaw · …`, or `Immortality's own Con · …` — because a word can name two rules:
+  the owner met Immortality's own *Vulnerable* on a sheet, typed *Vulnerability*, and was handed
+  the Flaw's passage from the book (2026-09-30). **The description is matched as well as
+  shown**, unlike a Power's tags, since a reader asking what "killed" means on their sheet is
+  asking about a sentence. Choosing one adds nothing and goes where the thing is bought: a
+  Power's own option is `RequestPower` on that Power, exactly as choosing the Power; a generic
+  option, a Perk or a Flaw is `RequestSection` on the Powers, Perks or Flaws section of the
+  characteristics step. The target spells which — `power:<id>` or `section:<key>` — and
+  `RulesTermTests` drives both.
 - **A row carries its kind as a class — `kind-step`, `kind-power`, `kind-gear`, `kind-asset`,
-  `kind-passage` — and nothing styles on them.** They exist so a question about one kind of row can
+  `kind-passage`, `kind-term` — and nothing styles on them.** They exist so a question about one kind of row can
   be asked precisely. `PaletteBookTests` used to reach for `.palette-group ~ .palette-row`, which
   means "every row after *any* heading": correct for exactly as long as the book was the only
   group, and the day a second one appeared three waits in that file started returning before the
@@ -870,6 +882,17 @@ is one sheet in this app by design.
   the character is finished before anybody looks. **It subscribes only when `Character` is null**: a
   recording is handed over as a parameter, and tying it to the visitor's edits is the influence the
   replay renders two pages to forbid.
+- **Every Pro and Con on a Power's line is a `Term`, and a Power's own says whose it is first.**
+  The line used to be `PowerFormatter.ModifierLine`'s joined string — the same words, no
+  tooltip — so a reader who met Immortality's own *Vulnerable* had nothing to hover and looked
+  the word up instead. `PowerFormatter.Modifiers` is that line one entry at a time, with the
+  choice each label came from, and `SheetView.ModifierTerms` draws each as a term: a generic
+  option's sentence is its entry's description, a Power's own opens *"Immortality's own Con."*
+  and then the Power's own text. **The id is keyed on the Power as well as the option**
+  (`Term.IdKey`), because the rules data spells *Line* and *Selection* both as generic options
+  and as a Power's own, and two terms sharing an id share one `aria-describedby` sentence. The
+  printed words are unchanged — `ModifierLine` is now `Modifiers` joined — and the text export
+  still writes the ids. With `Explain` off the line is the bare words, as before.
 - **The preview is on the characteristics step alone.** That is where the character is built and
   nothing there types letter by letter — the ranks are steppers and the lists are pickers, so the
   sheet redraws on a choice rather than on a keystroke. The finishing step is where the free text is.
