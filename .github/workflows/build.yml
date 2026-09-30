@@ -555,6 +555,13 @@ jobs:
     # artifact, two consumers, and the completeness check below runs over exactly the bytes they
     # download. It is a job of its own rather than a step of `build` so the drives can start the
     # moment it is done, about a minute in, rather than after `build`'s suites.
+    #
+    # **The drives now serve 250 files where they served 298, and the 48 are not a loss.** They are
+    # the `proof-*.html` harness pages `ProofPages` writes into `web/wwwroot` when the Test step
+    # runs under `PP_PROOF=1` — gitignored, read only by the proof and pixel steps in `build`, and
+    # never part of what the deploy uploads. Publishing after that step swept them into the site
+    # the drives served; publishing here, before any test has run, does not, so the drives serve
+    # the deploy's bytes and nothing else. Measured on run 36666845115 against the run before it.
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
