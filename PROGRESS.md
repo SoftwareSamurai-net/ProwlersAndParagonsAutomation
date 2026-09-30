@@ -690,28 +690,41 @@ reports 560 passing rule instances and no violations with nothing exempt.
 #### What has to be true before `scripts/e2e/` is deleted
 
 **Not yet, and this is the condition rather than a feeling.** The hand-rolled driver is green,
-twinned, and the one with a track record; the Playwright one is a week old. A migration that
-removes the working harness before the replacement has a record is how an upgrade becomes a
-regression, so both run in `build.yml` and the deletion is a separate change nobody has made.
+twinned, and the one with the longer record; the Playwright one was a week old when this was
+written. A migration that removes the working harness before the replacement has a record is how
+an upgrade becomes a regression, so both run in `build.yml` and the deletion is a separate change
+nobody has made.
 
 **The condition: twenty consecutive green `Build` runs on `main` in which the `--driver dotnet`
-step reported six checks green against the real site and all six twins red.** Green is enough
-because both drivers run in the same workflow, each as a job of it since PR #201 — either going
-red fails the run — so twenty green runs is also twenty runs in which the two did not disagree.
-Count them with
+step reported every check green against the real site and every twin red** — six of each when
+this was written, nine of each since stage two added `ADMIN`, `RULES` and `ACCOUNT_SAVE`. Green is
+enough because both drivers run in the same workflow, each as a job of it since PR #201 — either
+going red fails the run — so twenty green runs is also twenty runs in which the two did not
+disagree.
+
+**The window as of 2026-09-30: nineteen.** The last red on `main` is run 34400118356 of 2026-09-09,
+which failed at the pixel comparison and not at either drive; every `Build` run since has
+concluded green and its Playwright step has printed `E2E: PASS — 9 checks green against the real
+site, and each one watched to fail`, read from each run's log rather than from its tick. One run
+inside the window, 36529480247, was cancelled by the concurrency group before it reached a drive;
+it is neither a green nor a disagreement and is not counted. One more green run meets the
+condition; the deletion is then a change to make, with `docs/guide/testing.md`'s two-driver
+section rewritten in the same commit. Count them with
 
 ```bash
 gh run list --repo SoftwareSamurai-net/ProwlersAndParagonsAutomation \
   --workflow build.yml --branch main --limit 30 \
-  --json conclusion,headSha --jq '.[] | "\(.conclusion) \(.headSha[0:8])"'
+  --json databaseId,conclusion,headSha --jq '.[] | "\(.databaseId) \(.conclusion) \(.headSha[0:8])"'
 ```
 
-and read the `E2E: PASS` line out of the Playwright step of the oldest one in the window, so the
-count is of runs that actually drove it rather than of runs that skipped it.
+and, for each id back to the last `failure`, read the Playwright step's verdict out of the log —
+`gh run view <id> --repo … --log | grep 'E2E: PASS'` should print one `9 checks` line beside the node
+driver's `5 checks` — so the count is of runs that actually drove it rather than of runs that
+skipped it.
 
 **Two things that are not the condition, said because they are the tempting shortcuts.** "The
 Playwright one is nicer" is not a reason to delete a working check. And "CI is slow" is a reason to
-drop one driver from the job, which is a different and reversible change — the file can stay.
+drop one driver from the workflow, which is a different and reversible change — the file can stay.
 
 **When it goes**, `scripts/e2e/cdp.mjs` and `scripts/e2e/drive.mjs` go together,
 `scripts/e2e/defects.mjs` stays (both drivers share it), `e2e.sh`'s `--driver` flag becomes
