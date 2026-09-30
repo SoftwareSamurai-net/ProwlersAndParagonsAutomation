@@ -574,12 +574,18 @@ Playwright driver adds **+4 seconds** to the runner's Restore step: `Channel = "
 the Chrome already on the machine, so there is no `playwright install`, nothing to cache, and no
 third renderer to invalidate the pixel goldens against.
 
-**What it does cost is a second drive, and the Build job is now 18–19 minutes against a 30-minute
-cap** — 533s before this, then 1103s and 1132s on two consecutive green runs, steady to within one
-percent per step. Measured, not projected: a projection from local timings said 13–14 minutes and
-was wrong. **If that becomes tight, drop one driver from `build.yml`** — cheapest, reversible, and
-the file stays. Scanning fewer palettes in A11Y is the second lever and costs real coverage.
-Raising `timeout-minutes` is not a lever; see `docs/guide/hosting.md`.
+**What it does cost is a second drive, and for a month that drive ran last in one job**: 533s
+before it, then 1103s and 1132s on two consecutive green runs, and a median 902s over the six
+green `main` runs of 2026-09-23 to 09-29, of which the two drives were 627. Measured, not
+projected: a projection from local timings said 13–14 minutes and was wrong. **The workflow is
+now four jobs and the run's wall is about 4 minutes** — `publish` uploads the site once, the
+two drivers each take it from there in a job of their own while `build` runs the suites, and
+`scripts/e2e.sh` drives the twins four at a time instead of one after another. Measured on
+PR #201's own runs: `build` 146s, the node drive 162s and the Playwright drive 215s,
+every check the old job ran still running under the same command. **If it becomes tight again,
+drop one driver from `build.yml`** — cheapest, reversible, and the file stays. Scanning fewer
+palettes in A11Y is the second lever and costs real coverage. Raising `timeout-minutes` is not a
+lever; see `docs/guide/hosting.md`.
 
 **How it works, and every limit of it, is in [`docs/guide/testing.md`](docs/guide/testing.md)** —
 read that before changing it. The account of building it, including five faults the harness found
@@ -689,8 +695,9 @@ regression, so both run in `build.yml` and the deletion is a separate change nob
 
 **The condition: twenty consecutive green `Build` runs on `main` in which the `--driver dotnet`
 step reported six checks green against the real site and all six twins red.** Green is enough
-because both drivers run in the same job — either going red fails it — so twenty green runs is
-also twenty runs in which the two did not disagree. Count them with
+because both drivers run in the same workflow, each as a job of it since PR #201 — either going
+red fails the run — so twenty green runs is also twenty runs in which the two did not disagree.
+Count them with
 
 ```bash
 gh run list --repo SoftwareSamurai-net/ProwlersAndParagonsAutomation \

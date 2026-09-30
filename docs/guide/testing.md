@@ -378,6 +378,7 @@ It publishes the site, serves it with the same `wrangler pages dev` version
 ./scripts/e2e.sh                     # publish, serve, drive, and drive every twin
 ./scripts/e2e.sh --driver dotnet     # the same, with the Playwright driver
 ./scripts/e2e.sh --real-only         # the ten-second loop while writing a check. NOT a full run
+PP_E2E_TWIN_PARALLELISM=1 ./scripts/e2e.sh   # the twins one after another, to watch one alone
 ```
 
 ### Two drivers, and `e2e.sh` is neither of them
@@ -447,6 +448,14 @@ nothing else reaches it. So four rules, and each of them is load-bearing:
   it runs one driver and cannot tell "no driver has this check" from "not this one" — and costs a
   second in `dotnet test` rather than a publish, a server and a browser.
 
+- **The twins are driven four at a time, each in a subshell with a server and a browser of its
+  own, and their output is printed in list order once all have finished.** Measured on the runner
+  before this: 248 of the Playwright drive's 420 seconds and 144 of the node drive's 207 were
+  twins driven one after another, two of them in each driver spending a deliberate 45-second wait.
+  Nothing about one twin depends on another, so the waits now overlap. Four and not nine because
+  the runner has four cores and a `[CONTROL]` twin needs the app to boot within the same 45
+  seconds a real check gets — too much contention is a false red, never a false green.
+  `PP_E2E_TWIN_PARALLELISM=1` reproduces the sequential run when a twin needs to be watched alone.
 - **A twin is driven with `--only <CHECK>`, and the real site never is.** Exactly one verdict is
   read out of a twin's run, and the other five were a server round trip and a browser boot apiece
   against a site broken in a way unrelated to them: with `A11Y` scanning four palettes at 45s a

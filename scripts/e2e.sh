@@ -660,7 +660,26 @@ fi
 # that is not a reason to skip this.
 #
 # After `stop_server`, so a server still writing to its log cannot append a line behind the rewrite.
+# The twins are driven as background jobs, one subshell apiece — see *Driving the twins* below.
+# Their pids are recorded here, next to the trap that has to know about them: a script that exits
+# on an error or a Ctrl-C while four twins are in flight would otherwise leave four wrangler
+# servers and four browsers behind, which is the leak `scripts/test-kill-tree.sh` exists to catch.
+twin_pids=()
+
+stop_twin_jobs() {
+  local pid
+  for pid in ${twin_pids[@]+"${twin_pids[@]}"}; do
+    kill -0 "$pid" 2>/dev/null || continue
+    if on_windows; then
+      kill "$pid" >/dev/null 2>&1 || true
+    else
+      kill_tree "$pid"
+    fi
+  done
+}
+
 cleanup() {
+  stop_twin_jobs
   stop_server
   redact_in_place "$logs"
   rm -f "$seed_plan"
@@ -724,12 +743,22 @@ start_server() {
   server_debug_dir="$wrangler_logs/$name"
   mkdir -p "$server_debug_dir"
 
+  # **An inspector port of its own, because the default is one port for every wrangler on the
+  # machine.** `wrangler pages dev` binds a DevTools inspector on 127.0.0.1:9229 unless told
+  # otherwise, and with the twins driven concurrently two servers starting in the same second
+  # race for it: on run 36666845115 the `villain-palette-missing` twin's server died at startup
+  # with `Address already in use (127.0.0.1:9229)` while three others were coming up, and the
+  # twin proved nothing. One thousand above the served port keeps the two ranges apart and
+  # distinct per server; `next_free_port` still steps over anything that happens to hold it.
+  local inspector
+  inspector="$(next_free_port "$((port + 1000))")"
+
   (
     cd "$root" || exit 1
     CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
       WRANGLER_LOG_PATH="$wrangler_logs_rel/$name" \
       exec npx --yes "wrangler@${wrangler_version}" pages dev "$dir" \
-        --ip 127.0.0.1 --port "$port" \
+        --ip 127.0.0.1 --port "$port" --inspector-port "$inspector" \
         --env-file "$env_file_rel" --binding 'ADMIN_EMAIL=' \
         --d1 "DB=${d1_database_id}" --persist-to "$db_state_rel" > "$log" 2>&1
   ) &
@@ -1041,19 +1070,20 @@ drive_twin() {
   # its own defect — the two are told apart by this line and by nothing else.
   capture_server_state
 
-  # **A hung driver stops the run, for the same reason a hung capture stops the visual check.**
-  # Nine twins at this deadline is forty-five minutes on top of the real site, well past the
-  # 30-minute job cap — and if the driver stopped coming back once, the remaining twins are going
-  # to ask the same question of the same browser. The "printed no verdict" arm below is for a
-  # driver that *finished* without reaching this check, which is a different and recoverable
-  # thing; this one is not.
+  # **A hung driver fails the run, for the same reason a hung capture fails the visual check.**
+  # The "printed no verdict" arm below is for a driver that *finished* without reaching this
+  # check, which is a different and recoverable thing; this one is not. It exits with status 3 —
+  # the twin-job code for "this harness could not ask the question", as against 1 for "it asked
+  # and the twin did not go red" — and `drive_twin` runs inside a twin's own job, so the exit ends
+  # that job and the scheduler below turns it into a failed run once the twins already in flight
+  # have finished. Each twin has a browser and a server of its own, so nothing the hung one was
+  # asking is being asked of the others.
   if [ "$twin_status" -eq 124 ]; then
     echo "::error::twin '$name': the driver did not finish within ${drive_deadline} and was killed,"
     echo "::error::so $check has no verdict here and this twin proved nothing. Every wait inside the"
-    echo "::error::driver is bounded, so read $twin_log for how far it got. Stopping rather than"
-    echo "::error::driving the remaining twins through the same browser."
+    echo "::error::driver is bounded, so read $twin_log for how far it got."
     say_server_state "the drive of twin '$name'"
-    exit 1
+    exit 3
   fi
 
   # A twin's verdict is a FAIL it *printed*, never the absence of a PASS: a driver that fell over
@@ -1114,7 +1144,148 @@ this_driver_runs() {
 }
 
 # ------------------------------------------------------------------------------------------------
-# Pass one: the site twins. One copied directory and one server apiece.
+# Driving the twins: four at a time, each in a subshell of its own.
+#
+# **Measured on the runner before this: 248 seconds of the Playwright driver's 420 were twins, and
+# 144 of the node driver's 207** — driven one after another, each with a server start and a browser
+# boot, and two of them (`boot-app-never-mounts` and `base-href-dropped`, in both drivers) spending
+# a deliberate 45-second wait on a framework that was never going to arrive. Nothing about one twin
+# depends on another: a site twin is a directory and a server of its own, and a seed twin differs
+# from its neighbours only in the environment it is driven under. So they are driven concurrently,
+# and the two 45-second waits overlap everything else instead of following it.
+#
+# **Four at a time and not all nine, for the reason the proof step in `build.yml` is `-P 4`:** the
+# runner has four cores, and a twin whose verdict is `[CONTROL]` needs the application to boot and
+# act within the same 45 seconds a real check gets. Under enough contention it would go red for the
+# wrong reason, which `drive_twin` reports as the wrong kind and fails the run — so the failure
+# mode of too much parallelism is a false red, never a false green. `PP_E2E_TWIN_PARALLELISM`
+# overrides it to measure a different number; `1` reproduces the sequential run.
+#
+# **Each twin's output is buffered and printed in list order once every twin has finished.** Nine
+# drives writing to one terminal interleave, and a `::error::` line that lands between two other
+# twins' lines is an error nobody can attribute. The cost is that a hung twin is silent until its
+# `drive_deadline` fires; the `started` lines below say what is in flight.
+#
+# **A job ends by writing its exit status to a file, and the scheduler counts jobs with no file.**
+# `kill -0` cannot tell a finished child from a running one — a finished job is a zombie until it
+# is waited for, and a zombie answers `kill -0` — and `wait -n` is bash 4.3, which macOS does not
+# ship. The status file is the subshell's last act, so a job with no file is either still running
+# or was killed from outside, and both read as "not done". The codes: `0`, the twin went red as it
+# claims; `1`, it did not (counted, and the run fails once every twin has been heard); `3`, this
+# harness could not ask the question — the twin would not build, its seed profile was missing, or
+# the driver hung — which also fails the run, and says so separately because it is not a finding
+# about the check.
+
+twin_parallelism="${PP_E2E_TWIN_PARALLELISM:-4}"
+case "$twin_parallelism" in
+  ''|*[!0-9]*|0)
+    echo "::error::PP_E2E_TWIN_PARALLELISM must be a whole number of at least 1, not '${twin_parallelism}'."
+    exit 2
+    ;;
+esac
+
+twin_names=()
+twin_outs=()
+
+twins_in_flight() {
+  local n=0 out
+  for out in ${twin_outs[@]+"${twin_outs[@]}"}; do
+    [ -f "$out.status" ] || n=$((n + 1))
+  done
+  echo "$n"
+}
+
+wait_for_a_slot() {
+  while [ "$(twins_in_flight)" -ge "$twin_parallelism" ]; do
+    sleep 1
+  done
+}
+
+# start_twin_job <name> <check> <port> <function> [args...]
+#
+# Runs `<function> [args...]` in a background subshell once a slot is free, its output to
+# `$logs/twin-<name>.out` and its exit status to `$logs/twin-<name>.out.status`.
+start_twin_job() {
+  local name="$1" check="$2" port="$3"
+  shift 3
+  local out="$logs/twin-$name.out"
+
+  wait_for_a_slot
+
+  twins_driven=$((twins_driven + 1))
+  twin_names+=("$name")
+  twin_outs+=("$out")
+
+  (
+    status=0
+    "$@" || status=$?
+    echo "$status" > "$out.status"
+  ) > "$out" 2>&1 &
+  twin_pids+=($!)
+
+  echo "  started twin '$name' — $check — on port $port, $(twins_in_flight) in flight"
+}
+
+# run_site_twin <name> <check> <port> <expects> — the body of one site twin's job.
+# One copied directory and one server, both its own; the server is stopped here because it dies
+# with the twin.
+run_site_twin() {
+  local name="$1" check="$2" port="$3" expects="$4"
+
+  echo ""
+  echo "--- twin '$name' — $check must fail ---"
+
+  # Throws, loudly, if the one documented line it substitutes has moved.
+  node "$root/scripts/e2e/defects.mjs" --build "$site" "$twins/$name" "$name" || {
+    echo "::error::twin '$name' could not be built — see above. Until it can be, $check has no"
+    echo "::error::negative control and has not been watched to fail."
+    return 3
+  }
+
+  start_server ".e2e/twins/$name" "$port" "twin-$name" || return 3
+
+  twin_env=()
+  twin_failures=0
+  drive_twin "$name" "$check" "$port" "$expects"
+
+  stop_server
+  return "$twin_failures"
+}
+
+# run_seed_twin <name> <check> <port> <expects> — the body of one seed twin's job.
+# No directory and no server of its own: the site is not what differs, so every seed twin shares
+# the one server the scheduler starts for them below, and only the sign-in profile changes.
+run_seed_twin() {
+  local name="$1" check="$2" port="$3" expects="$4"
+
+  echo ""
+  echo "--- twin '$name' — $check must fail (a seeded row, not a broken site) ---"
+
+  twin_env=()
+  while IFS= read -r seed_line; do
+    [ -n "$seed_line" ] && twin_env+=("$seed_line")
+  done < <(node "$root/scripts/e2e/seed.mjs" --env "$seed_plan" "$name")
+
+  if [ "${#twin_env[@]}" -eq 0 ]; then
+    echo "::error::seed.mjs minted no profile for twin '$name', so this drive would run under the"
+    echo "::error::real run's tokens — every one of which is already spent — and $check would go"
+    echo "::error::red for a reason that says nothing about the defect. Refusing to count it."
+    return 3
+  fi
+
+  twin_failures=0
+  drive_twin "$name" "$check" "$port" "$expects"
+  return "$twin_failures"
+}
+
+echo ""
+echo "Driving the twins $twin_parallelism at a time."
+
+# ------------------------------------------------------------------------------------------------
+# Pass one: the site twins. Ports are handed out here, in the parent, one above the last: nothing
+# then depends on how quickly a previous server let go of its port, and a socket in TIME_WAIT
+# cannot be read as this server. `next_free_port` still checks each one is free at the moment it
+# is chosen.
 
 for line in "${defect_lines[@]}"; do
   name="$(echo "$line" | cut -d: -f1)"
@@ -1125,32 +1296,12 @@ for line in "${defect_lines[@]}"; do
   [ "$kind" = "site" ] || continue
 
   if ! this_driver_runs "$check"; then
-    echo ""
-    echo "--- twin '$name' — skipped: this driver does not run $check ---"
+    echo "  twin '$name' — skipped: this driver does not run $check"
     continue
   fi
 
-  twins_driven=$((twins_driven + 1))
-
-  echo ""
-  echo "--- twin '$name' — $check must fail ---"
-
-  # Throws, loudly, if the one documented line it substitutes has moved.
-  node "$root/scripts/e2e/defects.mjs" --build "$site" "$twins/$name" "$name" || {
-    echo "::error::twin '$name' could not be built — see above. Until it can be, $check has no"
-    echo "::error::negative control and has not been watched to fail."
-    exit 1
-  }
-
-  # A port of its own rather than the one just released: nothing then depends on how quickly the
-  # previous server let go of it, and a socket in TIME_WAIT cannot be read as this server.
   port="$(next_free_port "$((port + 1))")"
-  start_server ".e2e/twins/$name" "$port" "twin-$name" || exit 1
-
-  twin_env=()
-  drive_twin "$name" "$check" "$port" "$expects"
-
-  stop_server
+  start_twin_job "$name" "$check" "$port" run_site_twin "$name" "$check" "$port" "$expects"
 done
 
 # ------------------------------------------------------------------------------------------------
@@ -1160,6 +1311,10 @@ done
 # no copied directory, no substituted line and no server of its own — only a different set of
 # sign-in tokens, all of which were minted in the single seeding pass above. So three more negative
 # controls cost one server start and three `--only` drives, rather than three of each.
+#
+# The shared server is started by this shell, so `stop_server` below and the `cleanup` trap both
+# know about it; the seed jobs inherit its pid and port and read its state the way a site twin
+# reads its own. It waits for a slot first, because a server is a slot's worth of load.
 
 seed_twins=()
 for line in "${defect_lines[@]}"; do
@@ -1168,49 +1323,76 @@ for line in "${defect_lines[@]}"; do
   esac
 done
 
+seed_server_started=0
 if [ "${#seed_twins[@]}" -eq 0 ]; then
   for line in "${defect_lines[@]}"; do
     case "$line" in
       *:seed:*)
-        echo ""
-        echo "--- twin '$(echo "$line" | cut -d: -f1)' — skipped: this driver does not run" \
-          "$(echo "$line" | cut -d: -f2) ---"
+        echo "  twin '$(echo "$line" | cut -d: -f1)' — skipped: this driver does not run" \
+          "$(echo "$line" | cut -d: -f2)"
         ;;
     esac
   done
 else
+  wait_for_a_slot
   port="$(next_free_port "$((port + 1))")"
   start_server .e2e/site "$port" seed-twins || exit 1
+  seed_server_started=1
 
   for line in "${seed_twins[@]}"; do
     name="$(echo "$line" | cut -d: -f1)"
     check="$(echo "$line" | cut -d: -f2)"
     expects="$(echo "$line" | cut -d: -f4)"
 
-    twins_driven=$((twins_driven + 1))
-
-    echo ""
-    echo "--- twin '$name' — $check must fail (a seeded row, not a broken site) ---"
-
-    twin_env=()
-    while IFS= read -r seed_line; do
-      [ -n "$seed_line" ] && twin_env+=("$seed_line")
-    done < <(node "$root/scripts/e2e/seed.mjs" --env "$seed_plan" "$name")
-
-    if [ "${#twin_env[@]}" -eq 0 ]; then
-      echo "::error::seed.mjs minted no profile for twin '$name', so this drive would run under the"
-      echo "::error::real run's tokens — every one of which is already spent — and $check would go"
-      echo "::error::red for a reason that says nothing about the defect. Refusing to count it."
-      exit 1
-    fi
-
-    drive_twin "$name" "$check" "$port" "$expects"
+    start_twin_job "$name" "$check" "$port" run_seed_twin "$name" "$check" "$port" "$expects"
   done
+fi
 
+# **Waited for by pid, never a bare `wait`**, which would also wait for the seed twins' server —
+# a background job of this shell that only `stop_server` ends.
+for pid in ${twin_pids[@]+"${twin_pids[@]}"}; do
+  wait "$pid" 2>/dev/null || true
+done
+
+if [ "$seed_server_started" -eq 1 ]; then
   stop_server
 fi
 
+# ------------------------------------------------------------------------------------------------
+# What each twin said, in list order, and what it comes to.
+
+twin_failures=0
+twin_aborts=0
+i=0
+for name in ${twin_names[@]+"${twin_names[@]}"}; do
+  out="${twin_outs[$i]}"
+  i=$((i + 1))
+
+  cat "$out"
+
+  if [ -f "$out.status" ]; then
+    status="$(cat "$out.status")"
+  else
+    echo "::error::twin '$name' left no exit status, so its job was killed from outside this"
+    echo "::error::script before it finished. Its output is above; it proved nothing."
+    status=3
+  fi
+
+  case "$status" in
+    0) ;;
+    1) twin_failures=$((twin_failures + 1)) ;;
+    *) twin_aborts=$((twin_aborts + 1)) ;;
+  esac
+done
+
 echo ""
+
+if [ "$twin_aborts" -ne 0 ]; then
+  echo "::error::$twin_aborts of $twins_driven twins could not be driven to a verdict — a twin that"
+  echo "::error::would not build, a seed profile that was missing, or a driver that hung. Each says"
+  echo "::error::which above. A twin with no verdict has not been watched to fail."
+  exit 1
+fi
 
 if [ "$twin_failures" -ne 0 ]; then
   echo "::error::$twin_failures of $twins_driven twins did not turn their check red."

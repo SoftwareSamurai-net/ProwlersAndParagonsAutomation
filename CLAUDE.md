@@ -22,7 +22,7 @@ edit `PROGRESS.md` yourself, and do not tick a box in it.
 
 **Two reasons, and the first is arithmetic.** 61% of the commits that have ever touched that file
 touch its 23-line `Current state` table — so concurrent branches do not merely risk a conflict
-there, they are odds-on to collide, and a re-push costs a ~19-minute CI job. The second is that a
+there, they are odds-on to collide, and a re-push costs a ~4-minute CI run. The second is that a
 tick is a claim about verification, and **the agent that did the work is the worst-placed party to
 make it**: this repository has shipped a feature that was built, tested, adversarially reviewed by
 two independent agents and merged, while nothing in the application ever wrote to the store it read
