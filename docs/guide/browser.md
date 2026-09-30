@@ -41,6 +41,40 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
 - **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
 
+## `/reference/resolve`, and the one play rules file this project may name
+
+**A quick reference for Chapter 5, Resolve and Adversity, readable without an account.** It is
+this project's own words about the chapter — names, a plain-words cost where the entry's data
+states one, the description `data/rules/play/resolve.json` already carries, and the page it is
+drawn from — never the book's own printed text, which is what `/rules` offers behind the sign-in
+wall. Split into three blocks: for players, for the GM, and the handful of rules stated to bind
+both economies at once. `ResolveReferenceBlocks.BlockFor` decides which block an entry lands in,
+in one place, and `ResolveReferenceTests.EveryEntryLandsInExactlyOneBlock` holds every entry in
+the file to landing in exactly one — so a 29th entry added later cannot silently miss all three.
+
+**This is the one narrow exemption in this project to `data/rules/play/` staying out of the
+payload**, and it belongs to [`play-rules.md`](play-rules.md)'s placement argument rather than to
+a rule of this file's own — read that section before touching either the reader or the csproj
+target that stages the file. What belongs here is the three things that are about `web/`
+specifically:
+
+- **`ResolveReferenceReader`** (`web/Services/`) is a small, strict, *display-only* reader —
+  `JsonUnmappedMemberHandling.Disallow`, so a field the file gains that its models in
+  `ResolveReferenceModels.cs` do not name throws rather than being quietly dropped. It computes
+  nothing: no cost, no rank, no derived stat, and nothing it reads ever reaches a character. It
+  and the csproj's staging target spell `data/rules/play/resolve.json` whole, because that one
+  path is what the guard exempts — see `play-rules.md`'s note on the guard.
+- **Fetched lazily, on the one page that shows it.** Unlike `RulesRepository.DataFileNames`, which
+  `Program.cs` fetches before the first render because the engine cannot answer a half-loaded
+  question, nothing here is needed before somebody actually visits `/reference/resolve` — so the
+  reader fetches on first ask and caches for the visit, following the same shape `RulebookReader`
+  uses for the rulebook's own contents.
+- **Not printed, and linked from two places rather than routed into an area of its own.** It falls
+  through `Areas.Of` to `Area.Home`, so it draws no step band and no budget strip without a special
+  case for it. `StepNav` links it from the builder's own chrome, and `SheetPage`'s `no-print`
+  controls link it from the sheet — both because `EveryRoutedPageIsReachableFromAnotherPage`
+  requires a page with a route to have one, and because a reader mid-build or mid-table is the
+  reader who actually wants it.
 
 ## Four areas, and the address decides which
 

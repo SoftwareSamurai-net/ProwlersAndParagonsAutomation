@@ -69,6 +69,12 @@ builder.Services.AddScoped<AccountCampaignStore>();
 builder.Services.AddScoped<ApiMembershipStore>();
 builder.Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
 builder.Services.AddScoped<RulebookReader>();
+
+// The one play rules file this project is allowed to read at all, and only for the reference
+// page — see ResolveReferenceReader's own remarks, and docs/guide/play-rules.md's "narrow
+// exemption". Fetched lazily by the reader itself, not here: unlike RulesRepository.DataFileNames
+// above, nothing needs this file before somebody actually visits /reference/resolve.
+builder.Services.AddScoped<ResolveReferenceReader>();
 builder.Services.AddScoped<CharacterImport>();
 builder.Services.AddScoped<Motion>();
 builder.Services.AddScoped<Commands>();

@@ -271,6 +271,35 @@ public sealed class CommandPaletteTests
     }
 
     /// <summary>
+    /// The Resolve and Adversity reference is reached from the palette, not from the step band the
+    /// shell goldens draw: typing "adversity" offers it, and Enter goes there.
+    /// </summary>
+    [Fact]
+    public async Task ThePaletteOffersTheResolveReference()
+    {
+        using var ctx = Opened();
+
+        var page = ctx.Render<CommandPalette>();
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").InputAsync(new ChangeEventArgs { Value = "adversity" }),
+            "the word that finds the reference");
+
+        var row = page.FindAll(".palette-row.kind-roster");
+        Assert.Single(row);
+        Assert.Equal("Resolve and Adversity reference", row[0].QuerySelector(".palette-label")!.TextContent);
+
+        await Occupying(
+            page,
+            () => page.Find(".palette-box").KeyDownAsync(new KeyboardEventArgs { Key = "Enter" }),
+            "the Enter that chooses it");
+
+        var nav = ctx.Services.GetRequiredService<NavigationManager>();
+        Assert.Equal("reference/resolve", nav.ToBaseRelativePath(nav.Uri));
+    }
+
+    /// <summary>
     /// The request is acted on once.
     ///
     /// <para><b>Read-once is what stops the editor reopening over whatever the reader moved

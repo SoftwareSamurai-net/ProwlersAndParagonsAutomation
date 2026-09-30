@@ -52,6 +52,45 @@ So a file one level down reaches none of them, and the third row is the one that
 
 Adding a play rules file therefore needs **no** change to `RulesRepository.DataFileNames` — that list is the contract for a host that loads the *character* rules over HTTP, and a play file must never appear on it. It goes on `PlayRulesRepository.DataFileNames` instead, which is the same contract for a host that wants the play rules; `PlayRulesFileCoverageTests` requires the two lists to share no file at all.
 
+## The one narrow exemption: `web/` may show `resolve.json`, and nothing else
+
+The owner's ruling, and it is a ruling rather than a reopening of the placement argument above:
+`web/` may stage and read **`data/rules/play/resolve.json` alone**, for a Resolve and Adversity
+quick reference at `/reference/resolve` — see [`browser.md`](browser.md) for the page itself. No
+other play file gets the same treatment, and the reasoning that keeps the rest of this store out
+of a browser payload is unchanged; this is one file, named once, for one reason.
+
+**The narrow shape of the exemption, in three parts:**
+
+- **Staged by an explicit single-file item, not a widened glob.** `web/ProwlersAndParagons.Web.csproj`
+  still globs `data\rules\*.json` with one star, exactly as `NoProjectGlobsTheRulesDirectoryRecursively`
+  requires; `resolve.json` is copied by a second, separate `Copy` naming that one file, so the
+  property this store's placement rests on — a single star never descends — stays provably true
+  of the glob that would sweep everything else in if it ever changed.
+- **Read by its own reader, not by `RulesRepository`.** `ResolveReferenceReader` is a small,
+  strict, *display-only* reader in `web/Services/`: `JsonUnmappedMemberHandling.Disallow`, so a
+  field this file gains that its models do not name throws rather than silently going unread. It
+  computes nothing — no cost, no rank, no derived stat — and feeds nothing back into a character.
+  `play/`'s own `PlayRulesRepository` is still the only thing that reads this file to *resolve*
+  anything.
+- **Fetched lazily, not at boot.** Unlike the character rules, which `Program.cs` fetches before
+  the first render because the engine cannot answer a half-loaded question, nothing about this
+  file is needed before somebody actually opens the reference page — so the reader fetches it the
+  first time that page asks, and caches it for the rest of the visit.
+
+**`PlayPayloadTests.NothingInTheApplicationNamesAPlayRulesFile` is narrowed to match**: under
+`web/`, and nowhere else, it removes the one whole path — `rules/play/resolve.json`, in either
+separator — before it scans. Nothing shorter is exempt. The directory spelled on its own, another
+file under it, or `resolve.json` on its own are all still faults under `web/`, and every other tree
+(`engine/`, `sheets/`, `cli/`, `mcp/`) is still forbidden all seven tokens, the exempt path
+included. **So the path is spelled whole, and must be**: the first build split it across two
+constants and two MSBuild properties so the scan could not see the directory, which reached the
+exemption by hiding from the guard rather than by being what it permits — and a split spelling
+now fails on the bare file name it leaves behind. The exemption carries its own positive
+control, the same shape `TheSecondEngineIsTheOneProjectThatNamesAPlayRulesFile` uses: `web/` is
+required to actually name `resolve.json` somewhere, or the allowance would excuse a tree that had
+stopped reading the one file it exists for.
+
 ## The closed `verified_fields` list
 
 Same discipline as `powers.json`: verification is tracked **per field**, not with a boolean, because a single flag drifts and 27 Power entries once sat unflagged with wrong costs. Each file's header declares the vocabulary and both files must declare the same one:

@@ -1,0 +1,80 @@
+@page "/reference/resolve"
+@inject ResolveReferenceReader Reference
+
+@* A quick reference for Chapter 5, Resolve and Adversity — the project's own words about the
+   book, not the book's own pages, and readable without an account for that reason. The rules
+   reference behind the sign-in wall offers the rulebook's own printed text; this offers a
+   summary built from the one play rules file this project may name (see ResolveReferenceReader),
+   whose descriptions docs/guide/rules-engine.md's rule already requires to be original.
+
+   Three blocks rather than one list, because "what can I do" and "what can the GM do" are two
+   different questions at the table and a reader mid-scene is usually asking one of them, not
+   both. See ResolveReferenceBlocks for where the split is decided. *@
+
+<PageTitle>Resolve &amp; Adversity reference — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Resolve and Adversity quick reference</h1>
+
+@* Every row names the printed page it summarises — check the book itself for the full wording. *@
+<p class="small muted">A table-side summary of Chapter 5, not a substitute for the book.</p>
+
+@if (_failed)
+{
+    <EmptyState>The reference could not be loaded. Reload the page to try again.</EmptyState>
+}
+else if (_document is null)
+{
+    <p class="small muted" role="status">Loading…</p>
+}
+else
+{
+    <Panel Title="For players" Aside="starting Resolve, earning it, and what it buys">
+        <ResolveEntryList Rows="Players" />
+    </Panel>
+
+    <Panel Title="For the GM" Aside="the Adversity pool, earning it, and what it buys">
+        <ResolveEntryList Rows="Gm" />
+    </Panel>
+
+    <Panel Title="Table limits" Aside="rules stated to bind both economies">
+        <ResolveEntryList Rows="TableLimits" />
+    </Panel>
+}
+
+@code {
+    private ResolveDocument? _document;
+    private bool _failed;
+
+    /// <summary>
+    /// Fetched only when this page is actually visited — unlike the character rules, which
+    /// <c>Program.cs</c> loads before the first render because the engine cannot answer a
+    /// half-loaded question. Nothing here is on that path.
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _document = await Reference.LoadAsync();
+        }
+        catch (HttpRequestException)
+        {
+            _failed = true;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // A schema this reader's strict models do not recognise, or malformed JSON. Either
+            // is a fact worth showing as "could not be loaded" rather than a page that renders
+            // half a chapter and says nothing is missing.
+            _failed = true;
+        }
+    }
+
+    private IEnumerable<ResolveEntry> Players =>
+        _document!.Entries.Where(e => ResolveReferenceBlocks.BlockFor(e) == ResolveBlock.Players);
+
+    private IEnumerable<ResolveEntry> Gm =>
+        _document!.Entries.Where(e => ResolveReferenceBlocks.BlockFor(e) == ResolveBlock.Gm);
+
+    private IEnumerable<ResolveEntry> TableLimits =>
+        _document!.Entries.Where(e => ResolveReferenceBlocks.BlockFor(e) == ResolveBlock.TableLimits);
+}

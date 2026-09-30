@@ -279,6 +279,23 @@ public sealed class PlayPayloadTests
                         || f.Contains($"{Path.DirectorySeparatorChar}play{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
             .ToList();
 
+        // The one narrow exemption: web/'s own copy of resolve.json, for the reference page at
+        // /reference/resolve — see docs/guide/play-rules.md. Removed from the fault list before
+        // the assertion below rather than widening what that assertion permits, so every other
+        // play file reaching this directory still fails it, cli/ and mcp/ included.
+        if (which == "web")
+        {
+            var exempt = Path.Combine(directory, "play", "resolve.json");
+
+            Assert.True(
+                play.Contains(exempt),
+                $"{exempt} was not found among the play files reaching {directory}. The exemption "
+                + "below permits a copy that is not actually there — web/'s own resolve.json "
+                + "reader has nothing to read.");
+
+            play.Remove(exempt);
+        }
+
         Assert.True(
             play.Count == 0,
             $"Play rules reached {directory}: {string.Join(", ", play)}. For web/ that directory "
@@ -380,6 +397,33 @@ public sealed class PlayPayloadTests
         ];
 
     /// <summary>
+    /// The one token, under the one tree, the owner's "narrow exemption" ruling permits:
+    /// <c>web/</c> may name <c>resolve.json</c> — and only that spelling, only there — for the
+    /// Resolve and Adversity reference page at <c>/reference/resolve</c>. See
+    /// <see cref="ProwlersAndParagonsAutomation.Web.Services.ResolveReferenceReader"/> and
+    /// <c>docs/guide/play-rules.md</c>.
+    ///
+    /// <para><b>Everything else about the rule is unchanged.</b> <c>web/</c> may still not name
+    /// any of the other six tokens — <c>combat.json</c>, <c>challenge.json</c>, <c>gritty.json</c>,
+    /// <c>environment.json</c>, <c>play_meta.json</c>, or the bare directory spellings
+    /// <c>rules/play</c> / <c>rules\play</c> — and <c>engine/</c>, <c>sheets/</c>, <c>cli/</c> and
+    /// <c>mcp/</c> may not name <em>any</em> of the seven, <c>resolve.json</c> included. The
+    /// reader's own source therefore never spells the directory and the file adjacently as one
+    /// run of text — see its remarks — because that spelling is still refused here exactly as it
+    /// always was.</para>
+    /// </summary>
+    private const string WebExemptToken = "resolve.json";
+
+    /// <summary>
+    /// The exemption as whole paths, in both separators — what the scan below removes from a
+    /// <c>web/</c> source before it looks for any token. The file name alone is not exempt: a bare
+    /// <c>resolve.json</c> under <c>web/</c> is still a fault, so the exemption cannot be reached
+    /// by splitting the path into pieces the scan cannot see together.
+    /// </summary>
+    private static readonly string[] WebExemptPaths =
+        ["rules/play/" + WebExemptToken, @"rules\play\" + WebExemptToken];
+
+    /// <summary>
     /// <b>Nothing in the application names a play rules file — and "the application" no longer
     /// means "everything".</b> <c>PlayRulesRepository</c> exists now, in <c>play/</c>, and reads all
     /// five; the claim this guard makes has narrowed from "nothing reads them" to "exactly one
@@ -387,12 +431,17 @@ public sealed class PlayPayloadTests
     /// is why <see cref="TheSecondEngineIsTheOneProjectThatNamesAPlayRulesFile"/> sits beside this
     /// one: an allowance with nothing behind it would silently permit a whole tree.
     ///
+    /// <para><b>A second, narrower exemption sits beside that one now.</b> <c>web/</c> may name
+    /// <see cref="WebExemptToken"/> and nothing else — see that constant's own remarks. Every other
+    /// tree, and every other token under <c>web/</c> itself, is still forbidden by exactly the scan
+    /// it always was.</para>
+    ///
     /// <para><b>What has not moved is the thing worth guarding.</b> A <c>PlayRulesRepository</c>
     /// wired into <c>engine/</c> compiles, passes, and quietly makes the character engine an
     /// authority on resolving an action — <c>CLAUDE.md</c> settles that it is not one — and a host
     /// that named a file rather than holding a repository would be a host with a rule of its own.
-    /// So <c>engine/</c>, <c>sheets/</c>, <c>cli/</c>, <c>web/</c> and <c>mcp/</c> are all still
-    /// forbidden, by exactly the scan they always were.</para>
+    /// So <c>engine/</c>, <c>sheets/</c>, <c>cli/</c> and <c>mcp/</c> are all still forbidden every
+    /// one of the seven tokens, and <c>web/</c> is still forbidden six of them.</para>
     ///
     /// <para>This is the source-side companion to the payload checks above. Those say a play file
     /// cannot be <em>copied</em> anywhere; this says nothing in the application <em>names</em> one.
@@ -413,6 +462,17 @@ public sealed class PlayPayloadTests
 
                 var text = WithoutComments(File.ReadAllText(file));
 
+                // The one narrow exemption: under web/, the one whole path to resolve.json is
+                // taken out before the scan, and nothing else is. So the directory may be spelled
+                // there only as the way to that file — "rules/play/combat.json", or the directory
+                // on its own, still names 'rules/play' — and a split spelling that hides the
+                // directory from this scan is never needed to get the exemption.
+                if (string.Equals(tree, "web", StringComparison.Ordinal))
+                {
+                    foreach (var path in WebExemptPaths)
+                        text = text.Replace(path, "", StringComparison.OrdinalIgnoreCase);
+                }
+
                 foreach (var token in PlayFileTokens)
                 {
                     if (text.Contains(token, StringComparison.OrdinalIgnoreCase))
@@ -422,6 +482,17 @@ public sealed class PlayPayloadTests
                 }
             }
         }
+
+        // The exemption has something behind it, the same way the second engine's does: web/
+        // really does name resolve.json somewhere, or the line above would be excusing a tree
+        // that had stopped doing the one thing it is excused for.
+        var webSources = SourceFilesUnder(Path.Combine(RepoRoot, "web"))
+            .Select(f => WithoutComments(File.ReadAllText(f)))
+            .ToList();
+        Assert.True(
+            webSources.Exists(text => text.Contains(WebExemptToken, StringComparison.Ordinal)),
+            $"web/ names no file matching '{WebExemptToken}' outside a comment. The exemption in "
+            + "this test permits a tree that has stopped reading the one file it exists for.");
 
         // Positive control, and it is the instrument rather than a formality: this project names
         // every token in the list, so a scan that found nothing here has stopped reading files and

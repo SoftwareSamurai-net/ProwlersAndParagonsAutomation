@@ -110,4 +110,27 @@
         </ItemGroup>
     </Target>
 
+    <!-- **The one narrow exemption to keeping data/rules/play/ out of this payload.** The owner's
+         ruling: the reference page at /reference/resolve may show resolve.json alone, and every
+         other play rules file stays out. An explicit single-file item rather than a widened glob —
+         PlayPayloadTests.NoProjectGlobsTheRulesDirectoryRecursively still refuses "**", and
+         NothingInTheApplicationNamesAPlayRulesFile exempts this one whole path under web/ and
+         nothing else. See docs/guide/play-rules.md. -->
+    <ItemGroup>
+        <ResolveReferenceFile Include="..\data\rules\play\resolve.json" />
+    </ItemGroup>
+
+    <Target Name="StageResolveReferenceInWwwroot" BeforeTargets="ResolveProjectStaticWebAssets">
+        <Error Condition="!Exists('..\data\rules\play\resolve.json')"
+               Text="The Resolve reference file was not found. The reference page at /reference/resolve serves it; without it that page cannot start." />
+
+        <Copy SourceFiles="@(ResolveReferenceFile)"
+              DestinationFiles="$(MSBuildProjectDirectory)\wwwroot\data\rules\play\resolve.json"
+              SkipUnchangedFiles="true" />
+
+        <ItemGroup>
+            <Content Include="wwwroot\data\rules\play\resolve.json" Exclude="@(Content)" />
+        </ItemGroup>
+    </Target>
+
 </Project>
