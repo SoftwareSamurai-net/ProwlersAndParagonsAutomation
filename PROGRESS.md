@@ -94,6 +94,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[2](#2-what-the-sheet-still-cannot-say)** — every printed page carries the character's name and `page N of M` in a `@page` margin box, in Chrome (measured on 153); Firefox and Safari print no margin boxes, so the document title and colophon stay as their fallback. Verified by the orchestrator 2026-09-23: a SheetView that never publishes the name turned five `RunningHeadTests` red. Not driven in a real browser on CI — the margin box was proved by hand on a dev server
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
+- [ ] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — four validator checks still skip a Gadget's Powers, found by the named-immunities follow-up; recorded, not fixed
 - [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
@@ -2430,6 +2431,30 @@ with one character was already shown it, named, under "Open now"; a regression t
 since nothing had. **The four shell goldens draw the banner and must be regenerated on the CI
 runner** (`gh workflow run visual-goldens.yml --ref <branch>`), never locally — the pixel
 comparator will be red until they are.
+
+### 36. Four validator checks still skip a Gadget's Powers
+
+**Found 2026-09-29, by the follow-up to the named-immunities pull request, and deliberately not
+fixed in it.** `CheckUnitNames` walked `sheet.SelectedPowers` alone, so an Immunity bought inside a
+Gadget was never checked for its names — the third time this shape has shipped, after
+`EveryModifier` and `CheckModifiers` (item 32). It now walks `sheet.Gadgets` through the same
+method as the character's own Powers. Four more checks have the same gap, each confirmed by a
+throwaway probe against the shipped rules:
+
+- `CheckDuplicatePowers` — the same non-repeatable Power twice in one Gadget is priced twice and
+  draws no `DUPLICATE_POWER`.
+- `CheckPowerCosts` — a Gadget Power driven to its cost floor by Cons draws no
+  `POWER_COST_AT_MINIMUM`, so a further Con buys nothing and nobody is told.
+- `CheckSources` — a rankless Gadget Power with no Source draws no
+  `RANKLESS_POWER_WITHOUT_SOURCE`, so it has no default rank against other Powers.
+- `CheckUnverifiedPowers` — latent: no Power carries `needs_review` or an unverified
+  description today, so there is nothing for it to miss yet.
+
+**The fix is the one `CheckUnitNames` now has**: one method over a `SelectedPower`, called for the
+character's own and for each named Gadget's, so the two walks cannot drift. The better fix is a
+single enumeration of every `SelectedPower` a sheet pays for, with its subject, that every
+per-Power check walks. Then a fifth check cannot be written that forgets Gadgets, and that is the
+real lesson of this shape shipping three times.
 
 ## Completed work
 

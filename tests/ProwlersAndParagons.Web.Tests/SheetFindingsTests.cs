@@ -153,6 +153,32 @@ public sealed class SheetFindingsTests
     }
 
     /// <summary>
+    /// A Gadget's Immunity, bought with fewer names than units, routes to the Gadget's own row —
+    /// <c>CheckUnitNames</c>' Gadget sweep files it at <see cref="ValidationSubject.Gadget"/> with
+    /// the Gadget's name as <c>SubjectId</c>, which <see cref="SheetFindings.ForGadget"/> matches
+    /// directly with no <c>OwnerId</c> half needed.
+    /// </summary>
+    [Fact]
+    public void AGadgetImmunityBelowUnitsRoutesToTheGadget()
+    {
+        using var ctx = new RenderContext();
+        var sheet = ctx.Session.Sheet;
+        sheet.SelectedTierId = "standard";
+        sheet.TalentRanks["technology"] = 6;
+        sheet.Gadgets.Add(new BuiltGadget("Vault Breaker")
+        {
+            Complexity = 3,
+            Powers     = [new SelectedPower("immunity", 0)
+                { Units = 2, SourceId = "tech", UnitNames = ["Toxins"] }]
+        });
+
+        var result = ctx.Session.Validate();
+
+        var found = SheetFindings.ForGadget(result, "Vault Breaker");
+        Assert.Contains(found, i => i.Code == "POWER_UNIT_NAMES_BELOW_UNITS");
+    }
+
+    /// <summary>
     /// Findings that belong to no single row — the budget and an unset tier — are found by
     /// none of <see cref="SheetFindings"/>' methods, on the same sheet where a routable finding
     /// exists. The budget strip already carries the first; the review step carries both. This
