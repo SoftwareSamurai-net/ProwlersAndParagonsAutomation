@@ -352,8 +352,7 @@ export async function submit(request, env, deps, user, id) {
  */
 export async function approve(request, env, deps, user, id) {
     return await decide(request, env, deps, user, id,
-        (database, args) => db.approveSubmission(database, { ...args, newCharacterId: newCharacterId() }),
-        true);
+        (database, args) => db.approveSubmission(database, { ...args, newCharacterId: newCharacterId() }));
 }
 
 /**
@@ -420,7 +419,7 @@ export async function leave(request, env, deps, user, id) {
  * <p><b>The row is re-read only on the refusal path.</b> On the way through, the statement's own
  * `RETURNING` is the answer; a read in front of it would be the very race this exists to close.</p>
  */
-async function decide(request, env, deps, user, id, statement, approving = false) {
+async function decide(request, env, deps, user, id, statement) {
     if (!sameOrigin(request)) return fail(403, 'This request did not come from this site.');
     if (!ID_PATTERN.test(id)) return fail(400, 'That is not a membership id this server uses.');
 
@@ -463,7 +462,8 @@ async function decide(request, env, deps, user, id, statement, approving = false
     // that can have refused it is the GM's own cap.** Approving would have moved it onto their
     // account, and a full account refuses the approval whole: nothing is approved, the player
     // keeps their character, and the snapshot is still waiting. Said in the words the roster uses
-    // for a full account, with the figure, because the remedy is the GM's. Approvals only.
+    // for a full account, with the figure, because the remedy is the GM's. A rejection cannot
+    // reach this: with the campaign there and the version matching, a rejection always lands.
     // **A GM who is also the player reaches this row through the player's half of
     // `getMembership`, which does not require the campaign to exist** — so a game they deleted
     // is asked about first, or a refusal about a game that is gone would be reported as a full
@@ -472,7 +472,7 @@ async function decide(request, env, deps, user, id, statement, approving = false
         return fail(409, 'That campaign is no longer here.');
     }
 
-    if (approving && row.pending_version === version && row.pending_kind === VILLAIN) {
+    if (row.pending_version === version && row.pending_kind === VILLAIN) {
         const limit = await db.characterLimit(env.DB, user.id);
 
         return fail(409,
