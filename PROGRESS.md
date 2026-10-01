@@ -83,6 +83,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **A Resolve and Adversity quick reference**, on the owner's ask of 2026-09-29, at `/reference/resolve` and open without an account: every entry of `data/rules/play/resolve.json` under For players, For the GM or Table limits, each with a table-facing `summary` (new on all 28 entries), its cost and its page. `web/` may name that one whole path and no other play file, by a narrowed `NothingInTheApplicationNamesAPlayRulesFile`, and reads it with its own strict display-only reader. Verified by the orchestrator: another play file named from `web/`, the exempt path split to hide it, the engine naming it, a hard-coded assisting rate, the description shown instead of the summary and program vocabulary in a summary each went red under mutation
 - [x] **[1](#1-close-the-last-three-heroes)** — **closed by the owner's ruling of 2026-09-23**: the three Heroes still 1 HP out (Scáthach +1, Shadow +1, Vigilant −1) are dropped as a target. The rules here are adapted, so the smallest distance to fitting is taken as correct and no further investigation is owed. Shadow's and Vigilant's custom gear features stay untranscribed, because adding them would move both further out. The residual guard stays at 1
 - [x] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver, and `kill_tree` proved directly. Verified by the orchestrator 2026-09-05: nine checks green, nine twins red on the kind each declares, both drivers, no process left behind. **CI run 33949251306 then proved the Linux leak for real** — the port holder survived outside the tree — and the cause is recorded in the entry; the fix's Linux verdict was given by run 33960793977: all seven kill-tree checks green on `ubuntu-latest`, the real wrangler tree included, and no "still listening" warning anywhere in the job
+- [x] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) retirement** — `scripts/e2e/drive.mjs` and `cdp.mjs` are deleted, on the condition the entry set: twenty consecutive green `Build` runs on `main` since run 34400118356, each with the Playwright step printing `E2E: PASS — 9 checks`, the twentieth being run 36674185863. Re-counted by the orchestrator 2026-09-30 from the twenty logs, not from the ticks. `e2e.sh` has one driver and no `--driver` flag, `build.yml` has one drive job, the twin/check comparison is equality again, and `E2eDriverTests` reads the one driver and refuses the deleted files back. Verified by the orchestrator: an empty `drive.mjs` recreated and a twin renamed to a check nobody drives each turned the class red
 - [x] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement, and the rulebook corpus behind `Ctrl`/`⌘`+`K`. Verified by the orchestrator 2026-09-05; what remains of the search bullet is the banner field, recorded in the entry
 - [x] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`. **All six slices have landed; (f) was run on 2026-09-07 as the demonstration the owner ruled sufficient, corrected on 2026-09-08 when the styles slice exposed non-combat Traits fighting, and its figures are in the entry.** Verified by the orchestrator: every figure produced by the orchestrator's own driver. **Slices (a) to (e) of six have landed** — Chapters 3, 4 and 5 as verified data under `data/rules/play/`, `play/`, the second engine that resolves a fight out of them, and `mcp-play/`, the second MCP server that runs encounters through it; **(f), the first measurement, was run on 2026-09-07.** The owner deferred it on 2026-09-06 until the campaign had a villain, then ruled on 2026-09-07 that a demonstrable run makes the feature complete and the real party is not required. The table it will run at is settled: no Gritty rule, and the GM's alternative to seizing the initiative — doubled Edge rather than going first, "so Super Speed stays awesome" — which is already `TableRules.GmAlternativeToSeizingInitiative`. **The encounter server takes a fight's table off the sheets it is handed since 2026-09-07** (see the pull request that carried it), which is how a campaign's toggles (item 29) reach a measurement without the server ever reading a campaign: sheets that carry a table must agree switch by switch (`TABLE_DISAGREES` names the pair and the first switch, in id order whatever order they arrived), a `table` on the call must agree with them (`CALL_TABLE_DISAGREES`), a sheet carrying none is accepted and named on page one — with its campaign, since an absent block cannot tell a sandbox character from a stale copy of a game that adopted something later — and the echo says where the table came from and can rebuild it. The review found the agreement order-dependent, an inert Gear Limit rank refusing a legitimate fight, a page-one line claiming a page for a fact no page states, and the sheets-and-call branch never naming a bare sheet. Verified by the orchestrator: the rank comparison and the id ordering each went red under mutation. The engine's own not-yet list is in `docs/guide/play-engine.md`, and it is shorter: **keeping hold, knockback, luring and team attacks are applied since 2026-09-07** — see the pull request that carried them, whose review found the server dropping the team flag it had just documented, an explosion throwing the sixes of a discarded roll, and an Adversity line written before the pool paid. Verified by the orchestrator: the lurer's forfeited turn and the team flag over the wire each went red under mutation. **p.85's three Adversity spends — suppress a Flaw, a misfortune, an act of villainy — are applied since 2026-09-07 too** (see the pull request that carried them): the pool is charged once, the printed eligibility and limits are enforced, the narrative half is required in the GM's words and recorded as theirs, and the once-per-story count is kept per encounter with the ledger saying so — carrying it across scenes is a slice of its own, as is the per-issue count on the suppression. The review found the GM's pool buying a Hero what their own Resolve buys, which every earlier fixture had missed by pointing every spend at a Villain. Verified by the orchestrator: a Foe handed villainy, and a Hero bought dice from the GM's pool, each went red under mutation. **p.75's cover, size and visibility are applied since 2026-09-07 as well** (see the pull request that carried them), and `Encounter.EntriesNotYetApplied` is empty: cover is a fact about a line of sight and lives on the attack, with the through-cover clause applied for real; size is the caller's word on the combatant, the factor derived from two sizes and never accepted as a band; the light is the scene's, set at `Begin` and echoed with the table; being invisible is the caller's word, since carrying the Power is not being invisible; Blind Fighting and Radar are read off the sheet and named on the ledger when they compensate. The orchestrator's own mutation moved the five-times band to three and survived — every band fixture sat exactly on a threshold — so the review drove every threshold from both sides, found the run report echoing neither size nor invisibility, a combatant size guard nothing drove, and a through-cover line that called two equal figures the greater. Verified by the orchestrator: the same mutation now turns four cases red. **Five of the seven Gritty switches are applied since 2026-09-07** (see the pull request that carried them): Hard Targets doubles a passive rank before either halving and the vulnerable-part negation is an attack's declaration; Close Range reads whether a Power reaches past Close off its own Chapter 2 Range and says on the ledger when a `zone` or `special` one is declined; the Drop is the caller's word that a character is ready, and its pairwise doubling is exact as one order, with a seizer still first and a ready seizer under the GM's alternative on fourfold Edge, both labelled readings; Friendly Fire derives the melee from the range bands and resolves the stray shot for real against the second target's own defence, picked off the dice source in base six so a melee of nine can reach its ninth; Slow Healing's in-scene clauses bite (conscious at zero or below, any point of damage puts them down, instant recovery restores nothing) and the daily bands are named on page one as outside the scene. The review found the stray shot unable to reach past six bystanders, a charge's impact escaping the any-damage clause, and a silent decline; each is fixed with a fixture, and a run with every switch off is proved byte-identical to a run on a bare table. Verified by the orchestrator: the Friendly Fire trigger boundary and the pick's die count each went red under mutation. **`RaisedGearLimit` and `GearLimitRank` stay listed**, because the default gear limit is not applied either — an `Attack` names a Trait and no item, a `Combatant` carries no gear, and a raised limit cannot honestly precede the default one; a scan is written to fail when that gap closes. **The GM's pool buys all ten of p.85's "anything a point of Resolve could do" since 2026-09-07** (see the pull request that carried it): seizing the initiative, instant recovery, the Fatal Damage rescue and stabilising are charged to Adversity for an NPC with the NPC's non-existent Resolve never touched, each keeping its own page's limits, and a Minion group is refused each by name off the entry that decides it — no Edge to seize with, no Health to come round to, no dying clock — with the deciding phrase held by a throw rather than interpolated. The review found a `points` of zero or below reaching the wire and minting Resolve or Adversity, the once-a-scene count untested against sharing, and p.85's announcement order documented and unguarded; each is fixed with a fixture, and the "not yet implemented" classifier's two-valued control now rests on the two Gear Limit switches with a guard that says so the day they are applied. Verified by the orchestrator: a Minion clock guard and the pricing floor each went red under mutation. **The item a full grab wins is state since 2026-09-07** (see the pull request that carried it): what a combatant walks in holding is the caller's word at `start_encounter`, a grab names its object and is refused for one the target is not recorded as holding — so a fight opened with nobody carrying anything has no grab in it, said out loud — a full grab moves the item to the winner for the page, an attack naming it marks it used, a `toss` drops it, letting go ends a partial grab for either party and both regain their active defences, an attack naming a contested item is refused by p.76's own words, and the page turn tosses what was won and never used or what a defeated holder still had. The review found the first build minting an object out of a sentence (every wire grab was for an item nobody held), no way to let go, a pinned character able to toss the weapon they were pinned with, the property never landing a grab on any seed, and the run report not echoing what anybody held. Verified by the orchestrator: the page-turn toss of a used item and the unheld-item refusal each went red under mutation. Still listed, with no intent to call them: multiple actions, stunts, ambushes, clobbering, defending others and the throwing table
 - [x] **[15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one)** — a campaign-tighter Trait Cap, and it moves Resolve. Verified by the orchestrator 2026-09-05
@@ -567,13 +568,13 @@ and four addresses. Each check states a positive control before its outcome, and
 deliberately-broken twin of the whole published site that it is required to go red against. It runs
 on every pull request.
 
-**There are two drivers and the sixth check is why.** `scripts/e2e/drive.mjs` is the original, a
-hand-rolled DevTools Protocol client; `tests/e2e` is a C# one over `Microsoft.Playwright`, which
-runs the same five plus `A11Y` — axe-core inside the page, which the hand-rolled client cannot do.
-`e2e.sh --driver node|dotnet` picks one and owns everything around a drive either way. The
-Playwright driver adds **+4 seconds** to the runner's Restore step: `Channel = "chrome"` launches
-the Chrome already on the machine, so there is no `playwright install`, nothing to cache, and no
-third renderer to invalidate the pixel goldens against.
+**One driver, since 2026-09-30: `tests/e2e`, over `Microsoft.Playwright`.** There were two for a
+month — `scripts/e2e/drive.mjs`, the original hand-rolled DevTools Protocol client, ran the first
+five checks beside it — and the second was kept on probation until it had a record; the subsection
+below says what the condition was and how it was met. The Playwright driver adds **+4 seconds** to
+the runner's Restore step: `Channel = "chrome"` launches the Chrome already on the machine, so there
+is no `playwright install`, nothing to cache, and no third renderer to invalidate the pixel goldens
+against.
 
 **What it does cost is a second drive, and for a month that drive ran last in one job**: 533s
 before it, then 1103s and 1132s on two consecutive green runs, and a median 902s over the six
@@ -583,10 +584,10 @@ now four jobs and the run's wall is about 4 minutes** — `publish` uploads the 
 two drivers each take it from there in a job of their own while `build` runs the suites, and
 `scripts/e2e.sh` drives the twins four at a time instead of one after another. Measured on
 PR #201's own runs: `build` 146s, the node drive 162s and the Playwright drive 215s,
-every check the old job ran still running under the same command. **If it becomes tight again,
-drop one driver from `build.yml`** — cheapest, reversible, and the file stays. Scanning fewer
-palettes in A11Y is the second lever and costs real coverage. Raising `timeout-minutes` is not a
-lever; see `docs/guide/hosting.md`.
+every check the old job ran still running under the same command. The node drive and its job are
+gone now, so the workflow is three jobs. **If it becomes tight again**, scanning fewer palettes in
+A11Y is the lever left, and it costs real coverage. Raising `timeout-minutes` is not a lever; see
+`docs/guide/hosting.md`.
 
 **How it works, and every limit of it, is in [`docs/guide/testing.md`](docs/guide/testing.md)** —
 read that before changing it. The account of building it, including five faults the harness found
@@ -687,29 +688,29 @@ held by `EveryScreenPairInUseHoldsItsContrastFloor`. Because that clears 4.5:1 o
 check's per-node exemption is **gone** rather than narrowed — the orchestrator's Playwright run
 reports 560 passing rule instances and no violations with nothing exempt.
 
-#### What has to be true before `scripts/e2e/` is deleted
+#### What had to be true before `scripts/e2e/drive.mjs` was deleted, and how it was met
 
-**Not yet, and this is the condition rather than a feeling.** The hand-rolled driver is green,
-twinned, and the one with the longer record; the Playwright one was a week old when this was
-written. A migration that removes the working harness before the replacement has a record is how
-an upgrade becomes a regression, so both run in `build.yml` and the deletion is a separate change
-nobody has made.
+**The hand-rolled driver was deleted on 2026-09-30, on the condition set here in advance rather
+than on a feeling** — see the pull request that carried it. When this was written the hand-rolled
+driver was green, twinned, and the one with the longer record, and the Playwright one was a week
+old. A migration that removes the working harness before the replacement has a record is how an
+upgrade becomes a regression, so both ran in `build.yml` until the count below was reached.
 
-**The condition: twenty consecutive green `Build` runs on `main` in which the `--driver dotnet`
+**The condition was: twenty consecutive green `Build` runs on `main` in which the `--driver dotnet`
 step reported every check green against the real site and every twin red** — six of each when
 this was written, nine of each since stage two added `ADMIN`, `RULES` and `ACCOUNT_SAVE`. Green is
 enough because both drivers run in the same workflow, each as a job of it since PR #201 — either
 going red fails the run — so twenty green runs is also twenty runs in which the two did not
 disagree.
 
-**The window as of 2026-09-30: nineteen.** The last red on `main` is run 34400118356 of 2026-09-09,
-which failed at the pixel comparison and not at either drive; every `Build` run since has
-concluded green and its Playwright step has printed `E2E: PASS — 9 checks green against the real
-site, and each one watched to fail`, read from each run's log rather than from its tick. One run
-inside the window, 36529480247, was cancelled by the concurrency group before it reached a drive;
-it is neither a green nor a disagreement and is not counted. One more green run meets the
-condition; the deletion is then a change to make, with `docs/guide/testing.md`'s two-driver
-section rewritten in the same commit. Count them with
+**The window closed at twenty on 2026-09-30, with run 36674185863.** The last red on `main` is run
+34400118356 of 2026-09-09, which failed at the pixel comparison and not at either drive; every one
+of the twenty `Build` runs since concluded green and its Playwright step printed `E2E: PASS — 9
+checks green against the real site, and each one watched to fail`, read from each run's log rather
+than from its tick, beside the node driver's `5 checks` line. One run inside the window,
+36529480247, was cancelled by the concurrency group before it reached a drive; it is neither a
+green nor a disagreement and was not counted. The recipe, kept because it is how the count was
+made:
 
 ```bash
 gh run list --repo SoftwareSamurai-net/ProwlersAndParagonsAutomation \
@@ -717,19 +718,22 @@ gh run list --repo SoftwareSamurai-net/ProwlersAndParagonsAutomation \
   --json databaseId,conclusion,headSha --jq '.[] | "\(.databaseId) \(.conclusion) \(.headSha[0:8])"'
 ```
 
-and, for each id back to the last `failure`, read the Playwright step's verdict out of the log —
-`gh run view <id> --repo … --log | grep 'E2E: PASS'` should print one `9 checks` line beside the node
-driver's `5 checks` — so the count is of runs that actually drove it rather than of runs that
-skipped it.
+and, for each id back to the last `failure`, read the step's verdict out of the log —
+`gh run view <id> --repo … --log | grep 'E2E: PASS'` — so the count is of runs that actually drove
+it rather than of runs that skipped it.
 
 **Two things that are not the condition, said because they are the tempting shortcuts.** "The
 Playwright one is nicer" is not a reason to delete a working check. And "CI is slow" is a reason to
 drop one driver from the workflow, which is a different and reversible change — the file can stay.
 
-**When it goes**, `scripts/e2e/cdp.mjs` and `scripts/e2e/drive.mjs` go together,
-`scripts/e2e/defects.mjs` stays (both drivers share it), `e2e.sh`'s `--driver` flag becomes
-unnecessary, and `E2eDriverTests`' cross-driver assertions need rewriting rather than deleting —
-their own messages say so.
+**What went, and what moved back.** `scripts/e2e/cdp.mjs` and `scripts/e2e/drive.mjs` went
+together; `scripts/e2e/defects.mjs`, `seed.mjs` and `process.sh` stay, because the twins, the seed
+and the process handling were never a driver's. `e2e.sh` lost its `--driver` flag and its
+"skipped: this driver does not run" arms, and its twin/check comparison is equality in both
+directions again — the orphan direction had moved to `E2eDriverTests` because one script running
+one of two drivers could not tell "no driver has this check" from "not this one", and with one
+driver running every check the two sets are the same claim. `E2eDriverTests` reads the one driver
+now and refuses either deleted file back by name. `build.yml` is three jobs.
 
 #### The argument this item was sharpened by, which is why stage one was worth more than it claimed
 
