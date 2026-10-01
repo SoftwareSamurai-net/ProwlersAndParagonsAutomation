@@ -3,13 +3,16 @@ using System.Text.RegularExpressions;
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
-/// Holds the two end-to-end drivers to the rules that make them worth having.
+/// Holds the end-to-end driver to the rules that make it worth having.
 ///
-/// <para>There are two: <c>scripts/e2e/drive.mjs</c>, the hand-rolled DevTools Protocol client that
-/// runs in CI today, and <c>tests/e2e</c>, the Playwright one being built beside it.
-/// <c>PROGRESS.md</c> item 10 carries the condition under which the first is retired. Until then
-/// both exist, and two invariants that used to be one script's business are now a claim about the
-/// pair — which is what this file is for.</para>
+/// <para><b>There used to be two drivers, and this file used to hold a claim about the pair.</b>
+/// <c>scripts/e2e/drive.mjs</c> was a hand-rolled DevTools Protocol client that ran in CI
+/// alongside <c>tests/e2e</c>, the Playwright one. <c>PROGRESS.md</c> item 10 carried the
+/// condition under which the first was retired — twenty consecutive green <c>Build</c> runs in
+/// which the two never disagreed, reached on 2026-09-30 at run 36674185863 — and it was met.
+/// <c>scripts/e2e/drive.mjs</c> and <c>scripts/e2e/cdp.mjs</c> are gone, <c>tests/e2e</c> is the
+/// only driver, and the assertions below are about it alone; <see cref="TheRetiredDriverDoesNotComeBack"/>
+/// is what is left of the pair.</para>
 ///
 /// <para><b>What a source scan here can and cannot do, said plainly because <c>CLAUDE.md</c>
 /// requires it.</b> A denylist of spellings cannot make a verdict honest: <c>MustNotShow</c> banned
@@ -23,11 +26,14 @@ public sealed class E2eDriverTests
 {
     private static string RepoRoot => RulesFixture.RepoRoot;
 
-    private static string NodeDriverPath =>
-        Path.Combine(RepoRoot, "scripts", "e2e", "drive.mjs");
-
     private static string DefectsPath =>
         Path.Combine(RepoRoot, "scripts", "e2e", "defects.mjs");
+
+    private static string RetiredDriveMjsPath =>
+        Path.Combine(RepoRoot, "scripts", "e2e", "drive.mjs");
+
+    private static string RetiredCdpMjsPath =>
+        Path.Combine(RepoRoot, "scripts", "e2e", "cdp.mjs");
 
     private static string PlaywrightDriverDirectory =>
         Path.Combine(RepoRoot, "tests", "e2e");
@@ -71,7 +77,7 @@ public sealed class E2eDriverTests
     /// and it has shipped four times.
     /// </summary>
     [Fact]
-    public void TheScanReallyReadsBothDrivers()
+    public void TheScanReallyReadsTheDriver()
     {
         var sources = PlaywrightSources();
 
@@ -81,11 +87,6 @@ public sealed class E2eDriverTests
             + $"{PlaywrightDriverDirectory}. If it has been moved or retired, fix this path — do "
             + "not lower the number, because every other assertion in this file is an absence and "
             + "an empty scan satisfies all of them.");
-
-        Assert.True(File.Exists(NodeDriverPath),
-            $"{NodeDriverPath} is gone. If the hand-rolled driver has been retired — see "
-            + "PROGRESS.md item 10 for the condition — then the cross-driver assertions below need "
-            + "rewriting rather than deleting.");
 
         // **And the comment stripper has to work in both directions, which is a sharper control
         // than "it left something behind".** `Harness.cs` states the prohibition in its own doc
@@ -128,14 +129,6 @@ public sealed class E2eDriverTests
                 offenders.Add(Path.GetFileName(path));
         }
 
-        // The Node driver has no comments to strip in the same way, and its own header states the
-        // rule in prose — so it is matched on the call shape rather than the bare name.
-        if (Regex.IsMatch(File.ReadAllText(NodeDriverPath), Regex.Escape(spelling) + @"\s*\(",
-                RegexOptions.None, TimeSpan.FromSeconds(5)))
-        {
-            offenders.Add("scripts/e2e/drive.mjs");
-        }
-
         Assert.True(
             offenders.Count == 0,
             $"{spelling} appears in {string.Join(", ", offenders)}, which {why}. Every state a "
@@ -150,8 +143,8 @@ public sealed class E2eDriverTests
     /// at one element: it does not scroll, does not wait for the element to settle, is not blocked
     /// by an overlay sitting on top, and would not notice a control that is unreachable by a
     /// pointer. It is the same mistake as reaching past the browser, one layer in.
-    /// <c>ILocator.ClickAsync</c> and <c>cdp.mjs</c>'s <c>Input.dispatchMouseEvent</c> both put the
-    /// event through the browser at real coordinates.</para>
+    /// <c>ILocator.ClickAsync</c> puts the event through the browser at real coordinates instead.
+    /// </para>
     /// </summary>
     [Fact]
     public void NoDriverClicksFromInsideThePage()
@@ -169,63 +162,31 @@ public sealed class E2eDriverTests
             if (inEvaluatedString.IsMatch(CodeOnly(path))) offenders.Add(Path.GetFileName(path));
         }
 
-        if (Regex.IsMatch(File.ReadAllText(NodeDriverPath), @"\.click\s*\(\s*\)",
-                RegexOptions.None, TimeSpan.FromSeconds(5)))
-        {
-            offenders.Add("scripts/e2e/drive.mjs");
-        }
-
         Assert.True(
             offenders.Count == 0,
             $"An element is clicked from inside the page in {string.Join(", ", offenders)}. Use "
-            + "ILocator.ClickAsync (Playwright) or page.click (the Node driver), both of which "
-            + "dispatch a real mouse event at real coordinates through the browser.");
+            + "ILocator.ClickAsync, which dispatches a real mouse event at real coordinates "
+            + "through the browser.");
     }
 
     /// <summary>
-    /// <b>Every check either driver reports has a deliberately-broken twin, and every twin belongs
+    /// <b>Every check the driver reports has a deliberately-broken twin, and every twin belongs
     /// to a check somebody drives.</b>
     ///
-    /// <para><c>scripts/e2e.sh</c> already compares these two sets — but it compares them for
-    /// <em>one</em> driver, the one it was told to run, and it can only do it after a full publish,
-    /// a server and a browser. With two drivers in the tree that leaves a gap it cannot see: a
-    /// check ported to one driver and not the other, or a twin added for a check only the retired
-    /// driver knows about. Both are silent, and both mean a green run is quoting a smaller suite
-    /// than the reader thinks.</para>
-    ///
-    /// <para>The union rather than the intersection, deliberately. During the port the Playwright
-    /// driver names checks it has not implemented — see <c>NotYetPorted</c>, which is red rather
-    /// than absent for this reason — so both drivers report the same five names today. What this
-    /// forbids is a sixth name appearing anywhere without a negative control behind it.</para>
+    /// <para><c>scripts/e2e.sh</c> already compares these two sets, in both directions, but it can
+    /// only do it after a full publish, a server and a browser. This holds the same claim from
+    /// source, without any of the three — a check added to <c>Program.cs</c> with no twin in
+    /// <c>defects.mjs</c>, or a twin naming a check nobody drives, is caught here for a second of
+    /// <c>dotnet test</c> instead of a whole run.</para>
     /// </summary>
     [Fact]
     public void EveryCheckHasATwinAndEveryTwinHasACheck()
     {
-        var driven = new SortedSet<string>(StringComparer.Ordinal);
-
-        // The Node driver's list: `['BOOT', checkBoot],`
-        foreach (Match m in Regex.Matches(File.ReadAllText(NodeDriverPath),
-                     @"\['([A-Z][A-Z0-9_]*)',\s*check", RegexOptions.None, TimeSpan.FromSeconds(5)))
-        {
-            driven.Add(m.Groups[1].Value);
-        }
-
-        var nodeCount = driven.Count;
-
-        Assert.True(nodeCount >= 5,
-            $"Read only {nodeCount} check names out of {NodeDriverPath}. Its CHECKS list has "
-            + "changed shape; fix this extraction rather than the assertion, because an empty set "
-            + "agrees with everything.");
-
-        // The Playwright driver's list: `Boot.Check,` and `NotYetPorted.Check("BUILD"),`, plus the
-        // name each check declares in `new("BOOT", Run)`.
+        // The Playwright driver's list: `Boot.Check,` and the name each check declares in
+        // `new("BOOT", Run)`.
         var program = CodeOnly(Path.Combine(PlaywrightDriverDirectory, "Program.cs"));
 
-        foreach (Match m in Regex.Matches(program, @"NotYetPorted\.Check\(""([A-Z][A-Z0-9_]*)""\)",
-                     RegexOptions.None, TimeSpan.FromSeconds(5)))
-        {
-            driven.Add(m.Groups[1].Value);
-        }
+        var driven = new SortedSet<string>(StringComparer.Ordinal);
 
         foreach (Match m in Regex.Matches(program, @"^\s*([A-Z][A-Za-z]*)\.Check,",
                      RegexOptions.Multiline, TimeSpan.FromSeconds(5)))
@@ -240,8 +201,14 @@ public sealed class E2eDriverTests
             driven.Add(name!);
         }
 
-        Assert.True(driven.Count >= nodeCount,
-            "The Playwright driver's check list could not be read; fix the extraction.");
+        // **The positive control.** A `Checks` list that has moved or been renamed away reads as
+        // zero driven checks, which would satisfy "every driven check has a twin" by having
+        // nothing to check at all — the same failure shape this whole class exists to catch one
+        // level up.
+        Assert.True(driven.Count >= 5,
+            $"Read only {driven.Count} check names out of {PlaywrightDriverDirectory}'s Program.cs "
+            + "and Checks/*.cs. This driver's check list has changed shape; fix this extraction "
+            + "rather than the assertion, because an empty set agrees with everything.");
 
         // The twins: `check: 'BOOT',`
         var twinned = new SortedSet<string>(
@@ -267,6 +234,32 @@ public sealed class E2eDriverTests
             $"These twins name a check no driver runs: {string.Join(", ", orphaned)}. "
             + "scripts/e2e.sh would fail the run on this, after a publish, a server and a browser; "
             + "it costs a second here.");
+    }
+
+    /// <summary>
+    /// <b>The retired driver does not come back.</b>
+    ///
+    /// <para><c>PROGRESS.md</c> item 10 named the condition for deleting
+    /// <c>scripts/e2e/drive.mjs</c> and <c>scripts/e2e/cdp.mjs</c> — twenty consecutive green
+    /// <c>Build</c> runs on <c>main</c> in which the hand-rolled driver and the Playwright one
+    /// never disagreed, reached on 2026-09-30 at run 36674185863 — and they were deleted once it
+    /// was. A file existing at either path again is the failure this guards: not a lint rule on
+    /// style, a fact about whether the deletion this item recorded actually happened and stayed
+    /// happened.</para>
+    /// </summary>
+    [Fact]
+    public void TheRetiredDriverDoesNotComeBack()
+    {
+        Assert.False(File.Exists(RetiredDriveMjsPath),
+            $"{RetiredDriveMjsPath} exists again. PROGRESS.md item 10 records it deleted once "
+            + "twenty consecutive green Build runs on main agreed the Playwright driver replaced "
+            + "it (reached 2026-09-30, run 36674185863) — if it is back, either the retirement was "
+            + "reverted by mistake or this is a second hand-rolled driver that needs its own "
+            + "review, not a restoration of the first.");
+
+        Assert.False(File.Exists(RetiredCdpMjsPath),
+            $"{RetiredCdpMjsPath} exists again. PROGRESS.md item 10 retired this beside "
+            + "scripts/e2e/drive.mjs, not separately — see the message above.");
     }
 
     /// <summary>

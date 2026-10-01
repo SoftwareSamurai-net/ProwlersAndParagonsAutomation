@@ -34,9 +34,10 @@ public static class SettingsMenu
         await Open(harness);
 
         // A real click through Playwright's own locator, not an evaluated `el.click()` — anchored
-        // so it matches the button whose text is exactly `label`, the same exact match `drive.mjs`
-        // did by hand with `.find(b => b.textContent.trim() === label)`. A plain `HasText` string
-        // is a substring match and "Dark" would also hit a hypothetical "Dark red" button.
+        // so it matches the button whose text is exactly `label`, the same exact match the retired
+        // hand-rolled driver did by hand with `.find(b => b.textContent.trim() === label)`. A plain
+        // `HasText` string is a substring match and "Dark" would also hit a hypothetical "Dark red"
+        // button.
         var button = harness.Page.Locator($".settings-menu-list .{group} button")
             .Filter(new() { HasTextRegex = new Regex($"^{Regex.Escape(label)}$") });
 

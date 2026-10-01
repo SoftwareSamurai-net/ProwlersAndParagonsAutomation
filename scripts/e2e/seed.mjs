@@ -19,7 +19,7 @@
 // shipped bundle, no secret, no localhost test and nothing to compile out, which is the whole
 // difference between this and the authentication seam the original stage-two plan called for.
 //
-// **And it does not weaken the rule the drivers obey.** That rule is about the *browser*: no
+// **And it does not weaken the rule the driver obeys.** That rule is about the *browser*: no
 // `localStorage.setItem` to arrange a state, no calling into a component, no `el.click()` from
 // inside the page — because a harness that sets up its own world stops answering "is this reachable
 // by an ordinary person doing an ordinary thing". A reader whose mail has arrived is an ordinary
@@ -32,11 +32,12 @@
 // written down. Writing a row needs four things a driver has no business knowing: the pinned
 // wrangler version, the database id out of `d1/wrangler.toml`, the `--persist-to` directory the
 // server was started against, and the migration state. `scripts/e2e.sh` already owns all four —
-// it parses the version, starts the server and made the directory. **And there are two drivers**,
-// so a seed in one of them is a seed the other cannot have; the arithmetic that decides which
-// twins a run exercises would then depend on which driver was asked for, in a second place.
+// it parses the version, starts the server and made the directory. That held for a second reason
+// too, while there were two drivers: a seed inside one of them would have been a seed the other
+// could not have, which would have made the twins a run exercises depend on which driver was
+// asked for, in a second place. There is one driver now, but the first reason stands on its own.
 //
-// So the shell seeds and hands each driver *what an email would have handed a reader*: a raw token
+// So the shell seeds and hands the driver *what an email would have handed a reader*: a raw token
 // and the address it was minted for, in the environment. A driver still knows a URL and some
 // opaque strings, which is the property that made it easy to reason about.
 //

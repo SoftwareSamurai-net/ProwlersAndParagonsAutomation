@@ -75,8 +75,8 @@ redacted_tail() {
 # an artifact of the same bytes unredacted hands back whatever those arms were careful not to
 # print, by the other door. The measurement above applies here too — the pinned wrangler logs no
 # query string, so a run today has nothing to redact — and so does its conclusion: that is a
-# property of one version, and this directory now also holds wrangler's own debug logs and both
-# drivers' output.
+# property of one version, and this directory now also holds wrangler's own debug logs and the
+# driver's output.
 #
 # **Called from `e2e.sh`'s EXIT trap, beside deleting `.e2e/seed.json`, and for the same reason.**
 # That file is removed at the end of the run that minted its tokens rather than at the start of the

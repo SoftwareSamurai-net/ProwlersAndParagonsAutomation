@@ -5,7 +5,7 @@
 // `say(true` in a browser harness so a verdict could not be hard-coded; `|| true` is textually
 // distinct, walked straight through it, and made that harness report PASS against a strip which
 // had moved the full 483px it was supposed to have stayed pinned against. The spelling space is
-// unbounded. So each check in scripts/e2e/drive.mjs gets a **negative control that is a whole
+// unbounded. So each check the driver (`tests/e2e`) runs gets a **negative control that is a whole
 // second site**: the same published output with one documented line changed, driven by the
 // byte-identical harness, and required to say FAIL.
 //
@@ -16,8 +16,8 @@
 //   copy of the real site that passes for the wrong reason. `WithDefect` in
 //   `tests/ProwlersAndParagons.Web.Tests/ProofPages.cs` has exactly this shape for exactly this
 //   reason; this is the same idea against a published directory rather than a single file.
-// - **A twin must be broken in the *site*, never in the harness.** The driver is one file and
-//   both runs execute it unchanged. A twin with a doctored script proves nothing at all.
+// - **A twin must be broken in the *site*, never in the harness.** The driver is unchanged between
+//   the real run and a twin's. A twin with a doctored driver proves nothing at all.
 //
 // **Each defect is real rather than convenient.** Every one of the six site defects below is a
 // fault this project could plausibly ship: a root element renamed, a storage wrapper that swallows
@@ -50,14 +50,13 @@
 // AND EACH TWIN DECLARES *WHICH KIND* OF RED VERDICT IT MUST PRODUCE, BECAUSE "SAYS FAIL" IS NOT
 // THE SAME PROPERTY AS "FAILS FOR THE REASON IT CLAIMS".
 //
-// **`scripts/e2e.sh` used to accept any `FAIL` line at all**, and the drivers mint three kinds:
-// `[CONTROL]` (the work did not happen), `[OUTCOME]` (it happened and was wrong) and, in the
-// Playwright driver, `[HARNESS]` (this harness has a bug). `Runner.cs`'s own comment says a twin
-// whose only red verdict is a `[HARNESS]` one *has not been watched to fail for the reason it
-// claims* — and nothing enforced it, so an unset environment slot, a selector that throws or a
-// `Collection was modified` race would all have read as a working negative control. That is the
-// same failure shape as a harness that never ran being read as a harness that passed, one level
-// in.
+// **`scripts/e2e.sh` used to accept any `FAIL` line at all**, and the driver mints three kinds:
+// `[CONTROL]` (the work did not happen), `[OUTCOME]` (it happened and was wrong) and `[HARNESS]`
+// (this harness has a bug). `Runner.cs`'s own comment says a twin whose only red verdict is a
+// `[HARNESS]` one *has not been watched to fail for the reason it claims* — and nothing enforced
+// it, so an unset environment slot, a selector that throws or a `Collection was modified` race
+// would all have read as a working negative control. That is the same failure shape as a harness
+// that never ran being read as a harness that passed, one level in.
 //
 // **So `expects` is part of the declaration**, `--list` prints it, and `scripts/e2e.sh` requires
 // the twin's `FAIL` line to carry exactly that kind. A twin that goes red the other way is
@@ -100,7 +99,7 @@ import { pathToFileURL } from 'node:url';
  *
  * <b>Every value below was set by watching the twin fail, never by reading it</b>, which is why
  * two of them are not what a reader would guess: `boot-app-never-mounts` reports `[OUTCOME]`
- * because both drivers' wait for the app to replace its boot screen throws an ordinary failure,
+ * because the driver's wait for the app to replace its boot screen throws an ordinary failure,
  * and `store-writes-nothing` reports `[CONTROL]` because `BUILD`'s "the application wrote this
  * character down" *is* its positive control. Do not adjust one to make a run green; run the twin,
  * read the verdict, and change the code or the declaration to agree with what was measured.

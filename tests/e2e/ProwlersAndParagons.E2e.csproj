@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!-- Drives the assembled application with Playwright, and measures its accessibility with
-         axe-core. The sixth thing that drives this project and the second that drives the *whole*
-         of it: `scripts/e2e/drive.mjs` is the first, is green, and stays until this one has a
-         track record — see PROGRESS.md item 10 for the condition under which it is retired.
+         axe-core. This used to run beside a second driver, `scripts/e2e/drive.mjs` over a
+         hand-rolled DevTools Protocol client, behind an `e2e.sh` driver flag; PROGRESS.md item 10
+         named the condition for retiring the older one: twenty consecutive green Build runs with
+         the two never disagreeing, and it was met. `drive.mjs` and its `cdp.mjs` are gone; this is
+         the only driver now.
 
          **This project references nothing in the repository, and that is the answer to "where
          does it live".** The obvious alternative was folding it into

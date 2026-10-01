@@ -3,28 +3,25 @@
 # dev`, in real Chrome.
 #
 #   ./scripts/e2e.sh                    # publish, serve, drive, and drive every twin
-#   ./scripts/e2e.sh --driver dotnet    # the same, with the Playwright driver
 #   ./scripts/e2e.sh --real-only        # skip the negative controls (NOT a full run — see below)
 #
 # ------------------------------------------------------------------------------------------------
-# THERE ARE TWO DRIVERS AND THIS SCRIPT IS NEITHER OF THEM.
+# THIS SCRIPT IS NOT THE DRIVER.
 #
 # What this file owns is everything *around* a drive: publishing, parsing the wrangler version out
 # of deploy.yml, migrating and seeding a local D1, starting the server from a directory where
 # wrangler finds `functions/`, building each deliberately-broken twin, driving it, and deciding
-# what the verdicts mean. A driver takes a URL, and two of them also take the raw sign-in tokens
-# this script seeded — which is what a reader's mail would have handed them, and nothing more.
-# That split is the whole reason a second driver cost a flag here rather than a rewrite.
+# what the verdicts mean. The driver — `tests/e2e`, over Microsoft.Playwright — takes a URL and the
+# raw sign-in tokens this script seeded, which is what a reader's mail would have handed them, and
+# nothing more. Nine checks: `BOOT`, `BUILD`, `THEME`, `PALETTE` and `ROUTES`, plus `A11Y` — axe-core
+# run inside the page — and the three signed-in ones, `ADMIN`, `RULES` and `ACCOUNT_SAVE`, each of
+# which opens a second browser context.
 #
-#   node    scripts/e2e/drive.mjs — a hand-rolled DevTools Protocol client. BOOT, BUILD, THEME,
-#           PALETTE and ROUTES: five. The default, and the one with a track record.
-#   dotnet  tests/e2e — Microsoft.Playwright. The same five plus four the hand-rolled client
-#           cannot do at all: `A11Y`, which runs axe-core inside the page, and the three
-#           signed-in checks, which need a second browser context apiece. Nine.
-#
-# **Neither is retired and the second has not replaced the first.** `PROGRESS.md` item 10 states
-# the condition under which `scripts/e2e/` goes, and removing a working harness before its
-# replacement has a record is how an upgrade becomes a regression.
+# **There used to be a second driver, `scripts/e2e/drive.mjs` over a hand-rolled DevTools Protocol
+# client, and it is retired.** `PROGRESS.md` item 10 carried the condition — twenty consecutive
+# green `Build` runs with the two drivers agreeing — and the count was reached without a single
+# disagreement between them. `scripts/e2e/cdp.mjs` and `drive.mjs` are gone; `scripts/e2e/defects.mjs`
+# stays, because the twins never belonged to a driver.
 #
 # ------------------------------------------------------------------------------------------------
 # STAGE TWO: THE SERVER NOW BUNDLES `functions/` AND BINDS A LOCAL D1, AND A READER IS SIGNED IN
@@ -83,19 +80,16 @@
 # ------------------------------------------------------------------------------------------------
 # NO npm DEPENDENCY, AND NO package.json.
 #
-# This repository has never had one. `scripts/visual/png.mjs` is a hand-written PNG decoder rather
-# than `pixelmatch` for the same reason, and the trade is the same here: Puppeteer is a large tree
-# that downloads a second Chrome, and what is actually needed is a WebSocket and a dozen DevTools
-# methods. `scripts/e2e/cdp.mjs` is that, against Node's own global `WebSocket`.
-#
-# **The Playwright driver does not break that and it is worth saying why, because it obviously
-# looks as though it should.** Both its packages are NuGet, restored by the `dotnet restore` this
-# repository already runs — measured at +4 seconds on the runner. And it does not download a
-# browser: `Channel = "chrome"` launches the Google Chrome already on the machine, the same one
-# `cdp.mjs` finds and the same one `ubuntu-latest` ships. So there is no `playwright install`
-# step, nothing to cache, and no *third* renderer beside the runner's Chrome and the digest-pinned
-# selenium/standalone-chrome the pixel goldens need — which docs/guide/testing.md records as
-# costing 32,462 pixels of disagreement on a single page.
+# This repository has never had one, and the Playwright driver does not start one — it is worth
+# saying why, because a browser-automation package obviously looks as though it should. Both its
+# NuGet packages are restored by the `dotnet restore` this repository already runs — measured at
+# +4 seconds on the runner. And it does not download a browser: `Channel = "chrome"` launches the
+# Google Chrome already on the machine, the same one `ubuntu-latest` ships. So there is no
+# `playwright install` step, nothing to cache, and no *third* renderer beside the runner's Chrome
+# and the digest-pinned selenium/standalone-chrome the pixel goldens need — which
+# docs/guide/testing.md records as costing 32,462 pixels of disagreement on a single page.
+# `scripts/visual/png.mjs` is a hand-written PNG decoder rather than `pixelmatch` for the same
+# reason this repository has never had a `package.json`.
 #
 # ------------------------------------------------------------------------------------------------
 # EVERY CHECK HAS A DELIBERATELY-BROKEN TWIN, AND THAT IS NOT OPTIONAL.
@@ -110,7 +104,7 @@
 #
 #   - **A twin must SAY FAIL**, not merely fail to say PASS. Three of this repository's four
 #     historical guard faults were a harness that never ran being read as a harness that passed,
-#     so `drive.mjs` catches inside each check and prints a verdict either way.
+#     so the driver catches inside each check and prints a verdict either way.
 #   - **And it must say it for the reason it claims.** Each twin declares `expects: 'control'` or
 #     `expects: 'outcome'` in `defects.mjs`, and its `FAIL` line has to carry that kind. Any FAIL
 #     used to count — including `[HARNESS]`, which is the *driver* having a bug and which
@@ -118,12 +112,15 @@
 #     environment slot the shell forgot to seed prints one, and read as a green negative control.
 #   - **A twin throws if its documented line has moved**, so it cannot quietly stop reproducing
 #     its defect and start passing for the wrong reason. Same shape as `ProofPages.WithDefect`.
-#   - **Every check must have a twin.** The check names the real run reported are compared against
-#     the check names the twins cover, and a check with no twin fails this script. Adding one
-#     without a negative control is a red run rather than a silence. The *converse* — a twin whose
-#     check nobody runs — moved to `E2eDriverTests` when the second driver arrived, because this
-#     script runs one driver and cannot tell "no driver has this check" from "not this one". The
-#     comment at that comparison says so at length; do not restore the equality test.
+#   - **Every check must have a twin, and every twin must belong to a check that runs — checked
+#     both ways.** The check names the real run reported are compared against the check names the
+#     twins cover: a driven check with no twin fails the run, and so does an orphan twin naming a
+#     check nobody drove. **This was one direction only while there were two drivers**, because the
+#     two did not run the same checks — the hand-rolled client had no `A11Y` and no second browser
+#     context — so equality would have failed every run of it over a twin the other driver covered
+#     perfectly well. With one driver running every check, the two sets are the same claim, and the
+#     equality is restored. `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck` still holds the
+#     same claim from source, without a publish, a server or a browser.
 #
 # `--real-only` exists for the ten-second local loop while a check is being written. It prints
 # that the run proved nothing about whether the checks can fail, and CI never passes it.
@@ -225,7 +222,7 @@ first_port=8788
 # **This file capped everything except the thing it exists to run, which is the same gap it just
 # fixed one level down.** `scripts/visual-regression.sh` bounded the *comparison* and not the
 # *capture*, and a wedged Chrome duly spent 1666 seconds saying nothing and cancelled the Build
-# job — see `docs/guide/hosting.md`. Every wait inside `drive.mjs` is bounded (45s for a render,
+# job — see `docs/guide/hosting.md`. Every wait inside the driver is bounded (45s for a render,
 # 30s for a navigation) and `start_server` gives up after 180s, but nothing bounded a *drive*:
 # eight servers times up to nine checks times two waits is well past the 30-minute job cap, so a
 # browser that stopped answering here would cancel the job in exactly the same way.
@@ -235,9 +232,8 @@ first_port=8788
 #
 # 300s against a measured worst case of about 105s — that is the `base-href-dropped` twin, which
 # spends two deliberate 45-second timeouts proving deep links cannot load the framework. The real
-# site is about 26 seconds over the node driver's five checks and about 52 over the Playwright
-# driver's nine. So this is not a performance budget; it is far enough above the honest cost that a
-# loaded runner cannot trip it.
+# site is about 52 seconds over the driver's nine checks. So this is not a performance budget; it
+# is far enough above the honest cost that a loaded runner cannot trip it.
 #
 # `-k 10s` escalates to SIGKILL, because a driver killed mid-run does not get to run its own
 # `close()`. Its Chrome can outlive it: on a runner that is collected when the job ends — the
@@ -265,44 +261,25 @@ else
   exit 1
 fi
 
-# **There are two drivers, and which one runs is an argument rather than a guess.**
-#
-# `scripts/e2e/drive.mjs` is the hand-rolled DevTools Protocol client this script was written
-# for. `tests/e2e` is a C# one over Microsoft.Playwright, which drives the same five checks plus
-# four the other cannot: an axe-core accessibility check and the three signed-in ones, which need
-# a second browser context apiece. Both print the same three lines this script reads, which is the
-# only contract between them. **Neither is retired**;
-# `PROGRESS.md` item 10 carries the condition under which the first one is, and until that is met
-# the argument for keeping it is that it is the one with a track record.
+# **One driver: `tests/e2e`, over Microsoft.Playwright.** It used to share this script with
+# `scripts/e2e/drive.mjs`, a hand-rolled DevTools Protocol client, behind a `--driver` flag; that
+# flag is gone with the driver it selected — `PROGRESS.md` item 10 named the condition for
+# retiring it and the condition was met.
 #
 # **`PP_E2E_DRIVER` stays, and is still only a test seam** — same reason as `PP_CHROME_BIN` in
 # scripts/visual-regression.sh and `WRANGLER_BIN` in scripts/apply-migrations.sh: a driver that
 # never returns cannot be arranged with a real one, and a deadline that has never been watched to
-# fire is a claim rather than a guard. **It cannot carry a real driver any more, and that is why
-# `--driver` exists.** `read -r -a` word-splits, this repository's own checkout is under
-# "Personal Projects", and the .NET driver's path therefore tears in half at the space — so the
-# seam that was fine for `node scripts/e2e/drive.mjs` silently could not express the second
-# driver at all. `--driver` builds the array itself and never splits a path.
+# fire is a claim rather than a guard. It is read as an array (`read -r -a`) rather than a string,
+# because this repository's own checkout is under "Personal Projects" and a bare string would tear
+# the .NET driver's path in half at the space.
 real_only=0
-driver_name=node
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --real-only) real_only=1 ;;
-    --driver)
-      shift
-      driver_name="${1:-}"
-      case "$driver_name" in
-        node|dotnet) ;;
-        *) echo "error: --driver takes 'node' or 'dotnet', not '${driver_name}'" >&2; exit 2 ;;
-      esac
-      ;;
     -h|--help)
-      echo "usage: $0 [--driver node|dotnet] [--real-only]"
+      echo "usage: $0 [--real-only]"
       echo ""
-      echo "  --driver      which harness drives the site. 'node' is scripts/e2e/drive.mjs, the"
-      echo "                default and the one with a track record; 'dotnet' is tests/e2e, the"
-      echo "                Playwright one, which also runs the accessibility check."
       echo "  --real-only   drive the real site and skip the twins. NOT a full run: it proves"
       echo "                nothing about whether any check is able to fail."
       echo ""
@@ -389,7 +366,7 @@ fi
 # is `npx --yes wrangler@<version>` and word-splits safely because it contains no path.
 if [ -n "${PP_E2E_DRIVER:-}" ]; then
   read -r -a driver <<< "$PP_E2E_DRIVER"
-elif [ "$driver_name" = "dotnet" ]; then
+else
   e2e_dll="$root/tests/e2e/bin/Release/net10.0/ProwlersAndParagons.E2e.dll"
 
   # **Built here rather than assumed, and the build output is not a verdict.** `dotnet run` would
@@ -408,8 +385,6 @@ elif [ "$driver_name" = "dotnet" ]; then
   }
 
   driver=(dotnet "$e2e_dll")
-else
-  driver=(node "$root/scripts/e2e/drive.mjs")
 fi
 
 if [ "${PP_E2E_SITE_ALREADY_BUILT:-0}" != "1" ]; then
@@ -974,24 +949,22 @@ fi
 checks_run=$(grep -o '^E2E CHECK [A-Z][A-Z0-9_]*' "$real_log" | sed 's/^E2E CHECK //' | sort -u)
 checks_twinned=$(printf '%s\n' "${defect_lines[@]}" | cut -d: -f2 | sort -u)
 
-# **Only one direction is checked here now, and the other moved. Read this before restoring it.**
+# **Both directions are checked, and this is the equality this script held before a second driver
+# arrived — read this before weakening it again.**
 #
-# It used to require the two sets to be *equal*. That was right while there was one driver. There
-# are two — `scripts/e2e/drive.mjs` and `tests/e2e` — and they do not run the same checks: the
-# Playwright one adds `A11Y`, which needs axe-core and which the hand-rolled client cannot do. So
-# equality would fail every run of the node driver, for a twin that is covered perfectly well by
-# the other, and the only ways out of that are to delete a negative control or to keep two twin
-# lists. Both are worse than what was lost.
+# It used to require only the direction whose failure costs a missed regression, because there
+# were two drivers that did not run the same checks: the Playwright one added `A11Y` and three
+# signed-in checks the hand-rolled client had no way to do at all, so requiring equality would have
+# failed every run of that driver over a twin the other covered perfectly well. The orphan
+# direction — a twin naming a check nobody runs — moved to
+# `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck` for exactly that reason: it reads *both*
+# drivers' check lists and `defects.mjs` as source, which is strictly more than this script, running
+# one driver, could ever see.
 #
-# **What is kept is the direction whose failure costs a missed regression**: a check that is
-# driven and has no twin has never been watched to fail, and joins the suite as a claim.
-#
-# **What moved is the orphan direction** — a twin naming a check nobody runs — into
-# `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck`, which reads *both* drivers' check
-# lists and `defects.mjs` as source. That is strictly more than this script could ever see: it
-# runs one driver, so it cannot tell "no driver has this check" from "not this one". And it costs
-# a second in `dotnet test` instead of a publish, a server and a browser.
+# **With one driver running every check, the two sets are the same claim**, so the equality is
+# restored here: an orphan twin fails this run again, not only the source-reading one.
 unproven=$(comm -23 <(echo "$checks_run") <(echo "$checks_twinned"))
+orphaned=$(comm -13 <(echo "$checks_run") <(echo "$checks_twinned"))
 
 if [ -n "$unproven" ]; then
   echo "::error::these checks were driven and have no deliberately-broken twin:"
@@ -1000,6 +973,16 @@ if [ -n "$unproven" ]; then
   echo "::error::  twinned: $(echo "$checks_twinned" | tr '\n' ' ')"
   echo "::error::A check with no twin has never been watched to fail. Add one to"
   echo "::error::scripts/e2e/defects.mjs, or remove the check."
+  exit 1
+fi
+
+if [ -n "$orphaned" ]; then
+  echo "::error::these twins name a check the driver never ran:"
+  echo "::error::  $(echo "$orphaned" | tr '\n' ' ')"
+  echo "::error::  driven:  $(echo "$checks_run" | tr '\n' ' ')"
+  echo "::error::  twinned: $(echo "$checks_twinned" | tr '\n' ' ')"
+  echo "::error::A twin proves nothing about a check nobody drove. Remove it from"
+  echo "::error::scripts/e2e/defects.mjs, or fix the check name."
   exit 1
 fi
 
@@ -1132,15 +1115,6 @@ drive_twin() {
     say_server_state "the drive of twin '$name'"
     twin_failures=$((twin_failures + 1))
   fi
-}
-
-# **A twin this driver cannot exercise is skipped and said out loud, never counted.** The other
-# driver covers it, and `E2eDriverTests` is what proves *some* driver does. Reported so that a
-# run's own output says which negative controls it did and did not exercise, because "all twins
-# turned their check red" over a silently smaller list is this repository's oldest failure shape
-# wearing a green tick.
-this_driver_runs() {
-  echo "$checks_run" | grep -qx "$1"
 }
 
 # ------------------------------------------------------------------------------------------------
@@ -1295,11 +1269,6 @@ for line in "${defect_lines[@]}"; do
 
   [ "$kind" = "site" ] || continue
 
-  if ! this_driver_runs "$check"; then
-    echo "  twin '$name' — skipped: this driver does not run $check"
-    continue
-  fi
-
   port="$(next_free_port "$((port + 1))")"
   start_twin_job "$name" "$check" "$port" run_site_twin "$name" "$check" "$port" "$expects"
 done
@@ -1319,20 +1288,13 @@ done
 seed_twins=()
 for line in "${defect_lines[@]}"; do
   case "$line" in
-    *:seed:*) this_driver_runs "$(echo "$line" | cut -d: -f2)" && seed_twins+=("$line") ;;
+    *:seed:*) seed_twins+=("$line") ;;
   esac
 done
 
 seed_server_started=0
 if [ "${#seed_twins[@]}" -eq 0 ]; then
-  for line in "${defect_lines[@]}"; do
-    case "$line" in
-      *:seed:*)
-        echo "  twin '$(echo "$line" | cut -d: -f1)' — skipped: this driver does not run" \
-          "$(echo "$line" | cut -d: -f2)"
-        ;;
-    esac
-  done
+  : # No seed twins declared — nothing to drive against a shared server.
 else
   wait_for_a_slot
   port="$(next_free_port "$((port + 1))")"

@@ -12,10 +12,9 @@ namespace ProwlersAndParagons.E2e;
 /// but the row, which is what an email would have caused.</b></para>
 ///
 /// <para><b>Not knowing where the row came from is the point.</b> A driver that wrote to a database
-/// would have stopped being a thing that only knows a URL, and there are two drivers here, so a
-/// seed inside one is a seed the other cannot have. The shell owns the wrangler version, the
-/// database id and the <c>--persist-to</c> directory already; it hands each drive the token in the
-/// environment, and a check treats it as opaque.</para>
+/// would have stopped being a thing that only knows a URL. The shell owns the wrangler version,
+/// the database id and the <c>--persist-to</c> directory already; it hands each drive the token in
+/// the environment, and a check treats it as opaque.</para>
 ///
 /// <para><b>A missing token is a failure and never a skip.</b> A signed-in check that quietly did
 /// nothing because its environment was empty would be the exact shape this whole harness exists to
@@ -48,9 +47,9 @@ public static class Account
             throw new InvalidOperationException(
                 $"no sign-in token was seeded for {slot}: PP_E2E_{slot}_TOKEN and "
                 + $"PP_E2E_{slot}_EMAIL are what scripts/e2e.sh puts in front of a drive after it "
-                + "has migrated and seeded the local D1. Run this through ./scripts/e2e.sh "
-                + "--driver dotnet rather than against a bare URL — a signed-in check with nothing "
-                + "to sign in as is a failure and must never be a skip.");
+                + "has migrated and seeded the local D1. Run this through ./scripts/e2e.sh rather "
+                + "than against a bare URL — a signed-in check with nothing to sign in as is a "
+                + "failure and must never be a skip.");
         }
 
         // What `worker/auth.js` names an account on its first sign-in: the address up to the `@`.

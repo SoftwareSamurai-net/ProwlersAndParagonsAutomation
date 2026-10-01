@@ -32,8 +32,8 @@ public sealed class ControlFailedException(string what)
 ///
 /// <para><b>Clicking is <c>ILocator.ClickAsync</c> and never an evaluated <c>el.click()</c>.</b>
 /// Playwright dispatches <c>Input.dispatchMouseEvent</c> at the element's centre through the
-/// browser, which is what <c>scripts/e2e/cdp.mjs</c> hand-rolls — and adds actionability waits on
-/// top, so a click at a coordinate the element has not settled on yet is retried rather than lost.
+/// browser, and adds actionability waits on top, so a click at a coordinate the element has not
+/// settled on yet is retried rather than lost.
 /// </para>
 /// </summary>
 public sealed class Harness(IPage page, string baseUrl, IBrowser? browser = null)

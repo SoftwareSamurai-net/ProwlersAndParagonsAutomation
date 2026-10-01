@@ -108,9 +108,8 @@ public static class Runner
     private enum Kind { Passed, Failed, ServerGone }
 
     /// <summary>
-    /// How long <see cref="ServerStoppedAnswering"/> gives the server to answer at all. The same
-    /// figure as <c>scripts/e2e/drive.mjs</c>'s <c>PROBE_TIMEOUT_MS</c>, for the same reason; that
-    /// probe's own comment carries the argument for it.
+    /// How long <see cref="ServerStoppedAnswering"/> gives the server to answer at all. See that
+    /// method's own doc comment for the argument behind the figure.
     /// </summary>
     private const int ProbeTimeoutMs = 10_000;
 
@@ -154,10 +153,10 @@ public static class Runner
     /// is only ever asked after a check has already failed — a site that cannot serve its front
     /// page in ten seconds has no verdict worth reading anyway.</para>
     ///
-    /// <para><b>The socket error is printed in its POSIX spelling</b>, which is what
-    /// <c>scripts/e2e/drive.mjs</c> gets from Node and prints. Two drivers describing one fact in
-    /// two vocabularies is how a reader comparing two runs concludes they saw different things.
-    /// </para>
+    /// <para><b>The socket error is printed in its POSIX spelling</b>, matching what the retired
+    /// hand-rolled driver got from Node and printed for the same failure — a fixed spelling for one
+    /// fact is what let a reader compare a run from each without concluding they saw different
+    /// things.</para>
     /// </summary>
     private static async Task<string?> ServerStoppedAnswering(string baseUrl)
     {
@@ -236,16 +235,15 @@ public static class Runner
     /// How the browser is started.
     ///
     /// <para><b><c>Channel = "chrome"</c> is the whole reason this does not add a third renderer to
-    /// the repository.</b> It launches the Google Chrome already on the machine — the same browser
-    /// <c>scripts/e2e/cdp.mjs</c> drives and the same one <c>ubuntu-latest</c> ships — instead of
-    /// the Chromium Playwright would otherwise download and version-manage itself. So there is no
-    /// <c>playwright install</c> step, nothing to cache, and no second Chrome whose disagreement
-    /// with the first would mean regenerating every pixel golden. <c>docs/guide/testing.md</c>
-    /// records what that disagreement costs: the digest-pinned Docker Chrome and the runner's own
-    /// Chrome differ on one proof page by 32,462 pixels.</para>
+    /// the repository.</b> It launches the Google Chrome already on the machine — the same one
+    /// <c>ubuntu-latest</c> ships — instead of the Chromium Playwright would otherwise download and
+    /// version-manage itself. So there is no <c>playwright install</c> step, nothing to cache, and
+    /// no second Chrome whose disagreement with the first would mean regenerating every pixel
+    /// golden. <c>docs/guide/testing.md</c> records what that disagreement costs: the digest-pinned
+    /// Docker Chrome and the runner's own Chrome differ on one proof page by 32,462 pixels.</para>
     ///
-    /// <para><c>PP_E2E_CHROME</c> overrides the path, the same seam <c>cdp.mjs</c> has and for the
-    /// same reason: <c>e2e.sh</c> has already looked and knows the answer on this machine.</para>
+    /// <para><c>PP_E2E_CHROME</c> overrides the path, because <c>e2e.sh</c> has already looked and
+    /// knows the answer on this machine.</para>
     /// </summary>
     private static BrowserTypeLaunchOptions Launch()
     {
@@ -254,11 +252,11 @@ public static class Runner
             Headless = true,
             Args =
             [
-                // The same flags cdp.mjs passes, and each is there for a runner rather than for a
-                // laptop: no GPU and no sandbox because a container has neither, a real /dev/shm
-                // size because the default one is 64 MB and Chrome crashes on it, and no
-                // background throttling because a headless tab is never foregrounded and a
-                // throttled timer is a check that waits out its deadline for no reason.
+                // Each of these is there for a runner rather than for a laptop: no GPU and no
+                // sandbox because a container has neither, a real /dev/shm size because the
+                // default one is 64 MB and Chrome crashes on it, and no background throttling
+                // because a headless tab is never foregrounded and a throttled timer is a check
+                // that waits out its deadline for no reason.
                 "--disable-gpu",
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
