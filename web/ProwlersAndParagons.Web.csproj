@@ -56,11 +56,29 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- The one assembly the trimmer needs told to keep everything: RulesRepository reads
-             every model in ProwlersAndParagonsAutomation.Engine through reflection-based
-             System.Text.Json, so the trimmer cannot see which properties a Deserialize<T> call
-             will ask for. Rooting it keeps every public member; Sheets and Web were measured
-             rooted too and the output did not change, so they are not named here. -->
+        <!-- **Cheap insurance, measured to be currently inert rather than the thing doing today's
+             work.** Removing this item and republishing (same SDK, same flags, this machine) gives
+             a ProwlersAndParagons.Engine.wasm that is byte-identical to the rooted one — 475,413
+             bytes either way, differing only in build-provenance metadata (the embedded PDB source
+             path, the informational version's +<sha> suffix, the PDB's RSDS GUID) — never in a
+             type or member name. The reason: every call site of RulesRepository's private
+             `Load<T>` helper passes a closed, concrete generic argument (`Load<List<PowerModel>>`,
+             `Load<ProModel>`, …), all inside that one file, so ILLink's own generic-instantiation
+             reachability analysis already resolves System.Text.Json's DynamicallyAccessedMembers
+             annotation on `JsonSerializer.Deserialize<T>` per concrete T it finds reachable —
+             keeping every model's public members whether or not the declaring assembly is rooted.
+             (Forcing PublishTrimmed+EnableTrimAnalyzer as *global* MSBuild properties — which,
+             unlike this project's own PublishTrimmed, reaches Engine's own compilation — does
+             surface IL2026 on Load<T>'s body, because the analyzer judges it from inside Engine
+             alone, where T is an unbound generic parameter with no caller in view; the linker,
+             working on the compiled IL of the whole app, sees the closed call sites instead and
+             is not fooled by the same thing.)
+
+             Kept anyway, rooted, as insurance against that mechanism changing — a future
+             refactor that routes a model through a non-generic or dynamically-typed path, or a
+             linker version that stops propagating the annotation this way — not because it is
+             presently what stops a model property from being trimmed away. Sheets and Web were
+             measured rooted too and the output did not change, so they are not named here. -->
         <TrimmerRootAssembly Include="ProwlersAndParagons.Engine" />
     </ItemGroup>
 
