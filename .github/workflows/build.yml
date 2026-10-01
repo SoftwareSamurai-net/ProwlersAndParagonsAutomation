@@ -57,25 +57,26 @@ concurrency:
 permissions:
   contents: read
 
-# **Four jobs, and the shape is a measurement.** This was one job of twenty-four steps at a
-# median 902 seconds on `main` (six green runs, 2026-09-23 to 2026-09-29). 627 of those were the
-# two browser drives — 207 for the node driver, 420 for the Playwright one — and they ran last,
-# after a build, a test suite and a set of proof harnesses that none of what they do reads. A drive
-# needs the published site, a checkout for `functions/` and the migrations, Node and the pinned
-# wrangler; it needs no `dotnet build`, no `dotnet test` and none of the proof pages. So the site
-# is published once, in a job of its own, and both drivers take it from there while `build` runs
-# the suites and the harnesses beside them. The wall is the longest of the four rather than their
-# sum, and each step reports what it reported before.
+# **Three jobs, and the shape is a measurement.** This was one job of twenty-four steps at a
+# median 902 seconds on `main` (six green runs, 2026-09-23 to 2026-09-29). 627 of those were two
+# browser drives it carried at the time — 207 for a hand-rolled DevTools Protocol client, 420 for
+# the Playwright one that has since replaced it (`PROGRESS.md` item 10) — and they ran last, after
+# a build, a test suite and a set of proof harnesses that none of what they do reads. A drive needs
+# the published site, a checkout for `functions/` and the migrations, Node and the pinned wrangler;
+# it needs no `dotnet build`, no `dotnet test` and none of the proof pages. So the site is published
+# once, in a job of its own, and the drive takes it from there while `build` runs the suites and the
+# harnesses beside it. The wall is the longest of the three rather than their sum, and each step
+# reports what it reported before.
 #
 # **What does not change:** every step that ran still runs, under the same command, and a red
 # anywhere is a red run — `gh run list` reads the same conclusion it always did, which is what
 # `PROGRESS.md` item 10's count of green runs is made of. What a reader loses is one log to
-# scroll; what they gain is a failing suite reported while the drives are still going rather than
+# scroll; what they gain is a failing suite reported while the drive is still going rather than
 # after.
 #
-# **What is duplicated is said once.** The wrangler-version and cache steps appear in three jobs
-# and `test-kill-tree.sh` in two — Actions has no YAML anchors — so the full comment sits on the
-# first occurrence and the others point at it.
+# **What is duplicated is said once.** The wrangler-version and cache steps appear in two jobs —
+# Actions has no YAML anchors — so the full comment sits on the first occurrence (`build`) and the
+# other points at it.
 jobs:
   build:
     name: Build (net10.0)
@@ -548,19 +549,19 @@ jobs:
     # The cap is explained on the `build` job.
     timeout-minutes: 30
 
-    # **The site both drives serve, published once.** The two e2e jobs used to reuse the publish
-    # `build` made after its tests, so both drove the bytes the deploy would upload, under the same
-    # `_headers` — see `PP_E2E_SITE_ALREADY_BUILT` on the drive steps. Publishing inside each e2e
+    # **The site the drive serves, published once.** The e2e job used to reuse the publish `build`
+    # made after its tests, so it drove the bytes the deploy would upload, under the same
+    # `_headers` — see `PP_E2E_SITE_ALREADY_BUILT` on the drive step. Publishing inside the e2e
     # job would keep that property only by accident; publishing here keeps it by construction: one
-    # artifact, two consumers, and the completeness check below runs over exactly the bytes they
-    # download. It is a job of its own rather than a step of `build` so the drives can start the
-    # moment it is done, about a minute in, rather than after `build`'s suites.
+    # artifact, and the completeness check below runs over exactly the bytes it downloads. It is a
+    # job of its own rather than a step of `build` so the drive can start the moment it is done,
+    # about a minute in, rather than after `build`'s suites.
     #
-    # **The drives now serve 250 files where they served 298, and the 48 are not a loss.** They are
+    # **The drive now serves 250 files where it served 298, and the 48 are not a loss.** They are
     # the `proof-*.html` harness pages `ProofPages` writes into `web/wwwroot` when the Test step
     # runs under `PP_PROOF=1` — gitignored, read only by the proof and pixel steps in `build`, and
     # never part of what the deploy uploads. Publishing after that step swept them into the site
-    # the drives served; publishing here, before any test has run, does not, so the drives serve
+    # the drive served; publishing here, before any test has run, does not, so the drive serves
     # the deploy's bytes and nothing else. Measured on run 36666845115 against the run before it.
     steps:
       - name: Check out repository
@@ -631,9 +632,9 @@ jobs:
       - name: Upload the published site
         # **`include-hidden-files: true` and `if-no-files-found: error`, for the reasons the
         # visual-regression upload in `build` gives at length:** v7 still defaults both the other
-        # way, and a publish that produced nothing must fail here rather than hand the drives an
-        # empty directory to fail on later, in two jobs, for a reason that reads as theirs. One
-        # day of retention, because nothing reads it after the run.
+        # way, and a publish that produced nothing must fail here rather than hand the drive an
+        # empty directory to fail on later, in a job that would read as its own. One day of
+        # retention, because nothing reads it after the run.
         uses: actions/upload-artifact@v7
         with:
           name: published-site
@@ -641,188 +642,6 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
-
-  e2e-node:
-    name: Drive the assembled app (node)
-    runs-on: ubuntu-latest
-    needs: publish
-    # The cap is explained on the `build` job.
-    timeout-minutes: 30
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Node
-        # Pinned to the version `build` pins, for the reason given there.
-        uses: actions/setup-node@v7
-        with:
-          node-version: '22'
-      - name: Read the wrangler version the deploy will use
-        # The same step as in `build`, which carries the reasoning; the cache below is keyed on
-        # its answer, the drive serves with this version and `test-kill-tree.sh` parses the same
-        # line.
-        #
-        # **Split out of the step below so the cache after it can be keyed on the answer.**
-        # `npx --yes wrangler@<version>` was eighteen seconds a run, nearly all of it fetching
-        # a package whose version changes only when Dependabot bumps `deploy.yml`. A cache
-        # cannot be keyed on a value computed inside the step that uses it, so the read happens
-        # here and both the cache and the bundle read its output.
-        id: wrangler
-        run: |
-          set -euo pipefail
-
-          # Matches any major, not `@v3` literally: Dependabot bumps this pin, and a pattern tied
-          # to one major would stop matching — which is what the fallback below used to hide.
-          version=$(sed -n 's/^.*wrangler-action@v[0-9][0-9.]*.*# wrangler=\([0-9.]*\).*$/\1/p' .github/workflows/deploy.yml) || version=''
-
-          # **This used to fall back to a hardcoded 3.90.0, and that fallback was the hazard.**
-          # The step below says "same wrangler version as the deploy action, or the point is
-          # lost" — and a fallback is precisely how the point gets lost quietly: the sed stops
-          # matching, the step goes on bundling against a version the deploy no longer uses, and
-          # everything is green. That is this repository's oldest failure shape again, so the
-          # answer is the one it always is: fail, name the line, and make somebody look.
-          # `WranglerIsPinnedToOneVersion` is the other half — it fails the suite when the three
-          # places that name a wrangler version stop agreeing, so this is the belt to that brace.
-          [ -n "$version" ] || {
-            echo "::error::Could not read a wrangler version out of deploy.yml's"
-            echo "::error::'uses: cloudflare/wrangler-action@…  # wrangler=<version>' line."
-            echo "::error::Refusing to bundle against a guess — the whole point of that step is"
-            echo "::error::that it uses the same wrangler the deploy will."
-            exit 1
-          }
-
-          echo "deploy.yml pins wrangler@$version."
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Cache the wrangler download
-        # The same cache as in `build`, keyed the same way, so a hit here is the download `build`
-        # or an earlier run made.
-        #
-        # Keyed on the exact version and nothing else, so the entry is stable until Dependabot
-        # moves the pin and is then replaced rather than accumulating. No `restore-keys`: a
-        # near-miss here would be another version's tarballs, which buys nothing.
-        #
-        # **This caches the download, not the install.** `npx` still unpacks into a fresh
-        # directory every run; what goes away is fetching ~30 MB from the registry.
-        uses: actions/cache@v6
-        with:
-          path: ~/.npm
-          key: npm-wrangler-${{ steps.wrangler.outputs.version }}
-
-      - name: Download the published site
-        # Into the path `scripts/e2e.sh` reads under `PP_E2E_SITE_ALREADY_BUILT=1`, which is also
-        # where `build` used to leave it. The script then checks the directory itself — the four
-        # required files and every icon the page names — before it serves a byte.
-        uses: actions/download-artifact@v8
-        with:
-          name: published-site
-          path: publish/wwwroot
-      - name: Prove the harness can stop a server it started
-        # **The one fix in the e2e harness that was never watched to work, now watched.**
-        # `PROGRESS.md` item 10 records `stop_server`'s Linux arm leaking `workerd` on every run:
-        # it was `pkill -P`, which kills direct children only, and a real `wrangler pages dev`
-        # tree is four processes deep with the port held at the bottom. The recursive
-        # `/proc/<pid>/stat` walk was written to fix that and **the runner has been emitting**
-        # `something is still listening on port N after 30s` **for every twin of every run ever
-        # since**, while the run stayed green — because `next_free_port` steps over the held port
-        # and never asks for it again.
-        #
-        # **So the green drive below is not evidence about this and never could be.** Both
-        # fixes were verified by outcome ("no leaked processes after a run"), and on Linux that
-        # check passes while the leak continues. This step asks the question the other way round:
-        # it starts a tree — a synthetic three-deep one and a real `wrangler pages dev` — records
-        # every pid in it from `ps` rather than from the function under test, calls `stop_server`,
-        # and probes each pid with `kill -0`. A survivor is named in an `::error::` line with its
-        # command and the port it held.
-        #
-        # **It runs before the drive because it costs seconds and the drive costs minutes**, and
-        # because a harness that cannot stop what it starts is worth knowing about before a driver
-        # starts eight servers. Measured locally on macOS at 8.9s wall, of which the
-        # real wrangler case is about seven; the wrangler download is already cached by the step
-        # above, keyed on the same version this script parses out of `deploy.yml`.
-        #
-        # It is deliberately not in `./scripts/count-tests.sh` — it reports verdicts rather than
-        # a test count, which is the same reason `docs/guide/testing.md` gives for `e2e.sh`.
-        run: ./scripts/test-kill-tree.sh
-
-      - name: Drive the assembled app in a browser
-        id: e2e_node
-        # **The first thing in this repository that runs the application.** Everything above is a
-        # part of it: `dotnet test` drives the engine, bUnit renders components, the proof
-        # harnesses drive markup and CSS over `file://`, and the pixel diff compares pictures of
-        # that markup. None of them boots Blazor WebAssembly, follows a link, reloads a page, runs
-        # a line of `js/*.js` for real, or is subject to the Content-Security-Policy the step
-        # above generates. `scripts/e2e.sh` publishes the site, serves it with the same
-        # `wrangler pages dev` version `deploy.yml` pins, and drives real Chrome over the DevTools
-        # Protocol.
-        #
-        # **The server it starts now bundles `functions/` and binds a migrated local D1**, and the
-        # script seeds the `login_tokens` row an email would have caused so a reader can be signed
-        # in — stage two of PROGRESS.md item 10, and still no credential and no seam in the
-        # application. This step's driver runs five anonymous checks — BOOT, BUILD, THEME, PALETTE
-        # and ROUTES — and skips four twins, saying so on each; the Playwright one below runs those
-        # five plus A11Y and the three signed-in ones, which need a second browser context apiece.
-        #
-        # **And it asks a question none of the others can.** A feature shipped here while nothing
-        # in the application ever wrote to the store it read from — every unit and component test
-        # passed honestly, because every one of them called the store directly. A test that
-        # reaches a feature by hand cannot notice that nothing else reaches it. A driver has no
-        # other way in.
-        #
-        # **`PP_E2E_SITE_ALREADY_BUILT=1` reuses the publish the `publish` job uploaded**, which has
-        # already had `write-cloudflare-headers.sh` run over it — so this serves the same bytes and
-        # the same policy the deploy would upload, the same bytes the Playwright job serves, and
-        # does not pay for a second `dotnet publish`.
-        #
-        # **The script drives a deliberately-broken twin of the site for every check and requires
-        # each one to go red.** That is not belt-and-braces: four checks in this repository have
-        # passed while the thing they measured never ran, and `MustNotShow`'s denylist was walked
-        # straight through by `|| true`. It also fails if a check has no twin, so a sixth check
-        # cannot join the suite unproven.
-        #
-        # `ubuntu-latest` ships Google Chrome and the cache step above has already warmed the npm
-        # cache for this exact wrangler, so this costs a step rather than a dependency. It runs in
-        # a job of its own, beside `build` rather than after it, because it is one of the two
-        # slowest things in the workflow and nothing `build` produces is an input to it — see the
-        # note above `jobs:`.
-        env:
-          PP_E2E_SITE_ALREADY_BUILT: "1"
-        run: ./scripts/e2e.sh
-
-      - name: Upload the e2e harness's logs
-        # **Forty lines of a stack is not a stack.** When a server dies mid-drive,
-        # `say_server_state` prints the fatal error block, the tail of wrangler's own debug log and
-        # the tail of the request log — enough to say *what* died, and not always enough to say
-        # why. CI run 34120157313 is the case in point: `✘ [ERROR]` with an empty message and a
-        # path to a debug log that lived under `$HOME` on a runner which no longer exists. This
-        # step is what makes the whole of that file downloadable instead.
-        #
-        # **`include-hidden-files: true` is not optional and the step above it says why.** The path
-        # is `.e2e/`, upload-artifact excludes dot-prefixed paths by default, and
-        # `if-no-files-found` defaults to `warn` — so without both of these a failing run would log
-        # "No files were found with the provided path" and go green, which is what the
-        # visual-regression upload did on every failing run for as long as it existed. Both
-        # defaults are v7's own, re-read on `actions/upload-artifact@v7`'s `action.yml` rather than
-        # remembered from v4.
-        #
-        # **Gated on the drive's outcome rather than on `failure()`.** A job that fails before it
-        # reaches `scripts/e2e.sh` — at the kill-tree check, say — has no `.e2e/logs/` to find, and
-        # `if-no-files-found: error` would then add a second, misleading red step to a run that had
-        # already failed somewhere else entirely. Same shape as the visual-regression upload's own
-        # `steps.visual.outcome` gate.
-        #
-        # **The logs carry no raw sign-in token by the time this runs.** `scripts/e2e.sh`'s EXIT
-        # trap puts the whole directory through `redact_in_place` — the same substitution every
-        # failure tail goes through — because an artifact is a copy of the bytes those tails are
-        # careful not to print. `REDACTED_TAIL` in `scripts/test-kill-tree.sh` holds that.
-        if: ${{ !cancelled() && steps.e2e_node.outcome == 'failure' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: e2e-logs-node
-          path: .e2e/logs/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 14
 
   e2e-playwright:
     name: Drive the assembled app (Playwright)
@@ -906,49 +725,90 @@ jobs:
           name: published-site
           path: publish/wwwroot
       - name: Build the Playwright driver
-        # `e2e.sh --driver dotnet` builds `tests/e2e` itself, so this step is not needed for the
-        # drive to run; it is here so that restoring and compiling the driver — the Playwright
-        # package alone is 201.6 MB — is timed as its own step rather than folded into the drive's.
-        # The same configuration the script uses, so its own build afterwards is a no-op. The
-        # analyzer gate over this project is `build`'s solution build, not this.
+        # `e2e.sh` builds `tests/e2e` itself, so this step is not needed for the drive to run; it
+        # is here so that restoring and compiling the driver — the Playwright package alone is
+        # 201.6 MB — is timed as its own step rather than folded into the drive's. The same
+        # configuration the script uses, so its own build afterwards is a no-op. The analyzer gate
+        # over this project is `build`'s solution build, not this.
         run: dotnet build tests/e2e/ProwlersAndParagons.E2e.csproj --configuration Release
       - name: Prove the harness can stop a server it started
-        # The same step as in the node job above, which carries the reasoning: it runs before the
-        # drive because it costs seconds and the drive costs minutes.
+        # **The one fix in the e2e harness that was never watched to work, now watched.**
+        # `PROGRESS.md` item 10 records `stop_server`'s Linux arm leaking `workerd` on every run:
+        # it was `pkill -P`, which kills direct children only, and a real `wrangler pages dev`
+        # tree is four processes deep with the port held at the bottom. The recursive
+        # `/proc/<pid>/stat` walk was written to fix that and **the runner has been emitting**
+        # `something is still listening on port N after 30s` **for every twin of every run ever
+        # since**, while the run stayed green — because `next_free_port` steps over the held port
+        # and never asks for it again.
+        #
+        # **So the green drive below is not evidence about this and never could be.** Both
+        # fixes were verified by outcome ("no leaked processes after a run"), and on Linux that
+        # check passes while the leak continues. This step asks the question the other way round:
+        # it starts a tree — a synthetic three-deep one and a real `wrangler pages dev` — records
+        # every pid in it from `ps` rather than from the function under test, calls `stop_server`,
+        # and probes each pid with `kill -0`. A survivor is named in an `::error::` line with its
+        # command and the port it held.
+        #
+        # **It runs before the drive because it costs seconds and the drive costs minutes**, and
+        # because a harness that cannot stop what it starts is worth knowing about before a driver
+        # starts eight servers. Measured locally on macOS at 8.9s wall, of which the
+        # real wrangler case is about seven; the wrangler download is already cached by the step
+        # above, keyed on the same version this script parses out of `deploy.yml`.
+        #
+        # It is deliberately not in `./scripts/count-tests.sh` — it reports verdicts rather than
+        # a test count, which is the same reason `docs/guide/testing.md` gives for `e2e.sh`.
         run: ./scripts/test-kill-tree.sh
-      - name: Drive the assembled app again, with Playwright and axe
+      - name: Drive the assembled app with Playwright and axe
         id: e2e_dotnet
-        # **The second driver, and four of its nine checks are things the other cannot do.** The
-        # other five are a port, run here as well because a port is a claim until it has a
-        # record: PROGRESS.md item 10 states the condition under which `scripts/e2e/` is deleted,
-        # and it is twenty consecutive green Build runs of *this* step. Until then both run, and
-        # either going red fails the run — the two are jobs of one workflow now, and a job's red
-        # is the run's — which is also what makes "twenty green runs" mean the two drivers never
-        # disagreed.
+        # **The first thing in this repository that runs the application.** Everything above is a
+        # part of it: `dotnet test` drives the engine, bUnit renders components, the proof
+        # harnesses drive markup and CSS over `file://`, and the pixel diff compares pictures of
+        # that markup. None of them boots Blazor WebAssembly, follows a link, reloads a page, runs
+        # a line of `js/*.js` for real, or is subject to the Content-Security-Policy the publish
+        # job generates. `scripts/e2e.sh` serves the published site with the same `wrangler pages
+        # dev` version `deploy.yml` pins, and drives real Chrome through Playwright.
         #
-        # **`A11Y` and the three signed-in checks are what is not a port.** ADMIN, RULES and
-        # ACCOUNT_SAVE each need a browser context of their own — a signed-in one beside an
-        # anonymous one — which the hand-rolled client cannot make, so the step above skips their
-        # twins and says so on each line.
+        # **The server it starts bundles `functions/` and binds a migrated local D1**, and the
+        # script seeds the `login_tokens` row an email would have caused so a reader can be signed
+        # in — stage two of PROGRESS.md item 10, and still no credential and no seam in the
+        # application. Nine checks: the five anonymous ones — BOOT, BUILD, THEME, PALETTE and
+        # ROUTES — plus `A11Y` (axe-core, run inside the page) and the three signed-in ones, ADMIN,
+        # RULES and ACCOUNT_SAVE, each of which opens a second browser context of its own beside the
+        # anonymous one.
         #
-        # axe-core inside the page, four palettes by four
-        # addresses. `theme.css` writes its contrast ratios into its own comments as claims and
-        # says "re-measure if you change it; do not eyeball"; two of its tokens are `color-mix()`,
-        # which only a browser resolves. Nothing before this measured either in the assembled app.
+        # **There used to be a second driver here, `scripts/e2e/drive.mjs` over a hand-rolled
+        # DevTools Protocol client, selected by an `e2e.sh --driver` flag that ran this five of the
+        # nine checks in a job of its own.** `PROGRESS.md` item 10 named the condition for retiring
+        # it — twenty consecutive green `Build` runs in which the two never disagreed — and the
+        # count was reached without a single disagreement. `scripts/e2e/drive.mjs` and `cdp.mjs` are
+        # gone and this is the only drive and the only job that runs it.
+        #
+        # **And it asks a question none of the others can.** A feature shipped here while nothing
+        # in the application ever wrote to the store it read from — every unit and component test
+        # passed honestly, because every one of them called the store directly. A test that
+        # reaches a feature by hand cannot notice that nothing else reaches it. A driver has no
+        # other way in.
+        #
+        # **`PP_E2E_SITE_ALREADY_BUILT=1` reuses the publish the `publish` job uploaded**, which has
+        # already had `write-cloudflare-headers.sh` run over it — so this serves the same bytes and
+        # the same policy the deploy would upload, without paying for a second `dotnet publish`.
+        #
+        # **The script drives a deliberately-broken twin of the site for every check and requires
+        # each one to go red.** That is not belt-and-braces: four checks in this repository have
+        # passed while the thing they measured never ran, and `MustNotShow`'s denylist was walked
+        # straight through by `|| true`. It also fails if a check has no twin, or a twin names a
+        # check nobody drove, so a check cannot join the suite unproven in either direction.
         #
         # **`PP_E2E_CHROME` rather than Playwright's own channel resolution.** `Channel = "chrome"`
         # is what keeps this from downloading a third Chrome, and it works — but "Playwright will
-        # find `/opt/google/chrome/chrome` on this image" is an assumption, and the step above
+        # find `/opt/google/chrome/chrome` on this image" is an assumption, and the line below
         # already resolves the same browser with `command -v`. Passing the answer removes the
-        # assumption rather than trusting it, and if the image ever moves Chrome, both steps fail
-        # in the same recognisable way instead of one failing mysteriously.
+        # assumption rather than trusting it.
         #
         # **No `playwright install` step and nothing cached**, which is not an omission: the NuGet
         # package carries the driver, `Channel`/`ExecutablePath` supplies the browser, and the whole
         # cost of both packages was +4 seconds on Restore when this drive ran in `build`, measured
         # against the parent commit; the step above now restores them for this job alone.
-        #
-        # It reuses the same published artifact as the node job, for the same reason that one does.
         env:
           PP_E2E_SITE_ALREADY_BUILT: "1"
         run: |
@@ -957,7 +817,7 @@ jobs:
           chrome="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
           echo "Driving with $chrome"
 
-          PP_E2E_CHROME="$chrome" ./scripts/e2e.sh --driver dotnet
+          PP_E2E_CHROME="$chrome" ./scripts/e2e.sh
 
       - name: Upload the e2e harness's logs
         # **Forty lines of a stack is not a stack.** When a server dies mid-drive,

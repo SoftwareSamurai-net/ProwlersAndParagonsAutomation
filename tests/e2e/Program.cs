@@ -12,15 +12,18 @@ using ProwlersAndParagons.E2e.Checks;
 // deliberately-broken twin per check, and drives each of them. All of that is hard-won — read its
 // header and `docs/guide/testing.md` on the three server facts that each cost a debugging round —
 // and none of it is easier in C#. So this program takes a URL, plus the raw sign-in tokens that
-// script seeded (see `Account.cs`), and `PP_E2E_DRIVER` is the seam that points it at one:
+// script seeded (see `Account.cs`), and `PP_E2E_DRIVER` is the seam that points it at a stand-in:
 //
 //     PP_E2E_DRIVER="dotnet <path>/ProwlersAndParagons.E2e.dll" ./scripts/e2e.sh
 //
-// That seam already existed, for a different reason — a driver that never returns cannot be
-// arranged with the real one, so the deadline could not otherwise be watched to fire — and it is
-// what lets this land beside `scripts/e2e/drive.mjs` instead of replacing it. The old driver is
-// green, twinned, and the only thing that runs today; `PROGRESS.md` item 10 names the condition
-// under which it is retired, and this is not it yet.
+// That seam exists for a different reason than picking a driver — a driver that never returns
+// cannot be arranged with the real one, so the deadline could not otherwise be watched to fire.
+//
+// **This used to run beside a second driver, `scripts/e2e/drive.mjs` over a hand-rolled DevTools
+// Protocol client, behind an `e2e.sh --driver` flag.** `PROGRESS.md` item 10 named the condition
+// for retiring the older one — twenty consecutive green `Build` runs with the two agreeing — and
+// the count was reached without the two ever disagreeing. `drive.mjs` and its `cdp.mjs` are gone;
+// this is the only driver now.
 
 // **The verdict line is parsed by a `sed` that contains an em-dash**, and on Windows the default
 // console encoding turns that into a `-` — so `e2e.sh` would find the FAIL and then fail to strip
@@ -91,12 +94,10 @@ for (var i = 1; i < args.Length; i++)
 // way: a session cookie left in the run's own browser would make whatever ran next depend on
 // something nothing in it mentions, which is the fault A11Y had.
 //
-// **They are Playwright's alone, and that is a second asymmetry like A11Y's.** `scripts/e2e/
-// drive.mjs` cannot run them — it has no second context and no way to make one — so a `--driver
-// node` run reports five checks and skips four twins, saying so on each. `e2e.sh` compares only
-// the direction whose failure costs a missed regression (a driven check with no twin), and
-// `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck` holds the converse across both drivers.
-// Read the comment at that comparison in `e2e.sh` before changing either.
+// **`e2e.sh` requires the set of checks driven and the set of checks twinned to agree in both
+// directions**, and `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck` holds the same claim
+// from source, without a publish, a server or a browser. Read the comment at that comparison in
+// `e2e.sh` before changing either.
 Check[] checks =
 [
     Boot.Check,

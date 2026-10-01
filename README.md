@@ -112,7 +112,7 @@ dependency:
 | Tool | Version | What needs it |
 |---|---|---|
 | Node | **22 or newer** | `test-worker.sh`, `e2e.sh`, `test-visual.sh`, `test-deploy-gate.sh`, `apply-migrations.sh`, `count-tests.sh`, the inline-\*.mjs data bakers, `probe-mail.mjs` |
-| Chrome | any real build | `e2e.sh` drives it over the DevTools Protocol — no pixel comparison, so any Chrome answers |
+| Chrome | any real build | `e2e.sh` drives it through Playwright (`tests/e2e`) — no pixel comparison, so any Chrome answers |
 | Docker | running daemon | **only** `qodana-scan.sh` (no non-container form) and `visual-regression.sh`'s pixel comparison specifically — [`docs/guide/testing.md`](docs/guide/testing.md) measures why even two different real *Linux* Chromes disagree by tens of thousands of pixels, so nothing installed locally makes that comparison trustworthy off Linux; `e2e.sh` and everything else fall back to Docker only when Node itself is missing |
 
 On macOS with Homebrew, `./scripts/dev-setup.sh` installs the .NET SDK, Node and Chrome at the

@@ -376,40 +376,39 @@ It publishes the site, serves it with the same `wrangler pages dev` version
 
 ```bash
 ./scripts/e2e.sh                     # publish, serve, drive, and drive every twin
-./scripts/e2e.sh --driver dotnet     # the same, with the Playwright driver
 ./scripts/e2e.sh --real-only         # the ten-second loop while writing a check. NOT a full run
 PP_E2E_TWIN_PARALLELISM=1 ./scripts/e2e.sh   # the twins one after another, to watch one alone
 ```
 
-### Two drivers, and `e2e.sh` is neither of them
+### One driver, and `e2e.sh` is not it
 
 **What that script owns is everything around a drive** — publishing, parsing the wrangler version,
 migrating and seeding a local D1, starting the server from a directory where wrangler finds
-`functions/`, building each twin, and deciding what the verdicts mean. A driver takes a URL and prints three kinds of line. That split is why a
-second driver cost a flag rather than a rewrite.
+`functions/`, building each twin, and deciding what the verdicts mean. The driver — `tests/e2e`,
+over `Microsoft.Playwright` and `Deque.AxeCore.Playwright` — takes a URL and the raw sign-in tokens
+this script seeded, and prints three kinds of line. Nine checks: BOOT, BUILD, THEME, PALETTE and
+ROUTES, plus **A11Y** (axe-core, run inside the page) and the three signed-in ones — **ADMIN**,
+**RULES** and **ACCOUNT_SAVE** — each of which needs a second browser context, reached through
+*Signed in, seeded from outside the application* below.
 
-| `--driver` | What it is | Checks |
-|---|---|---|
-| `node` (default) | `scripts/e2e/drive.mjs` over `scripts/e2e/cdp.mjs`, a hand-rolled DevTools Protocol client against Node's own global `WebSocket` — the same trade `scripts/visual/png.mjs` makes against an image library | BOOT, BUILD, THEME, PALETTE, ROUTES |
-| `dotnet` | `tests/e2e`, over `Microsoft.Playwright` and `Deque.AxeCore.Playwright` | the same five, plus **A11Y**, **ADMIN**, **RULES** and **ACCOUNT_SAVE** |
-
-**The last three are stage two and need a second browser context apiece**, which the hand-rolled
-client has no way to make — so a `--driver node` run reports five checks, skips four twins
-(`html-lang-dropped` and the three seed ones), and says so on each line. That is a second asymmetry of exactly `A11Y`'s shape; see *Signed in, seeded from
-outside the application* below.
-
-**Neither is retired.** `PROGRESS.md` item 10 states the condition under which `scripts/e2e/` goes,
-and removing a working harness before its replacement has a record is how an upgrade becomes a
-regression. Both are run by `build.yml`.
+**There used to be a second driver, and `e2e.sh --driver` is what chose between them.**
+`scripts/e2e/drive.mjs` over `scripts/e2e/cdp.mjs` was a hand-rolled DevTools Protocol client
+against Node's own global `WebSocket` — the same trade `scripts/visual/png.mjs` makes against an
+image library — and ran the first five checks only; the three signed-in ones and `A11Y` needed a
+second browser context or axe-core, neither of which the hand-rolled client could do at all.
+`PROGRESS.md` item 10 named the condition for retiring it — twenty consecutive green `Build` runs
+in which the two drivers' verdicts never disagreed — and the count was reached without a single
+disagreement. `scripts/e2e/drive.mjs` and `cdp.mjs` are gone; `scripts/e2e/defects.mjs` stays,
+because the twins were never a driver's property.
 
 **The Playwright driver does not bring a browser with it, and that decided the whole design.**
-`Channel = "chrome"` launches the Google Chrome already on the machine — the one `cdp.mjs` finds
-and the one `ubuntu-latest` ships. So there is no `playwright install`, nothing to cache, and no
-*third* renderer beside the runner's Chrome and the digest-pinned `selenium/standalone-chrome` the
-goldens need; a third one would mean regenerating every golden, and again on every upgrade. It also
-keeps the no-npm rule: both packages are NuGet, restored by the `dotnet restore` that already runs.
-**Measured on the runner: +4 seconds to Restore** (the `Microsoft.Playwright` package is 201.6 MB),
-and nothing anywhere else.
+`Channel = "chrome"` launches the Google Chrome already on the machine, the one `ubuntu-latest`
+ships. So there is no `playwright install`, nothing to cache, and no *third* renderer beside the
+runner's Chrome and the digest-pinned `selenium/standalone-chrome` the goldens need; a third one
+would mean regenerating every golden, and again on every upgrade. It also keeps the no-npm rule:
+both packages are NuGet, restored by the `dotnet restore` that already runs. **Measured on the
+runner: +4 seconds to Restore** (the `Microsoft.Playwright` package is 201.6 MB), and nothing
+anywhere else.
 
 **And Playwright for .NET has no snapshot comparison and no baseline management.**
 `ToHaveScreenshotAsync` and `--update-snapshots` belong to `@playwright/test`, the JavaScript
@@ -425,43 +424,43 @@ nothing else reaches it. So four rules, and each of them is load-bearing:
 
 - **No driver may reach past the browser.** No `localStorage.setItem` to arrange a state, no
   calling into a component, no planted storage pointer. Every state a check needs is arrived at by
-  clicking what a person clicks — real `Input.dispatchMouseEvent` at real coordinates (which is
-  what `ILocator.ClickAsync` does too), not `el.click()` from inside the page, which is the same
+  clicking what a person clicks — real `Input.dispatchMouseEvent` at real coordinates, which is
+  what `ILocator.ClickAsync` does, not `el.click()` from inside the page, which is the same
   mistake one layer out. The only reads that go round the front are the ones *asserting* on storage
-  after the app wrote it. `E2eDriverTests` scans both drivers for the lazy spelling — and says in
+  after the app wrote it. `E2eDriverTests` scans the driver for the lazy spelling — and says in
   its own doc comment what a denylist cannot do, so nobody reads it as the guarantee.
 - **Every check states its positive control first, and a failed control is reported as its own
   sentence.** `[CONTROL] the work did not happen: …` and `[OUTCOME] …` are different bug reports —
   "the palette never changed" and "the palette changed to the wrong colour" — and this repository
   has a history of reporting the first as the second.
-- **Every check has a deliberately-broken twin, and a check with no twin fails the run.** The
-  names the driver reported and the names the twins cover are compared, so a check cannot join the
-  suite unproven.
+- **Every check has a deliberately-broken twin and every twin belongs to a check that runs,
+  checked both ways.** The names the driver reported and the names the twins cover are compared: a
+  driven check with no twin fails the run, and so does an orphan twin naming a check nobody drove.
 
-  **The converse moved when the second driver arrived, and this is the one thing here that got
-  weaker.** `e2e.sh` used to require the two sets to be *equal*, which also caught a twin naming a
-  check nobody runs. It cannot any more: the two drivers do not run the same checks — `A11Y` needs
-  axe-core — so equality would fail every `node` run over a twin the other driver covers perfectly
-  well. What is kept in the script is the direction whose failure costs a missed regression. The
-  orphan direction is now `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck`, which reads
-  *both* drivers and `defects.mjs` as source — strictly more than the script could ever see, since
-  it runs one driver and cannot tell "no driver has this check" from "not this one" — and costs a
-  second in `dotnet test` rather than a publish, a server and a browser.
+  **This was one direction only while there were two drivers.** The hand-rolled client ran five
+  checks and the Playwright one ran nine, so requiring the two sets to be *equal* would have
+  failed every run of the node driver over a twin the Playwright one covered perfectly well — so
+  only the direction whose failure costs a missed regression was kept here, and the orphan
+  direction moved to `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck`, which read *both*
+  drivers' check lists and `defects.mjs` as source — strictly more than this script, running one
+  driver, could ever see. **With one driver running every check, the two sets are the same claim**,
+  so the equality is restored here; `EveryCheckHasATwinAndEveryTwinHasACheck` still holds the same
+  claim from source, without a publish, a server or a browser.
 
 - **The twins are driven four at a time, each in a subshell with a server and a browser of its
   own, and their output is printed in list order once all have finished.** Measured on the runner
-  before this: 248 of the Playwright drive's 420 seconds and 144 of the node drive's 207 were
-  twins driven one after another, two of them in each driver spending a deliberate 45-second wait.
-  Nothing about one twin depends on another, so the waits now overlap. Four and not nine because
-  the runner has four cores and a `[CONTROL]` twin needs the app to boot within the same 45
-  seconds a real check gets — too much contention is a false red, never a false green.
-  `PP_E2E_TWIN_PARALLELISM=1` reproduces the sequential run when a twin needs to be watched alone.
+  before this: 248 of the drive's 420 seconds were twins driven one after another, two of them
+  spending a deliberate 45-second wait. Nothing about one twin depends on another, so the waits now
+  overlap. Four and not nine because the runner has four cores and a `[CONTROL]` twin needs the app
+  to boot within the same 45 seconds a real check gets — too much contention is a false red, never
+  a false green. `PP_E2E_TWIN_PARALLELISM=1` reproduces the sequential run when a twin needs to be
+  watched alone.
 - **A twin is driven with `--only <CHECK>`, and the real site never is.** Exactly one verdict is
-  read out of a twin's run, and the other five were a server round trip and a browser boot apiece
+  read out of a twin's run, and the other eight were a server round trip and a browser boot apiece
   against a site broken in a way unrelated to them: with `A11Y` scanning four palettes at 45s a
-  drive, six twins spent four and a half minutes re-measuring accessibility nothing looked at. It
-  cannot make a run quietly smaller — the check names compared against the twin list come from the
-  *unfiltered* real-site run, and a name matching nothing leaves the verdict absent, which is
+  drive, several twins would otherwise spend minutes re-measuring accessibility nothing looked at.
+  It cannot make a run quietly smaller — the check names compared against the twin list come from
+  the *unfiltered* real-site run, and a name matching nothing leaves the verdict absent, which is
   already read as a failed negative control rather than a pass.
 - **A twin must *say* FAIL, never merely fail to say PASS.** Each check catches internally and
   prints a verdict either way, because a driver that died before reaching a check leaves the line
@@ -469,14 +468,14 @@ nothing else reaches it. So four rules, and each of them is load-bearing:
   missing verdict as a failure of the twin.
 - **And it must fail for the reason it claims.** Every twin declares `expects: 'control'` or
   `expects: 'outcome'`, and `e2e.sh` requires the `FAIL` line to carry that kind. Any red line used
-  to count, and the Playwright driver mints a third: `[HARNESS]`, which is the *driver* having a
-  bug — an environment slot the shell forgot to seed throws out of `Account.cs` and prints
+  to count, and the driver mints a third: `[HARNESS]`, which is the *driver* having a bug — an
+  environment slot the shell forgot to seed throws out of `Account.cs` and prints
   `FAIL — [HARNESS] no sign-in token was seeded for RULES`, which said nothing about whether the
   check could see its defect and was read as a working negative control anyway. `Runner.cs` had
   said so in a comment since the day it was written; nothing enforced it. `HARNESS` is not
   declarable, so a twin that starts producing one turns the run red. **Every declared value was set
   by watching the twin fail**, and two are not what a reader would guess: `boot-app-never-mounts` is
-  an `outcome` (both drivers' wait for the boot screen to go throws an ordinary failure) and
+  an `outcome` (the driver's wait for the boot screen to go throws an ordinary failure) and
   `store-writes-nothing` is a `control` ("the application wrote this character down" *is* `BUILD`'s
   positive control). `--list` prints `name:CHECK:kind:expects`.
 
@@ -517,14 +516,15 @@ ordinary line survives, and the fixture really did carry a token — because "no
 is satisfied perfectly by a redactor that printed nothing. **The drivers obey the same rule, and did
 not until run 34040527190 printed three raw tokens into a public CI log**: Playwright's own
 `ERR_CONNECTION_REFUSED at http://…/signin?t=<token>` went straight into a verdict, because only
-the shell half of this harness had ever thought about it. Every `FAIL` message from either driver
+the shell half of this harness had ever thought about it. Every `FAIL` message from the driver
 now goes through the same `[?&]t=` substitution — and is flattened to one line, because `e2e.sh`
 reads verdicts with `grep ^E2E CHECK` and Playwright appends a multi-line `Call log:`.
 
-**The seed lives in the shell, not in a driver, and the reasons are arithmetic.** Writing a row
+**The seed lives in the shell, not in the driver, and the reason is arithmetic.** Writing a row
 needs the pinned wrangler version, the database id out of `d1/wrangler.toml`, the `--persist-to`
 directory and the migration state — four things `scripts/e2e.sh` already owns and a driver has no
-business knowing. And there are two drivers, so a seed inside one is a seed the other cannot have.
+business knowing. That held for a second reason too, while there were two drivers: a seed inside
+one of them would have been a seed the other could not have.
 
 **The server is given no `ADMIN_EMAIL`, and that is arranged rather than left out.**
 `worker/invitations.js` treats that address as an administrator who is never in the table, so with
@@ -665,10 +665,10 @@ Measured on a developer's Mac, wrangler already cached, `PP_E2E_SITE_ALREADY_BUI
 | ADMIN, RULES and ACCOUNT_SAVE against the real site | **11.9s** (2.2 + 4.0 + 5.7) |
 | the seed-twin phase: one server, three `--only` drives | **≈31s**, of which 22 is the `rules-token-expired` twin waiting out a sign-in that will never happen |
 
-So **about +52s on the Playwright step and about +8s on the node one** — roughly a minute on the
-job, which puts `Build` at about **17m30s–19m50s**. That is inside the cap with ten minutes to
-spare, so **no lever was pulled**; `PROGRESS.md` item 10 names them in order and the first is
-dropping a driver from the workflow.
+So **about +52s on the drive step** — under a minute on the job, which puts `Build` at about
+**17m30s–19m50s**. That is inside the cap with ten minutes to spare, so **no lever was pulled**;
+`PROGRESS.md` item 10 names what is left to pull now that dropping the second driver is no longer
+one of them.
 
 **Two decisions are what kept it to that**, and either one reversed roughly doubles the figure:
 
@@ -681,8 +681,7 @@ dropping a driver from the workflow.
   seeding pass, so three negative controls cost one server start and three drives instead of three
   of each.
 
-Locally, the whole thing is **4m36s** with `--driver dotnet` and **2m25s** with `--driver node`,
-against a pre-built site.
+Locally, the whole thing is **4m36s** against a pre-built site.
 
 ### Proving `kill_tree`, and why a green run was never evidence about it
 
@@ -995,8 +994,8 @@ indistinguishable from the outside.
 has this shape, the run's own output carries the error block and the stack, and the artifact
 carries the rest of the file.
 
-**A check that did not run is not a failure, and the figures say so.** Both drivers stop when the
-server stops answering rather than driving the rest into a refused connection each, and print
+**A check that did not run is not a failure, and the figures say so.** The driver stops when the
+server stops answering rather than driving the rest into a refused connection each, and prints
 `E2E CHECK <NAME>: NOT RUN` for what is left. `E2E RAN n CHECKS, m PASSED` counts only the ones
 that ran, so `n` shrinking is the shape of this failure; `e2e.sh` prints the `NOT RUN` names beside
 its own count so the two figures cannot be added into a suite that is quietly smaller.
@@ -1023,11 +1022,13 @@ exactly 30 seconds.
 So: **an answer counts whatever it says** — a 500, a redirect, `boot-app-never-mounts` serving `/`
 perfectly while never mounting the app — and **no answer within ten seconds counts as stopped**.
 The bound is three orders of magnitude above a local static server's measured cost for `GET /`, and
-it is only ever asked after a check has already failed. Both drivers classify identically and print
-the same sentence, the POSIX spelling of the socket error included, because `e2e.sh` reads them
-with one `grep` and a reader compares two runs by eye.
+it is only ever asked after a check has already failed. The driver prints the same sentence every
+time, the POSIX spelling of the socket error included — matching what the retired hand-rolled
+driver got from Node and printed for the same failure, because `e2e.sh` reads verdicts with one
+`grep` and a reader comparing two runs by eye should not have to notice they were produced by
+different drivers.
 
-**Every verdict goes through one redaction point in each driver, whole line.** The first version
+**Every verdict goes through one redaction point in the driver, whole line.** The first version
 wrapped `error.message` and interpolated the probe's own answer beside it raw, so a driver pointed
 at a base URL carrying a token printed `&t=<redacted>` in the half somebody had remembered and the
 token in full in the half they had not — one line, one verdict, the same shape as the leak the rule
