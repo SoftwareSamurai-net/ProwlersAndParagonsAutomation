@@ -24,8 +24,14 @@
         @if (Modifiers(id) is { Count: > 0 } mods)
         {
             <p class="small muted rank-note">
-                @string.Join(", ", mods.Select(m => Session.Rules.GetCon(m.Id)?.Name
-                                                    ?? Session.Rules.GetPro(m.Id)?.Name ?? m.Id))
+                @* The player's words after the option — `Item — plate armour` — on the tab whose
+                   own picker asked for them, which a review found was the one surface that
+                   dropped them. *@
+                @string.Join(", ", mods.Select(m =>
+                {
+                    var name = Session.Rules.GetCon(m.Id)?.Name ?? Session.Rules.GetPro(m.Id)?.Name ?? m.Id;
+                    return string.IsNullOrWhiteSpace(m.Detail) ? name : $"{name} — {m.Detail.Trim()}";
+                }))
             </p>
         }
     }

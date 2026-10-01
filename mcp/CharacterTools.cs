@@ -315,7 +315,9 @@ public sealed class CharacterTools
             ["applies_to_rank_types"] = Strings(option.AppliesToRankTypes),
             ["repeatable"] = option.Repeatable,
             ["allowed_by_this_power_text"] = allowance?.Reason,
-            ["caveat"] = option.ApplicabilityCaveat
+            ["caveat"] = option.ApplicabilityCaveat,
+            // What the entry asks the player to write, and the field the answer goes in.
+            ["narrative_constraint"] = option.NarrativeConstraint
         };
     }
 
@@ -477,6 +479,8 @@ public sealed class CharacterTools
             ["ranks_purchasable"] = power.MaxRank != 0,
             ["unit"] = power.CostUnitLabel,
             ["description"] = power.Description,
+            // What the entry asks the player to write on taking it; the answer is `Detail`.
+            ["narrative_constraint"] = power.NarrativeConstraint,
             ["source_ref"] = power.SourceRef,
             ["pros"] = new JsonObject
             {
@@ -519,6 +523,7 @@ public sealed class CharacterTools
         ["grades"] = Numbers(option.CostModifierRange),
         ["rank_grades"] = Numbers(option.CostPerRankRange),
         ["needs_variant"] = option.NeedsVariant,
+        ["narrative_constraint"] = option.NarrativeConstraint,
         // Beside needs_variant for the same reason it is there: it is a fact about how to
         // shape the selection, and a model that has to infer it from the English "per
         // purchase" will either under-buy in silence or be refused for something the

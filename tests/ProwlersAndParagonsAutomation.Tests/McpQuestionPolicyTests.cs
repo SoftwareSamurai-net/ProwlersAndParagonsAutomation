@@ -684,7 +684,7 @@ public sealed class McpQuestionPolicyTests
     /// </summary>
     [Theory]
     [InlineData("{ \"FeatureId\": …, \"GradeKey\": … } — NOT the { \"Id\": …, \"VariantKey\": … } a Pro takes.")]
-    [InlineData("A Pro or Con is `{ \"Id\": \"...\", \"VariantKey\": null, \"Units\": null }`.")]
+    [InlineData("A Pro or Con is `{ \"Id\": \"...\", \"VariantKey\": null, \"Units\": null, \"Detail\": null }`.")]
     public void TheStatementsTellingTheTwoConfusableShapesApartAreExact(string statement)
     {
         Assert.Contains(statement, Text, StringComparison.Ordinal);

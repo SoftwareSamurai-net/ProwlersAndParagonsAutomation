@@ -372,6 +372,7 @@ fill.
       "CostVariantKey": null,            // required where cost_type is *_variable
       "Units": 1,                        // for a per_unit Power
       "UnitNames": null,                 // Immunity: one name per unit, e.g. [ "toxins" ]
+      "Detail": null,                    // Expertise: the specialisation you name; only where the entry asks
       "BaselineTraitId": null            // required for Boost and Expertise
     }
   ],
@@ -395,7 +396,7 @@ fill.
 }
 ```
 
-A Pro or Con is `{ "Id": "...", "VariantKey": null, "Units": null }`. `VariantKey` is
+A Pro or Con is `{ "Id": "...", "VariantKey": null, "Units": null, "Detail": null }`. `Detail` is the player's own words where the entry asks for them — `list_options` shows the ask as `narrative_constraint`: Conditional's condition, Side Effect's side effect, the Item Con's item — and a Power whose entry asks (Expertise's specialisation, Animation's full-rank Trait) takes its answer in `Detail` on the Power; leave it out where nothing is asked. `VariantKey` is
 **required** for one priced by grade — Charges, Area/Burst, Limited — and the report hands
 you the accepted keys in `options`.
 

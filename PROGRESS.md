@@ -100,7 +100,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — every per-Power validator check walks one enumeration of every Power a sheet pays for, `EveryPaidPower`, so a Gadget's Powers draw the same findings as the character's own and a further check cannot forget them; `GadgetPowerWalkReadTests` holds every remaining direct walk of `SelectedPowers` to a written reason and a count. Verified by the orchestrator 2026-09-30: dropping the Gadget branch of the enumeration turned seven probes red, pointing `CheckPowerCosts` back at `SelectedPowers` turned the source guard red naming the line, and keying the duplicate pool by Gadget name instead of identity turned the same-name-Gadgets test red. One residual is recorded in the entry
 - [ ] **[37](#37-joining-a-campaign-is-one-character-at-a-time-and-each-join-re-reads-the-page)** — joining several characters is six clicks and a re-typed code each, and every join re-reads the page serially; a multi-character join box and a parallel refresh are pitched, with two questions for the owner
 - [ ] **[38](#38-a-villain-approved-into-a-campaign-becomes-the-gms-and-the-players-nemesis)** — the owner's idea: an approved Villain transfers to the GM and shows back to the player as their nemesis; recorded with its questions, not built
-- [ ] **[39](#39-fourteen-pros-and-cons-ask-the-player-to-define-something-and-there-is-nowhere-to-write-it)** — eleven Cons and three Pros say "the player must define…" and `SelectedProCon` has no text field, so the picker never asks; Flaws and Perks already have the box. A detail field across the picker, the sheet, the exports, the CLI, the MCP shape and the diff is pitched
+- [x] **[39](#39-fourteen-pros-and-cons-ask-the-player-to-define-something-and-there-is-nowhere-to-write-it)** — every entry that asks the player to write something has a box labelled with its ask: `SelectedProCon.Detail` and `SelectedPower.Detail`, asked by the picker, the Power editor and the CLI, printed on the sheet, in both exports, the MCP shape and the diff; Expertise, Animation and Immortality's Vulnerable gained the ask in the data. Verified: the picker's wait, the sheet's words, the Ability source line and the JSON export each went red under mutation
 - [x] **[40](#40-a-powers-own-pros-and-cons-read-like-the-generic-ones)** — every Pro and Con on the sheet is a term, a Power's own saying whose it is first, and the palette names rules terms by kind so *Vulnerable* and *Vulnerability* sit side by side labelled Con and Flaw. Verified: the owner prefix dropped, the Powers' own options left out of the palette, and the term key ignored each went red under mutation. The picker's grouping is deliberately untouched — see the entry
 - [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
@@ -2579,14 +2579,18 @@ and make sure they have somewhere sensible to do it.** Counted from `narrative_c
   (the Trait is nominated; the name is not), and Animation has the player pick one Trait to sit
   at full rank. Neither is modelled.
 
-**Proposed, and put to the owner; not built.** `SelectedProCon.Detail` (`string?`, null when
-absent so every stored sheet round-trips byte for byte and `StoredCharacter.CurrentVersion`
-stays 1), a text box in the picker's confirm panel labelled with the rule's own sentence and
-required exactly where the Flaws tab requires it, printed after the option on the sheet
-(`Conditional (Often Works) — only under an open sky`), in both exports, prompted by the CLI's
-`ProConSelector`, named in the MCP shape and the creation guide, and a part in the diff so a
-rewritten condition shows as a change. Expertise's name and Animation's Trait are two small
-fields of their own if the owner wants them in the same slice.
+**Built — see the pull request that closed this item; the owner asked for Expertise and
+Animation in the same slice.** `SelectedProCon.Detail` and `SelectedPower.Detail` (`string?`,
+null when absent so every stored sheet round-trips byte for byte and
+`StoredCharacter.CurrentVersion` stays 1). The picker's confirm panel and the Power editor ask in
+the entry's own words and Add waits, exactly as the Flaws tab does; the CLI prompts the same
+question. The sheet prints `Conditional (Often Works) — only under an open sky` and
+`Expertise: Firearms`; the Ability source line prints `(Item: plate armour)`, closing the gap
+`rules-engine.md` recorded; both exports, the MCP option listings and `power_detail`, the skill's
+and the question policy's JSON shape, and the diff (as a part) carry the words. Three entries
+gained a `narrative_constraint` in the data: Expertise, Animation, and Immortality's own
+Vulnerable. Nothing is validated: a missing answer is a box the editor will not let past, not a
+finding — the same rule the Flaws follow.
 
 ### 40. A Power's own Pros and Cons read like the generic ones
 

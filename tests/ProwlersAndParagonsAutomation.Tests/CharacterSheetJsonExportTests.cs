@@ -467,7 +467,7 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
         Assert.Equal(7, powers.Count);
         AssertKeys(FirstOf(powers),
             "id", "name", "range", "rank_type", "cost_type", "purchased_ranks", "baseline_rank",
-            "baseline_trait", "effective_rank", "units", "unit_names", "cost_variant", "cost", "source",
+            "baseline_trait", "effective_rank", "units", "unit_names", "cost_variant", "detail", "cost", "source",
             "source_heading", "rank_against_powers", "mechanics_verified", "source_ref",
             "pros", "cons");
     }
@@ -528,7 +528,7 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
             .Single(p => p["id"]!.GetValue<string>() == "mind_control");
 
         var con = FirstOf(power["cons"]!.AsArray());
-        AssertKeys(con, "id", "variant_key");
+        AssertKeys(con, "id", "variant_key", "detail");
         Assert.Equal("unreliable", con["id"]!.GetValue<string>());
 
         Assert.Empty(power["pros"]!.AsArray());

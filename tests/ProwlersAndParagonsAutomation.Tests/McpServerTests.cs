@@ -1728,6 +1728,7 @@ public sealed class McpServerTests
             Assert.Equal(power.MaxRank != 0, report["ranks_purchasable"]!.GetValue<bool>());
             Assert.Equal(power.CostUnitLabel, report["unit"]?.GetValue<string>());
             Assert.Equal(power.Description, report["description"]?.GetValue<string>());
+            Assert.Equal(power.NarrativeConstraint, report["narrative_constraint"]?.GetValue<string>());
             Assert.Equal(power.SourceRef, report["source_ref"]?.GetValue<string>());
 
             AssertNumbers(power.CostVariants, report["cost_variants"], $"{power.Id} cost_variants");
@@ -1824,6 +1825,7 @@ public sealed class McpServerTests
         Assert.Equal(option.CostPerUnit, row["hero_points_per_unit"]?.GetValue<int>());
         Assert.Equal(option.CostUnitLabel, row["unit"]?.GetValue<string>());
         Assert.Equal(option.NeedsVariant, row["needs_variant"]!.GetValue<bool>());
+        Assert.Equal(option.NarrativeConstraint, row["narrative_constraint"]?.GetValue<string>());
         Assert.Equal(option.Repeatable, row["repeatable"]!.GetValue<bool>());
         Assert.Equal(option.Description, row["description"]?.GetValue<string>());
 
@@ -1836,14 +1838,15 @@ public sealed class McpServerTests
     private static readonly string[] OwnProConRowFields =
     [
         "id", "name", "cost_type", "hero_points", "hero_points_per_rank", "hero_points_per_unit",
-        "unit", "grades", "rank_grades", "needs_variant", "repeatable", "description"
+        "unit", "grades", "rank_grades", "needs_variant", "repeatable", "description",
+        "narrative_constraint"
     ];
 
     private static readonly string[] PowerDetailFields =
     [
         "ok", "id", "name", "category", "stat_line", "range", "rank_type", "cost_type",
-        "cost_variants", "max_rank", "ranks_purchasable", "unit", "description", "source_ref",
-        "pros", "cons", "baseline"
+        "cost_variants", "max_rank", "ranks_purchasable", "unit", "description", "narrative_constraint",
+        "source_ref", "pros", "cons", "baseline"
     ];
 
     private static readonly string[] BaselineFields =
@@ -1854,7 +1857,7 @@ public sealed class McpServerTests
     private static readonly string[] ProConRowFields =
     [
         "id", "name", "hero_points", "grades", "applies_to_ranges", "applies_to_rank_types",
-        "repeatable", "allowed_by_this_power_text", "caveat"
+        "repeatable", "allowed_by_this_power_text", "caveat", "narrative_constraint"
     ];
 
     /// <summary>
@@ -1882,6 +1885,7 @@ public sealed class McpServerTests
         Assert.Equal(cost, row["hero_points"]?.GetValue<int>());
         Assert.Equal(option.Repeatable, row["repeatable"]!.GetValue<bool>());
         Assert.Equal(option.ApplicabilityCaveat, row["caveat"]?.GetValue<string>());
+        Assert.Equal(option.NarrativeConstraint, row["narrative_constraint"]?.GetValue<string>());
 
         Assert.Equal(option.AppliesToRanges,
             row["applies_to_ranges"]!.AsArray().Select(r => r!.GetValue<string>()).ToList());

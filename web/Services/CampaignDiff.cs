@@ -548,6 +548,10 @@ public static partial class CampaignDiff
 
         if (power.CostVariantKey is { Length: > 0 } variant) parts.Add(Labels.Humanise(variant));
 
+        // What the player named — an Expertise's specialisation — is the whole of what the Power
+        // is, so it is a part of the line and a change to it is a change.
+        if (!string.IsNullOrWhiteSpace(power.Detail)) parts.Add(power.Detail.Trim());
+
         // The book's own noun for a unit where the data carries one — "immunities", "Resolve" —
         // and the sheet's `×N` where it does not. A bare count would be this class inventing a
         // word for something the rules data already names.
@@ -625,7 +629,11 @@ public static partial class CampaignDiff
             name = $"{name} ({Labels.Humanise(variant)})";
         }
 
-        return choice.Units is { } units ? $"{name} ×{units}" : name;
+        var labelled = choice.Units is { } units ? $"{name} ×{units}" : name;
+
+        // The player's words beside the option, so a rewritten condition is a change the GM
+        // sees rather than a row that compares equal.
+        return string.IsNullOrWhiteSpace(choice.Detail) ? labelled : $"{labelled} — {choice.Detail.Trim()}";
     }
 
     /// <summary>One custom feature of a piece of gear, with its grade where it has two.</summary>
