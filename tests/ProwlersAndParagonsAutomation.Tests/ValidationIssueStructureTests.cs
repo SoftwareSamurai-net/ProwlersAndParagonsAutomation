@@ -1079,8 +1079,13 @@ public sealed class ValidationIssueStructureTests
         ["UNKNOWN_TALENT"]                  = [ValidationSubject.Talent],
         ["MODIFIER_ON_UNBOUGHT_ABILITY"]    = [ValidationSubject.Ability],
         ["UNKNOWN_POWER"]                   = [ValidationSubject.Power],
-        ["DUPLICATE_POWER"]                 = [ValidationSubject.Power],
-        ["POWER_HAS_NO_RANK"]               = [ValidationSubject.Power],
+
+        // PROGRESS.md item 36: a Gadget's Powers are ordinary Powers one budget down (p.94 buys
+        // them "under the ordinary rules"), so each of these six is filed against the Gadget by
+        // name — the same shape UNKNOWN_GADGET_POWER already takes below — when the Power that
+        // triggers it sits inside one rather than on the character's own sheet.
+        ["DUPLICATE_POWER"]                 = [ValidationSubject.Power, ValidationSubject.Gadget],
+        ["POWER_HAS_NO_RANK"]               = [ValidationSubject.Power, ValidationSubject.Gadget],
         ["POWER_VARIANT_NOT_CHOSEN"]        = [ValidationSubject.Power],
         ["POWER_BASELINE_TRAIT_NOT_CHOSEN"] = [ValidationSubject.Power],
 
@@ -1089,12 +1094,12 @@ public sealed class ValidationIssueStructureTests
         // loop looking for a Power to change.
         ["EXPERTISE_NOMINATION_NOT_A_TRAIT"] = [ValidationSubject.Power],
 
-        ["POWER_COST_AT_MINIMUM"]           = [ValidationSubject.Power],
-        ["POWER_WITHOUT_SOURCE"]            = [ValidationSubject.Power],
-        ["RANKLESS_POWER_WITHOUT_SOURCE"]   = [ValidationSubject.Power],
-        ["POWER_UNIT_NAMES_BELOW_UNITS"]    = [ValidationSubject.Power],
-        ["POWER_UNIT_NAMES_EXCEED_UNITS"]   = [ValidationSubject.Power],
-        ["POWER_MECHANICS_UNVERIFIED"]      = [ValidationSubject.Power],
+        ["POWER_COST_AT_MINIMUM"]           = [ValidationSubject.Power, ValidationSubject.Gadget],
+        ["POWER_WITHOUT_SOURCE"]            = [ValidationSubject.Power, ValidationSubject.Gadget],
+        ["RANKLESS_POWER_WITHOUT_SOURCE"]   = [ValidationSubject.Power, ValidationSubject.Gadget],
+        ["POWER_UNIT_NAMES_BELOW_UNITS"]    = [ValidationSubject.Power, ValidationSubject.Gadget],
+        ["POWER_UNIT_NAMES_EXCEED_UNITS"]   = [ValidationSubject.Power, ValidationSubject.Gadget],
+        ["POWER_MECHANICS_UNVERIFIED"]      = [ValidationSubject.Power, ValidationSubject.Gadget],
 
         // The one finding with no subject at all, and deliberately: it names every Power whose
         // wording is unverified in a single sentence, so there is no one thing it is about.
@@ -1219,7 +1224,9 @@ public sealed class ValidationIssueStructureTests
         ["CON_VARIANT_NOT_CHOSEN"]   = [ValidationSubject.Character],
 
         // A Source is wrong on a Power or on a Trait, and the Trait cases carry the Trait's kind.
-        ["UNKNOWN_SOURCE"]       = [ValidationSubject.Power, ValidationSubject.Ability, ValidationSubject.Talent],
+        // A Power case is a Gadget's own when the Power sits inside one (item 36).
+        ["UNKNOWN_SOURCE"]       = [ValidationSubject.Power, ValidationSubject.Gadget,
+                                     ValidationSubject.Ability, ValidationSubject.Talent],
         ["UNKNOWN_TRAIT_SOURCE"] = [ValidationSubject.Ability, ValidationSubject.Talent],
     };
 
