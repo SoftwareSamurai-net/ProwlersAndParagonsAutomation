@@ -249,6 +249,16 @@ public sealed class SavedCharacters
     internal static string LabelFor(CharacterSheet sheet) =>
         string.IsNullOrWhiteSpace(sheet.Name) ? "Unnamed character" : sheet.Name.Trim();
 
+    /// <summary>The stored word for a Villain — the one the server acts on when one is approved.</summary>
+    public const string VillainKind = "villain";
+
+    /// <summary>
+    /// The stored word for a palette: <see cref="VillainKind"/> or <c>hero</c>. One spelling for
+    /// the index and for a submission, because the server hands a Villain over on the strength of
+    /// it and a second spelling is a Villain it would not recognise.
+    /// </summary>
+    public static string KindOf(SheetMode mode) => mode == SheetMode.Villain ? VillainKind : "hero";
+
     /// <summary>
     /// The five things besides its name and its campaign that an index records about a character,
     /// so a row can say what it is without the payload being read.
@@ -270,16 +280,6 @@ public sealed class SavedCharacters
     /// throw: a null <c>Variant</c> answers two nulls, and a set one answers its own two fields
     /// verbatim. Both travel together, exactly as they sit on the one record that names them.</para>
     /// </summary>
-    /// <summary>The stored word for a Villain — the one the server acts on when one is approved.</summary>
-    public const string VillainKind = "villain";
-
-    /// <summary>
-    /// The stored word for a palette: <see cref="VillainKind"/> or <c>hero</c>. One spelling for
-    /// the index and for a submission, because the server hands a Villain over on the strength of
-    /// it and a second spelling is a Villain it would not recognise.
-    /// </summary>
-    public static string KindOf(SheetMode mode) => mode == SheetMode.Villain ? VillainKind : "hero";
-
     internal static (string Kind, string? TierId, int? Spent, string? VariantOf, string? VariantKind)
         IndexFieldsFor(CharacterSheet sheet, SheetMode mode, CostCalculator costs)
     {
