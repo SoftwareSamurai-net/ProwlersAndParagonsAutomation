@@ -95,7 +95,7 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[1b](#1b-semantic-procon-constraints-are-still-unenforced)** — semantic Pro/Con constraints, no consumer
 - [x] **[2](#2-what-the-sheet-still-cannot-say)** — every printed page carries the character's name and `page N of M` in a `@page` margin box, in Chrome (measured on 153); Firefox and Safari print no margin boxes, so the document title and colophon stay as their fallback. Verified by the orchestrator 2026-09-23: a SheetView that never publishes the name turned five `RunningHeadTests` red. Not driven in a real browser on CI — the margin box was proved by hand on a dev server
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
-- [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
+- [x] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — IL trimming is on for the browser publish with the engine rooted, and the payload is measured by the publish job on every run: 30,730,374 bytes across 209 framework files before (the artifact of run 36682834789), 12,660,513 across 47 after (run 36811881274). The runtime proof is the new `POWERS` e2e check, which reads a Power's own Pros and Cons and a generic Pro back out of the rendered, trimmed site, with a twin that garbles the one `Sweep` line in the published rules. Verified by the orchestrator 2026-10-01: the twin's `check:` pointed at a name nobody drives turned `E2eDriverTests` red, and the twin itself went red on CI for the kind it declares
 - [x] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — every per-Power validator check walks one enumeration of every Power a sheet pays for, `EveryPaidPower`, so a Gadget's Powers draw the same findings as the character's own and a further check cannot forget them; `GadgetPowerWalkReadTests` holds every remaining direct walk of `SelectedPowers` to a written reason and a count. Verified by the orchestrator 2026-09-30: dropping the Gadget branch of the enumeration turned seven probes red, pointing `CheckPowerCosts` back at `SelectedPowers` turned the source guard red naming the line, and keying the duplicate pool by Gadget name instead of identity turned the same-name-Gadgets test red. One residual is recorded in the entry
 - [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
@@ -1116,6 +1116,8 @@ proofed against the probe and not against a real inbox.
 
 ### 5. The browser payload is large — a characteristic, not a defect
 
+**Closed 2026-10-01: trimming is on, and the figure below is measured on every run rather than quoted.** See the pull request that carried it; what follows is the entry as it stood, kept because the reasons were expensive to find, with what changed written after it.
+
 **The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
 
 It is that large because **IL trimming is disabled**. `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer is free to remove model properties it can only see through reflection, and the failure mode is not a build error but a silently empty rules set at runtime. `System.Private.Xml` alone is 3 MB of assembly nothing references.
@@ -1131,9 +1133,36 @@ It surfaced loudly only because the applicability check had *just* started readi
 
 **The local toolchain still cannot verify any of it.** `dotnet workload install wasm-tools` needs elevation, and without the workload the trimmer cannot run at all. Attempting the install unelevated leaves advertising manifests under `~/.dotnet/sdk-advertising` that make the SDK demand the workload and refuse to build `web/` at all; deleting that directory undoes it.
 
-**Either needs a machine that can run the trimmer to verify.** It cannot run locally: the ILLink task host crashes without the `wasm-tools` workload, on the stock Blazor template too. CI can, so the work is possible — but "it built" is not evidence here, because a trimmed-away model is a runtime silence. Whatever is done needs a check that actually loads the published site and reads a rule out of it.
+**Either needs a machine that can run the trimmer to verify.** When this was written it could not run locally: the ILLink task host crashed without the `wasm-tools` workload, on the stock Blazor template too. CI can, so the work was possible — but "it built" is not evidence here, because a trimmed-away model is a runtime silence. Whatever is done needs a check that actually loads the published site and reads a rule out of it.
 
-Not urgent. The site works, and a returning visitor pays nothing.
+**What was done, 2026-10-01.** The first way: `PublishTrimmed` on, `ProwlersAndParagons.Engine`
+rooted, `JsonSerializerIsReflectionEnabledByDefault` set explicitly (the Blazor SDK's targets already
+set it; the csproj comment names the file). Measured by the publish job's new size step, which prints
+the figure on every run so it cannot go stale here: `wwwroot` is **12,660,513 bytes across 47
+framework files**, against 30,730,374 across 209 read off the previous run's published artifact —
+`System.Private.Xml`, `System.Private.DataContractSerialization` and `System.Data.Common` are gone
+entirely, and the three assemblies written here are byte-identical to the untrimmed build.
+
+**The proof is a browser check, as this entry said it had to be.** `POWERS` (`tests/e2e/Checks/Powers.cs`)
+drives the published, trimmed site anonymously to the Powers step, requires as its control that the
+list reports a catalogue in the hundreds, and as its outcome that opening Strike prints its own
+Pros and Cons and a generic Pro admitted by the applicability rules — `PowerModel.PowerPros`,
+`PowerCons` and `ProModel`'s lists, which are the collections the source-generation attempt above
+lost. Its twin renames the one `"name": "Sweep",` line in the published `powers.json` and goes red
+on CI for the TWIN_KIND it declares. `RulesLoadingTests.NoCollectionOnAnyLoadedRulesModelComesBackNull`
+still holds every model on the untrimmed engine; the two are halves of one claim.
+
+**Two things the adversarial review corrected, recorded rather than smoothed over.** Rooting the
+engine is inert today: republishing with `TrimmerRootAssembly` removed gives a byte-identical
+`Engine.wasm`, because every `Load<T>` call site passes a closed concrete type and ILLink's handling
+of System.Text.Json's annotations keeps the members either way. The root stays as insurance, and
+the csproj says it is not what a green run is evidence for. And the toolchain claim two paragraphs
+up is stale: on SDK 10.0.303 a plain `dotnet publish` of `web/` runs ILLink and the Emscripten
+toolchain on a Windows machine with no workload installed, in under a minute. The figures above
+are CI's regardless.
+
+The second way, source generation, stays untried past the attempt recorded above; nothing now
+needs it, since the payload win it was for has been taken the first way.
 
 ---
 
