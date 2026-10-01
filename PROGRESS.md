@@ -97,7 +97,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
 - [ ] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — four validator checks still skip a Gadget's Powers, found by the named-immunities follow-up; recorded, not fixed
-- [ ] **[37](#37-joining-a-campaign-is-one-character-at-a-time-and-each-join-re-reads-the-page)** — joining several characters is six clicks and a re-typed code each, and every join re-reads the page serially; a multi-character join box and a parallel refresh are pitched, with two questions for the owner
+- [x] **[37](#37-joining-a-campaign-is-one-character-at-a-time-and-each-join-re-reads-the-page)** — the join box lists the account's characters to tick and joins them in one press, a character not on screen written back by id with the pointer untouched, every refusal said per character, the code kept in the box, and the page's reads run in parallel. Verified by the orchestrator 2026-10-01: the by-id read switched to the pointer-moving one turned `TheNonOpenCharacterIsWrittenByIdAndThePointerDoesNotMove` red; the agent's nine mutations are in the pull request
 - [ ] **[38](#38-a-villain-approved-into-a-campaign-becomes-the-gms-and-the-players-nemesis)** — the owner's idea: an approved Villain transfers to the GM and shows back to the player as their nemesis; recorded with its questions, not built
 - [ ] **[39](#39-fourteen-pros-and-cons-ask-the-player-to-define-something-and-there-is-nowhere-to-write-it)** — eleven Cons and three Pros say "the player must define…" and `SelectedProCon` has no text field, so the picker never asks; Flaws and Perks already have the box. A detail field across the picker, the sheet, the exports, the CLI, the MCP shape and the diff is pitched
 - [ ] **[40](#40-a-powers-own-pros-and-cons-read-like-the-generic-ones)** — Immortality's own *Vulnerable* beside the *Vulnerability* Flaw reads as one thing; the picker's *this Power* chip is the only marking. Two headed groups in the picker are pitched, pending where the owner met it
@@ -2512,9 +2512,16 @@ causes, measured by reading the page rather than timing it:
 **Faults said per row, nothing repaired**: a tier that disagrees (nothing written), a read that
 fails, an account-cap refusal on the write-back, an empty sheet skipped with its own sentence.
 
-**Two questions put to the owner**: the checkbox list against a single picker with a kept code;
-and whether a character not on screen may be written to from this page at all. The recommendation
-is the list and the by-id write.
+**Built — see the pull request that closed this item; the owner took both recommendations.** The
+checkbox list under the code box, one button, each ticked character joined in turn: the on-screen
+one by the session path it always took, a character not on screen read by id, run through
+`CampaignJoin.Apply` and written back by id through `RestoreAsync`, which answers whether the write
+landed. A tier that disagrees writes nothing and says so; a read that fails says which of its two
+failures it was; a refused write-back is said; an empty sheet is skipped with its own sentence; a
+character already in a game is shown disabled. The code stays in the box. `Refresh` and
+`EmptySubmissions.AmongAsync` run their reads under `Task.WhenAll`. The agent's first
+tier-disagreement mutation was null — it wrote back byte-identical content — and the test gained an
+`UpdatedAt` control before the same mutation went red, which is the shape `CLAUDE.md` warns of.
 
 ### 38. A Villain approved into a campaign becomes the GM's, and the player's nemesis
 
