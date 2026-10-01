@@ -2519,7 +2519,11 @@ one by the session path it always took, a character not on screen read by id, ru
 landed. A tier that disagrees writes nothing and says so; a read that fails says which of its two
 failures it was; a refused write-back is said; an empty sheet is skipped with its own sentence; a
 character already in a game is shown disabled. The code stays in the box. `Refresh` and
-`EmptySubmissions.AmongAsync` run their reads under `Task.WhenAll`. The agent's first
+`EmptySubmissions.AmongAsync` run their reads under `Task.WhenAll`. **A second press while the
+first is in flight does nothing** — a no-context review found the by-id write-back could run twice
+over one character from a double-click, the lost-update shape `Autosave` exists to stop — so
+`Join` holds an in-flight flag and the button is dead on it; the orchestrator removed the flag and
+watched `ASecondCallWhileTheFirstIsInFlightChangesNothing` go red. The agent's first
 tier-disagreement mutation was null — it wrote back byte-identical content — and the test gained an
 `UpdatedAt` control before the same mutation went red, which is the shape `CLAUDE.md` warns of.
 
