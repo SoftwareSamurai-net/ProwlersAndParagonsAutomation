@@ -139,6 +139,27 @@ public sealed class NarrativeDetailEditorTests
         Assert.Empty(plain.FindAll("#pe-detail"));
     }
 
+    /// <summary>
+    /// <b>The Abilities tab's own summary line prints the words too.</b> A review found it was
+    /// the one surface that dropped them: the tab's picker asked for the item and waited, and
+    /// the line beside the rank read <c>Item</c> alone. The control is the line without words.
+    /// </summary>
+    [Fact]
+    public void TheAbilitiesTabsSummaryLinePrintsTheWords()
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+        ctx.Session.Sheet.AbilityRanks["might"] = 6;
+        ctx.Session.Sheet.AbilityModifiers["might"] = [new SelectedProCon("item") { Detail = "plate armour" }];
+        ctx.Session.Sheet.AbilityRanks["agility"] = 4;
+        ctx.Session.Sheet.AbilityModifiers["agility"] = [new SelectedProCon("item")];
+
+        var notes = ctx.Render<AbilitiesTab>().FindAll(".rank-note").Select(e => e.TextContent.Trim()).ToList();
+
+        Assert.Contains("Item — plate armour", notes);
+        Assert.Contains("Item", notes);
+    }
+
     // ── The sheet and the diff ──────────────────────────────────────────────────
 
     /// <summary>The sheet prints <c>Expertise: Firearms</c> and the condition after its Con.</summary>

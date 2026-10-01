@@ -889,8 +889,11 @@ is one sheet in this app by design.
   choice each label came from, and `SheetView.ModifierTerms` draws each as a term: a generic
   option's sentence is its entry's description, a Power's own opens *"Immortality's own Con."*
   and then the Power's own text. **The id is keyed on the Power as well as the option**
-  (`Term.IdKey`), because the rules data spells *Line* and *Selection* both as generic options
-  and as a Power's own, and two terms sharing an id share one `aria-describedby` sentence. The
+  (`Term.IdKey`), because ten of the Powers' own option ids recur on different Powers under one
+  name — Blast's own *Subdual* and Strike's own *Subdual*, two *Deflect*s — each with its own
+  Power's sentence, and two terms sharing an id share one `aria-describedby` sentence. (This
+  bullet first blamed *Line* and *Selection* as spelled both generic and own; a review checked
+  and neither is generic.) The
   printed words are unchanged — `ModifierLine` is now `Modifiers` joined — and the text export
   still writes the ids. With `Explain` off the line is the bare words, as before.
 - **Where an entry asks the player to write something, the editor asks in the entry's words and
