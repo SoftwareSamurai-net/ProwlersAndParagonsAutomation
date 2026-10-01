@@ -372,7 +372,9 @@ subject to the Content-Security-Policy the deploy generates, or asks axe what a 
 be told.
 
 It publishes the site, serves it with the same `wrangler pages dev` version
-`.github/workflows/deploy.yml` pins, and drives real Chrome.
+`.github/workflows/deploy.yml` pins, and drives real Chrome. **The site it drives is the trimmed
+one** — `web/ProwlersAndParagons.Web.csproj` sets `PublishTrimmed`, so this is the same publish
+command every reader of this file has always run, pointed at a project that now trims.
 
 ```bash
 ./scripts/e2e.sh                     # publish, serve, drive, and drive every twin
@@ -386,10 +388,27 @@ PP_E2E_TWIN_PARALLELISM=1 ./scripts/e2e.sh   # the twins one after another, to w
 migrating and seeding a local D1, starting the server from a directory where wrangler finds
 `functions/`, building each twin, and deciding what the verdicts mean. The driver — `tests/e2e`,
 over `Microsoft.Playwright` and `Deque.AxeCore.Playwright` — takes a URL and the raw sign-in tokens
-this script seeded, and prints three kinds of line. Nine checks: BOOT, BUILD, THEME, PALETTE and
-ROUTES, plus **A11Y** (axe-core, run inside the page) and the three signed-in ones — **ADMIN**,
-**RULES** and **ACCOUNT_SAVE** — each of which needs a second browser context, reached through
-*Signed in, seeded from outside the application* below.
+this script seeded, and prints three kinds of line. Ten checks: BOOT, BUILD, **POWERS** (the
+Powers list and a Power's own Pros, Cons and a generic Pro, all read back out of the published,
+trimmed rules), THEME, PALETTE and ROUTES, plus **A11Y** (axe-core, run inside the page) and the
+three signed-in ones — **ADMIN**, **RULES** and **ACCOUNT_SAVE** — each of which needs a second
+browser context, reached through *Signed in, seeded from outside the application* below.
+
+**What the trimmed publish is proved by, and what it is not.** `PROGRESS.md` item 5's own warning
+holds exactly as much after this as before it: a clean, trimmed build with no warnings proves
+nothing, because the trim analyzer cannot see what a reflective `JsonSerializer.Deserialize<T>`
+call will ask for at runtime, and a context generated over the same types was tried and returned
+null for six non-nullable collection properties while building clean. **POWERS is what closes
+that gap, and only that gap** — it drives the real published site in real Chrome and asserts that
+`PowerModel.PowerPros`, `PowerCons` and a generic Pro resolved through `ProConApplicability` came
+back with names in them, which is the shape the untried failure mode takes. It says nothing about
+whether the other 140 Powers', or any Ability's, Talent's, Perk's or Flaw's properties survived —
+that is `RulesLoadingTests.NoCollectionOnAnyLoadedRulesModelComesBackNull`'s claim, checked against
+the model the trimmer built the WebAssembly from, not against one Power read back through a
+browser. The two are complementary rather than redundant: the engine suite cannot see the trimmer
+at all (it runs untrimmed, against `dotnet test`), and POWERS cannot see every model (reading 141
+Powers' worth of Pros and Cons back through a rendered page on every pull request is not what this
+check is for). Together they are the claim; neither alone is.
 
 **There used to be a second driver, and `e2e.sh --driver` is what chose between them.**
 `scripts/e2e/drive.mjs` over `scripts/e2e/cdp.mjs` was a hand-rolled DevTools Protocol client

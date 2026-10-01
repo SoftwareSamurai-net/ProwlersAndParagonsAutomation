@@ -300,7 +300,7 @@ public sealed class Harness(IPage page, string baseUrl, IBrowser? browser = null
     ///
     /// <para><b>The address is put in front of whatever <see cref="WaitForApp"/> says.</b> Without
     /// it a failure reads "waited 45000ms for the framework to start", which is the same sentence
-    /// whichever of nine addresses it was — and the <c>base-href-dropped</c> twin's whole point is
+    /// whichever of ten addresses it was — and the <c>base-href-dropped</c> twin's whole point is
     /// that the front door works and a deep link does not.</para>
     /// </summary>
     public async Task Open(string path)
