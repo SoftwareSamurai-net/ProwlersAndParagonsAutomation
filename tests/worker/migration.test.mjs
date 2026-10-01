@@ -563,3 +563,38 @@ test('0010 leaves the three 0008 index fields, a campaign and the account cap al
         db.prepare('SELECT character_limit FROM users WHERE id = ?').all('u_gm')[0].character_limit,
         40);
 });
+
+// ── 0011, the nemesis handover's two columns on a membership ─────────────────────────────────
+//
+// Against the pre-0011 schema, for the reason 0010's block gives.
+
+/** A database with 0001–0010 applied — `campaign_members` as it was before 0011. */
+function pre0011Db() {
+    const db = new DatabaseSync(':memory:');
+    for (const migration of MIGRATIONS.slice(0, 10)) db.exec(readFileSync(migration, 'utf8'));
+
+    return db;
+}
+
+test('a membership survives 0011 whole, with no kind and nothing handed over', () => {
+    const db = pre0011Db();
+    user(db, 'u_gm', 'gm@example.test');
+    user(db, 'u_pl', 'player@example.test');
+    db.prepare(
+        'INSERT INTO campaign_members (id, campaign_id, gm_user_id, player_user_id, character_id, '
+        + '  label, approved_payload, approved_at, pending_payload, pending_at, pending_version, '
+        + '  joined_at, decision, decided_at) '
+        + "VALUES ('m_a', 'g_a', 'u_gm', 'u_pl', 'c_a', 'Vesper', ?, 10, ?, 20, 3, 5, 'approved', 10)")
+        .run('{"a":1}', '{"b":2}');
+
+    db.exec(readFileSync(MIGRATIONS[10], 'utf8'));
+
+    const row = db.prepare('SELECT * FROM campaign_members WHERE id = ?').all('m_a')[0];
+    assert.equal(row.approved_payload, '{"a":1}', 'byte for byte, unparsed');
+    assert.equal(row.pending_payload, '{"b":2}');
+    assert.equal(row.pending_version, 3, 'the compare-and-swap token survives');
+    assert.equal(row.decision, 'approved');
+    assert.equal(row.pending_kind, null,
+        'nothing is backfilled — a kind could only come from parsing the payload');
+    assert.equal(row.handed_over_at, null, 'nothing written before 0011 was ever handed over');
+});

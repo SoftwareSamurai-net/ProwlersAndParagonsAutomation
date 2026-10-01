@@ -87,8 +87,21 @@ export function taggedStorage(db) {
                 throw tag(error, 'storage');
             }
         },
+
+        // **D1 runs a batch only of its own statements**, so each wrapper hands back the one it
+        // wraps. The nemesis handover is the one caller: three writes that must land together.
+        async batch(statements) {
+            try {
+                return await db.batch(statements.map(statement => statement[UNWRAPPED]));
+            } catch (error) {
+                throw tag(error, 'storage');
+            }
+        },
     };
 }
+
+/** Where a tagged statement keeps the binding's own, for `batch`. */
+const UNWRAPPED = Symbol('unwrapped statement');
 
 /**
  * One prepared statement, with every way it can fail tagged.
@@ -98,6 +111,7 @@ export function taggedStorage(db) {
  */
 function taggedStatement(statement) {
     return {
+        [UNWRAPPED]: statement,
         bind(...values) {
             try {
                 return taggedStatement(statement.bind(...values));

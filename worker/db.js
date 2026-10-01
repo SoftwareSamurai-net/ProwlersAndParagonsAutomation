@@ -229,6 +229,12 @@ export async function characterLimit(db, userId) {
  * `character_limit`, and lets nothing through otherwise. `ON CONFLICT` then does the replace
  * when the id was already there, and `RETURNING` is how the caller learns which happened —
  * a row back means stored, nothing back means refused.</p>
+ *
+ * <p><b>And never an id this account handed to a campaign as a nemesis.</b> The handover removed
+ * the player's row; a tab still holding the sheet would otherwise write it straight back on its
+ * next autosave, and the Villain would be the player's again behind the GM's back. The refusal is
+ * in the same `WHERE`, for the reason the cap is, and the caller tells the two refusals apart
+ * with `wasHandedOver`.</p>
  */
 export async function putCharacter(
     db, { userId, id, label, payload, campaignId, kind, tierId, spent, variantOf, variantKind, now }) {
@@ -237,9 +243,12 @@ export async function putCharacter(
         + '  (user_id, id, label, payload, campaign_id, kind, tier_id, spent, '
         + '   variant_of, variant_kind, updated_at) '
         + 'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? '
-        + 'WHERE EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?) '
-        + '   OR (SELECT COUNT(*) FROM characters WHERE user_id = ?) '
-        + '       < (SELECT character_limit FROM users WHERE id = ?) '
+        + 'WHERE NOT EXISTS (SELECT 1 FROM campaign_members '
+        + '                  WHERE player_user_id = ? AND character_id = ? '
+        + '                    AND handed_over_at IS NOT NULL) '
+        + '  AND (EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?) '
+        + '       OR (SELECT COUNT(*) FROM characters WHERE user_id = ?) '
+        + '           < (SELECT character_limit FROM users WHERE id = ?)) '
         + 'ON CONFLICT (user_id, id) DO UPDATE SET '
         + '  label = excluded.label, payload = excluded.payload, '
         + '  campaign_id = excluded.campaign_id, kind = excluded.kind, '
@@ -249,7 +258,7 @@ export async function putCharacter(
         + 'RETURNING id')
         .bind(
             userId, id, label, payload, campaignId, kind, tierId, spent, variantOf, variantKind, now,
-            userId, id, userId, userId)
+            userId, id, userId, id, userId, userId)
         .first();
 
     return row !== null;
@@ -473,7 +482,7 @@ export async function getMembership(db, userId, id) {
     return await db.prepare(
         'SELECT id, campaign_id, gm_user_id, player_user_id, character_id, label, '
         + '       approved_payload, approved_at, pending_payload, pending_at, pending_version, '
-        + '       joined_at '
+        + '       pending_kind, handed_over_at, joined_at '
         + 'FROM campaign_members WHERE id = ? AND ('
         + '     player_user_id = ? '
         + '  OR (gm_user_id = ? AND EXISTS (SELECT 1 FROM campaigns c '
@@ -524,13 +533,22 @@ export async function campaignForMember(db, { id, playerUserId }) {
  * the thing `SavedCharacterSummary` exists to avoid, one level up.</p>
  */
 export async function listMembershipsForPlayer(db, playerUserId) {
+    // **`given_to` is the campaign's name, and only for a handed-over row.** The player's roster
+    // has to say which game took the character, and the character's own row — which named the
+    // campaign — is gone. The player was handed this label when they redeemed the code, so it
+    // tells them nothing new; it is withheld from every other row because nothing draws it there.
+    // The join carries `c.user_id = m.gm_user_id` for the reason `campaignForMember` gives, and
+    // is a `LEFT JOIN` so a deleted campaign leaves the row and answers no name.
     const result = await db.prepare(
-        'SELECT id, campaign_id, character_id, label, approved_at, pending_at, pending_version, '
-        + '       decision, '
-        + '       approved_payload IS NOT NULL AS has_approved, '
-        + '       pending_payload IS NOT NULL AS has_pending '
-        + 'FROM campaign_members WHERE player_user_id = ? '
-        + 'ORDER BY joined_at DESC')
+        'SELECT m.id, m.campaign_id, m.character_id, m.label, m.approved_at, m.pending_at, '
+        + '       m.pending_version, m.decision, m.handed_over_at, '
+        + '       CASE WHEN m.handed_over_at IS NOT NULL THEN c.label END AS given_to, '
+        + '       m.approved_payload IS NOT NULL AS has_approved, '
+        + '       m.pending_payload IS NOT NULL AS has_pending '
+        + 'FROM campaign_members m '
+        + 'LEFT JOIN campaigns c ON c.id = m.campaign_id AND c.user_id = m.gm_user_id '
+        + 'WHERE m.player_user_id = ? '
+        + 'ORDER BY m.joined_at DESC')
         .bind(playerUserId).all();
 
     return result.results;
@@ -561,7 +579,7 @@ export async function listMembershipsForPlayer(db, playerUserId) {
 export async function listMembershipsForGm(db, gmUserId) {
     const result = await db.prepare(
         'SELECT id, campaign_id, player_user_id, label, approved_at, pending_at, pending_version, '
-        + '       decision, '
+        + '       decision, pending_kind, handed_over_at, '
         + '       approved_payload IS NOT NULL AS has_approved, '
         + '       pending_payload IS NOT NULL AS has_pending '
         + 'FROM campaign_members WHERE gm_user_id = ? '
@@ -596,17 +614,17 @@ export async function listMembershipsForGm(db, gmUserId) {
  * the clone and the standing survive, so a restore brings back exactly what was there — but
  * accepting new work into a game that is gone is not a state to report, it is one to refuse.</p>
  */
-export async function submitToCampaign(db, { id, playerUserId, label, payload, now }) {
+export async function submitToCampaign(db, { id, playerUserId, label, payload, kind, now }) {
     return await db.prepare(
         'UPDATE campaign_members SET '
-        + '  label = ?, pending_payload = ?, pending_at = ?, '
+        + '  label = ?, pending_payload = ?, pending_kind = ?, pending_at = ?, '
         + '  pending_version = pending_version + 1 '
-        + 'WHERE id = ? AND player_user_id = ? '
+        + 'WHERE id = ? AND player_user_id = ? AND handed_over_at IS NULL '
         + '  AND EXISTS (SELECT 1 FROM campaigns c '
         + '              WHERE c.user_id = campaign_members.gm_user_id '
         + '                AND c.id = campaign_members.campaign_id) '
         + 'RETURNING pending_version')
-        .bind(label, payload, now, id, playerUserId).first();
+        .bind(label, payload, kind, now, id, playerUserId).first();
 }
 
 /**
@@ -625,22 +643,100 @@ export async function submitToCampaign(db, { id, playerUserId, label, payload, n
  * approval cannot reuse a number the GM might still be holding on screen — the same defect with
  * an extra step.</p>
  *
- * <p>Null back means refused, for either reason; the caller reads the row afterwards to say
+ * <p>Null back means refused, for any reason; the caller reads the row afterwards to say
  * which.</p>
+ *
+ * <p><b>Approving a Villain hands it to the GM, for good</b> — the owner's ruling of 2026-10-01.
+ * The approved snapshot becomes a character on the GM's own account under a fresh id, inside the
+ * GM's cap; the player's own row goes; the membership records `handed_over_at`. A GM whose
+ * account is full is refused the whole approval, and nothing else moves. See the comment inside
+ * for how three writes are made one.</p>
  */
-export async function approveSubmission(db, { id, gmUserId, version, now }) {
-    return await db.prepare(
-        'UPDATE campaign_members SET '
-        + '  approved_payload = pending_payload, approved_at = ?, '
-        + '  pending_payload = NULL, pending_at = NULL, '
-        + "  decision = 'approved', decided_at = ? "
-        + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
-        + '  AND pending_payload IS NOT NULL '
+export async function approveSubmission(db, { id, gmUserId, version, now, newCharacterId }) {
+    // **A Villain's approval is three writes in two tables, and they are one transaction whose
+    // steps are chained by their own `WHERE`s rather than by anything this function decides.**
+    // `batch` is all or nothing if a statement throws, but a statement that matches no row does
+    // not throw — so each step names the row the step before it would have written, and a step
+    // that wrote nothing stops every step after it. Nothing is read in front of the batch:
+    // whether the snapshot is a Villain is `pending_kind`, read inside the statements, so a
+    // resubmission landing between a read and the write cannot change what approving does.
+    //
+    //   1. The GM's copy, written only if the snapshot the GM saw is still the one waiting, it is
+    //      a Villain, the campaign is still there, and the GM's account is under its cap. The
+    //      count leaves out the player's own row when the GM is approving their own Villain —
+    //      that row goes in step 3, so it is not a character the GM is gaining.
+    //   2. The membership: approved as ever, plus `handed_over_at` for a Villain — and for a
+    //      Villain only if step 1's row exists. **This is the step whose `RETURNING` is the
+    //      answer**, so a full account answers exactly what a stale version does: nothing.
+    //   3. The player's own copy, removed only once step 2 has marked this membership handed
+    //      over at this instant. A player with no account row for the character (built in one
+    //      browser) loses nothing here, which is right: what moves is the approved snapshot.
+    //
+    // **A Hero takes only step 2**, unchanged from before: step 1's `pending_kind = 'villain'`
+    // matches nothing and step 2's `CASE` leaves `handed_over_at` null. A row submitted before
+    // 0011 carries a null kind and approves as a Hero, which is what it was sent as.
+    const membership =
+        'FROM campaign_members m '
+        + 'WHERE m.id = ? AND m.gm_user_id = ? AND m.pending_version = ? '
+        + '  AND m.pending_payload IS NOT NULL AND m.handed_over_at IS NULL '
         + '  AND EXISTS (SELECT 1 FROM campaigns c '
-        + '              WHERE c.user_id = campaign_members.gm_user_id '
-        + '                AND c.id = campaign_members.campaign_id) '
-        + 'RETURNING id, pending_version')
-        .bind(now, now, id, gmUserId, version).first();
+        + '              WHERE c.user_id = m.gm_user_id AND c.id = m.campaign_id) ';
+
+    const [, approved] = await db.batch([
+        db.prepare(
+            'INSERT INTO characters '
+            + '  (user_id, id, label, payload, campaign_id, kind, updated_at) '
+            + 'SELECT m.gm_user_id, ?, m.label, m.pending_payload, m.campaign_id, m.pending_kind, ? '
+            + membership
+            + "  AND m.pending_kind = 'villain' "
+            + '  AND (SELECT COUNT(*) FROM characters h '
+            + '       WHERE h.user_id = m.gm_user_id '
+            + '         AND NOT (h.user_id = m.player_user_id AND h.id = m.character_id)) '
+            + '      < (SELECT character_limit FROM users WHERE id = m.gm_user_id) '
+            + 'RETURNING id')
+            .bind(newCharacterId, now, id, gmUserId, version),
+
+        db.prepare(
+            'UPDATE campaign_members SET '
+            + '  approved_payload = pending_payload, approved_at = ?, '
+            + '  pending_payload = NULL, pending_at = NULL, '
+            + "  decision = 'approved', decided_at = ?, "
+            + "  handed_over_at = CASE WHEN pending_kind = 'villain' THEN ? END "
+            + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
+            + '  AND pending_payload IS NOT NULL AND handed_over_at IS NULL '
+            + '  AND EXISTS (SELECT 1 FROM campaigns c '
+            + '              WHERE c.user_id = campaign_members.gm_user_id '
+            + '                AND c.id = campaign_members.campaign_id) '
+            + "  AND (pending_kind IS NOT 'villain' "
+            + '       OR EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?)) '
+            + 'RETURNING id, pending_version, handed_over_at')
+            .bind(now, now, now, id, gmUserId, version, gmUserId, newCharacterId),
+
+        db.prepare(
+            'DELETE FROM characters '
+            + 'WHERE (user_id, id) IN (SELECT m.player_user_id, m.character_id '
+            + '                        FROM campaign_members m '
+            + '                        WHERE m.id = ? AND m.gm_user_id = ? '
+            + '                          AND m.handed_over_at = ?) '
+            + 'RETURNING id')
+            .bind(id, gmUserId, now),
+    ]);
+
+    return approved.results[0] ?? null;
+}
+
+/**
+ * Whether this player's character was handed to a campaign as a nemesis.
+ *
+ * <p>Asked only on the refusal path of `putCharacter`, to tell a full account from a character
+ * that is no longer this account's to save — the same re-read-on-refusal shape every write here
+ * uses, so the write itself stays one statement.</p>
+ */
+export async function wasHandedOver(db, { userId, characterId }) {
+    return await db.prepare(
+        'SELECT 1 AS yes FROM campaign_members '
+        + 'WHERE player_user_id = ? AND character_id = ? AND handed_over_at IS NOT NULL')
+        .bind(userId, characterId).first() !== null;
 }
 
 /**
