@@ -1178,6 +1178,17 @@ label {
 .character-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .character-list > li { display: flex; align-items: center; gap: var(--space-3); }
 
+/* A Villain given to a campaign: the row's outline with nothing inside to press, dashed because
+   the sheet it stood for is somewhere else now. See `CharacterManager`'s "Given away". */
+.character-list > li.given-away {
+    flex-wrap: wrap;
+    padding: var(--space-2) var(--space-4);
+    border: 1px dashed var(--rule);
+    border-radius: var(--radius-small);
+    color: var(--muted);
+}
+.given-away .meta { font-size: var(--text-sm); }
+
 /* **The row is the button.** Full width, left-aligned, and a real <button> — so the large easy
    target is the safe act and the small one beside it is the destructive act, which is the way
    round Fitts's law should be pointed. It borrows the button chrome rather than `.btn` itself:
@@ -1318,6 +1329,145 @@ label {
     font-size: var(--text-sm);
     margin-left: var(--space-2);
 }
+
+/* A handed-over Villain, drawn back to the player as their nemesis — see `Nemesis.razor`.
+
+   **Every colour here is a token, and the tokens are villain-dark's on this element alone**:
+   `theme.css` lists `.nemesis` with that set, so `--surface` here is the night ground on a Hero's
+   daylight page. Three layers, in this order from the back: the eyes, two sheets of smoke drifting
+   against each other, and the text — so the smoke passes over the eyes and never over the name.
+
+   **Durations are the motion tokens multiplied**, so a slow ambient loop is still a token and not
+   a number this file chose. They are long because smoke is slow; the reduced-motion block at the
+   foot of this file switches all three loops off outright, since at 0.01ms an infinite blink is a
+   strobe rather than an absence. */
+.nemesis {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    display: grid;
+    align-content: end;
+    gap: var(--space-1);
+    min-height: 13rem;
+    margin-bottom: var(--space-4);
+    padding: var(--space-5);
+    background: var(--surface);
+    color: var(--ink);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius);
+}
+
+.nemesis-kicker,
+.nemesis-name,
+.nemesis-who { position: relative; z-index: 3; }
+
+.nemesis-kicker {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    letter-spacing: var(--banner-track);
+    text-transform: uppercase;
+    color: var(--heading);
+}
+
+.nemesis-name {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    line-height: 1.05;
+    letter-spacing: var(--heading-track);
+    text-shadow: 0 0 1.1rem var(--surface);
+}
+
+.nemesis-who { font-size: var(--text-sm); color: var(--muted); }
+
+.nemesis-eyes {
+    position: absolute;
+    top: 24%;
+    left: 50%;
+    z-index: 1;
+    display: flex;
+    gap: var(--space-7);
+    transform: translateX(-50%);
+    /* The glow is on the pair rather than on each eye, because the slant each eye is cut to
+       clips its own shadow away; a filter on the parent draws round the shape that is left. */
+    filter:
+        drop-shadow(0 0 0.5rem color-mix(in srgb, var(--primary) 95%, transparent))
+        drop-shadow(0 0 1.4rem color-mix(in srgb, var(--primary) 70%, transparent));
+}
+
+/* Each eye is a slit of fire, brass at the core and crimson at the rim, cut on the slant that makes
+   it read as a glare rather than as two lamps. The resting frame is open: that is what a reader
+   who asked for no motion sees, and what the wake animation lands on. */
+.nemesis-eye {
+    display: block;
+    width: 2.9rem;
+    height: 0.8rem;
+    border-radius: var(--radius-pill);
+    background: radial-gradient(closest-side, var(--ink), var(--accent) 45%, var(--primary));
+    animation:
+        nemesis-wake calc(var(--enter) * 5) var(--ease-out) both,
+        nemesis-blink calc(var(--enter) * 30) linear calc(var(--enter) * 5) infinite;
+}
+
+.nemesis-eye:first-child { clip-path: polygon(0 40%, 100% 0, 100% 100%, 0 100%); }
+.nemesis-eye:last-child { clip-path: polygon(0 0, 100% 40%, 100% 100%, 0 100%); }
+
+.nemesis-veil {
+    position: absolute;
+    inset: -40%;
+    z-index: 2;
+    pointer-events: none;
+    background:
+        radial-gradient(40% 30% at 30% 60%, color-mix(in srgb, var(--panel) 85%, transparent), transparent 70%),
+        radial-gradient(35% 25% at 70% 40%, color-mix(in srgb, var(--rule) 70%, transparent), transparent 70%),
+        radial-gradient(30% 22% at 55% 75%, color-mix(in srgb, var(--primary) 35%, transparent), transparent 70%);
+    animation: nemesis-drift calc(var(--enter) * 46) var(--ease) infinite alternate;
+}
+
+.nemesis-veil-far {
+    opacity: 0.9;
+    background:
+        radial-gradient(30% 25% at 60% 55%, color-mix(in srgb, var(--panel) 80%, transparent), transparent 70%),
+        radial-gradient(45% 30% at 25% 35%, color-mix(in srgb, var(--rule) 55%, transparent), transparent 70%);
+    animation-name: nemesis-drift-far;
+    animation-duration: calc(var(--enter) * 62);
+}
+
+@keyframes nemesis-wake {
+    from { transform: scaleY(0.04); opacity: 0; }
+    60% { opacity: 1; }
+    to { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes nemesis-blink {
+    0%, 95%, 100% { transform: scaleY(1); }
+    97% { transform: scaleY(0.06); }
+}
+
+@keyframes nemesis-drift {
+    from { transform: translate(-6%, 2%) scale(1); }
+    to { transform: translate(7%, -4%) scale(1.12); }
+}
+
+@keyframes nemesis-drift-far {
+    from { transform: translate(5%, -3%) scale(1.1); }
+    to { transform: translate(-7%, 4%) scale(1); }
+}
+
+/* The warning Send for approval gives before a Villain goes — see `Campaigns.razor`. Set in from
+   the row the way a row's settings are, with the danger edge because what it describes cannot be
+   undone. */
+.handover-warning {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--danger-soft);
+    border-left: var(--rule-weight) solid var(--danger);
+    border-radius: var(--radius-small);
+}
+
+.handover-warning p { margin: 0; }
+.handover-warning .choices { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 /* What a row opens: its code, and the controls that change it. Set in from the row's own left edge
    so the hierarchy is visible without a box — the panel around it is already a ruled card, and a
@@ -3102,6 +3252,10 @@ label {
 
 @media (prefers-reduced-motion: reduce) {
     .panel, .sheet, .breakdown, .palette { animation: none; }
+
+    /* The nemesis's three loops, for the other reason: an infinite animation at the collapsed
+       0.01ms duration is a strobe. Off, the eyes rest open and the smoke is still. */
+    .nemesis-eye, .nemesis-veil { animation: none; }
 }
 
 /* **The cancellation for `.shell`'s gap, placed last so it wins every rule above by source

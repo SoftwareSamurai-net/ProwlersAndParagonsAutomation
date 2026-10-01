@@ -310,6 +310,12 @@ jobs:
           proof-motion-broken.html:MOTION: FAIL:--force-prefers-reduced-motion
           proof-motion-node-broken.html:MOTION: FAIL:
           proof-motion-node-broken.html:MOTION: FAIL:--force-prefers-reduced-motion
+          proof-nemesis.html:NEMESIS: PASS:
+          proof-nemesis.html:NEMESIS: PASS:--force-prefers-reduced-motion
+          proof-nemesis-island-broken.html:NEMESIS: FAIL:
+          proof-nemesis-island-broken.html:NEMESIS: FAIL:--force-prefers-reduced-motion
+          proof-nemesis-still-broken.html:NEMESIS: FAIL:
+          proof-nemesis-reduced-broken.html:NEMESIS: FAIL:--force-prefers-reduced-motion
           proof-shortcut.html:SHORTCUT: PASS:
           proof-shortcut-broken.html:SHORTCUT: FAIL:
           proof-theme.html:THEME: PASS:

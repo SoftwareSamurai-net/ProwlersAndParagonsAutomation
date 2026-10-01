@@ -270,6 +270,16 @@ public sealed class SavedCharacters
     /// throw: a null <c>Variant</c> answers two nulls, and a set one answers its own two fields
     /// verbatim. Both travel together, exactly as they sit on the one record that names them.</para>
     /// </summary>
+    /// <summary>The stored word for a Villain — the one the server acts on when one is approved.</summary>
+    public const string VillainKind = "villain";
+
+    /// <summary>
+    /// The stored word for a palette: <see cref="VillainKind"/> or <c>hero</c>. One spelling for
+    /// the index and for a submission, because the server hands a Villain over on the strength of
+    /// it and a second spelling is a Villain it would not recognise.
+    /// </summary>
+    public static string KindOf(SheetMode mode) => mode == SheetMode.Villain ? VillainKind : "hero";
+
     internal static (string Kind, string? TierId, int? Spent, string? VariantOf, string? VariantKind)
         IndexFieldsFor(CharacterSheet sheet, SheetMode mode, CostCalculator costs)
     {
@@ -279,7 +289,7 @@ public sealed class SavedCharacters
         // Lower-cased, because it is a stored key rather than a word on a screen — the roster
         // capitalises it for a reader, and a stored "Hero" would be a presentation decision
         // written into a column that outlives it.
-        var kind = mode == SheetMode.Villain ? "villain" : "hero";
+        var kind = KindOf(mode);
 
         return (
             kind, sheet.SelectedTierId, CharacterSession.TryCost(() => costs.TotalCost(sheet)),

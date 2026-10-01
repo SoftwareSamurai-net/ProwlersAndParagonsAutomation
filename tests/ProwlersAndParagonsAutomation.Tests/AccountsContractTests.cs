@@ -554,6 +554,27 @@ public sealed class AccountsContractTests
 
         Assert.Equal(reads, sends);
 
+        // ── The GM's row: `asGmRow` against `WiredGmRow` ────────────────────────────────
+        //
+        // **Unchecked until the nemesis handover put a load-bearing field on it.** `pendingKind`
+        // is what the approval screen reads to tell a GM that approving takes the character, and a
+        // misspelling binds null in silence — the screen then offers a plain Approve over a
+        // Villain it is about to move. `characterId` is bound and deliberately never sent: the GM
+        // is not told which of another account's ids a membership names.
+        var gmRow = Regex.Match(membershipsJs,
+            @"async function asGmRow\(env, row\) \{\s*return \{(?<body>(?:(?!\};).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(gmRow.Success,
+            "worker/memberships.js no longer builds a GM's list row as an object literal, so this "
+            + "test cannot see what the inbox sends and would pass whatever it sent.");
+
+        var gmSends = LiteralKeys(gmRow.Groups["body"].Value);
+        var gmReads = BoundKeys(store, "WiredGmRow");
+
+        Assert.Contains("pendingKind", gmSends);
+        Assert.Equal(gmReads.Where(k => k != "characterId").ToArray(), gmSends);
+
         // ── The detail: `read`'s own literal against `WiredDetail` ───────────────────────
         var detail = Regex.Match(membershipsJs,
             @"return json\(\{\s*id: row\.id,(?<body>(?:(?!\}\);).)*)",
@@ -604,7 +625,7 @@ public sealed class AccountsContractTests
         // A PUT or POST with a StringContent body is invisible to
         // EveryFieldTheBrowserSendsIsOneTheServerReads, which only sees PostAsJsonAsync and query
         // strings — which is exactly how a key could go unread.
-        foreach (var (record, expected) in new[] { ("Joining", 3), ("Sending", 2), ("Deciding", 1) })
+        foreach (var (record, expected) in new[] { ("Joining", 3), ("Sending", 3), ("Deciding", 1) })
         {
             var sent = BoundKeys(store, record);
 

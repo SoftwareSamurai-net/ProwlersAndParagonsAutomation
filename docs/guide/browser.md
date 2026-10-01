@@ -1637,6 +1637,7 @@ Ch.9 builds Villains exactly like Heroes and prints no separate stat-block forma
 - **The theme preference is per-browser and is not on the character**, and not on the account either: `pp.theme.v1` in local storage, read and stamped by `js/theme.js`. A theme on `CharacterSheet` would travel through an export and change the screen of whoever imported somebody else's character; a theme on the account would let somebody signed in on a shared machine impose it on the next reader. `localStorage` over a cookie because a cookie rides on every asset request to a server with no use for it.
 - **`js/theme.js` is loaded from `<head>` and is the only render-blocking script in the app.** The payload is ~27 MiB, so there are seconds of boot screen: a theme applied from C# lands after the reader has already seen the wrong one, and so does one applied from the foot of `<body>`. Both leave every test in both suites green. `TheThemeIsStampedBeforeTheFirstPaint` reads the tag's **offset** against `</head>` — its first version searched the head slice for the file name and passed with the script moved, because a comment near the top of `index.html` mentions it.
 - **Persistence has no C# guard and cannot have one.** Deleting the `localStorage.setItem` — so a choice applies for the visit and is forgotten on reload — left all 4,115 tests green: the C# side checks that the right word goes out and that a stored value is read back, and both are true of a script that stores nothing. `proof-theme.html` drives the shipped file in a browser and re-executes the module, which is what a reload does. It is in the build workflow beside the other harnesses.
+- **One element below `:root` declares a palette, and only one: `.nemesis`.** It shares villain-dark's block by selector list rather than restating it, so a handed-over Villain is drawn on the night ground on any page in any state — see the campaign section. Do not add a second; a palette that follows an element rather than the document is a third axis.
 - Both palettes are CSS custom properties on `:root[data-mode="hero"]` and `[data-mode="villain"]` in `web/wwwroot/css/theme.css`. **No component ever names a colour** — that is what keeps the switch a one-attribute change, and there is a grep in the PR notes proving it holds.
 - **`--[a-z-]+` does not match `--shadow-1`.** The contrast instrument's token regex was written that way and silently dropped every shadow, space and type token from every palette it resolved. It is `--[a-z0-9-]+` now. A palette resolver that skips tokens reports a palette nobody is looking at.
 - **Headless Chrome here reports `prefers-color-scheme: dark`**, so an un-stamped proof page renders the *dark* palette. Correct behaviour; it means judging a light palette from a screenshot needs an explicit `data-theme="light"` on the harness.
@@ -2088,6 +2089,25 @@ works and nobody can reach.
   layout.** A campaign row can open a block beneath itself, so the `<li>` is a column and the row
   inside it is the flex line. Reusing `.character-list` would have needed that structure imposed on
   the character manager too.
+- **An approved Villain is the GM's, and three screens say so** — the owner's rulings of
+  2026-10-01; the server half is in [`accounts-server.md`](accounts-server.md).
+  - **Send asks first, of the sheet that is about to go.** `Submit` works out which sheet it would
+    send — the one on screen, or the stored read — and stops at a warning if *that* sheet is a
+    Villain; the warning's own button comes back with the confirmation. Asking the page's palette
+    or the row instead would warn about the wrong sheet whenever the session and the stored copy
+    differ, which is the state that whole section above is about.
+  - **The GM is told from `PendingKind`, the word the server will act on**, never from the sheet
+    drawn in the diff, so the sentence and what approving does cannot disagree. A full account is
+    `DecisionOutcome.AccountFull` with the limit, and the request stays open.
+  - **The player sees `Nemesis`, not a row.** Always on villain-dark (the owner's choice), the eyes
+    and smoke switched off outright under reduced motion — an infinite loop at the collapsed 0.01ms
+    tokens is a strobe, not an absence. `ProofPages.TheNemesis` drives it in Chrome beside three
+    twins: the island removed, the motion removed, and the reduced-motion rule removed.
+  - **The roster's "Given away" rows come from the memberships**, because the character's own row
+    is gone from the account. They open nothing.
+  - **A tab still holding the Villain after the GM approves keeps it on screen** until it is next
+    loaded, and every edit is refused by the server's 410 — said in `.save-status` through
+    `WriteRefused`, `SaveOutcome.GivenAway`, so it is never a sheet that silently goes nowhere.
 - **`.others-head` is reused for the section labels rather than a new uppercase class being
   added.** `UppercasedTextTests` reads every `text-transform: uppercase` rule out of `app.css` and
   requires each selector to be found on a page in its own hand-maintained list — so a new uppercase

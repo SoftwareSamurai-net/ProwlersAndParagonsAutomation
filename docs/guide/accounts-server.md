@@ -381,8 +381,10 @@ that boring**. Nine addresses — eight under `/api/memberships`, one under
   lookup — a limit applied only to successful joins is a limit on nothing. It is the only place in
   this server where a caller can probe for something belonging to somebody else, so the limit costs
   one statement and removes the question.
-- **The membership id is the only id this server mints.** Every other one is the client's (`c_`,
-  `g_`) so a PUT is idempotent. A membership is not created by a PUT to a known address — it is
+- **The membership id is the only id this server mints, bar one.** Every other one is the client's
+  (`c_`, `g_`) so a PUT is idempotent. The exception is a handed-over Villain's copy on the GM's
+  account — see the section below — which takes a fresh `c_…` because the player's own id under a
+  GM who redeemed their own code would be the very row the handover removes. A membership is not created by a PUT to a known address — it is
   created by redeeming a code, at the one moment when the server is the only party that can see both
   accounts. Minting it here is also what keeps an account id off the wire: the GM approves `m_…` and
   is never told whose account is on the other side. `characterId` is answered to the player, who
@@ -461,6 +463,35 @@ that boring**. Nine addresses — eight under `/api/memberships`, one under
   bound nothing to — the exact drift that test exists for. Removed rather than bound: the timestamps
   are in the two lists, where a "sent three hours ago" belongs, and a field nothing draws is a field
   that rots. The 409 body lost a `pendingAt` and a `label` the same way.
+
+## Approving a Villain hands it to the GM, and the server is told it is one
+
+The owner's rulings of 2026-10-01: an approved Villain becomes the campaign owner's for good, inside
+their cap; the player keeps no sheet and sees only its name. The contract is
+`docs/CHARACTERS-API.md`; the tests are `tests/worker/nemesis.test.mjs`.
+
+- **The server learns a snapshot is a Villain by being told, beside the snapshot, and acts on the
+  word it stored.** This is the decision the slice was most likely to get wrong, and two wrong
+  answers are close at hand. *Parse the payload* breaks the rule this file opens with. *Read
+  `characters.kind`* looks like reuse and is the subtler fault: that column describes the player's
+  sheet now, not the snapshot the GM read, so a player who sent a Villain and then flipped the
+  switch would change what approving does — and a player who built in one browser has no row at
+  all. So the submission carries `kind`, `submitToCampaign` writes it as `pending_kind` in the same
+  statement as `pending_payload`, and approval reads it inside its own statements. Two tests flip
+  the player's row after sending and require nothing to change.
+- **The word is the client's and can lie, and the lie costs only the liar.** A Villain sent as a
+  Hero is cloned and the player keeps it — the behaviour every submission had before this slice. A
+  Hero sent as a Villain is given away by the player who sent it, after a warning they confirmed.
+  Neither reaches anybody else's rows.
+- **Three writes, one `batch`, chained by their own `WHERE`s.** D1 rolls a batch back on a throw,
+  not on a statement that matched nothing — so each step names the row the step before would have
+  written, and the first step carries the cap. `taggedStorage` forwards `batch` with each wrapper
+  unwrapped, because D1 runs only its own statements. The harness's `batch` rolls back too, and a
+  test makes the last step throw to prove the first two are undone.
+- **A save naming a handed-over id is refused inside `putCharacter`'s own `WHERE`**, beside the
+  cap, for the cap's reason: a tab still holding the Villain would otherwise write it straight
+  back on its next autosave. The refusal is 410, told apart from the cap's 409 by a re-read on the
+  refusal path only.
 
 ## An account has a name it can change
 

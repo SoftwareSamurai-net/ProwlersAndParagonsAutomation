@@ -463,6 +463,16 @@ public sealed class FakeApi : HttpMessageHandler
         {
             var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
 
+            // A character this account handed to a campaign as a nemesis is not theirs to save
+            // back, which is the real server's 410 — ahead of the cap, as its statement is.
+            if (_memberships.Values.Any(m => m.HandedOver
+                    && m.PlayerAccount == who.Key && m.CharacterId == id))
+            {
+                return Json(
+                    """{"error":"That character was given to a campaign as a nemesis, so it can no longer be saved here."}""",
+                    HttpStatusCode.Gone);
+            }
+
             // The cap, enforced the way the real server enforces it: replacing an existing
             // character is always allowed however full the account is.
             if (!_characters.ContainsKey(key) && _characters.Count(e => e.Key.Account == who.Key) >= Limit)
@@ -826,9 +836,13 @@ public sealed class FakeApi : HttpMessageHandler
     private sealed record MembershipRow(
         string CampaignId, string GmAccount, string PlayerAccount, string CharacterId,
         string Label, string? Approved, long? ApprovedAt, string? Pending, long? PendingAt,
-        int PendingVersion, string? Decision = null);
+        int PendingVersion, string? Decision = null, string? PendingKind = null,
+        bool HandedOver = false);
 
     private readonly Dictionary<string, MembershipRow> _memberships = [];
+
+    /// <summary>How many Villains have been handed over, for the ids their GM copies take.</summary>
+    private int _handovers;
 
     /// <summary>
     /// Whether the campaign this membership belongs to is still there, which is the real
@@ -1020,6 +1034,10 @@ public sealed class FakeApi : HttpMessageHandler
          "pendingAt":{{row.PendingAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
          "pendingVersion":{{row.PendingVersion}},
          "decision":{{((DecisionOnTheWire ?? row.Decision) is not { } word ? "null" : Quote(word))}},
+         "handedOver":{{Lower(row.HandedOver)}},
+         {{(forGm
+             ? $"\"pendingKind\":{(row.Pending is not null && row.PendingKind is { } kind ? Quote(kind) : "null")},"
+             : $"\"givenTo\":{(row.HandedOver && _campaigns.TryGetValue((row.GmAccount, row.CampaignId), out var game) ? Quote(game.Label) : "null")},")}}
          "playerKey":{{(forGm ? Quote($"pk_{row.CampaignId}:{row.PlayerAccount}") : "null")}}}
         """;
 
@@ -1166,6 +1184,13 @@ public sealed class FakeApi : HttpMessageHandler
                     HttpStatusCode.Conflict);
             }
 
+            if (row.HandedOver)
+            {
+                return await Json(
+                    """{"error":"That Villain belongs to the campaign now, so nothing more can be sent."}""",
+                    HttpStatusCode.Conflict);
+            }
+
             var label = sent.RootElement.TryGetProperty("label", out var l)
                 ? l.GetString() ?? row.Label : row.Label;
 
@@ -1173,6 +1198,7 @@ public sealed class FakeApi : HttpMessageHandler
             {
                 Label = label,
                 Pending = payload,
+                PendingKind = SentString(sent.RootElement, "kind"),
                 PendingAt = ++_clock,
                 PendingVersion = row.PendingVersion + 1,
             };
@@ -1212,6 +1238,38 @@ public sealed class FakeApi : HttpMessageHandler
                     {"error":"This changed while you were looking at it.",
                      "pendingVersion":{{row.PendingVersion}},"pending":{{Quote(row.Pending)}}}
                     """, HttpStatusCode.Conflict);
+            }
+
+            // **Approving a Villain hands it to the GM**, inside the GM's cap, the way
+            // `approveSubmission`'s batch does: the GM's copy under a fresh id, the player's row
+            // gone, the membership marked. A full account refuses the whole approval with the
+            // limit attached, and nothing moves.
+            if (tail == "approve" && row.PendingKind == "villain")
+            {
+                var held = _characters.Count(e => e.Key.Account == who.Key
+                    && !(e.Key.Account == row.PlayerAccount && e.Key.Id == row.CharacterId));
+
+                if (held >= Limit)
+                {
+                    return await Json($$"""
+                        {"error":"Not approved: your account is full.",
+                         "pendingVersion":{{row.PendingVersion}},"pending":{{Quote(row.Pending)}},
+                         "limit":{{Limit}}}
+                        """, HttpStatusCode.Conflict);
+                }
+
+                var taken = $"c_handed{++_handovers:D16}";
+                _characters[(who.Key, taken)] = new Stored(
+                    row.Label, row.Pending, ++_clock, row.CampaignId, "villain", null, null, null, null);
+                _characters.Remove((row.PlayerAccount, row.CharacterId));
+
+                _memberships[id] = row with
+                {
+                    Approved = row.Pending, ApprovedAt = ++_clock,
+                    Pending = null, PendingAt = null, Decision = "approved", HandedOver = true,
+                };
+
+                return await Status(HttpStatusCode.NoContent);
             }
 
             // **Both arms write `decision`, which is the point of it.** A fake that recorded it

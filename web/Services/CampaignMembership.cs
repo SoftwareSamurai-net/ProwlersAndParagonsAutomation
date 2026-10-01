@@ -24,6 +24,13 @@ public enum CampaignStanding
     /// <summary>In a campaign, and nothing has ever been sent for approval.</summary>
     NotSubmitted,
 
+    /// <summary>
+    /// A Villain the GM approved, which made it theirs — the owner's ruling of 2026-10-01. It
+    /// displaces every other standing: there is no sheet of the player's behind it any more, so
+    /// "approved" would answer a question about a character they no longer hold.
+    /// </summary>
+    GivenAsNemesis,
+
     /// <summary>A snapshot is waiting for the GM's decision.</summary>
     ChangesPending,
 
@@ -116,6 +123,18 @@ public enum MembershipDecision
 /// which groups by this key and treats null as "groups with nobody, ever" for exactly that
 /// reason.
 /// </param>
+/// <param name="HandedOver">
+/// Whether approving this membership's Villain made it the GM's. Set by the server once and never
+/// cleared, because there is no hand-back.
+/// </param>
+/// <param name="GivenTo">
+/// The game a handed-over Villain went to, by name — on a player's own row only, and null where
+/// the campaign has since been deleted.
+/// </param>
+/// <param name="PendingKind">
+/// What the waiting snapshot was sent as, on the GM's row only: the word the server will act on
+/// when the GM approves, so the screen can say what approving does.
+/// </param>
 public sealed record MembershipSummary(
     string Id,
     string CampaignId,
@@ -127,8 +146,17 @@ public sealed record MembershipSummary(
     long? PendingAt,
     int PendingVersion,
     MembershipDecision Decision = MembershipDecision.None,
-    string? PlayerKey = null)
+    string? PlayerKey = null,
+    bool HandedOver = false,
+    string? GivenTo = null,
+    string? PendingKind = null)
 {
+    /// <summary>
+    /// Whether approving what is waiting would hand a Villain to the GM — read off the word the
+    /// snapshot was sent with, which is the word the approval acts on.
+    /// </summary>
+    public bool ApprovingHandsOver => HasPending && PendingKind == SavedCharacters.VillainKind;
+
     /// <summary>
     /// Where this character stands. Read off the two slots rather than stored, because a third
     /// field saying the same thing is a third field that can disagree with them.
@@ -143,7 +171,8 @@ public sealed record MembershipSummary(
     /// fix, not a reordering of equals.</para>
     /// </summary>
     public CampaignStanding Standing =>
-        HasPending ? CampaignStanding.ChangesPending
+        HandedOver ? CampaignStanding.GivenAsNemesis
+        : HasPending ? CampaignStanding.ChangesPending
         : Decision == MembershipDecision.Rejected ? CampaignStanding.ChangesTurnedDown
         : HasApproved ? CampaignStanding.Approved
         : CampaignStanding.NotSubmitted;
@@ -189,6 +218,13 @@ public enum DecisionOutcome
     /// <summary>Refused, because there is nothing waiting for a decision at all.</summary>
     NothingWaiting,
 
+    /// <summary>
+    /// Refused whole, because approving would hand a Villain to the GM and their account is at its
+    /// character cap — see <see cref="Decision.Limit"/>. Nothing moved and the snapshot is still
+    /// waiting.
+    /// </summary>
+    AccountFull,
+
     /// <summary>Nothing could be reached, so nothing is known to have happened.</summary>
     Unreachable,
 }
@@ -229,8 +265,9 @@ public enum LeftOutcome
 /// screen can redraw the diff rather than telling somebody to go and look again. Null otherwise.
 /// </param>
 /// <param name="NewerVersion">Its version, which a second decision has to name.</param>
+/// <param name="Limit">The GM's cap, on a <see cref="DecisionOutcome.AccountFull"/> refusal.</param>
 public sealed record Decision(
-    DecisionOutcome Outcome, CharacterSheet? Newer = null, int NewerVersion = 0);
+    DecisionOutcome Outcome, CharacterSheet? Newer = null, int NewerVersion = 0, int? Limit = null);
 
 /// <summary>
 /// A campaign's clones and the snapshots waiting for a decision, kept on the server.
@@ -314,7 +351,8 @@ public sealed class ApiMembershipStore
                 .Select(m => new MembershipSummary(
                     m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
                     m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion,
-                    Decided(m.Decision), m.PlayerKey))];
+                    Decided(m.Decision), m.PlayerKey,
+                    HandedOver: m.HandedOver, PendingKind: m.PendingKind))];
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }
@@ -334,7 +372,8 @@ public sealed class ApiMembershipStore
                 .Select(m => new MembershipSummary(
                     m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
                     m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion,
-                    Decided(m.Decision)))];
+                    Decided(m.Decision),
+                    HandedOver: m.HandedOver, GivenTo: m.GivenTo))];
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }
@@ -450,8 +489,11 @@ public sealed class ApiMembershipStore
 
         try
         {
+            // **The kind travels with the snapshot because the server acts on it**: approving a
+            // snapshot sent as a Villain hands it to the GM. The server never parses a character,
+            // so it is told, in the same word an ordinary save sends beside one.
             using var body = Body(new Sending(
-                SheetLabel(sheet), StoredCharacter.Write(sheet, mode)));
+                SheetLabel(sheet), StoredCharacter.Write(sheet, mode), SavedCharacters.KindOf(mode)));
 
             using var response = await _http.PutAsync(
                 $"{List}/{Uri.EscapeDataString(id)}/submission", body);
@@ -485,6 +527,14 @@ public sealed class ApiMembershipStore
             }
 
             var refused = await response.Content.ReadFromJsonAsync<WiredRefusal>(Wire);
+
+            // **A Villain the GM's account has no room for.** Checked first, because that refusal
+            // carries the very snapshot the GM saw — it is not stale, and redrawing it as though it
+            // had changed would send them hunting for a difference that is not there.
+            if (refused?.Limit is { } limit)
+            {
+                return new Decision(DecisionOutcome.AccountFull, Limit: limit);
+            }
 
             // Nothing waiting and a snapshot that moved are both 409 and are different sentences.
             // The server distinguishes them by whether it attached one.
@@ -634,7 +684,9 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("hasPending")] bool HasPending,
         [property: JsonPropertyName("pendingAt")] long? PendingAt,
         [property: JsonPropertyName("pendingVersion")] int PendingVersion,
-        [property: JsonPropertyName("decision")] string? Decision);
+        [property: JsonPropertyName("decision")] string? Decision,
+        [property: JsonPropertyName("handedOver")] bool HandedOver,
+        [property: JsonPropertyName("givenTo")] string? GivenTo);
 
     /// <summary>
     /// The GM's inbox list, which is <see cref="WiredList"/> plus <see cref="WiredGmRow.PlayerKey"/>
@@ -654,6 +706,8 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("pendingAt")] long? PendingAt,
         [property: JsonPropertyName("pendingVersion")] int PendingVersion,
         [property: JsonPropertyName("decision")] string? Decision,
+        [property: JsonPropertyName("pendingKind")] string? PendingKind,
+        [property: JsonPropertyName("handedOver")] bool HandedOver,
         [property: JsonPropertyName("playerKey")] string? PlayerKey);
 
     private sealed record WiredDetail(
@@ -685,7 +739,8 @@ public sealed class ApiMembershipStore
 
     private sealed record WiredRefusal(
         [property: JsonPropertyName("pendingVersion")] int PendingVersion,
-        [property: JsonPropertyName("pending")] string? Pending);
+        [property: JsonPropertyName("pending")] string? Pending,
+        [property: JsonPropertyName("limit")] int? Limit = null);
 
     private sealed record WiredCode([property: JsonPropertyName("joinCode")] string? JoinCode);
 
@@ -696,7 +751,8 @@ public sealed class ApiMembershipStore
 
     private sealed record Sending(
         [property: JsonPropertyName("label")] string Label,
-        [property: JsonPropertyName("payload")] string Payload);
+        [property: JsonPropertyName("payload")] string Payload,
+        [property: JsonPropertyName("kind")] string Kind);
 
     private sealed record Deciding([property: JsonPropertyName("version")] int Version);
 }
@@ -765,6 +821,11 @@ public static class Standings
                 ? "Changes turned down"
                 : $"Changes turned down for {campaign}",
         CampaignStanding.NotSubmitted => "Not submitted",
+
+        CampaignStanding.GivenAsNemesis =>
+            string.IsNullOrWhiteSpace(campaign)
+                ? "Given to the campaign as a nemesis"
+                : $"Given to {campaign} as a nemesis",
 
         // **Said rather than left blank.** A character whose standing could not be read is not a
         // character out of the game, and a blank where a standing goes reads as the second.
