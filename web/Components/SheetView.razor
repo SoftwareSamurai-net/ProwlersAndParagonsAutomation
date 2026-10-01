@@ -182,11 +182,11 @@
                                        for the rest. *@
                                     @if (sp.Pros.Count > 0)
                                     {
-                                        <div class="statline">Pros: @PowerFormatter.ModifierLine(sp.Pros, c => Label(c, power))</div>
+                                        <div class="statline">Pros: @ModifierTerms(sp.Pros, power, pro: true)</div>
                                     }
                                     @if (sp.Cons.Count > 0)
                                     {
-                                        <div class="statline">Cons: @PowerFormatter.ModifierLine(sp.Cons, c => Label(c, power))</div>
+                                        <div class="statline">Cons: @ModifierTerms(sp.Cons, power, pro: false)</div>
                                     }
                                 </div>
                             }
@@ -391,11 +391,11 @@
                                     }
                                     @if (sp.Pros.Count > 0)
                                     {
-                                        <div class="statline">Pros: @PowerFormatter.ModifierLine(sp.Pros, c => Label(c, power))</div>
+                                        <div class="statline">Pros: @ModifierTerms(sp.Pros, power, pro: true)</div>
                                     }
                                     @if (sp.Cons.Count > 0)
                                     {
-                                        <div class="statline">Cons: @PowerFormatter.ModifierLine(sp.Cons, c => Label(c, power))</div>
+                                        <div class="statline">Cons: @ModifierTerms(sp.Cons, power, pro: false)</div>
                                     }
                                 }
                             </div>
@@ -680,6 +680,58 @@
     /// <summary>Which immunities were bought, as the text export words it; null for nothing to say.</summary>
     private static string? UnitNames(PowerModel? power, SelectedPower sp) =>
         PowerFormatter.UnitNamesLine(power, sp);
+
+    /// <summary>
+    /// A Pros or Cons line as terms — each option a <see cref="Term"/> explaining itself, joined
+    /// the way <see cref="PowerFormatter.ModifierLine"/> joins them, so the printed words are
+    /// the same and only the explanation is added.
+    ///
+    /// <para><b>A Power's own option says whose it is before it says what it does.</b> The
+    /// owner met Immortality's own <i>Vulnerable</i> on a sheet with no tooltip, looked the word
+    /// up, and found the <i>Vulnerability</i> Flaw — a different rule under a near-identical name.
+    /// So the sentence opens "Immortality's own Con." and the id is keyed on the Power as well as
+    /// the option, because a generic option can share the spelling and must not share the
+    /// description.</para>
+    /// </summary>
+    private RenderFragment ModifierTerms(IReadOnlyList<SelectedProCon> choices, PowerModel? power, bool pro) => builder =>
+    {
+        var modifiers = PowerFormatter.Modifiers(choices, c => Label(c, power));
+        var seq = 0;
+
+        for (var i = 0; i < modifiers.Count; i++)
+        {
+            if (i > 0) builder.AddContent(seq++, ", ");
+
+            var modifier = modifiers[i];
+            var own = power?.PowerPros.Concat(power.PowerCons).FirstOrDefault(e => e.Id == modifier.Choice.Id);
+
+            builder.OpenComponent<Term>(seq++);
+            builder.AddComponentParameter(seq++, nameof(Term.Name), modifier.Text);
+            builder.AddComponentParameter(seq++, nameof(Term.Text), ExplainModifier(modifier.Choice, power, own, pro));
+            builder.AddComponentParameter(seq++, nameof(Term.IdKey), own is null ? null : $"{power!.Id}-{modifier.Choice.Id}");
+            builder.AddComponentParameter(seq++, nameof(Term.Enabled), Explain);
+            builder.CloseComponent();
+        }
+    };
+
+    /// <summary>What one option is — the Power's own, said so, or the generic entry's description.</summary>
+    private string? ExplainModifier(SelectedProCon choice, PowerModel? power, PowerProConModel? own, bool pro)
+    {
+        var kind = pro ? "Pro" : "Con";
+
+        if (own is not null && power is not null)
+        {
+            return string.IsNullOrWhiteSpace(own.Description)
+                ? $"{power.Name}'s own {kind}."
+                : $"{power.Name}'s own {kind}. {own.Description}";
+        }
+
+        var description = pro
+            ? Session.Rules.GetPro(choice.Id)?.Description
+            : Session.Rules.GetCon(choice.Id)?.Description;
+
+        return string.IsNullOrWhiteSpace(description) ? null : description;
+    }
 
     private string Label(SelectedProCon choice, PowerModel? power)
     {

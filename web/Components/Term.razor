@@ -56,6 +56,15 @@ else
     /// </summary>
     [Parameter] public bool Enabled { get; set; } = true;
 
+    /// <summary>
+    /// What the id is derived from instead of the name, where two terms share a word and not a
+    /// meaning. A Power's own Con and a generic one can be spelled the same — the rules data
+    /// has <i>Line</i> and <i>Selection</i> both ways — and on one sheet they would otherwise
+    /// share an id, so <c>aria-describedby</c> on the second would read the first's sentence.
+    /// Null derives from the name, which is every other term.
+    /// </summary>
+    [Parameter] public string? IdKey { get; set; }
+
     /// <summary>Whether Escape has closed it for now. Same as <c>RankRow</c> and <c>OptionRow</c>.</summary>
     private bool _dismissed;
 
@@ -79,5 +88,5 @@ else
     /// the description is the same sentence either way.
     /// </summary>
     private string Id => "term-" + new string(
-        Name.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+        (IdKey ?? Name).ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
 }

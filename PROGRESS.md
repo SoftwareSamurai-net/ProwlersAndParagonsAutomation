@@ -101,7 +101,7 @@ as in scope. **Nothing here is a defect.**
 - [ ] **[37](#37-joining-a-campaign-is-one-character-at-a-time-and-each-join-re-reads-the-page)** — joining several characters is six clicks and a re-typed code each, and every join re-reads the page serially; a multi-character join box and a parallel refresh are pitched, with two questions for the owner
 - [ ] **[38](#38-a-villain-approved-into-a-campaign-becomes-the-gms-and-the-players-nemesis)** — the owner's idea: an approved Villain transfers to the GM and shows back to the player as their nemesis; recorded with its questions, not built
 - [ ] **[39](#39-fourteen-pros-and-cons-ask-the-player-to-define-something-and-there-is-nowhere-to-write-it)** — eleven Cons and three Pros say "the player must define…" and `SelectedProCon` has no text field, so the picker never asks; Flaws and Perks already have the box. A detail field across the picker, the sheet, the exports, the CLI, the MCP shape and the diff is pitched
-- [ ] **[40](#40-a-powers-own-pros-and-cons-read-like-the-generic-ones)** — Immortality's own *Vulnerable* beside the *Vulnerability* Flaw reads as one thing; the picker's *this Power* chip is the only marking. Two headed groups in the picker are pitched, pending where the owner met it
+- [x] **[40](#40-a-powers-own-pros-and-cons-read-like-the-generic-ones)** — every Pro and Con on the sheet is a term, a Power's own saying whose it is first, and the palette names rules terms by kind so *Vulnerable* and *Vulnerability* sit side by side labelled Con and Flaw. Verified: the owner prefix dropped, the Powers' own options left out of the palette, and the term key ignored each went red under mutation. The picker's grouping is deliberately untouched — see the entry
 - [x] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — the test projects run on xunit.v3 4 under Microsoft.Testing.Platform, on the owner's ask of 2026-09-11. Verified by the orchestrator: `count-tests.sh` re-run and its refusal to total a red suite read; the crash trap the guide warned about proved closed with a real stack overflow, output quoted in the guide
 - [x] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table's measured cells are pointers now, held there by `ProgressCurrentStateTests`. Verified by the orchestrator 2026-09-06
 - [x] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — twenty-two dead pointers fixed, the second `### 9.` renumbered, and `ProgressPointerTests` holds every link, anchor, test name and sha in this file to resolving. Verified by the orchestrator 2026-09-06
@@ -2596,11 +2596,19 @@ can take. Today `ProConPicker` marks a Power's own option with a *this Power* ta
 offered and the chosen list, and nothing else distinguishes them: the sheet, the exports and the
 diff print the name alone, and the picker lists both kinds in one run.
 
-**Proposed, and put to the owner; not built.** The picker offers them as two headed groups —
-*Printed with Immortality* and *Any Power* — rather than one list with a chip; the chosen list
-keeps the chip. On the sheet a Power's own option already sits inside that Power's line, so it
-stays as it is. Whether the confusion was met in the picker, on the sheet or in the diff decides
-whether more than the picker moves, and the owner has been asked which.
+**Where it bit, in the owner's words: on the sheet.** He read *Vulnerable* there, went to see how
+the Con worked and found no tooltip, then looked *Vulnerability* up first through `Ctrl`/`⌘`+`K`
+and was handed a different rule. So the fix is on the sheet and in the palette, and the picker —
+which already tags a Power's own options *this Power* — is left alone.
+
+**Built — see the pull request that closed this item.** Every Pro and Con on a Power's line is a
+`Term`; a Power's own opens *"Immortality's own Con."* before its text, keyed on the Power so a
+generic option of the same spelling cannot share its sentence. The palette gains a fifth group,
+**Rules terms** — generic Pros and Cons, Perks, Flaws and every Power's own option — each row
+saying its kind before its description, so the two *Vulnerab…* rows sit together labelled Con and
+Flaw; choosing one goes where it is bought and adds nothing. The picker's two-group layout was
+pitched and not built: `OptionList` filters rows and would not filter a heading, and the chip
+already answers the question there.
 
 ## Completed work
 
