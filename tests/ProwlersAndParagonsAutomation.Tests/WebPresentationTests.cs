@@ -4900,6 +4900,13 @@ public sealed class WebPresentationTests
 
         static bool Matches(string selector, ThemeState state)
         {
+            // **The one element below the root that declares a palette**, listed beside
+            // villain-dark so a handed-over Villain is drawn on the night ground everywhere — see
+            // `Nemesis.razor` and browser.md. It is an element, never the document, so it adds
+            // nothing to the document's palette. Named exactly rather than "any class", so a
+            // second island still fails here and has to be argued for.
+            if (selector == ".nemesis") return false;
+
             Assert.StartsWith(":root", selector, StringComparison.Ordinal);
 
             var rest = selector[":root".Length..];
