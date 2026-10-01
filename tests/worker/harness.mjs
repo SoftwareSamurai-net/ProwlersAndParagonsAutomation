@@ -34,6 +34,7 @@ export const MIGRATIONS = [
     join(here, '..', '..', 'd1', 'migrations', '0008_character_index_fields.sql'),
     join(here, '..', '..', 'd1', 'migrations', '0009_campaign_format.sql'),
     join(here, '..', '..', 'd1', 'migrations', '0010_character_variant_index.sql'),
+    join(here, '..', '..', 'd1', 'migrations', '0011_villain_handover.sql'),
 ];
 
 export const ORIGIN = 'https://pp.example.test';
@@ -41,7 +42,7 @@ export const ORIGIN = 'https://pp.example.test';
 /**
  * D1's shape over node:sqlite.
  *
- * The methods are the three `worker/db.js` uses and no more, so a query reaching for something
+ * The methods are the three `worker/db.js` uses and no more, plus `batch` below, so a query reaching for something
  * D1 has and this does not fails loudly here rather than in production. `first()` goes through
  * `all()` because a statement with `RETURNING` produces rows, and `run()` on one discards them.
  */
@@ -75,7 +76,28 @@ export function database() {
         return api;
     };
 
-    return { prepare: wrap, raw: sqlite };
+    /**
+     * D1's `batch`: every statement in one transaction, in order, all or nothing.
+     *
+     * <p>Added for the nemesis handover, the one write in `worker/db.js` that touches three rows
+     * in two tables. **It rolls back on a throw, as D1 documents**, so a test that makes a later
+     * statement fail can see that the earlier ones left nothing behind — a batch that merely ran
+     * its statements in a row would pass every test that only ever succeeds.</p>
+     */
+    const batch = async statements => {
+        sqlite.exec('BEGIN');
+        try {
+            const results = [];
+            for (const statement of statements) results.push(await statement.all());
+            sqlite.exec('COMMIT');
+            return results;
+        } catch (error) {
+            sqlite.exec('ROLLBACK');
+            throw error;
+        }
+    };
+
+    return { prepare: wrap, batch, raw: sqlite };
 }
 
 /**

@@ -148,6 +148,14 @@ The 409 body names the limit:
 { "error": "This account already holds 5 characters.", "limit": 5 }
 ```
 
+Answers **410** for an id this account handed to a campaign as a nemesis — see "Approving a Villain
+hands it to the GM" below. Nothing the player can do makes that save land, which is why it is not
+the cap's 409:
+
+```json
+{ "error": "That character was given to a campaign as a nemesis, so it can no longer be saved here." }
+```
+
 ## Campaigns
 
 A campaign is another opaque blob beside a character, and every rule above applies to it word for
@@ -421,6 +429,39 @@ screen can redraw the diff rather than telling somebody to go and look again:
 - **Nothing waiting is also 409**, with `"pending": null` — a different sentence to a reader, and
   the two are told apart by whether a snapshot is attached.
 
+### Approving a Villain hands it to the GM
+
+**The owner's rulings of 2026-10-01**: an approved Villain stops being the player's and becomes the
+campaign owner's, for good, inside the owner's character cap; the player keeps no sheet. A Hero's
+approval is unchanged.
+
+- **The submission says what it is.** `PUT /api/memberships/{id}/submission` carries `kind` beside
+  `label` and `payload` — the same opaque palette word (`villain` or `hero`, at most 40 characters)
+  a character's own PUT sends. It is stored with the snapshot as `pending_kind` and **approval acts
+  on that stored word**: never on the payload, which this server does not parse, and never on the
+  player's own `characters` row, which describes their sheet now rather than the snapshot the GM
+  read. A missing word — an older build — approves as a Hero.
+- **Approving one is three writes in one D1 batch**, each `WHERE` naming the row the step before it
+  would have written: the approved snapshot as a character on the GM's account under a `c_…` this
+  server mints, only if the GM is under their cap; the membership approved and stamped
+  `handed_over_at`; the player's own row removed. A full account matches nothing in the first step
+  and so nothing after it, and the answer is **409 with the limit**, the snapshot still waiting:
+
+  ```json
+  { "error": "Not approved: your account already holds 5 characters, and approving this Villain would move it onto your account. Make room and approve again — it is still waiting.",
+    "pendingVersion": 3, "pending": "{…}", "limit": 5 }
+  ```
+
+  A stale version is still the stale 409 above — the cap is only reached once the snapshot is the
+  one the GM saw. A GM approving their own Villain into their own game is not counted twice.
+- **There is no hand-back.** Nothing more can be submitted into the membership (409), a save naming
+  the old id is 410, and leaving or removing the membership afterwards ends the record and leaves
+  the Villain with the GM.
+- **Both list rows say so.** The player's row carries `handedOver` and `givenTo` — the campaign's
+  name, only for a handed-over row, null once the campaign is deleted — because their character's
+  own row is gone. The GM's row carries `handedOver` and `pendingKind`, the word approval will act
+  on, so the approval screen can say that approving takes the character.
+
 ### Everything above keeps the one invariant this document opens with
 
 **The server never parses a character.** `approved_payload` and `pending_payload` are the same
@@ -436,7 +477,7 @@ a payload cannot read a name out of one.
 ### What is deliberately not here
 
 Notifications (a waiting count on the campaign screen is enough), a GM editing the clone directly,
-approval history or rollback, removing a player, and transferring a campaign. **And no way to apply
+approval history or rollback, handing a Villain back, and transferring a campaign. **And no way to apply
 one row of a diff**: partial application is a merge algorithm for characters — a second engine,
 capable of producing a sheet neither person authored.
 

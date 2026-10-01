@@ -30,7 +30,7 @@
 
 import { campaignByJoinCode } from './db.js';
 import * as db from './db.js';
-import { newMembershipId, normaliseJoinCode, playerKey } from './crypto.js';
+import { newCharacterId, newMembershipId, normaliseJoinCode, playerKey } from './crypto.js';
 import { fail, json, noContent, readJson, sameOrigin } from './http.js';
 
 /** `m_` plus 22 URL-safe characters — the `c_`/`g_` shape with a third letter. */
@@ -41,6 +41,21 @@ const CHARACTER_ID_PATTERN = /^c_[A-Za-z0-9_-]{22}$/;
 
 const MAX_LABEL_LENGTH = 80;
 const DEFAULT_LABEL = 'Unnamed character';
+
+/**
+ * The palette word a snapshot travels with, and the only one that changes what approving does.
+ *
+ * **Told, never read.** This server does not parse a character, so whether a snapshot is a
+ * Villain is the same opaque `kind` word every save already sends beside a character (see
+ * `characters.js` and 0008) — sent again with the snapshot, because the snapshot is what the GM
+ * decides about and the player's own row may say something else by the time they do. Anything
+ * other than this exact word, including nothing at all from an older build, is approved as a
+ * Hero is: a clone, and the player keeps their character.
+ */
+const VILLAIN = 'villain';
+
+/** The cap on that word, the bound `characters.js` puts on every index field. */
+const MAX_KIND_LENGTH = 40;
 
 /**
  * How many join attempts one account gets an hour.
@@ -290,8 +305,11 @@ export async function submit(request, env, deps, user, id) {
     const label = normaliseLabel(body.value.label);
     if (label === undefined) return fail(400, 'That label is too long.');
 
+    const kind = normaliseKind(body.value.kind);
+    if (kind === undefined) return fail(400, 'That is not a value this server can store.');
+
     const written = await db.submitToCampaign(env.DB,
-        { id, playerUserId: user.id, label, payload, now: deps.now() });
+        { id, playerUserId: user.id, label, payload, kind, now: deps.now() });
 
     if (!written) {
         // Nothing matched, and there are now two reasons rather than one. The row is re-read to
@@ -303,6 +321,13 @@ export async function submit(request, env, deps, user, id) {
         // here and answer the same way, exactly as a character id does.
         if (!row || row.player_user_id !== user.id) {
             return fail(404, 'This account has no membership with that id.');
+        }
+
+        // **The Villain is the GM's now.** Nothing more can be sent into a membership whose
+        // character was handed over — there is no character of the player's behind it any more,
+        // and no hand-back, so a further snapshot would be a request nobody can grant.
+        if (row.handed_over_at !== null && row.handed_over_at !== undefined) {
+            return fail(409, 'That Villain belongs to the campaign now, so nothing more can be sent.');
         }
 
         // **The membership is theirs and the campaign is gone.** A 404 here would be a lie the
@@ -326,7 +351,8 @@ export async function submit(request, env, deps, user, id) {
  * it is.*
  */
 export async function approve(request, env, deps, user, id) {
-    return await decide(request, env, deps, user, id, db.approveSubmission);
+    return await decide(request, env, deps, user, id,
+        (database, args) => db.approveSubmission(database, { ...args, newCharacterId: newCharacterId() }));
 }
 
 /**
@@ -432,6 +458,29 @@ async function decide(request, env, deps, user, id, statement) {
         });
     }
 
+    // **The snapshot the GM saw is still the one waiting, and it is a Villain — so the only thing
+    // that can have refused it is the GM's own cap.** Approving would have moved it onto their
+    // account, and a full account refuses the approval whole: nothing is approved, the player
+    // keeps their character, and the snapshot is still waiting. Said in the words the roster uses
+    // for a full account, with the figure, because the remedy is the GM's. A rejection cannot
+    // reach this: with the campaign there and the version matching, a rejection always lands.
+    // **A GM who is also the player reaches this row through the player's half of
+    // `getMembership`, which does not require the campaign to exist** — so a game they deleted
+    // is asked about first, or a refusal about a game that is gone would be reported as a full
+    // account, on Reject as much as on Approve.
+    if (!(await db.campaignStillThere(env.DB, { gmUserId: user.id, campaignId: row.campaign_id }))) {
+        return fail(409, 'That campaign is no longer here.');
+    }
+
+    if (row.pending_version === version && row.pending_kind === VILLAIN) {
+        const limit = await db.characterLimit(env.DB, user.id);
+
+        return fail(409,
+            `Not approved: your account already holds ${limit} characters, and approving this `
+            + 'Villain would move it onto your account. Make room and approve again — it is still waiting.',
+            { pendingVersion: row.pending_version, pending: row.pending_payload, limit });
+    }
+
     // **The newer snapshot travels with the refusal**, so the screen can redraw the diff rather
     // than telling somebody to go and look again. That is the difference between a refusal that
     // is safe and one that is also usable.
@@ -464,6 +513,17 @@ function asPlayerRow(row) {
         // `decided_at` is stored beside it and is deliberately not here: nothing draws a time
         // yet, and this server does not send fields the browser binds nothing to.
         decision: row.decision ?? null,
+
+        // **Whether this character was handed to the campaign as a nemesis.** Its row is gone
+        // from the player's account, so this is the only place their roster can learn it was
+        // given away rather than lost.
+        handedOver: row.handed_over_at !== null && row.handed_over_at !== undefined,
+
+        // **And to which game, by the name the player was shown when they joined it** — the one
+        // thing the roster's sentence needs that a membership row does not otherwise carry.
+        // Answered only for a handed-over row, and null where the campaign has since been
+        // deleted: a name nobody holds any more is not one to print.
+        givenTo: row.given_to ?? null,
     };
 }
 
@@ -490,6 +550,15 @@ async function asGmRow(env, row) {
         // rather than fail, which is exactly the drift `AccountsContractTests` exists for.
         decision: row.decision ?? null,
 
+        // **What the waiting snapshot is, as the player's browser said**, so the approval screen
+        // can tell the GM that approving takes the character — from the very word the approval
+        // will act on. Null where nothing is waiting or an older build sent no word.
+        pendingKind: row.has_pending === 1 ? (row.pending_kind ?? null) : null,
+
+        // **Whether this membership's Villain is the GM's now**, so the campaign's roster marks
+        // it as the nemesis rather than as an ordinary approval.
+        handedOver: row.handed_over_at !== null && row.handed_over_at !== undefined,
+
         // **The one field the player's row must never gain**, and the reason it stays out of
         // `asPlayerRow`: a player has no use for "which of my own rows share an account with
         // me" — they already know — and sending it there for free would be one more field this
@@ -506,6 +575,17 @@ function isJson(text) {
     } catch {
         return false;
     }
+}
+
+/**
+ * `kind`, as `characters.js` takes an index field: absent is null, a string within the cap is
+ * stored verbatim, and `undefined` out of here is the one refusal.
+ */
+function normaliseKind(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string' || value.length > MAX_KIND_LENGTH) return undefined;
+
+    return value;
 }
 
 /**

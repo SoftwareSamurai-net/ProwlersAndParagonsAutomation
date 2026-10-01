@@ -400,8 +400,33 @@ else
         }
         else
         {
+            @* **A Villain the GM approved is theirs now, and comes back to its maker as a nemesis**
+               — the name and the effect, never the sheet (the owner's rulings of 2026-10-01).
+               Drawn above the ordinary rows because it is not one: there is nothing to send and
+               no sheet to open. Leave stays, the owner's third answer: ending the membership takes
+               the block away and hands nothing back. *@
+            @foreach (var one in _playing.Where(m => m.HandedOver))
+            {
+                <Nemesis Name="@one.Label" Campaign="@one.GivenTo" />
+                <div class="campaign-row">
+                    <span class="who"><span class="meta">@Standings.Say(one.Standing, one.GivenTo)</span></span>
+                    @if (_leaving == one.Id)
+                    {
+                        <button type="button" class="btn small"
+                                @onclick="() => Leave(one.Id)">Leave for good</button>
+                        <button type="button" class="btn small quiet"
+                                @onclick="() => _leaving = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn small quiet"
+                                @onclick="() => _leaving = one.Id">Leave</button>
+                    }
+                </div>
+            }
+
             <ul class="campaign-list">
-                @foreach (var one in _playing)
+                @foreach (var one in _playing.Where(m => !m.HandedOver))
                 {
                     <li>
                         <div class="campaign-row">
@@ -424,9 +449,14 @@ else
                                before anybody meant it to be seen. *@
                             @if (one.CharacterId == _openId)
                             {
-                                <button type="button" class="btn small" @onclick="() => Submit(one)">
-                                    Send for approval
-                                </button>
+                                @* While the warning below is up it carries the second press, so
+                                   this button steps aside rather than offering to send twice. *@
+                                @if (_confirmingHandover != one.Id)
+                                {
+                                    <button type="button" class="btn small" @onclick="() => Submit(one)">
+                                        Send for approval
+                                    </button>
+                                }
                             }
                             else
                             {
@@ -467,6 +497,26 @@ else
                            `role="status"` per row rather than one region for the panel, because
                            the message is about this membership and a reader who lands on it by
                            keyboard should meet it where the button is. *@
+                        @* **Approval is the one act on this screen nobody can undo, so a Villain asks
+                           first** — the owner's ruling: warn, then a second press, the way Leave
+                           does. Under the row it is about, for the reason the sentence below is. *@
+                        @if (_confirmingHandover == one.Id)
+                        {
+                            <div class="handover-warning" role="status">
+                                <p>
+                                    <b>If the GM approves this Villain, it becomes theirs for good.</b>
+                                    It leaves your characters, and you will see only its name.
+                                    Turned down, it stays yours.
+                                </p>
+                                <span class="choices">
+                                    <button type="button" class="btn small danger"
+                                            @onclick="() => Submit(one, handOverConfirmed: true)">Send it anyway</button>
+                                    <button type="button" class="btn small quiet"
+                                            @onclick="() => _confirmingHandover = null">Keep it</button>
+                                </span>
+                            </div>
+                        }
+
                         @if (_sentAbout == one.Id && _sent is { } sent)
                         {
                             <p class="small muted spaced" role="status">@sent</p>
@@ -596,6 +646,12 @@ else
 
     /// <summary>Which membership is one press away from being left, or null.</summary>
     private string? _leaving;
+
+    /// <summary>
+    /// Which membership's Villain is one press away from being sent, or null — the warning that an
+    /// approved Villain becomes the GM's is on screen under that row.
+    /// </summary>
+    private string? _confirmingHandover;
 
     /// <summary>What became of the last leave, or null. Rendered outside the row it was about.</summary>
     private string? _said;
@@ -1502,13 +1558,19 @@ else
     {
         _leaving = null;
 
+        // A nemesis row is a record, not a seat: the Villain went to the GM on approval and
+        // ending the record hands nothing back, so "no longer holds a copy" would be false there.
+        var nemesis = _playing?.Any(m => m.Id == membershipId && m.HandedOver) == true;
+
         // **`GameIsGone` is deliberately not a case here, and that is a fact about the server
         // rather than a gap.** `leaveCampaign` is a bare `player_user_id = ?` with no `EXISTS` on
         // the campaign, precisely so a player can walk out of a game the GM has thrown away — so
         // the 409 that value models is one only a GM's removal can be answered.
-        _said = await Memberships.LeaveAsync(membershipId) == LeftOutcome.Done
-            ? "You have left that game. It no longer holds a copy of that character."
-            : "That could not be done just now. Try again in a moment.";
+        _said = await Memberships.LeaveAsync(membershipId) != LeftOutcome.Done
+            ? "That could not be done just now. Try again in a moment."
+            : nemesis
+                ? "You have left that game. Its GM still holds the Villain you gave them."
+                : "You have left that game. It no longer holds a copy of that character.";
 
         await Refresh();
     }
@@ -1850,7 +1912,7 @@ else
     /// Nothing is written to put a bad row right — the player resubmits, which is the remedy this
     /// screen already has.</para>
     /// </summary>
-    private async Task Submit(MembershipSummary one)
+    private async Task Submit(MembershipSummary one, bool handOverConfirmed = false)
     {
         ArgumentNullException.ThrowIfNull(one);
 
@@ -1914,6 +1976,19 @@ else
             return;
         }
 
+        // **Asked of the sheet that is about to go, not of the row or the screen's palette**,
+        // because that sheet's mode is the word the server will act on — the stored copy can be a
+        // Villain while the session is empty, and the other way round. The first press stops here
+        // and draws the warning; the warning's own button comes back with the confirmation.
+        if (sending.Value.Mode == SheetMode.Villain && !handOverConfirmed)
+        {
+            _sentAbout = null;
+            _confirmingHandover = one.Id;
+            return;
+        }
+
+        _confirmingHandover = null;
+
         _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
             ? "That could not be sent just now. Try again in a moment."
             // **The name on the sheet that was actually sent, not the label the row was carrying.**
@@ -1923,7 +1998,9 @@ else
             // shape that teaches somebody to distrust the ones that are true. It is also the same
             // string the server was handed: `SubmitAsync` takes the label off this sheet.
             : $"Sent to {SavedCharacters.LabelFor(sending.Value.Sheet)}."
-              + $" Your own copy is unchanged.{PutBack()}";
+              + (sending.Value.Mode == SheetMode.Villain
+                  ? $" It is still yours until the GM approves it.{PutBack()}"
+                  : $" Your own copy is unchanged.{PutBack()}");
 
         await Refresh();
     }

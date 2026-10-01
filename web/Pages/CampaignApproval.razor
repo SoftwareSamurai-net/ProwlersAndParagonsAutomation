@@ -308,9 +308,21 @@ else
                                         <SheetView Character="_pending" ShowBudget="_pendingHasBudget" />
                                     }
 
+                                    @* **Approving a Villain takes it, and the GM is told before they
+                                       press.** The word comes from the snapshot the server will act
+                                       on — `ApprovingHandsOver` — never from the sheet drawn above,
+                                       so this sentence and what the server does cannot disagree. *@
+                                    @if (one.ApprovingHandsOver)
+                                    {
+                                        <p class="small">
+                                            This is a Villain. Approving moves it to your characters for
+                                            good, and its player keeps only its name.
+                                        </p>
+                                    }
+
                                     <div class="inline spaced">
                                         <button type="button" class="btn primary"
-                                                @onclick="() => Decide(one.Id, approve: true)">Approve</button>
+                                                @onclick="() => Decide(one.Id, approve: true)">@(one.ApprovingHandsOver ? "Approve and take it" : "Approve")</button>
                                         <button type="button" class="btn"
                                                 @onclick="() => Decide(one.Id, approve: false)">Reject</button>
                                         <button type="button" class="btn quiet"
@@ -1350,6 +1362,10 @@ else
     /// </summary>
     private async Task Decide(string membershipId, bool approve)
     {
+        // Read before the request, because the refresh after it replaces the row.
+        var handsOver = approve
+            && _waiting.FirstOrDefault(m => m.Id == membershipId) is { ApprovingHandsOver: true };
+
         var decision = approve
             ? await Memberships.ApproveAsync(membershipId, _version)
             : await Memberships.RejectAsync(membershipId, _version);
@@ -1357,8 +1373,19 @@ else
         switch (decision.Outcome)
         {
             case DecisionOutcome.Done:
-                _said = approve ? "Approved. The campaign holds this sheet now." : "Turned down.";
+                _said = !approve ? "Turned down."
+                    : handsOver ? "Approved. The Villain is yours now, with your characters."
+                    : "Approved. The campaign holds this sheet now.";
                 Close();
+                break;
+
+            // **Refused whole, and the remedy is the GM's**, so the sentence names the cap the way
+            // the roster names a full account. The request stays open: nothing changed, and the
+            // same press works once there is room.
+            case DecisionOutcome.AccountFull:
+                _said = $"Not approved: your account already holds {decision.Limit} characters, and "
+                    + "approving this Villain would move it onto your account. Delete one of your "
+                    + "characters and approve again. It is still waiting.";
                 break;
 
             case DecisionOutcome.Stale when decision.Newer is { } newer:

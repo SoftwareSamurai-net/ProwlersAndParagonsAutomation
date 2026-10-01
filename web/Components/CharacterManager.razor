@@ -369,6 +369,25 @@
         }
     }
 
+    @* **A Villain handed to a campaign does not vanish from the list that held it** — the owner's
+       ruling: the row says it was given as a nemesis. Its own row is gone from the account, so it
+       is drawn from the memberships, and it opens nothing: the sheet is the GM's now. The same
+       rule an unreadable row follows elsewhere, that a reader is told which state a thing is in.
+       Only on the roster page, where every row is; the tier page lists none of them. *@
+    @if (ListsEveryCharacter && GivenAway.Count > 0)
+    {
+        <p class="others-head">Given away</p>
+        <ul class="character-list">
+            @foreach (var one in GivenAway)
+            {
+                <li class="given-away">
+                    <span class="nm">@one.Label</span>
+                    <span class="meta">@Standings.Say(one.Standing, one.GivenTo)</span>
+                </li>
+            }
+        </ul>
+    }
+
     @* One bar, two equal doors. Starting fresh and importing something made elsewhere are the same
        kind of act — both produce a character that does not exist yet — so neither is demoted by
        size. The rule above the group is what separates them from the list, which is the job
@@ -435,6 +454,14 @@
     /// two of them, so a caller that says nothing gets what every existing caller got.</para>
     /// </summary>
     [Parameter] public bool ListsEveryCharacter { get; set; } = true;
+
+    /// <summary>
+    /// The Villains this account handed to a campaign, which have no row of their own any more.
+    /// Empty — never null — where the memberships could not be read, because a list of things
+    /// given away that failed to load is a list that says nothing, not one that says "none".
+    /// </summary>
+    private IReadOnlyList<MembershipSummary> GivenAway =>
+        _memberships?.Where(m => m.HandedOver).ToList() ?? [];
 
     /// <summary>
     /// How many other characters there have to be before this panel draws a filter box, an order

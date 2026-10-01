@@ -249,6 +249,16 @@ public sealed class SavedCharacters
     internal static string LabelFor(CharacterSheet sheet) =>
         string.IsNullOrWhiteSpace(sheet.Name) ? "Unnamed character" : sheet.Name.Trim();
 
+    /// <summary>The stored word for a Villain — the one the server acts on when one is approved.</summary>
+    public const string VillainKind = "villain";
+
+    /// <summary>
+    /// The stored word for a palette: <see cref="VillainKind"/> or <c>hero</c>. One spelling for
+    /// the index and for a submission, because the server hands a Villain over on the strength of
+    /// it and a second spelling is a Villain it would not recognise.
+    /// </summary>
+    public static string KindOf(SheetMode mode) => mode == SheetMode.Villain ? VillainKind : "hero";
+
     /// <summary>
     /// The five things besides its name and its campaign that an index records about a character,
     /// so a row can say what it is without the payload being read.
@@ -279,7 +289,7 @@ public sealed class SavedCharacters
         // Lower-cased, because it is a stored key rather than a word on a screen — the roster
         // capitalises it for a reader, and a stored "Hero" would be a presentation decision
         // written into a column that outlives it.
-        var kind = mode == SheetMode.Villain ? "villain" : "hero";
+        var kind = KindOf(mode);
 
         return (
             kind, sheet.SelectedTierId, CharacterSession.TryCost(() => costs.TotalCost(sheet)),

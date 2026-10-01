@@ -18,6 +18,12 @@ public enum SaveOutcome
 
     /// <summary>The server could not be reached, or refused for a reason worth nobody's time.</summary>
     NotSaved,
+
+    /// <summary>
+    /// This character was handed to a campaign as a nemesis and is the GM's now, so it cannot be
+    /// saved under this account again — the server's 410. Nothing the reader does makes it land.
+    /// </summary>
+    GivenAway,
 }
 
 /// <summary>
@@ -330,9 +336,12 @@ public sealed class ApiCharacterStore : ICharacterStore
 
             if (response.IsSuccessStatusCode) return SaveOutcome.Saved;
 
-            return response.StatusCode == HttpStatusCode.Conflict
-                ? SaveOutcome.AccountIsFull
-                : SaveOutcome.NotSaved;
+            return response.StatusCode switch
+            {
+                HttpStatusCode.Conflict => SaveOutcome.AccountIsFull,
+                HttpStatusCode.Gone => SaveOutcome.GivenAway,
+                _ => SaveOutcome.NotSaved,
+            };
         }
         catch (Exception e) when (IsUnreachable(e)) { return SaveOutcome.NotSaved; }
     }
@@ -401,7 +410,15 @@ public sealed class ApiCharacterStore : ICharacterStore
             return;
         }
 
-        _ = await SaveAsync(id, SavedCharacters.LabelFor(sheet), sheet, mode);
+        // **The one outcome said rather than dropped**: a Villain the GM approved while this tab
+        // still held it. The edit is not saved and never will be, and a reader typing into a sheet
+        // that silently goes nowhere is the state `WriteRefused` exists to end.
+        if (await SaveAsync(id, SavedCharacters.LabelFor(sheet), sheet, mode) == SaveOutcome.GivenAway)
+        {
+            WriteRefused?.Invoke(
+                $"{SavedCharacters.LabelFor(sheet)} was not saved: it was given to a campaign as a "
+                + "nemesis, and it is the GM's now.");
+        }
     }
 
     /// <summary>
