@@ -93,7 +93,7 @@ as in scope. **Nothing here is a defect.**
 
 **Recorded, with nothing asking for them**
 
-- [ ] **[1b](#1b-semantic-procon-constraints-are-still-unenforced)** — semantic Pro/Con constraints, no consumer
+- [x] **[1b](#1b-semantic-procon-constraints-are-still-unenforced)** — **closed as won't-do by the owner's ruling of 2026-10-01**: the semantic Pro/Con constraints stay caveats on the option, nothing is built, and the entry records the reason and the one consumer that would reopen it
 - [x] **[2](#2-what-the-sheet-still-cannot-say)** — every printed page carries the character's name and `page N of M` in a `@page` margin box, in Chrome (measured on 153); Firefox and Safari print no margin boxes, so the document title and colophon stay as their fallback. Verified by the orchestrator 2026-09-23: a SheetView that never publishes the name turned five `RunningHeadTests` red. Not driven in a real browser on CI — the margin box was proved by hand on a dev server
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
@@ -211,7 +211,21 @@ The invented per-Power lists are gone. What is left is the half of the constrain
 
 Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate was assisted creation, where a model proposing a character benefits from the engine ruling out illegal combinations.
 
-**Assisted creation has now shipped without them, and did not need them.** A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
+**Assisted creation has now shipped without them, and did not need them.** A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is.
+
+**Closed as won't-do, on the owner's ruling of 2026-10-01.** The pitch that was put to the owner, kept
+here because it is the reasoning the ruling rests on: the eleven Pro and four Con caveats
+(`applicability_caveat` in `pros.json` and `cons.json`) are the half of the constraints that cannot
+be checked against a Power's printed entry, and enforcing them is about seven booleans on each of
+141 Powers — roughly a thousand judgements against the book, each needing a page citation and a
+lock in the canonical tests. Nothing consumes them. Assisted creation shipped without them and the
+caveat is honest where a guess would not be. The play engine already decides "attack Power" from the
+verified `category` field (`CombatantFactory.AttackPowersOn`) and needs none of the other three
+families. And `CLAUDE.md`'s settled rule is that unenforceable constraints are caveats, not
+filters, so enforcing them would reverse a decision rather than fill a gap. **The one thing that
+would reopen this** is a play-engine slice that has to know whether a Power is maintained or
+at-will — duration tracked across rounds — and that slice would own the data it needs when it
+arrives, rather than this entry pre-building it.
 
 ### 8. The mail provider is refusing every send — **closed, and the reasoning here was wrong**
 
