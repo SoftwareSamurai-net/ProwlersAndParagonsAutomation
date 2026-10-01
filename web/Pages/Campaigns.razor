@@ -532,7 +532,12 @@ else
             }
 
             <div class="inline">
-                <button type="button" class="btn primary" disabled="@(EligibleToJoin.Count == 0)"
+                @* **`_joining` as well as the empty-selection check.** A second click landing
+                   while the first press is still awaiting its round trips would run `Join` again
+                   over the same ticked characters — see `_joining`'s own remarks for the lost
+                   update that opens. *@
+                <button type="button" class="btn primary"
+                        disabled="@(EligibleToJoin.Count == 0 || _joining)"
                         @onclick="Join">@JoinButtonLabel</button>
             </div>
 
@@ -650,6 +655,23 @@ else
     /// nothing prints.</para>
     /// </summary>
     private List<(string Label, string Message)> _joinResults = [];
+
+    /// <summary>
+    /// Whether a press of Join is still running its round trips.
+    ///
+    /// <para><b>The guard against a second press landing while the first is still in flight.</b>
+    /// A double-click, or a second tab pressing the same button, would otherwise run
+    /// <see cref="Join"/> again over the same ticked characters while the first call is still
+    /// awaiting its network round trips. The on-screen character is covered already —
+    /// <see cref="Autosave"/>'s own remarks record the lost update two overlapping writes caused
+    /// before it serialised them — but <see cref="JoinOther"/>'s read, apply, write-back has
+    /// nothing on the wire saying which read a write follows, so two overlapping presses would
+    /// read-modify-write the same character and the later write would silently lose whatever the
+    /// earlier one did. Set before the first <c>await</c> in <see cref="Join"/> and cleared in a
+    /// <c>finally</c>, so a call that somehow throws still clears it rather than wedging the
+    /// button shut.</para>
+    /// </summary>
+    private bool _joining;
 
     /// <summary>
     /// What became of the last send, and which row it was about — drawn inside that row, under
@@ -1135,15 +1157,20 @@ else
 
     /// <summary>
     /// Which ticked characters a press of Join would actually put into the game, in the order they
-    /// would be joined: the character on screen first, then every other ticked row the checkbox
-    /// list has not disabled.
+    /// would be joined: the character on screen first, then every other ticked row.
     ///
     /// <para><b>The on-screen character is never excluded here</b>, whatever its own
     /// <see cref="SavedCharacterSummary.CampaignId"/> says — its row keeps today's join exactly,
-    /// which has always allowed rejoining a game it is already in. Every other row is excluded the
-    /// moment it already names a game, the same test the checkbox's own <c>disabled</c> binding
-    /// applies — recomputed here rather than trusted from the markup, because a tick that predates
-    /// a refresh must not smuggle an ineligible row through.</para>
+    /// which has always allowed rejoining a game it is already in.</para>
+    ///
+    /// <para><b>Every other row's eligibility is <see cref="AlreadyInAGame"/>'s alone, read off
+    /// <see cref="_characters"/> once here rather than re-asked.</b> There is no path by which a
+    /// row ticked while eligible can turn ineligible before this is read: <see cref="_characters"/>
+    /// only ever changes inside <see cref="Refresh"/>, and that same method resets
+    /// <see cref="_toJoin"/> to the character on screen alone in the same pass — so the two are
+    /// never out of step with each other. A second, independent check here would be exactly the
+    /// kind of defence a mutation cannot tell from its own absence, which this file's own rule
+    /// about such checks does not allow keeping.</para>
     /// </summary>
     private IReadOnlyList<string> EligibleToJoin
     {
@@ -1155,10 +1182,7 @@ else
 
             foreach (var row in _characters)
             {
-                if (row.Id != _openId && _toJoin.Contains(row.Id) && !AlreadyInAGame(row))
-                {
-                    ids.Add(row.Id);
-                }
+                if (row.Id != _openId && _toJoin.Contains(row.Id)) ids.Add(row.Id);
             }
 
             return ids;
@@ -1504,30 +1528,46 @@ else
     /// </summary>
     private async Task Join()
     {
-        var ids = EligibleToJoin;
-        if (ids.Count == 0) return;
+        // **Re-entrancy, not merely emptiness.** A double-click, or a second tab pressing the
+        // same button, reaches this method again while the first press is still awaiting its
+        // round trips — the button's own `disabled` binding only runs between presses, never
+        // during one. Set before anything else, including before `EligibleToJoin` is read, so the
+        // second call is a cheap no-op rather than a second pass over the same characters. See
+        // `_joining`'s own remarks for the lost update this stops.
+        if (_joining) return;
+        _joining = true;
 
-        // The label each row is showing right now, read off before anything runs. `JoinOther`
-        // reads the stored sheet's own name for the label it actually sends the server — this is
-        // only for the line printed back to the reader, and it has to be the name they ticked
-        // rather than one <see cref="Refresh"/> might answer differently by the time this method
-        // returns.
-        var labels = JoinCandidates.ToDictionary(row => row.Id, row => row.Label, StringComparer.Ordinal);
-
-        var results = new List<(string Label, string Message)>();
-
-        // One at a time and awaited in turn, never `Task.WhenAll`: two joins with the same code
-        // race the account's join-attempt counter and the on-screen path mutates `Session.Sheet`,
-        // which nothing here may do from two calls at once.
-        foreach (var id in ids)
+        try
         {
-            var message = id == _openId ? await JoinOnScreen(id) : await JoinOther(id);
-            results.Add((labels.GetValueOrDefault(id, "That character"), message));
+            var ids = EligibleToJoin;
+            if (ids.Count == 0) return;
+
+            // The label each row is showing right now, read off before anything runs. `JoinOther`
+            // reads the stored sheet's own name for the label it actually sends the server — this
+            // is only for the line printed back to the reader, and it has to be the name they
+            // ticked rather than one <see cref="Refresh"/> might answer differently by the time
+            // this method returns.
+            var labels = JoinCandidates.ToDictionary(row => row.Id, row => row.Label, StringComparer.Ordinal);
+
+            var results = new List<(string Label, string Message)>();
+
+            // One at a time and awaited in turn, never `Task.WhenAll`: two joins with the same
+            // code race the account's join-attempt counter and the on-screen path mutates
+            // `Session.Sheet`, which nothing here may do from two calls at once.
+            foreach (var id in ids)
+            {
+                var message = id == _openId ? await JoinOnScreen(id) : await JoinOther(id);
+                results.Add((labels.GetValueOrDefault(id, "That character"), message));
+            }
+
+            _joinResults = results;
+
+            await Refresh();
         }
-
-        _joinResults = results;
-
-        await Refresh();
+        finally
+        {
+            _joining = false;
+        }
     }
 
     /// <summary>

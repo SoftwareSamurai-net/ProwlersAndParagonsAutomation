@@ -328,6 +328,116 @@ public sealed class MultiCharacterJoinTests
 
     // ── The controls around the press ───────────────────────────────────────────────────────
 
+    /// <summary>
+    /// While a press is still awaiting its round trips, the button is disabled — the UI half of
+    /// the re-entrancy guard, and the reason a reader cannot start a second press by hand.
+    /// </summary>
+    [Fact]
+    public async Task TheJoinButtonIsDisabledWhileAPressIsInFlight()
+    {
+        var (ctx, code) = await AGameAndTwoCharacters(campaignTierId: null);
+        await using var _ = ctx;
+
+        var page = ctx.Render<Campaigns>();
+
+        await page.Find("#join-code").InputAsync(new() { Value = code });
+
+        var held = new TaskCompletionSource();
+
+        ctx.Api.Holding = async request =>
+        {
+            if (request.RequestUri!.AbsolutePath != "/api/memberships/join") return;
+            await held.Task;
+        };
+
+        var pressing = page.FindAll("button")
+            .Single(b => b.TextContent.Trim().StartsWith("Join with", StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        await page.WaitForAssertionAsync(() => Assert.True(
+            page.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Join with", StringComparison.Ordinal))
+                .HasAttribute("disabled")));
+
+        held.SetResult();
+        await pressing;
+    }
+
+    /// <summary>
+    /// A second call to <c>Join</c> made while the first is still awaiting its round trips is a
+    /// no-op, not a second pass over the same ticked characters.
+    ///
+    /// <para><b>Driven through the method directly, not through a second click.</b> A double-click
+    /// reaching the component twice is the real event this guards against, but which of two
+    /// unawaited clicks' continuations a test harness resumes first is the renderer's business
+    /// and not this guard's — reflection calls the same method with no such ambiguity, so a red
+    /// result here is about the guard and nothing else.</para>
+    ///
+    /// <para><b>The scenario the guard exists for.</b> The on-screen character's write goes
+    /// through <c>Autosave</c>, which already serialises it; the character this test holds is the
+    /// other one, whose read-apply-write-back has nothing on the wire saying which read a write
+    /// follows, so two overlapping calls would read-modify-write it — the lost-update shape
+    /// <c>Autosave</c>'s own remarks record this project shipping once already, on the one write
+    /// path that guard does not reach.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASecondCallWhileTheFirstIsInFlightChangesNothing()
+    {
+        var (ctx, code) = await AGameAndTwoCharacters(campaignTierId: null);
+        await using var _ = ctx;
+
+        var page = ctx.Render<Campaigns>();
+
+        await page.Find("#join-code").InputAsync(new() { Value = code });
+        await TickOther(page);
+
+        var held = new TaskCompletionSource();
+        var arrived = new TaskCompletionSource();
+
+        ctx.Api.Holding = async request =>
+        {
+            if (request.RequestUri!.AbsolutePath != "/api/memberships/join") return;
+
+            arrived.TrySetResult();
+            await held.Task;
+        };
+
+        var join = typeof(Campaigns).GetMethod("Join",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+        Task CallJoin() => page.InvokeAsync(() => (Task)join.Invoke(page.Instance, null)!);
+
+        // Everything above is setup — the fixture's own seed saves, the initial render's reads,
+        // the on-screen re-adopt — and none of it is what this test is about. Cleared here so the
+        // counts below are about the two calls to `Join` alone.
+        ctx.Api.Asked.Clear();
+
+        var first = CallJoin();
+
+        await arrived.Task;
+
+        // `Join`'s guard is checked and set before its first `await`, so a second call made once
+        // the first has already reached the held request sees it set and returns at once —
+        // without the hold ever being released.
+        var second = CallJoin();
+        await second;
+
+        Assert.Equal(1, ctx.Api.Asked.Count(
+            a => a.StartsWith("POST /api/memberships/join", StringComparison.Ordinal)));
+
+        held.SetResult();
+        await first;
+
+        // One join request per ticked character, and one write-back for the one not on screen —
+        // never two of either, however many times `Join` was called.
+        Assert.Equal(2, ctx.Api.Asked.Count(
+            a => a.StartsWith("POST /api/memberships/join", StringComparison.Ordinal)));
+        Assert.Equal(1, ctx.Api.Asked.Count(
+            a => a.StartsWith($"PUT /api/characters/{OtherId}", StringComparison.Ordinal)));
+
+        var mine = await ctx.Services.GetRequiredService<ApiMembershipStore>().MineAsync();
+        Assert.Equal(2, mine!.Count);
+    }
+
     /// <summary>The code stays in the box after a join, so several characters can share it.</summary>
     [Fact]
     public async Task TheCodeStaysInTheBoxAfterAJoin()
@@ -344,9 +454,15 @@ public sealed class MultiCharacterJoinTests
     }
 
     /// <summary>
-    /// A character already in a game is shown disabled with a note, and is not offered to a press
-    /// of Join even if something ticked it earlier — the page reruns the same test at the moment
-    /// Join is pressed rather than trusting a stale tick.
+    /// A character already in a game is shown disabled with a note, cannot be ticked, and is not
+    /// one of the characters a press of Join counts or joins.
+    ///
+    /// <para><b>What this does not claim.</b> <c>EligibleToJoin</c> used to re-ask the same
+    /// question at press time, in case a tick somehow predated a refresh that made a row
+    /// ineligible. There is no real path to that state — <c>_characters</c> only ever changes
+    /// inside <c>Refresh</c>, which resets the tick set in the same pass — so the extra check was
+    /// one a mutation could not tell from its own absence, and it is gone rather than kept on
+    /// faith.</para>
     /// </summary>
     [Fact]
     public async Task ACharacterAlreadyInAGameIsDisabledAndNeverJoinedAgainFromHere()
