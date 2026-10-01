@@ -75,8 +75,9 @@ for (var i = 1; i < args.Length; i++)
 // `e2e.sh` compares them and fails on a driven check with no negative control. While this driver
 // was being built one check at a time, the unported ones were listed here anyway, as a
 // `NotYetPorted` placeholder that reported FAIL — present and red rather than absent, so the
-// comparison stayed meaningful and a partial driver could not look like a smaller suite. All nine
-// below are twinned, so that class is gone; if a tenth is added, add its twin in the same change.
+// comparison stayed meaningful and a partial driver could not look like a smaller suite. All ten
+// below are twinned, so that class is gone; if an eleventh is added, add its twin in the same
+// change.
 //
 // **A11Y is second, and its position is part of what it measures.** Every other check here is
 // indifferent to what ran before it — "state left behind by an earlier check is deliberate, a
@@ -86,6 +87,12 @@ for (var i = 1; i < args.Length; i++)
 // or second, it scans one with a disabled Next. Those are different pages and they give different
 // answers, and a check whose subject depends on execution order is not reproducible. Second is
 // the position that agrees with `--only`, which is how every twin drives it.
+//
+// **POWERS carries the same constraint as BUILD, for the same reason, so it sits directly after
+// it.** It also selects a tier to reach `/build/characteristics` — the same local-storage write
+// that changes what A11Y would scan — so it has to run after A11Y too. Nothing after POWERS reads
+// which tier or Power it leaves selected, so its own position relative to the checks below it is
+// free; placed beside BUILD because both are the state-mutating pair A11Y has to come before.
 //
 // **The three signed-in checks are last, and each opens a browser context of its own.** They are
 // stage two: `scripts/e2e.sh` serves the site with `functions/` bundled against a migrated local
@@ -103,6 +110,7 @@ Check[] checks =
     Boot.Check,
     Accessibility.Check,
     Build.Check,
+    Powers.Check,
     Theme.Check,
     Palette.Check,
     Routes.Check,

@@ -178,6 +178,22 @@ export const DEFECTS = [
         find: '    <base href="/" />',
         replace: '    <!-- pp:e2e twin defect — the base element is gone -->',
     },
+    {
+        name: 'power-pro-name-garbled',
+        expects: 'outcome',
+        check: 'POWERS',
+        why: "Strike's own \"Sweep\" Pro — data/rules/powers.json, one of its four power_pros — "
+            + 'is renamed in the published rules file, as a stand-in for the failure PROGRESS.md '
+            + 'item 5 records a source-generated reader actually producing: a non-nullable '
+            + 'collection property coming back empty or wrong. The positive control still passes '
+            + '(the Powers list still reports the full catalogue, because nothing here touches '
+            + 'its count), so this is a true outcome defect: the work happened and the name on '
+            + 'the page is not what the rulebook prints. POWERS looks for the literal word '
+            + '"Sweep" after opening Strike and expanding its Pro list, and will not find it.',
+        file: 'data/rules/powers.json',
+        find: '        "name": "Sweep",',
+        replace: '        "name": "pp:e2e twin defect",',
+    },
 
     // --------------------------------------------------------------------------------------------
     // The seed defects. Same site, different row — see this file's header for why a signed-in

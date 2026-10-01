@@ -602,6 +602,22 @@ jobs:
             --configuration Release -p:ContinuousIntegrationBuild=true \
             -p:EnableDefaultCompressionFormats=false -o publish
 
+      - name: Report the published payload's size
+        # **A report, not yet an assertion.** PROGRESS.md item 5 quotes a payload measured once, by
+        # hand, in Docker, against a clean export of `main`: 30,740,741 bytes across 209
+        # `_framework` files, trimmed to 12,673,358 across 47. This is the same measurement, taken
+        # here, on every pull request, against the publish this job actually produced — so a
+        # regression shows up as a number in this log rather than as a figure that was only ever
+        # true once, on somebody's laptop. `du -sb` to match the bytes PROGRESS.md already quotes,
+        # uncompressed, since `EnableDefaultCompressionFormats=false` above means there are no
+        # `.br`/`.gz` sidecars here to inflate it.
+        run: |
+          echo "publish/wwwroot: $(du -sb publish/wwwroot | cut -f1) bytes"
+          echo "publish/wwwroot/_framework: $(du -sb publish/wwwroot/_framework | cut -f1) bytes"
+          echo "_framework file count: $(find publish/wwwroot/_framework -type f | wc -l)"
+          echo "15 largest files (bytes, path):"
+          find publish/wwwroot -type f -printf '%s %p\n' | sort -rn | head -15
+
       - name: Write security headers
         # Run here as well as on deploy so a change that breaks the Content-Security-Policy
         # fails on the pull request rather than on the way to production. The script exits

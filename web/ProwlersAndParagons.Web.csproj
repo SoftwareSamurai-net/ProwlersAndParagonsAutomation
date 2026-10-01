@@ -10,17 +10,77 @@
         <AssemblyName>ProwlersAndParagons.Web</AssemblyName>
         <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
 
-        <!-- Blazor trims on publish by default. RulesRepository deserializes the rules
-             with reflection-based System.Text.Json, so the trimmer is free to remove the
-             model properties it can only see through reflection — and the failure mode is
-             not a build error but a silently empty rules set at runtime, which is the one
-             thing this project cannot afford to ship. Rooting the engine assembly instead
-             would keep the smaller payload, but the local toolchain cannot run the trimmer
-             at all (the ILLink task host crashes without the wasm-tools workload, on the
-             stock template too), so that is a change nobody here could verify. Correct and
-             larger beats smaller and unproven. See PROGRESS.md. -->
-        <PublishTrimmed>false</PublishTrimmed>
+        <!-- Trimmed, with ProwlersAndParagons.Engine rooted below. RulesRepository
+             deserializes the rules with reflection-based System.Text.Json, so an untrimmed
+             engine keeps every model property the trimmer can only see through reflection —
+             the failure mode this project cannot afford is a build that succeeds and a
+             rules set that comes back silently empty at runtime.
+
+             **Measured on a clean export of main, Docker, mcr.microsoft.com/dotnet/sdk:10.0,
+             Linux, no wasm-tools workload needed because nothing here calls ILCompiler
+             directly.** wwwroot went from 30,740,741 bytes across 209 _framework files to
+             12,673,358 bytes across 47 — System.Private.Xml, System.Private.DataContractSerialization
+             and System.Data.Common disappear entirely — and ProwlersAndParagons.Engine.wasm,
+             Sheets.wasm and Web.wasm came back byte-identical to the untrimmed build: only
+             Engine needed rooting, and rooting Sheets or Web besides it changed nothing.
+
+             **"It built with 0 warnings" is not the evidence, and PROGRESS.md item 5 says so
+             in as many words**: the trim analyzer has nothing to warn about for a reflective
+             JsonSerializer.Deserialize<T> call, because it cannot see which properties that
+             call will ask for at runtime. What actually proves the rules survived trimming is
+             the POWERS e2e check (tests/e2e/Checks/Powers.cs) — the real drive of the
+             published, trimmed site reads a Power's own Pros and Cons and a generic Pro back
+             out of the rendered page, which is exactly the shape of the six-null-collections
+             failure a source-generated reader hit instead (see PROGRESS.md item 5). A context
+             over the rules types was tried for the same payload win and does not drop in:
+             it returns null for non-nullable collections the reflective reader honours via
+             their `= []` initializers, which is a different and worse silence than this one.
+
+             See docs/guide/browser.md and docs/guide/testing.md. -->
+        <PublishTrimmed>true</PublishTrimmed>
+
+        <!-- **Explicit rather than relied-on**, though it is already the Blazor WebAssembly
+             SDK's own default: Microsoft.NET.Sdk.BlazorWebAssembly.Current.targets sets
+             JsonSerializerIsReflectionEnabledByDefault to true unconditionally, ahead of the
+             general SDK's own targets, specifically so a trimmed Blazor app does not inherit
+             whatever default those targets would otherwise give the feature switch (grepped
+             in the installed 10.0.303 SDK: Microsoft.NET.Sdk.targets only forwards the MSBuild
+             property into a RuntimeHostConfigurationOption when it is already set — it names
+             no default of its own — while the Blazor WebAssembly targets file sets it to
+             true before that happens). So this line changes nothing this project does not
+             already get; it is written down because RulesRepository's reflection-based
+             JsonSerializer.Deserialize<T> is the one thing a silent flip of that implicit
+             default would break, and a thrown Deserialize is a site that cannot build a
+             character. -->
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
     </PropertyGroup>
+
+    <ItemGroup>
+        <!-- **Cheap insurance, measured to be currently inert rather than the thing doing today's
+             work.** Removing this item and republishing (same SDK, same flags, this machine) gives
+             a ProwlersAndParagons.Engine.wasm that is byte-identical to the rooted one — 475,413
+             bytes either way, differing only in build-provenance metadata (the embedded PDB source
+             path, the informational version's +<sha> suffix, the PDB's RSDS GUID) — never in a
+             type or member name. The reason: every call site of RulesRepository's private
+             `Load<T>` helper passes a closed, concrete generic argument (`Load<List<PowerModel>>`,
+             `Load<ProModel>`, …), all inside that one file, so ILLink's own generic-instantiation
+             reachability analysis already resolves System.Text.Json's DynamicallyAccessedMembers
+             annotation on `JsonSerializer.Deserialize<T>` per concrete T it finds reachable —
+             keeping every model's public members whether or not the declaring assembly is rooted.
+             (Forcing PublishTrimmed+EnableTrimAnalyzer as *global* MSBuild properties — which,
+             unlike this project's own PublishTrimmed, reaches Engine's own compilation — does
+             surface IL2026 on Load<T>'s body, because the analyzer judges it from inside Engine
+             alone, where T is an unbound generic parameter with no caller in view; the linker,
+             working on the compiled IL of the whole app, sees the closed call sites instead and
+             is not fooled by the same thing.)
+
+             Kept anyway, rooted, as insurance against that mechanism changing — a future
+             refactor that routes a model through a non-generic or dynamically-typed path, or a
+             linker version that stops propagating the annotation this way — not because it is
+             presently what stops a model property from being trimmed away. Sheets and Web were
+             measured rooted too and the output did not change, so they are not named here. -->
+        <TrimmerRootAssembly Include="ProwlersAndParagons.Engine" />
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12" />
