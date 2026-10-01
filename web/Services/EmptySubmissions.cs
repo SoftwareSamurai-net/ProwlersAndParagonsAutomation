@@ -35,6 +35,15 @@ public static class EmptySubmissions
     /// <summary>
     /// The ids of the memberships whose current sheet has nothing on it. Empty when nothing does,
     /// and empty when nothing could be read.
+    ///
+    /// <para><b>Every candidate row is read at once, not one after another.</b> Each read is its
+    /// own round trip and none needs another's answer, so awaiting them in series cost one round
+    /// trip per row on the one screen that already reads the most — this is still a read once per
+    /// refresh rather than per render, and what changes is only how the reads inside that one
+    /// refresh are scheduled. <see cref="Task.WhenAll{TResult}(System.Collections.Generic.IEnumerable{System.Threading.Tasks.Task{TResult}})"/>
+    /// keeps every answer paired with the row that asked for it — array position rather than a
+    /// second dictionary — so "a row that could not be read is left unmarked" is still decided one
+    /// row at a time afterwards, exactly as it was.</para>
     /// </summary>
     public static async Task<IReadOnlySet<string>> AmongAsync(
         ApiMembershipStore memberships,
@@ -48,11 +57,18 @@ public static class EmptySubmissions
 
         if (rows is null) return empty;
 
-        foreach (var row in rows.Where(r => r.HasPending || r.HasApproved))
-        {
-            if (await memberships.ReadAsync(row.Id) is not { } detail) continue;
+        var candidates = rows.Where(r => r.HasPending || r.HasApproved).ToList();
+        if (candidates.Count == 0) return empty;
 
-            if (ShowsNothing(session, detail)) empty.Add(row.Id);
+        var reads = await Task.WhenAll(candidates.Select(row => memberships.ReadAsync(row.Id)));
+
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            // A row that could not be read is left unmarked: "empty submission" over a sheet
+            // nobody managed to fetch would be exactly the false alarm this class exists to avoid.
+            if (reads[i] is not { } detail) continue;
+
+            if (ShowsNothing(session, detail)) empty.Add(candidates[i].Id);
         }
 
         return empty;
