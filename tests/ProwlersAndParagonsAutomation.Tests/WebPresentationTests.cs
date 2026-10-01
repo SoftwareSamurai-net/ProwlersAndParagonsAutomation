@@ -2930,6 +2930,7 @@ public sealed class WebPresentationTests
         ("stat-block", "StatBlock.razor"),
         ("stat-blocks", "StatBlockRow.razor"),
         ("chosen", "ChosenList.razor"),
+        ("diff-rows", "DiffRows.razor"),
 
         // ChosenRow's own content, split out from the <li> so a finding can sit under it and
         // still be one list item — see RowFinding below.

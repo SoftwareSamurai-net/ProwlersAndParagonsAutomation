@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Engine.Models;
 using ProwlersAndParagonsAutomation.Sheets;
@@ -17,6 +18,39 @@ public enum DiffKind
     Removed,
 }
 
+/// <summary>Which way one part of a row moved. See <see cref="DiffPart"/>.</summary>
+public enum PartKind
+{
+    /// <summary>The part is on both sides, unchanged.</summary>
+    Kept,
+
+    /// <summary>The part is on the new side only.</summary>
+    Added,
+
+    /// <summary>The part is on the old side only.</summary>
+    Removed,
+
+    /// <summary>The part is on both sides in a different form — a rank, or a Con's grade.</summary>
+    Changed,
+}
+
+/// <summary>
+/// One part of a row's detail — a rank, a Source, a Pro, a Con, a unit — and which way it moved.
+///
+/// <para><b>This exists because a Power's row is a list, and a list compared as one string cannot
+/// be read.</b> A Power with six modifiers printed as <c>8d · Magic · Side Effect · Limited ·
+/// Conditional (Often Works) · Two-Handed · Signature → 6d · Magic · Conditional (Occasionally
+/// Works) · Concentration · Readied · Two-Handed</c> is correct and is thirteen words a GM has to
+/// hold in their head to find the three that went and the two that came. The parts say which
+/// each is.</para>
+/// </summary>
+/// <param name="Text">The part as the sheet prints it — after the change, for a changed part.</param>
+/// <param name="Kind">Which way it moved.</param>
+/// <param name="Was">
+/// What a <see cref="PartKind.Changed"/> part was before, and null for every other kind.
+/// </param>
+public sealed record DiffPart(string Text, PartKind Kind, string? Was = null);
+
 /// <summary>
 /// One line of the diff, in the rulebook's words.
 /// </summary>
@@ -29,7 +63,15 @@ public enum DiffKind
 /// <param name="Before">What it was, or null when it was not there at all.</param>
 /// <param name="After">What it is, or null when it has gone.</param>
 /// <param name="Kind">Which way it moved.</param>
-public sealed record DiffRow(string What, string? Before, string? After, DiffKind Kind);
+public sealed record DiffRow(string What, string? Before, string? After, DiffKind Kind)
+{
+    /// <summary>
+    /// The row's detail, part by part, with each part saying whether it stayed, went, arrived or
+    /// changed. A row with one part — <c>Might 6d → 8d</c> — has one changed part, so the shape
+    /// every row has always had is the one-part case of this one.
+    /// </summary>
+    public IReadOnlyList<DiffPart> Parts => CampaignDiff.PartsOf(Before, After);
+}
 
 /// <summary>
 /// What changed between the campaign's clone and the snapshot waiting for a decision.
@@ -119,7 +161,7 @@ public sealed record CharacterDiff(
 /// There is deliberately no way to apply one row: partial application is a merge algorithm for
 /// characters — a second engine, capable of producing a sheet neither person authored.</para>
 /// </summary>
-public static class CampaignDiff
+public static partial class CampaignDiff
 {
     /// <summary>
     /// Compare the campaign's clone against the snapshot waiting for a decision.
@@ -437,7 +479,7 @@ public static class CampaignDiff
                 parts.AddRange(applied.Select(choice => ProConLabel(rules, null, choice)));
             }
 
-            return string.Join(" · ", parts);
+            return string.Join(Separator, parts);
         }
     }
 
@@ -533,7 +575,7 @@ public static class CampaignDiff
         parts.AddRange(power.Pros.Select(pro => ProConLabel(rules, model, pro)));
         parts.AddRange(power.Cons.Select(con => ProConLabel(rules, model, con)));
 
-        return string.Join(" · ", parts);
+        return string.Join(Separator, parts);
     }
 
     /// <summary>A Perk's unit count and whatever the player wrote beside it.</summary>
@@ -561,7 +603,7 @@ public static class CampaignDiff
         parts.AddRange(gear.Pros.Select(pro => ProConLabel(rules, null, pro)));
         parts.AddRange(gear.Cons.Select(con => ProConLabel(rules, null, con)));
 
-        return parts.Count == 0 ? null : string.Join(" · ", parts);
+        return parts.Count == 0 ? null : string.Join(Separator, parts);
     }
 
     /// <summary>
@@ -633,6 +675,140 @@ public static class CampaignDiff
 
         return found;
     }
+
+    /// <summary>
+    /// What separates the parts of a detail line — the sheet's own middle dot. One spelling, because
+    /// <see cref="PartsOf"/> splits on it: a detail joined with anything else would come back as
+    /// one part, which is the unreadable string this exists to take apart.
+    /// </summary>
+    internal const string Separator = " · ";
+
+    /// <summary>
+    /// A row's two sides, taken apart into the parts that stayed, went, arrived or changed.
+    ///
+    /// <para><b>Both sides are this class's own strings, which is what makes splitting them
+    /// honest.</b> Every detail line is joined with <see cref="Separator"/> here and nowhere else,
+    /// so a split on it recovers exactly the parts that went in. A one-part row — a rank, a name,
+    /// a tier — comes back as one changed part, which reads exactly as it always has.</para>
+    ///
+    /// <para><b>Order is the old side's, with what arrived at the end.</b> A GM reading a Power
+    /// they approved last month scans it in the order the sheet printed it, so what stayed and
+    /// what went are where they were, and what is new follows. Two parts are paired as one
+    /// change rather than a removal and an addition where they are the same kind of thing in a
+    /// different form: the rank (<c>8d → 6d</c>), a graded Con (<c>Conditional (Often Works) →
+    /// Conditional (Occasionally Works)</c>), a unit count, a Pro's multiple. Pairing is by the
+    /// part's head — the text before its bracket or multiplier — and only where each side has
+    /// exactly one part with that head, because two Pros of one name at two variants is a list
+    /// this cannot pair without guessing, and a guess would print a change nobody made.</para>
+    ///
+    /// <para>A side that is null contributes nothing, so a whole-row addition or removal comes
+    /// back as parts all of one kind — the row's own <see cref="DiffKind"/> is what says which,
+    /// and the screen prints that word once rather than marking every part.</para>
+    /// </summary>
+    public static IReadOnlyList<DiffPart> PartsOf(string? before, string? after)
+    {
+        var was = Split(before);
+        var now = Split(after);
+
+        if (was.Count == 0) return [.. now.Select(p => new DiffPart(p, PartKind.Added))];
+        if (now.Count == 0) return [.. was.Select(p => new DiffPart(p, PartKind.Removed))];
+
+        // One part each side is one thing in two forms whatever it is called — a tier, a name,
+        // a switch's `on` against `off` — and the row has always read it as `on → off`. Pairing
+        // by head below would call those a removal and an addition.
+        if (was.Count == 1 && now.Count == 1)
+        {
+            return string.Equals(was[0], now[0], StringComparison.Ordinal)
+                ? [new DiffPart(now[0], PartKind.Kept)]
+                : [new DiffPart(now[0], PartKind.Changed, was[0])];
+        }
+
+        // What is on both sides verbatim is kept — matched one for one, so a part printed twice
+        // on one side and once on the other is kept once and reported once.
+        var unmatchedNow = new List<string>(now);
+        var kept = new HashSet<int>();
+
+        for (var i = 0; i < was.Count; i++)
+        {
+            var at = unmatchedNow.IndexOf(was[i]);
+
+            if (at < 0) continue;
+
+            kept.Add(i);
+            unmatchedNow.RemoveAt(at);
+        }
+
+        // Of what is left, a part whose head appears exactly once on each side changed form.
+        var unmatchedWas = Enumerable.Range(0, was.Count).Where(i => !kept.Contains(i))
+            .Select(i => was[i]).ToList();
+        var pairs = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (var head in unmatchedWas.Select(Head).Distinct(StringComparer.Ordinal))
+        {
+            var olds = unmatchedWas.Where(p => Head(p) == head).ToList();
+            var news = unmatchedNow.Where(p => Head(p) == head).ToList();
+
+            if (olds.Count == 1 && news.Count == 1) pairs[olds[0]] = news[0];
+        }
+
+        var parts = new List<DiffPart>();
+
+        for (var i = 0; i < was.Count; i++)
+        {
+            if (kept.Contains(i)) parts.Add(new DiffPart(was[i], PartKind.Kept));
+            else if (pairs.TryGetValue(was[i], out var became))
+            {
+                parts.Add(new DiffPart(became, PartKind.Changed, was[i]));
+                unmatchedNow.Remove(became);
+            }
+            else parts.Add(new DiffPart(was[i], PartKind.Removed));
+        }
+
+        parts.AddRange(unmatchedNow.Select(p => new DiffPart(p, PartKind.Added)));
+
+        return parts;
+    }
+
+    /// <summary>The parts of one side, or none for a side that is not there.</summary>
+    private static List<string> Split(string? side) =>
+        string.IsNullOrEmpty(side) ? [] : [.. side.Split(Separator, StringSplitOptions.None)];
+
+    /// <summary>
+    /// The part of a part that names what it is, so that two forms of one thing can be paired.
+    ///
+    /// <para>A rank is <c>Nd</c>, and every rank shares the head; a graded or varianted option is
+    /// <c>Name (Grade)</c>; a multiple is <c>Name ×N</c>; a unit count is <c>N noun</c>, and the
+    /// noun is its head; the sheet's <c>×N</c> alone is a count of unnamed units. Anything else
+    /// is its own head, which pairs it with nothing but itself — and itself would have been
+    /// kept.</para>
+    /// </summary>
+    private static string Head(string part)
+    {
+        if (RankPattern().IsMatch(part)) return "#rank";
+        if (part.StartsWith('×')) return "×";
+
+        var count = CountPattern().Match(part);
+
+        if (count.Success) return "#" + count.Groups["noun"].Value;
+
+        var bracket = part.IndexOf(" (", StringComparison.Ordinal);
+        var times = part.IndexOf(" ×", StringComparison.Ordinal);
+        var cut = (bracket, times) switch
+        {
+            ( < 0, < 0) => part.Length,
+            ( < 0, _) => times,
+            (_, < 0) => bracket,
+            _ => Math.Min(bracket, times),
+        };
+
+        return part[..cut];
+    }
+
+    [GeneratedRegex(@"^\d+d$")]
+    private static partial Regex RankPattern();
+
+    [GeneratedRegex(@"^\d+ (?<noun>\D.*)$")]
+    private static partial Regex CountPattern();
 
     private static DiffKind KindOf(string? before, string? after) =>
         before is null ? DiffKind.Added : after is null ? DiffKind.Removed : DiffKind.Changed;
