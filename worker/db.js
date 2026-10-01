@@ -725,6 +725,12 @@ export async function approveSubmission(db, { id, gmUserId, version, now, newCha
     return approved.results[0] ?? null;
 }
 
+/** Whether this GM still has that campaign. Asked only on a decision's refusal path. */
+export async function campaignStillThere(db, { gmUserId, campaignId }) {
+    return await db.prepare('SELECT 1 AS yes FROM campaigns WHERE user_id = ? AND id = ?')
+        .bind(gmUserId, campaignId).first() !== null;
+}
+
 /**
  * Whether this player's character was handed to a campaign as a nemesis.
  *

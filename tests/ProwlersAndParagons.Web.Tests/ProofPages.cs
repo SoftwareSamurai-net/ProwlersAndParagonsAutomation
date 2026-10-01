@@ -996,11 +996,12 @@ public sealed class ProofPages
           const name = card && card.querySelector('.nemesis-name');
           const eyes = card ? [...card.querySelectorAll('.nemesis-eye')] : [];
           const near = card && card.querySelector('.nemesis-veil:not(.nemesis-veil-far)');
+          const far = card && card.querySelector('.nemesis-veil-far');
 
           // **The positive control on the subject**: the block is there and says who it is.
           check('the nemesis is drawn, with its name and two eyes (positive control)',
-                !!card && !!name && name.textContent.trim() === 'The Hollow Regent' && eyes.length === 2 && !!near,
-                `card ${!!card}, name "${name && name.textContent.trim()}", eyes ${eyes.length}, veil ${!!near}`);
+                !!card && !!name && name.textContent.trim() === 'The Hollow Regent' && eyes.length === 2 && !!near && !!far,
+                `card ${!!card}, name "${name && name.textContent.trim()}", eyes ${eyes.length}, veils ${!!near}/${!!far}`);
 
           // **Night on a daylight Hero page.** The document is stamped hero and light, so the
           // block's own ground can only be villain-dark's if the stylesheet put it there.
@@ -1021,13 +1022,14 @@ public sealed class ProofPages
           const blinking = eyes.filter((e) => running(e)
             .some((a) => a.effect.getTiming().iterations === Infinity)).length;
           const drifting = running(near).length;
+          const driftingFar = running(far).filter((a) => a.effect.getTiming().iterations === Infinity).length;
 
           if (!reduced) {
             check('the eyes blink and the smoke drifts (positive control on the motion)',
-                  blinking === 2 && drifting > 0,
-                  `blinking eyes ${blinking}/2, drifting near veil ${drifting}`);
+                  blinking === 2 && drifting > 0 && driftingFar > 0,
+                  `blinking eyes ${blinking}/2, drifting veils near ${drifting} far ${driftingFar}`);
           } else {
-            const any = eyes.concat(near ? [near] : []).reduce((n, el) => n + el.getAnimations().length, 0);
+            const any = eyes.concat(near ? [near] : [], far ? [far] : []).reduce((n, el) => n + el.getAnimations().length, 0);
             check('nothing moves for a reader who asked for no motion',
                   any === 0,
                   `animations still attached ${any}`);

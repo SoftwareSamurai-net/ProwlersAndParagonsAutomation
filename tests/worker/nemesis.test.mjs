@@ -278,6 +278,39 @@ test('a GM approving their own Villain into their own game is not counted twice 
     assert.ok(!held.some(c => c.id === cid()), 'the original id is gone');
 });
 
+test('a GM who is also the player is told the game is gone, not that their account is full', async () => {
+    // The player's half of `getMembership` matches without the campaign, so this account reaches
+    // the refusal path for a game it deleted. Both decisions must say what is true.
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+    for (let i = 1; i <= 5; i++) assert.equal((await putCharacter(app, gm.cookie, cid(i))).status, 204);
+
+    const code = (await (await app.call('/api/campaigns', { cookie: gm.cookie })).json()).campaigns[0].joinCode;
+    const membership = (await (await app.call('/api/memberships/join', {
+        method: 'POST', body: { code, characterId: cid(), label: 'The Hollow Regent' }, cookie: gm.cookie,
+    })).json()).id;
+    assert.equal((await submit(app, gm.cookie, membership)).status, 200);
+    assert.equal((await app.call(`/api/campaigns/${gid()}`, { method: 'DELETE', cookie: gm.cookie })).status, 204);
+
+    for (const what of ['approve', 'reject']) {
+        const refused = await decide(app, gm.cookie, membership, what, 1);
+        assert.equal(refused.status, 409, what);
+        assert.equal((await refused.json()).error, 'That campaign is no longer here.', what);
+    }
+});
+
+test('a rejection of a Villain is never answered as a full account', async () => {
+    const { app, gm, player, membership } = await aVillainAtTheTable({ gmHolds: 5 });
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    // Version 1 is stale, so the rejection is refused — as stale, never as the GM's cap.
+    const refused = await decide(app, gm.cookie, membership, 'reject', 1);
+    assert.equal(refused.status, 409);
+    assert.equal((await refused.json()).error, 'This changed while you were looking at it.');
+});
+
 test('leaving a handed-over membership leaves the Villain with the GM', async () => {
     const { app, gm, player, membership } = await aVillainAtTheTable();
     assert.equal((await submit(app, player.cookie, membership)).status, 200);

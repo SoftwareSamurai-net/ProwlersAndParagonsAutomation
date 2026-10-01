@@ -1558,13 +1558,19 @@ else
     {
         _leaving = null;
 
+        // A nemesis row is a record, not a seat: the Villain went to the GM on approval and
+        // ending the record hands nothing back, so "no longer holds a copy" would be false there.
+        var nemesis = _playing?.Any(m => m.Id == membershipId && m.HandedOver) == true;
+
         // **`GameIsGone` is deliberately not a case here, and that is a fact about the server
         // rather than a gap.** `leaveCampaign` is a bare `player_user_id = ?` with no `EXISTS` on
         // the campaign, precisely so a player can walk out of a game the GM has thrown away — so
         // the 409 that value models is one only a GM's removal can be answered.
-        _said = await Memberships.LeaveAsync(membershipId) == LeftOutcome.Done
-            ? "You have left that game. It no longer holds a copy of that character."
-            : "That could not be done just now. Try again in a moment.";
+        _said = await Memberships.LeaveAsync(membershipId) != LeftOutcome.Done
+            ? "That could not be done just now. Try again in a moment."
+            : nemesis
+                ? "You have left that game. Its GM still holds the Villain you gave them."
+                : "You have left that game. It no longer holds a copy of that character.";
 
         await Refresh();
     }

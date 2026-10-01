@@ -208,6 +208,27 @@ public sealed class NemesisHandoverTests
         var row = await GmsRow(ctx, membership);
         Assert.True(row.HasPending);
         Assert.False(row.HandedOver);
+
+        // And the player still holds it: a refused approval moves nothing on either account.
+        ctx.Api.SignedIn = ("u_player", "The Player");
+        Assert.Contains((await ctx.Services.GetRequiredService<ApiCharacterStore>().ListAsync()).Characters,
+            c => c.Id == VillainId);
+    }
+
+    [Fact]
+    public async Task LeavingANemesisSaysTheGmStillHoldsIt()
+    {
+        var (ctx, membership) = await AtTheTable(SheetMode.Villain);
+        await using var _ = ctx;
+        await HandedOver(ctx, membership);
+
+        var page = ctx.Render<Campaigns>();
+        await Press(page, "Leave");
+        await Press(page, "Leave for good");
+
+        Assert.Contains("Its GM still holds the Villain you gave them.", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("no longer holds a copy", page.Markup, StringComparison.Ordinal);
+        Assert.Empty(page.FindAll(".nemesis"));
     }
 
     // ── What the player sees afterwards ───────────────────────────────────────────────────

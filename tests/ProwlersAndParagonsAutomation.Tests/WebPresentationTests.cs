@@ -4904,7 +4904,10 @@ public sealed class WebPresentationTests
             // villain-dark so a handed-over Villain is drawn on the night ground everywhere — see
             // `Nemesis.razor` and browser.md. It is an element, never the document, so it adds
             // nothing to the document's palette. Named exactly rather than "any class", so a
-            // second island still fails here and has to be argued for.
+            // second island still fails here and has to be argued for. **Its contrast is not
+            // skipped by this**: the block shares villain-dark's declaration block, so every
+            // value it resolves is a villain-dark value, and that palette's pairs are measured.
+            // Changing the island's values means changing villain-dark's.
             if (selector == ".nemesis") return false;
 
             Assert.StartsWith(":root", selector, StringComparison.Ordinal);
