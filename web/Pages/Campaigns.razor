@@ -1209,8 +1209,8 @@ else
 
     /// <summary>
     /// Whether a row's checkbox should be disabled: it names a game already and it is not the
-    /// character on screen. See <see cref="EligibleToJoin"/>, which applies the identical rule at
-    /// the moment Join is actually pressed rather than trusting a tick made before a refresh.
+    /// character on screen. <see cref="EligibleToJoin"/> trusts this rather than re-asking it —
+    /// see that property's own remarks for why that is safe rather than merely convenient.
     /// </summary>
     private bool AlreadyInAGame(SavedCharacterSummary row) =>
         row.Id != _openId && row.CampaignId is not null;

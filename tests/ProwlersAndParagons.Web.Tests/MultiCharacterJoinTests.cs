@@ -417,8 +417,17 @@ public sealed class MultiCharacterJoinTests
 
         // `Join`'s guard is checked and set before its first `await`, so a second call made once
         // the first has already reached the held request sees it set and returns at once —
-        // without the hold ever being released.
+        // without the hold ever being released. Raced against a bounded delay rather than
+        // awaited bare: a guard that has gone missing sends this call to make its own request,
+        // which this test's own held gate then suspends forever — a hang is still the honest
+        // answer, but a bounded, read failure is the one CI can act on.
         var second = CallJoin();
+        var patience = Task.Delay(TimeSpan.FromSeconds(5), Xunit.TestContext.Current.CancellationToken);
+
+        Assert.True(await Task.WhenAny(second, patience) == second,
+            "the second call to Join did not return — the guard let it make its own request, "
+            + "which is now stuck behind the first one's held answer.");
+
         await second;
 
         Assert.Equal(1, ctx.Api.Asked.Count(
