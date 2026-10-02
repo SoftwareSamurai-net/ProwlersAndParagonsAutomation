@@ -1334,13 +1334,21 @@ label {
 
    **Every colour here is a token, and the tokens are villain-dark's on this element alone**:
    `theme.css` lists `.nemesis` with that set, so `--surface` here is the night ground on a Hero's
-   daylight page. Three layers, in this order from the back: the eyes, two sheets of smoke drifting
-   against each other, and the text — so the smoke passes over the eyes and never over the name.
+   daylight page. Three layers from the back: two eyes and their glow, two sheets of smoke drifting
+   against each other, and the text. The name surfaces out of the smoke once, as the block arrives,
+   and then stays clear — the smoke never crosses it.
+
+   **Only `transform`, `opacity` and the name's `filter` move**, so every frame is composited
+   rather than laid out again — the eyes included, which is why they are elements cut by
+   `clip-path` rather than SVG under a blur filter. The first cut animated `letter-spacing` on the name, which reflows
+   the line on every frame, and ran the smoke `alternate` on the state-change curve, which stalls
+   visibly at each turn — the owner found both rough. The smoke now travels a closed path, so a
+   loop has no turning point to stall at.
 
    **Durations are the motion tokens multiplied**, so a slow ambient loop is still a token and not
    a number this file chose. They are long because smoke is slow; the reduced-motion block at the
-   foot of this file switches all three loops off outright, since at 0.01ms an infinite blink is a
-   strobe rather than an absence. */
+   foot of this file switches every one of them off outright, since at 0.01ms an infinite blink is
+   a strobe rather than an absence. */
 .nemesis {
     position: relative;
     overflow: hidden;
@@ -1375,41 +1383,65 @@ label {
     line-height: 1.05;
     letter-spacing: var(--heading-track);
     text-shadow: 0 0 1.1rem var(--surface);
+    transform-origin: left bottom;
+    will-change: transform, opacity, filter;
+    animation: nemesis-surface calc(var(--enter) * 9) var(--ease-out) both;
 }
 
 .nemesis-who { font-size: var(--text-sm); color: var(--muted); }
 
 .nemesis-eyes {
     position: absolute;
-    top: 24%;
+    top: 18%;
     left: 50%;
     z-index: 1;
     display: flex;
-    gap: var(--space-7);
+    gap: var(--space-6);
     transform: translateX(-50%);
-    /* The glow is on the pair rather than on each eye, because the slant each eye is cut to
-       clips its own shadow away; a filter on the parent draws round the shape that is left. */
-    filter:
-        drop-shadow(0 0 0.5rem color-mix(in srgb, var(--primary) 95%, transparent))
-        drop-shadow(0 0 1.4rem color-mix(in srgb, var(--primary) 70%, transparent));
 }
 
-/* Each eye is a slit of fire, brass at the core and crimson at the rim, cut on the slant that makes
-   it read as a glare rather than as two lamps. The resting frame is open: that is what a reader
-   who asked for no motion sees, and what the wake animation lands on. */
+/* One blurred element behind both eyes, so the blur is drawn once and only its opacity moves. */
+.nemesis-glow {
+    position: absolute;
+    inset: -60% -20%;
+    background:
+        radial-gradient(28% 50% at 22% 55%, var(--primary), transparent 70%),
+        radial-gradient(28% 50% at 78% 55%, var(--primary), transparent 70%);
+    filter: blur(0.6rem);
+    will-change: opacity;
+    animation: nemesis-breathe calc(var(--enter) * 16) var(--ease) infinite alternate;
+}
+
+/* An almond with a slit pupil: brass at the core, crimson at the rim. The path is in pixels
+   because `clip-path: path()` takes no other unit, so the box is pixels too and the two agree. */
 .nemesis-eye {
+    position: relative;
     display: block;
-    width: 2.9rem;
-    height: 0.8rem;
-    border-radius: var(--radius-pill);
-    background: radial-gradient(closest-side, var(--ink), var(--accent) 45%, var(--primary));
+    width: 64px;
+    height: 24px;
+    background: radial-gradient(closest-side, var(--ink), var(--accent) 40%, var(--primary));
+    transform-origin: center 60%;
+    will-change: transform, opacity;
     animation:
-        nemesis-wake calc(var(--enter) * 5) var(--ease-out) both,
-        nemesis-blink calc(var(--enter) * 30) linear calc(var(--enter) * 5) infinite;
+        nemesis-open calc(var(--enter) * 6) var(--ease-out) both,
+        nemesis-blink calc(var(--enter) * 28) var(--ease) calc(var(--enter) * 6) infinite;
 }
 
-.nemesis-eye:first-child { clip-path: polygon(0 40%, 100% 0, 100% 100%, 0 100%); }
-.nemesis-eye:last-child { clip-path: polygon(0 0, 100% 40%, 100% 100%, 0 100%); }
+.nemesis-eye-left { clip-path: path("M2.4 19.2 Q28.8 0 62.4 14.4 Q31.2 28.8 2.4 19.2 Z"); }
+.nemesis-eye-right { clip-path: path("M61.6 19.2 Q35.2 0 1.6 14.4 Q32.8 28.8 61.6 19.2 Z"); }
+
+.nemesis-eye::after {
+    content: "";
+    position: absolute;
+    top: 9px;
+    width: 5px;
+    height: 13px;
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+}
+
+.nemesis-eye-left::after { left: 31px; }
+.nemesis-eye-right::after { left: 28px; }
 
 .nemesis-veil {
     position: absolute;
@@ -1420,7 +1452,8 @@ label {
         radial-gradient(40% 30% at 30% 60%, color-mix(in srgb, var(--panel) 85%, transparent), transparent 70%),
         radial-gradient(35% 25% at 70% 40%, color-mix(in srgb, var(--rule) 70%, transparent), transparent 70%),
         radial-gradient(30% 22% at 55% 75%, color-mix(in srgb, var(--primary) 35%, transparent), transparent 70%);
-    animation: nemesis-drift calc(var(--enter) * 46) var(--ease) infinite alternate;
+    will-change: transform;
+    animation: nemesis-drift calc(var(--enter) * 70) linear infinite;
 }
 
 .nemesis-veil-far {
@@ -1429,29 +1462,46 @@ label {
         radial-gradient(30% 25% at 60% 55%, color-mix(in srgb, var(--panel) 80%, transparent), transparent 70%),
         radial-gradient(45% 30% at 25% 35%, color-mix(in srgb, var(--rule) 55%, transparent), transparent 70%);
     animation-name: nemesis-drift-far;
-    animation-duration: calc(var(--enter) * 62);
+    animation-duration: calc(var(--enter) * 95);
 }
 
-@keyframes nemesis-wake {
-    from { transform: scaleY(0.04); opacity: 0; }
-    60% { opacity: 1; }
+@keyframes nemesis-surface {
+    from { opacity: 0; filter: blur(0.6rem); transform: translateY(0.4rem) scale(1.06); }
+    to { opacity: 1; filter: blur(0); transform: none; }
+}
+
+@keyframes nemesis-open {
+    from { transform: scaleY(0.05); opacity: 0; }
+    50% { opacity: 1; }
     to { transform: scaleY(1); opacity: 1; }
 }
 
+/* Shut over ~3% of the cycle and open over ~5%, on the state-change curve rather than linearly:
+   a lid falls faster than it lifts, and an even split reads as a twitch. */
 @keyframes nemesis-blink {
-    0%, 95%, 100% { transform: scaleY(1); }
-    97% { transform: scaleY(0.06); }
+    0%, 92%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.08); }
+}
+
+@keyframes nemesis-breathe {
+    from { opacity: 0.55; }
+    to { opacity: 1; }
 }
 
 @keyframes nemesis-drift {
-    from { transform: translate(-6%, 2%) scale(1); }
-    to { transform: translate(7%, -4%) scale(1.12); }
+    0%, 100% { transform: translate(-6%, 2%) scale(1); }
+    25% { transform: translate(1%, -3%) scale(1.06); }
+    50% { transform: translate(7%, -4%) scale(1.12); }
+    75% { transform: translate(0%, 3%) scale(1.05); }
 }
 
 @keyframes nemesis-drift-far {
-    from { transform: translate(5%, -3%) scale(1.1); }
-    to { transform: translate(-7%, 4%) scale(1); }
+    0%, 100% { transform: translate(5%, -3%) scale(1.1); }
+    25% { transform: translate(-1%, 3%) scale(1.04); }
+    50% { transform: translate(-7%, 4%) scale(1); }
+    75% { transform: translate(1%, -2%) scale(1.07); }
 }
+
 
 /* The warning Send for approval gives before a Villain goes — see `Campaigns.razor`. Set in from
    the row the way a row's settings are, with the danger edge because what it describes cannot be
@@ -3254,8 +3304,9 @@ label {
     .panel, .sheet, .breakdown, .palette { animation: none; }
 
     /* The nemesis's three loops, for the other reason: an infinite animation at the collapsed
-       0.01ms duration is a strobe. Off, the eyes rest open and the smoke is still. */
-    .nemesis-eye, .nemesis-veil { animation: none; }
+       0.01ms duration is a strobe. Off, the name is simply there, the eyes rest open, the glow
+       is steady and the smoke is still. */
+    .nemesis-name, .nemesis-veil, .nemesis-eye, .nemesis-glow { animation: none; }
 }
 
 /* **The cancellation for `.shell`'s gap, placed last so it wins every rule above by source

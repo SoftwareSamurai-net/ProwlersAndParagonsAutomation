@@ -79,7 +79,7 @@ as in scope. **Nothing here is a defect.**
 
 **Ready to build, specified enough to start**
 
-- [x] **[38](#38-a-villain-approved-into-a-campaign-becomes-the-gms-and-the-players-nemesis)** — an approved Villain moves to the campaign owner's account for good, inside their cap, in one D1 batch; the server is told the snapshot's kind beside it and acts on the stored word. Send on a Villain warns and needs a second press; the GM's screen says approving takes it and names the cap when full; the player sees the name drawn as their nemesis (eyes and smoke on the villain night palette, still under reduced motion) and the roster lists it as given away. Verified 2026-10-01: eleven server mutations (the cap clause, the kind read from the player's row, the chained `WHERE`, the player's delete, the save-back guard, the batch rollback among them) and ten browser and contract mutations each went red; the nemesis harness says PASS in both motion modes and each of its three twins says FAIL
+- [x] **[38](#38-a-villain-approved-into-a-campaign-becomes-the-gms-and-the-players-nemesis)** — an approved Villain moves to the campaign owner's account for good, inside their cap, in one D1 batch; the server is told the snapshot's kind beside it and acts on the stored word. Send on a Villain warns and needs a second press; the GM's screen says approving takes it and names the cap when full; the player sees the name drawn as their nemesis (surfacing out of smoke with two slit-pupilled eyes behind it, on the villain night palette, still under reduced motion) and the roster lists it as given away. Verified 2026-10-01: eleven server mutations (the cap clause, the kind read from the player's row, the chained `WHERE`, the player's delete, the save-back guard, the batch rollback among them) and ten browser and contract mutations each went red; the nemesis harness says PASS in both motion modes and each of its three twins says FAIL
 - [x] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — character variants get a mechanism. **Slice one built 2026-09-11** (see the pull request that carried it): a sheet may say it is a version of a root character — *later*, *as seen by another audience*, or an *alternate form* — the roster and the switcher draw the family as a tree, and a "Version of…" control makes or clears the link. Verified by the orchestrator: the cycle guard and the tree's read of the index field each went red under mutation. **Slice two built 2026-09-23**: `engine/AlternateForms.cs` checks a roster's `alternate_form` families through `build --from … --from …` — both pay for the Power at the same total, a form's power level is one the root paid for and not above the root's, one Resolve pool at the lowest of the forms. Verified by the orchestrator: the pool taken as the highest instead turned `ThePoolIsTheLowestOfTheForms…` red. **Slice three built 2026-09-29, and the item is closed**: the owner ruled on p.21's Trait Cap sentence — *the form declares, the family verifies*. An `alternate_form` sheet may carry its root's Trait Cap above its own tier, so `TRAIT_CAP_ABOVE_TIER` is waived on it, and `AlternateForms` reports `ALTERNATE_FORM_CAP_NOT_ROOTS` on a form whose cap above its tier is not the root's; Resolve and the pool follow from the declared cap. A family's findings now print on the roster and in the banner switcher, labelled Error or Warning, with the shared pool on the root's row, and the character server has a seventh tool, `check_alternate_forms`, that answers `ok: false` when any member did not parse. Verified by the orchestrator: dropping the waiver, accepting any form cap, waiving it for every sheet, printing an Error unlabelled and calling an unreadable roster ok each went red under mutation
 - [x] **A Resolve and Adversity quick reference**, on the owner's ask of 2026-09-29, at `/reference/resolve` and open without an account: every entry of `data/rules/play/resolve.json` under For players, For the GM or Table limits, each with a table-facing `summary` (new on all 28 entries), its cost and its page. `web/` may name that one whole path and no other play file, by a narrowed `NothingInTheApplicationNamesAPlayRulesFile`, and reads it with its own strict display-only reader. Verified by the orchestrator: another play file named from `web/`, the exempt path split to hide it, the engine naming it, a hard-coded assisting rate, the description shown instead of the summary and program vocabulary in a summary each went red under mutation
 - [x] **The approval diff reads part by part, and says when it was sent**, on the owner's report of 2026-09-30: a Power's row printed its whole line twice around an arrow, and a request carried no date. `DiffRow.Parts` marks each part of a row as kept, gone, new or changed and `DiffRows` draws it so on every screen that draws a diff; the roster row and the diff carry the sent and approved times the server was already sending. Verified: pairing switched off, the whole line drawn again, and the dates hidden each went red under mutation
@@ -98,6 +98,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[2](#2-what-the-sheet-still-cannot-say)** — every printed page carries the character's name and `page N of M` in a `@page` margin box, in Chrome (measured on 153); Firefox and Safari print no margin boxes, so the document title and colophon stay as their fallback. Verified by the orchestrator 2026-09-23: a SheetView that never publishes the name turned five `RunningHeadTests` red. Not driven in a real browser on CI — the margin box was proved by hand on a dev server
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
+- [ ] **[42](#42-a-nemesis-is-keyed-to-the-hero-it-hunts)** — the owner's asks of 2026-10-02: a Villain sent to a campaign names the Hero it is the nemesis of, the GM's campaign view lays each nemesis out under its Hero, Heroes and Villains can be viewed apart, and Subject X-02 in Blood & Justice is put into the system as Jetstream's nemesis. Recorded, to be pitched before it is built
 - [x] **[41](#41-two-play-tests-fail-on-every-windows-checkout)** — `mcp-play/PLAY-POLICY.md` and `data/rules/play/combat.json` are pinned `eol=lf` in `.gitattributes`, so the two play tests that search them for LF-joined text pass on a Windows checkout as they do in CI. Verified 2026-10-01: both red on a CRLF checkout, both green after the pin and a fresh checkout of the two files
 - [x] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — every per-Power validator check walks one enumeration of every Power a sheet pays for, `EveryPaidPower`, so a Gadget's Powers draw the same findings as the character's own and a further check cannot forget them; `GadgetPowerWalkReadTests` holds every remaining direct walk of `SelectedPowers` to a written reason and a count. Verified by the orchestrator 2026-09-30: dropping the Gadget branch of the enumeration turned seven probes red, pointing `CheckPowerCosts` back at `SelectedPowers` turned the source guard red naming the line, and keying the duplicate pool by Gadget name instead of identity turned the same-name-Gadgets test red. One residual is recorded in the entry
 - [x] **[37](#37-joining-a-campaign-is-one-character-at-a-time-and-each-join-re-reads-the-page)** — the join box lists the account's characters to tick and joins them in one press, a character not on screen written back by id with the pointer untouched, every refusal said per character, the code kept in the box, and the page's reads run in parallel. Verified by the orchestrator 2026-10-01: the by-id read switched to the pointer-moving one turned `TheNonOpenCharacterIsWrittenByIdAndThePointerDoesNotMove` red, and the in-flight flag removed turned `ASecondCallWhileTheFirstIsInFlightChangesNothing` red; the agent's nine mutations are in the pull request
@@ -2601,8 +2602,12 @@ Adversity on any NPC), and a Villain's Flaws are the players' handles.
 - **Nothing on the engine side moves.** `IsVillain` stays a presentation flag no rules code reads
   (`PresentationFlagsTests`); this is storage and screens only.
 
-**Built 2026-10-01 — see the pull request that closed this item; the owner took specimen A (eyes
-and veil), always on the night palette, and either side may still end the membership.** The
+**Built 2026-10-01 — see the pull request that closed this item; the owner chose specimen B (the
+name surfacing through smoke), always on the night palette, and either side may still end the
+membership.** Specimen A, eyes behind a veil, shipped first on an earlier answer and was replaced
+on 2026-10-02; the second pitch's redrawn eyes (almond, slit pupils) were then put back over the
+surfacing name at the owner's request, built as composited HTML rather than SVG so they move
+smoothly. The
 submission carries `kind`, stored as `pending_kind` with the snapshot (`0011`), and approval acts on
 that word — not the payload and not the player's `characters` row, which describes their sheet now.
 The full cap is said on the approval screen as recommended; nobody disagreed. One residual: a tab
@@ -2685,6 +2690,29 @@ or pin both files `eol=lf` in `.gitattributes`. The second is one line and fixes
 reader too; check that nothing on the Windows side depends on CRLF in them first. Either way, a
 local full run that is red for a reason unrelated to the change is how a real red gets waved
 through, which is why it is worth an item.
+
+### 42. A nemesis is keyed to the Hero it hunts
+
+**The owner's asks of 2026-10-02, made while the nemesis handover's effect was being changed to the
+name surfacing through smoke.** Recorded here rather than built, because the layout half needs a
+pitch first.
+
+- **Sending a Villain names its Hero.** Send for approval on a Villain asks which of the player's
+  Heroes in that campaign it is the nemesis of, and has to be answered before it goes. The answer is
+  stored on the membership beside `pending_kind` — a membership id the server stores and returns
+  without reading either character, which keeps the accounts server's one rule.
+- **The GM's campaign view is laid out by Hero**, each nemesis under the Hero it is keyed to, so the
+  GM reads the table as pairs rather than as a flat list of members.
+- **Heroes and Villains can be viewed apart** — asked as "might also be useful", so a pitch question
+  rather than a ruling: where the split lives (the GM's campaign roster, the character roster, or
+  both) and whether it is a filter or two lists.
+- **Backdating.** Subject X-02 in the owner's Blood & Justice campaign is to become Jetstream's
+  nemesis: handed over to the GM as an approved Villain is, and keyed to Jetstream. That is a write
+  to the live database and runs once, after the keying column exists, from a reviewed statement.
+- **Open questions for the pitch**: whether a Villain may be keyed to a Hero belonging to another
+  player in the same campaign (the owner's example is one player's pair, so the recommendation is
+  the sender's own Heroes only); what a player with no Hero in the campaign is offered; whether the
+  key can be changed after approval and by whom.
 
 ## Completed work
 
