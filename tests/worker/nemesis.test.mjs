@@ -36,8 +36,28 @@ const putCampaign = (app, cookie, theId = gid()) =>
 const putCharacter = (app, cookie, id, { label = 'NPC', payload = '{}', kind } = {}) =>
     app.call(`/api/characters/${id}`, { method: 'PUT', body: { label, payload, kind }, cookie });
 
-const submit = (app, cookie, id, { payload = villainPayload(), label = 'The Hollow Regent', kind = 'villain' } = {}) =>
-    app.call(`/api/memberships/${id}/submission`, { method: 'PUT', body: { label, payload, kind }, cookie });
+/**
+ * Which Hero each Villain membership a fixture made is keyed to, so a submission names it the way
+ * the browser does — a Villain is refused without one (0012).
+ */
+const heroOf = new Map();
+
+const submit = (app, cookie, id, {
+    payload = villainPayload(), label = 'The Hollow Regent', kind = 'villain', nemesisOf = heroOf.get(id) ?? null,
+} = {}) =>
+    app.call(`/api/memberships/${id}/submission`, { method: 'PUT', body: { label, payload, kind, nemesisOf }, cookie });
+
+/** Join a Hero for the same account, and key a Villain membership to it. */
+async function aHeroFor(app, cookie, code, villainMembership, characterId = cid(8)) {
+    const joined = await app.call('/api/memberships/join', {
+        method: 'POST', body: { code, characterId, label: 'Jetstream' }, cookie,
+    });
+    assert.equal(joined.status, 200);
+    const hero = (await joined.json()).id;
+    heroOf.set(villainMembership, hero);
+
+    return hero;
+}
 
 const decide = (app, cookie, id, what, version) =>
     app.call(`/api/memberships/${id}/${what}`, { method: 'POST', body: { version }, cookie });
@@ -78,7 +98,10 @@ async function aVillainAtTheTable({ gmHolds = 0 } = {}) {
     });
     assert.equal(joined.status, 200);
 
-    return { app, gm, player, membership: (await joined.json()).id };
+    const membership = (await joined.json()).id;
+    const hero = await aHeroFor(app, player.cookie, code, membership);
+
+    return { app, gm, player, membership, hero, code };
 }
 
 test('approving a Villain moves the approved snapshot to the GM and takes it from the player', async () => {
@@ -269,6 +292,7 @@ test('a GM approving their own Villain into their own game is not counted twice 
         method: 'POST', body: { code, characterId: cid(), label: 'The Hollow Regent' }, cookie: gm.cookie,
     });
     const membership = (await joined.json()).id;
+    await aHeroFor(app, gm.cookie, code, membership);
 
     assert.equal((await submit(app, gm.cookie, membership)).status, 200);
     assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
@@ -290,6 +314,7 @@ test('a GM who is also the player is told the game is gone, not that their accou
     const membership = (await (await app.call('/api/memberships/join', {
         method: 'POST', body: { code, characterId: cid(), label: 'The Hollow Regent' }, cookie: gm.cookie,
     })).json()).id;
+    await aHeroFor(app, gm.cookie, code, membership);
     assert.equal((await submit(app, gm.cookie, membership)).status, 200);
     assert.equal((await app.call(`/api/campaigns/${gid()}`, { method: 'DELETE', cookie: gm.cookie })).status, 204);
 
@@ -351,4 +376,71 @@ test('the three writes are one transaction: a failure in the last undoes the fir
     assert.equal(row.hasPending, true, 'still waiting');
     assert.equal(row.handedOver, false, 'the mark was undone');
     assert.equal((await characters(app, player.cookie)).characters.length, 1);
+});
+
+// ── Keyed to a Hero (0012) ───────────────────────────────────────────────────────────────
+
+test('a Villain is refused without a Hero, and a Hero carries no key whatever is sent', async () => {
+    const { app, gm, player, membership, hero } = await aVillainAtTheTable();
+
+    const bare = await submit(app, player.cookie, membership, { nemesisOf: null });
+    assert.equal(bare.status, 400);
+    assert.match((await bare.json()).error, /nemesis of one of your Heroes/);
+
+    // The control: the same membership sent as a Hero with a key goes, and the key is dropped.
+    assert.equal((await submit(app, player.cookie, membership, { kind: 'hero', nemesisOf: hero })).status, 200);
+    assert.equal((await gmRow(app, gm.cookie, membership)).nemesisOf, null);
+});
+
+test('the key is stored with the snapshot and both sides read it', async () => {
+    const { app, gm, player, membership, hero } = await aVillainAtTheTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await gmRow(app, gm.cookie, membership)).nemesisOf, hero);
+
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+    assert.equal((await gmRow(app, gm.cookie, membership)).nemesisOf, hero, 'approval keeps the key');
+    assert.equal((await playerRow(app, player.cookie, membership)).nemesisOf, hero);
+});
+
+test('a Villain can only be keyed to one of the sender’s own Heroes in the same game', async () => {
+    const { app, gm, player, membership, code } = await aVillainAtTheTable();
+
+    // Another player's Hero in the same game.
+    const other = await signIn(app, 'other@example.test');
+    const theirs = (await (await app.call('/api/memberships/join', {
+        method: 'POST', body: { code, characterId: cid(5), label: 'Brian Talison' }, cookie: other.cookie,
+    })).json()).id;
+
+    for (const [what, heroId] of [['another player’s Hero', theirs], ['the Villain itself', membership],
+        ['an id that never existed', 'm_0000000000000000000000']]) {
+        const refused = await submit(app, player.cookie, membership, { nemesisOf: heroId });
+        assert.equal(refused.status, 400, what);
+        assert.equal((await refused.json()).error, 'That Hero is not one of yours in this game.', what);
+    }
+
+    assert.equal((await gmRow(app, gm.cookie, membership)).hasPending, false, 'nothing was written');
+});
+
+test('the GM re-keys a nemesis of theirs; the player cannot, and nobody can before it is handed over', async () => {
+    const { app, gm, player, membership, hero, code } = await aVillainAtTheTable();
+    const rekey = (cookie, heroId) => app.call(`/api/memberships/${membership}/nemesis-of`,
+        { method: 'PUT', body: { nemesisOf: heroId }, cookie });
+
+    const other = await signIn(app, 'other@example.test');
+    const theirs = (await (await app.call('/api/memberships/join', {
+        method: 'POST', body: { code, characterId: cid(5), label: 'Brian Talison' }, cookie: other.cookie,
+    })).json()).id;
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await rekey(gm.cookie, theirs)).status, 404, 'not the GM’s until it is approved');
+
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+
+    assert.equal((await rekey(player.cookie, hero)).status, 404, 'the player cannot re-key');
+    assert.equal((await rekey(gm.cookie, membership)).status, 409, 'not to itself');
+
+    // The GM may key it to any Hero in the game, another player's included.
+    assert.equal((await rekey(gm.cookie, theirs)).status, 204);
+    assert.equal((await gmRow(app, gm.cookie, membership)).nemesisOf, theirs);
 });

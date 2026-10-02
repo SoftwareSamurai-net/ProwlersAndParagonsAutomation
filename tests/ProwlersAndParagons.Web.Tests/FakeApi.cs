@@ -837,7 +837,7 @@ public sealed class FakeApi : HttpMessageHandler
         string CampaignId, string GmAccount, string PlayerAccount, string CharacterId,
         string Label, string? Approved, long? ApprovedAt, string? Pending, long? PendingAt,
         int PendingVersion, string? Decision = null, string? PendingKind = null,
-        bool HandedOver = false);
+        bool HandedOver = false, string? NemesisOf = null);
 
     private readonly Dictionary<string, MembershipRow> _memberships = [];
 
@@ -1035,6 +1035,7 @@ public sealed class FakeApi : HttpMessageHandler
          "pendingVersion":{{row.PendingVersion}},
          "decision":{{((DecisionOnTheWire ?? row.Decision) is not { } word ? "null" : Quote(word))}},
          "handedOver":{{Lower(row.HandedOver)}},
+         "nemesisOf":{{(row.NemesisOf is { } key ? Quote(key) : "null")}},
          {{(forGm
              ? $"\"pendingKind\":{(row.Pending is not null && row.PendingKind is { } kind ? Quote(kind) : "null")},"
              : $"\"givenTo\":{(row.HandedOver && _campaigns.TryGetValue((row.GmAccount, row.CampaignId), out var game) ? Quote(game.Label) : "null")},")}}
@@ -1194,16 +1195,59 @@ public sealed class FakeApi : HttpMessageHandler
             var label = sent.RootElement.TryGetProperty("label", out var l)
                 ? l.GetString() ?? row.Label : row.Label;
 
+            // The key, as the real server takes it: a Villain needs one of the sender's own Heroes
+            // in the same game, and a Hero's snapshot stores none whatever was sent.
+            var kind = SentString(sent.RootElement, "kind");
+            var heroId = SentString(sent.RootElement, "nemesisOf");
+            if (kind == "villain")
+            {
+                if (heroId is null)
+                {
+                    return await Json(
+                        """{"error":"A Villain is sent as the nemesis of one of your Heroes in this game. Name the Hero."}""",
+                        HttpStatusCode.BadRequest);
+                }
+
+                if (!_memberships.TryGetValue(heroId, out var hero) || heroId == id || hero.HandedOver
+                    || hero.PlayerAccount != row.PlayerAccount || hero.GmAccount != row.GmAccount
+                    || hero.CampaignId != row.CampaignId)
+                {
+                    return await Json("""{"error":"That Hero is not one of yours in this game."}""",
+                        HttpStatusCode.BadRequest);
+                }
+            }
+
             _memberships[id] = row with
             {
                 Label = label,
                 Pending = payload,
-                PendingKind = SentString(sent.RootElement, "kind"),
+                NemesisOf = kind == "villain" ? heroId : null,
+                PendingKind = kind,
                 PendingAt = ++_clock,
                 PendingVersion = row.PendingVersion + 1,
             };
 
             return await Json($$"""{"version":{{_memberships[id].PendingVersion}}}""");
+        }
+
+        // The GM re-keys a nemesis of theirs: handed over, and to a non-nemesis row in the game.
+        if (tail == "nemesis-of")
+        {
+            if (request.Method != HttpMethod.Put) return await Status(HttpStatusCode.MethodNotAllowed);
+            if (!isGm || !row.HandedOver) return await Status(HttpStatusCode.NotFound);
+
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var sent = JsonDocument.Parse(body);
+            var heroId = SentString(sent.RootElement, "nemesisOf");
+
+            if (heroId is null || heroId == id || !_memberships.TryGetValue(heroId, out var hero)
+                || hero.HandedOver || hero.GmAccount != row.GmAccount || hero.CampaignId != row.CampaignId)
+            {
+                return await Status(HttpStatusCode.Conflict);
+            }
+
+            _memberships[id] = row with { NemesisOf = heroId };
+            return await Status(HttpStatusCode.NoContent);
         }
 
         if (tail is "approve" or "reject")

@@ -1519,6 +1519,29 @@ label {
 .handover-warning p { margin: 0; }
 .handover-warning .choices { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
+/* Whose nemesis a Villain is, picked in the warning before it is sent. */
+.hero-pick { display: grid; gap: var(--space-1); margin: 0; padding: 0; border: 0; }
+.hero-pick legend { font-weight: 600; margin-bottom: var(--space-1); }
+.hero-pick label { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+
+/* The GM's table in pairs: a nemesis sits under the Hero it hunts, set in from the Hero's edge,
+   its row on the villain night ground (`.nemesis` carries that palette — see theme.css) so the
+   pairing reads at a glance. Only the row is night; what it opens beneath it stays on the page's
+   own palette. */
+.campaign-list > li.nemesis-pair { margin-left: var(--space-6); }
+
+.nemesis.nemesis-row {
+    display: flex;
+    min-height: 0;
+    margin-bottom: 0;
+    padding: var(--space-2) var(--space-4);
+    border-width: 0 0 0 var(--rule-weight);
+    border-left-color: var(--primary);
+}
+
+.nemesis-row .nemesis-kicker { display: block; }
+.nemesis-row .rekey { display: flex; align-items: center; gap: var(--space-2); color: var(--muted); }
+
 /* What a row opens: its code, and the controls that change it. Set in from the row's own left edge
    so the hierarchy is visible without a box — the panel around it is already a ruled card, and a
    bordered block inside one is the third nested edge the option lists' own note warns about. */

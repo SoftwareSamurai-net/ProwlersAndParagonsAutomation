@@ -35,6 +35,7 @@ export const MIGRATIONS = [
     join(here, '..', '..', 'd1', 'migrations', '0009_campaign_format.sql'),
     join(here, '..', '..', 'd1', 'migrations', '0010_character_variant_index.sql'),
     join(here, '..', '..', 'd1', 'migrations', '0011_villain_handover.sql'),
+    join(here, '..', '..', 'd1', 'migrations', '0012_nemesis_of.sql'),
 ];
 
 export const ORIGIN = 'https://pp.example.test';

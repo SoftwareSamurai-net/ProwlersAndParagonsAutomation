@@ -29,7 +29,7 @@
     <span class="nemesis-veil" aria-hidden="true"></span>
     <span class="nemesis-veil nemesis-veil-far" aria-hidden="true"></span>
 
-    <span class="nemesis-kicker">Your nemesis</span>
+    <span class="nemesis-kicker">@Kicker</span>
     <b class="nemesis-name">@Name</b>
     <span class="nemesis-who">@Who</span>
 </div>
@@ -40,6 +40,11 @@
 
     /// <summary>The game that holds it, or null where the campaign has since been deleted.</summary>
     [Parameter] public string? Campaign { get; set; }
+
+    /// <summary>The Hero it hunts, or null where it is keyed to nobody this page can name.</summary>
+    [Parameter] public string? Hunts { get; set; }
+
+    private string Kicker => string.IsNullOrWhiteSpace(Hunts) ? "Your nemesis" : $"Your nemesis · hunts {Hunts}";
 
     private string Who => string.IsNullOrWhiteSpace(Campaign)
         ? "Yours once. The GM holds it now."

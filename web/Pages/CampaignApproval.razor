@@ -60,12 +60,27 @@ else
         }
         else
         {
-            <ul class="campaign-list">
-                @foreach (var one in _waiting)
+            @* **Everyone, Heroes or Villains** — the owner's ask of 2026-10-02, on this roster
+               only. Everyone lays each nemesis out under the Hero it hunts; each of the other two
+               is a flat list of one kind. A fact about this glance, so it is not stored. *@
+            <div class="roster-order" role="group" aria-label="Show">
+                @foreach (var show in Shows)
                 {
-                    <li>
-                        <div class="campaign-row">
+                    <button type="button" aria-pressed="@(_show == show ? "true" : "false")"
+                            @onclick="() => _show = show">@ShowWord(show)</button>
+                }
+            </div>
+
+            <ul class="campaign-list">
+                @foreach (var (one, nested) in Arranged())
+                {
+                    <li class="@(nested ? "nemesis-pair" : "")">
+                        <div class="@(one.IsNemesis ? "campaign-row nemesis nemesis-row" : "campaign-row")">
                             <span class="who">
+                                @if (one.IsNemesis)
+                                {
+                                    <span class="nemesis-kicker">@NemesisKicker(one)</span>
+                                }
                                 <b class="nm">@one.Label</b>
                                 <span class="meta">@Standings.Say(one.Standing)</span>
 
@@ -101,6 +116,28 @@ else
                                 @(_reading == one.Id ? "Close"
                                     : one.HasPending ? "Read the changes" : "View sheet")
                             </button>
+
+                            @* **Re-keying, on a nemesis that is the GM's** — not one still waiting,
+                               which is the player's to key. Every Hero in the game is offered: the
+                               GM runs the table, so the sender's-own rule is the player's, not
+                               theirs. *@
+                            @if (one.HandedOver)
+                            {
+                                <label class="small rekey">
+                                    Hunts
+                                    <select value="@(one.NemesisOf ?? "")"
+                                            @onchange="e => Rekey(one, e.Value?.ToString())">
+                                        @if (one.NemesisOf is null || _waiting.All(m => m.Id != one.NemesisOf))
+                                        {
+                                            <option value="">Nobody</option>
+                                        }
+                                        @foreach (var hero in _waiting.Where(m => !m.IsNemesis))
+                                        {
+                                            <option value="@hero.Id">@hero.Label</option>
+                                        }
+                                    </select>
+                                </label>
+                            }
 
                             @* Two presses, for the reason the player's own Leave records: the
                                clone goes with the row and there is no undo behind it. *@
@@ -638,6 +675,77 @@ else
     private Reading _state = Reading.Looking;
     private string? _label;
     private IReadOnlyList<MembershipSummary> _waiting = [];
+
+    /// <summary>Which of the roster's three views is on screen.</summary>
+    private enum Show { Everyone, Heroes, Villains }
+
+    private static readonly Show[] Shows = [Show.Everyone, Show.Heroes, Show.Villains];
+
+    private Show _show = Show.Everyone;
+
+    private static string ShowWord(Show show) => show switch
+    {
+        Show.Heroes => "Heroes",
+        Show.Villains => "Villains",
+        _ => "Everyone",
+    };
+
+    /// <summary>
+    /// The roster in the order it is drawn, each row with whether it sits under a Hero.
+    ///
+    /// <para><b>Everyone</b> is each Hero in the list's own order with its nemeses under it, then
+    /// every nemesis whose Hero is not here — keyed to nobody, or to a Hero who has left — so no
+    /// row is ever dropped for having nowhere to sit. <b>Heroes</b> and <b>Villains</b> are each one
+    /// flat list.</para>
+    /// </summary>
+    private IEnumerable<(MembershipSummary Row, bool Nested)> Arranged()
+    {
+        var heroes = _waiting.Where(m => !m.IsNemesis).ToList();
+        var nemeses = _waiting.Where(m => m.IsNemesis).ToList();
+
+        if (_show == Show.Heroes) return heroes.Select(m => (m, false));
+        if (_show == Show.Villains) return nemeses.Select(m => (m, false));
+
+        var placed = new HashSet<string>(StringComparer.Ordinal);
+        var order = new List<(MembershipSummary, bool)>();
+
+        foreach (var hero in heroes)
+        {
+            order.Add((hero, false));
+
+            foreach (var foe in nemeses.Where(n => n.NemesisOf == hero.Id))
+            {
+                order.Add((foe, true));
+                placed.Add(foe.Id);
+            }
+        }
+
+        order.AddRange(nemeses.Where(n => !placed.Contains(n.Id)).Select(n => (n, false)));
+
+        return order;
+    }
+
+    /// <summary>The line over a nemesis's name: whose it is, or that it is keyed to nobody here.</summary>
+    private string NemesisKicker(MembershipSummary foe) =>
+        _waiting.FirstOrDefault(m => m.Id == foe.NemesisOf && !m.IsNemesis) is { } hero
+            ? $"Nemesis of {hero.Label}"
+            : "Nemesis of nobody in this game";
+
+    /// <summary>
+    /// The GM keys a nemesis of theirs to another Hero — the owner's ruling: the Villain is the
+    /// GM's, so the GM may change whose it is. One step, because it is undone by choosing again.
+    /// </summary>
+    private async Task Rekey(MembershipSummary foe, string? heroId)
+    {
+        if (heroId is not { Length: > 0 } || heroId == foe.NemesisOf) return;
+
+        var hero = _waiting.FirstOrDefault(m => m.Id == heroId)?.Label ?? "that Hero";
+        _said = await Memberships.RekeyAsync(foe.Id, heroId)
+            ? $"{foe.Label} is {hero}'s nemesis now."
+            : $"{foe.Label} could not be keyed to {hero} just now. Reload and try again.";
+
+        await Refresh();
+    }
 
     /// <summary>
     /// Which of <see cref="_waiting"/> are holding a sheet with nothing on it — see

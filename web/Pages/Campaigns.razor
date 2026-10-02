@@ -407,8 +407,8 @@ else
                the block away and hands nothing back. *@
             @foreach (var one in _playing.Where(m => m.HandedOver))
             {
-                <Nemesis Name="@one.Label" Campaign="@one.GivenTo" />
-                <div class="campaign-row">
+                <Nemesis Name="@one.Label" Campaign="@one.GivenTo" Hunts="@HeroLabel(one.NemesisOf)" />
+                <div class="campaign-row nemesis-standing">
                     <span class="who"><span class="meta">@Standings.Say(one.Standing, one.GivenTo)</span></span>
                     @if (_leaving == one.Id)
                     {
@@ -503,17 +503,47 @@ else
                         @if (_confirmingHandover == one.Id)
                         {
                             <div class="handover-warning" role="status">
-                                <p>
-                                    <b>If the GM approves this Villain, it becomes theirs for good.</b>
-                                    It leaves your characters, and you will see only its name.
-                                    Turned down, it stays yours.
-                                </p>
-                                <span class="choices">
-                                    <button type="button" class="btn small danger"
-                                            @onclick="() => Submit(one, handOverConfirmed: true)">Send it anyway</button>
-                                    <button type="button" class="btn small quiet"
-                                            @onclick="() => _confirmingHandover = null">Keep it</button>
-                                </span>
+                                @* **A Villain is sent as the nemesis of one of the sender's own Heroes
+                                   in this game** — the owner's rulings of 2026-10-02. With none, the
+                                   send is refused with a sentence rather than offered unkeyed. *@
+                                @if (HeroesBeside(one) is { Count: > 0 } heroes)
+                                {
+                                    <fieldset class="hero-pick">
+                                        <legend>Whose nemesis is it?</legend>
+                                        @foreach (var hero in heroes)
+                                        {
+                                            <label>
+                                                <input type="radio" name="nemesis-of-@one.Id" value="@hero.Id"
+                                                       checked="@(_nemesisOf == hero.Id)"
+                                                       @onchange="() => _nemesisOf = hero.Id" />
+                                                @hero.Label
+                                            </label>
+                                        }
+                                    </fieldset>
+                                    <p>
+                                        <b>If the GM approves this Villain, it becomes theirs for good.</b>
+                                        It leaves your characters, and you will see only its name.
+                                        Turned down, it stays yours.
+                                    </p>
+                                    <span class="choices">
+                                        <button type="button" class="btn small danger"
+                                                disabled="@(_nemesisOf is null)"
+                                                @onclick="() => Submit(one, handOverConfirmed: true)">Send it anyway</button>
+                                        <button type="button" class="btn small quiet"
+                                                @onclick="() => _confirmingHandover = null">Keep it</button>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <p>
+                                        A Villain is sent as a Hero's nemesis, and you have no Hero in this
+                                        game yet. Join one of your Heroes to it, then send the Villain.
+                                    </p>
+                                    <span class="choices">
+                                        <button type="button" class="btn small quiet"
+                                                @onclick="() => _confirmingHandover = null">Close</button>
+                                    </span>
+                                }
                             </div>
                         }
 
@@ -652,6 +682,24 @@ else
     /// approved Villain becomes the GM's is on screen under that row.
     /// </summary>
     private string? _confirmingHandover;
+
+    /// <summary>The Hero picked under the warning, by membership id, or null until one is.</summary>
+    private string? _nemesisOf;
+
+    /// <summary>
+    /// The sender's own Heroes in the same game as <paramref name="villain"/>, which are the only
+    /// ones a Villain may be keyed to. A row is a Hero unless the account's own index says its
+    /// character is a Villain — the index is what this page already holds, and a row with no
+    /// index entry is offered rather than hidden, since the server checks the rest.
+    /// </summary>
+    private List<MembershipSummary> HeroesBeside(MembershipSummary villain) =>
+        _playing?.Where(m => m.CampaignId == villain.CampaignId && m.Id != villain.Id && !m.HandedOver
+                && _characters.FirstOrDefault(c => c.Id == m.CharacterId)?.Kind != SavedCharacters.VillainKind)
+            .ToList() ?? [];
+
+    /// <summary>What the Hero a nemesis hunts is called, or null where it is not one of these rows.</summary>
+    private string? HeroLabel(string? membershipId) =>
+        membershipId is null ? null : _playing?.FirstOrDefault(m => m.Id == membershipId)?.Label;
 
     /// <summary>What became of the last leave, or null. Rendered outside the row it was about.</summary>
     private string? _said;
@@ -1984,12 +2032,13 @@ else
         {
             _sentAbout = null;
             _confirmingHandover = one.Id;
+            _nemesisOf = null;
             return;
         }
 
         _confirmingHandover = null;
 
-        _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
+        _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode, _nemesisOf) is null
             ? "That could not be sent just now. Try again in a moment."
             // **The name on the sheet that was actually sent, not the label the row was carrying.**
             // A membership's label is whatever the character was called when it last joined or

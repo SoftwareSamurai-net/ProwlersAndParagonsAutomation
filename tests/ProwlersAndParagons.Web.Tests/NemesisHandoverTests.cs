@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -36,7 +37,12 @@ public sealed class NemesisHandoverTests
     /// A game the GM runs, and a player whose character is saved on their account, on screen, and
     /// joined to it — through the real store and the real join route.
     /// </summary>
-    private static async Task<(RenderContext Ctx, string Membership)> AtTheTable(SheetMode mode)
+    /// <summary>The Hero each fixture joined beside its Villain, by context — the key a send names.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<RenderContext, string> HeroOf = new();
+
+    private const string JetstreamId = "c_2222222222222222222222";
+
+    private static async Task<(RenderContext Ctx, string Membership)> AtTheTable(SheetMode mode, bool withHero = true)
     {
         var ctx = new RenderContext(storesForReal: true);
 
@@ -56,6 +62,17 @@ public sealed class NemesisHandoverTests
         var joined = await ctx.Services.GetRequiredService<ApiMembershipStore>()
             .JoinAsync(code, VillainId, "The Hollow Regent");
         Assert.NotNull(joined);
+
+        // The same player's Hero in the same game, which a Villain is sent as the nemesis of.
+        if (withHero)
+        {
+            Assert.Equal(SaveOutcome.Saved, await ctx.Services.GetRequiredService<ApiCharacterStore>()
+                .SaveAsync(JetstreamId, "Jetstream", new CharacterSheet { Name = "Jetstream", SelectedTierId = "standard" }, SheetMode.Hero));
+            var hero = await ctx.Services.GetRequiredService<ApiMembershipStore>()
+                .JoinAsync(code, JetstreamId, "Jetstream");
+            Assert.NotNull(hero);
+            HeroOf.AddOrUpdate(ctx, hero!.Value.Id);
+        }
 
         var onScreen = TheHollowRegent();
         onScreen.IsVillain = mode == SheetMode.Villain;
@@ -103,7 +120,15 @@ public sealed class NemesisHandoverTests
         Assert.False((await PlayersRow(ctx, membership)).HasPending, "the first press sent it");
         Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Trim() == "Send for approval");
 
+        // **A Hero has to be picked first**, and only the sender's own Heroes are offered.
+        Assert.True(page.FindAll("button").Single(b => b.TextContent.Trim() == "Send it anyway").HasAttribute("disabled"));
+        var offered = page.FindAll(".hero-pick label").Select(l => l.TextContent.Trim()).ToList();
+        Assert.Equal(["Jetstream"], offered);
+        await page.Find(".hero-pick input").ChangeAsync(new ChangeEventArgs { Value = "on" });
+        Assert.False(page.FindAll("button").Single(b => b.TextContent.Trim() == "Send it anyway").HasAttribute("disabled"));
+
         await Press(page, "Send it anyway");
+        Assert.Equal(HeroOf.TryGetValue(ctx, out var key) ? key : null, (await GmsRow(ctx, membership)).NemesisOf);
 
         Assert.True((await PlayersRow(ctx, membership)).HasPending, "the second press did not send it");
         Assert.Equal("villain", (await GmsRow(ctx, membership)).PendingKind);
@@ -149,7 +174,7 @@ public sealed class NemesisHandoverTests
     {
         ctx.Api.SignedIn = ("u_player", "The Player");
         Assert.NotNull(await ctx.Services.GetRequiredService<ApiMembershipStore>()
-            .SubmitAsync(membership, TheHollowRegent(), SheetMode.Villain));
+            .SubmitAsync(membership, TheHollowRegent(), SheetMode.Villain, HeroOf.TryGetValue(ctx, out var hero) ? hero : null));
 
         ctx.Api.SignedIn = ("u_gm", "The GM");
         var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, CampaignId));
@@ -223,7 +248,7 @@ public sealed class NemesisHandoverTests
         await HandedOver(ctx, membership);
 
         var page = ctx.Render<Campaigns>();
-        await Press(page, "Leave");
+        await page.Find(".nemesis-standing button").ClickAsync(new MouseEventArgs());
         await Press(page, "Leave for good");
 
         Assert.Contains("Its GM still holds the Villain you gave them.", page.Markup, StringComparison.Ordinal);
@@ -237,7 +262,7 @@ public sealed class NemesisHandoverTests
     {
         ctx.Api.SignedIn = ("u_player", "The Player");
         Assert.NotNull(await ctx.Services.GetRequiredService<ApiMembershipStore>()
-            .SubmitAsync(membership, TheHollowRegent(), SheetMode.Villain));
+            .SubmitAsync(membership, TheHollowRegent(), SheetMode.Villain, HeroOf.TryGetValue(ctx, out var hero) ? hero : null));
 
         ctx.Api.SignedIn = ("u_gm", "The GM");
         var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
@@ -260,12 +285,13 @@ public sealed class NemesisHandoverTests
         Assert.Contains("Your nemesis", nemesis.TextContent, StringComparison.Ordinal);
         Assert.Equal("The Hollow Regent", nemesis.QuerySelector(".nemesis-name")!.TextContent.Trim());
         Assert.Contains("The GM of Nightfall holds it now.", nemesis.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Your nemesis · hunts Jetstream", nemesis.TextContent, StringComparison.Ordinal);
         Assert.Equal(2, nemesis.QuerySelectorAll(".nemesis-veil").Length);
         Assert.Equal(2, nemesis.QuerySelectorAll(".nemesis-eye").Length);
 
         Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Trim() == "Send for approval");
         Assert.Contains("Given to Nightfall as a nemesis", page.Markup, StringComparison.Ordinal);
-        Assert.Single(page.FindAll("button"), b => b.TextContent.Trim() == "Leave");
+        Assert.Single(page.Find(".nemesis-standing").QuerySelectorAll("button"), b => b.TextContent.Trim() == "Leave");
     }
 
     [Fact]
@@ -322,6 +348,72 @@ public sealed class NemesisHandoverTests
             ["The Hollow Regent was not saved: it was given to a campaign as a nemesis, and it is the GM's now."],
             said);
         Assert.DoesNotContain((await store.ListAsync()).Characters, c => c.Id == VillainId);
+    }
+
+    [Fact]
+    public async Task AVillainWithNoHeroInTheGameIsToldToJoinOneFirst()
+    {
+        var (ctx, membership) = await AtTheTable(SheetMode.Villain, withHero: false);
+        await using var _ = ctx;
+        var page = ctx.Render<Campaigns>();
+
+        await Press(page, "Send for approval");
+
+        Assert.Contains("you have no Hero in this game yet", Squeezed(page.Markup), StringComparison.Ordinal);
+        Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Trim() == "Send it anyway");
+        Assert.False((await PlayersRow(ctx, membership)).HasPending);
+    }
+
+    [Fact]
+    public async Task TheGmSeesEachNemesisUnderItsHeroAndCanShowEitherKindAlone()
+    {
+        var (ctx, membership) = await AtTheTable(SheetMode.Villain);
+        await using var _ = ctx;
+        await HandedOver(ctx, membership);
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, CampaignId));
+
+        string[] Names() => [.. page.FindAll(".campaign-list > li .nm").Select(n => n.TextContent.Trim())];
+
+        // Everyone: the Hero, then its nemesis set in beneath it on the night ground.
+        Assert.Equal(["Jetstream", "The Hollow Regent"], Names());
+        var pair = page.Find(".campaign-list > li.nemesis-pair");
+        Assert.Contains("The Hollow Regent", pair.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Nemesis of Jetstream", pair.TextContent, StringComparison.Ordinal);
+        Assert.NotNull(pair.QuerySelector(".nemesis.nemesis-row"));
+
+        await page.FindAll(".roster-order button").Single(b => b.TextContent.Trim() == "Heroes").ClickAsync(new MouseEventArgs());
+        Assert.Equal(["Jetstream"], Names());
+
+        await page.FindAll(".roster-order button").Single(b => b.TextContent.Trim() == "Villains").ClickAsync(new MouseEventArgs());
+        Assert.Equal(["The Hollow Regent"], Names());
+        Assert.Empty(page.FindAll(".campaign-list > li.nemesis-pair"));
+    }
+
+    [Fact]
+    public async Task TheGmReKeysANemesisOfTheirsToAnotherHero()
+    {
+        var (ctx, membership) = await AtTheTable(SheetMode.Villain);
+        await using var _ = ctx;
+        await HandedOver(ctx, membership);
+
+        // Another player's Hero in the same game: the GM may key to any Hero at the table.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        var code = (await ctx.Services.GetRequiredService<ApiCampaignStore>().ListAsync())!
+            .Single(c => c.Id == CampaignId).JoinCode!;
+        ctx.Api.SignedIn = ("u_other", "Another Player");
+        var brian = await ctx.Services.GetRequiredService<ApiMembershipStore>()
+            .JoinAsync(code, "c_3333333333333333333333", "Brian Talison");
+        Assert.NotNull(brian);
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, CampaignId));
+        await page.Find(".nemesis-row select").ChangeAsync(new ChangeEventArgs { Value = brian!.Value.Id });
+
+        Assert.Equal(brian.Value.Id, (await GmsRow(ctx, membership)).NemesisOf);
+        Assert.Contains("The Hollow Regent is Brian Talison's nemesis now.", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Nemesis of Brian Talison", page.Find(".campaign-list > li.nemesis-pair").TextContent, StringComparison.Ordinal);
     }
 
     [Fact]

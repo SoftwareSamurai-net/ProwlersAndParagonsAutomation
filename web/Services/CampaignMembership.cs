@@ -135,6 +135,10 @@ public enum MembershipDecision
 /// What the waiting snapshot was sent as, on the GM's row only: the word the server will act on
 /// when the GM approves, so the screen can say what approving does.
 /// </param>
+/// <param name="NemesisOf">
+/// The membership id of the Hero this Villain hunts, or null — on both sides' rows. A membership
+/// id, never a character id, because it is a row the server can check without reading a sheet.
+/// </param>
 public sealed record MembershipSummary(
     string Id,
     string CampaignId,
@@ -149,8 +153,15 @@ public sealed record MembershipSummary(
     string? PlayerKey = null,
     bool HandedOver = false,
     string? GivenTo = null,
-    string? PendingKind = null)
+    string? PendingKind = null,
+    string? NemesisOf = null)
 {
+    /// <summary>
+    /// Whether this row is a Villain on the GM's table: one handed over, or one waiting to be.
+    /// The GM learns a kind only from these two, because the server never reads a sheet.
+    /// </summary>
+    public bool IsNemesis => HandedOver || ApprovingHandsOver;
+
     /// <summary>
     /// Whether approving what is waiting would hand a Villain to the GM — read off the word the
     /// snapshot was sent with, which is the word the approval acts on.
@@ -352,7 +363,7 @@ public sealed class ApiMembershipStore
                     m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
                     m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion,
                     Decided(m.Decision), m.PlayerKey,
-                    HandedOver: m.HandedOver, PendingKind: m.PendingKind))];
+                    HandedOver: m.HandedOver, PendingKind: m.PendingKind, NemesisOf: m.NemesisOf))];
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }
@@ -373,7 +384,7 @@ public sealed class ApiMembershipStore
                     m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
                     m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion,
                     Decided(m.Decision),
-                    HandedOver: m.HandedOver, GivenTo: m.GivenTo))];
+                    HandedOver: m.HandedOver, GivenTo: m.GivenTo, NemesisOf: m.NemesisOf))];
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }
@@ -483,7 +494,7 @@ public sealed class ApiMembershipStore
     /// envelope an ordinary save uses — so the GM reads exactly the bytes the player's own store
     /// holds, and there is one writer rather than two that could drift.</para>
     /// </summary>
-    public async Task<int?> SubmitAsync(string id, CharacterSheet sheet, SheetMode mode)
+    public async Task<int?> SubmitAsync(string id, CharacterSheet sheet, SheetMode mode, string? nemesisOf = null)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
@@ -493,7 +504,8 @@ public sealed class ApiMembershipStore
             // snapshot sent as a Villain hands it to the GM. The server never parses a character,
             // so it is told, in the same word an ordinary save sends beside one.
             using var body = Body(new Sending(
-                SheetLabel(sheet), StoredCharacter.Write(sheet, mode), SavedCharacters.KindOf(mode)));
+                SheetLabel(sheet), StoredCharacter.Write(sheet, mode), SavedCharacters.KindOf(mode),
+                mode == SheetMode.Villain ? nemesisOf : null));
 
             using var response = await _http.PutAsync(
                 $"{List}/{Uri.EscapeDataString(id)}/submission", body);
@@ -503,6 +515,24 @@ public sealed class ApiMembershipStore
             return (await response.Content.ReadFromJsonAsync<WiredVersion>(Wire))?.Version;
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
+    }
+
+    /// <summary>
+    /// The GM keys a nemesis of theirs to another Hero in the game. True when it landed; false for
+    /// any refusal or failure, which the screen says in one sentence because the remedy is the same
+    /// — pick again, or reload.
+    /// </summary>
+    public async Task<bool> RekeyAsync(string id, string heroMembershipId)
+    {
+        try
+        {
+            using var body = Body(new Rekeying(heroMembershipId));
+            using var response = await _http.PutAsync(
+                $"{List}/{Uri.EscapeDataString(id)}/nemesis-of", body);
+
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return false; }
     }
 
     /// <summary>Accept the snapshot at <paramref name="version"/>, and nothing else.</summary>
@@ -686,6 +716,7 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("pendingVersion")] int PendingVersion,
         [property: JsonPropertyName("decision")] string? Decision,
         [property: JsonPropertyName("handedOver")] bool HandedOver,
+        [property: JsonPropertyName("nemesisOf")] string? NemesisOf,
         [property: JsonPropertyName("givenTo")] string? GivenTo);
 
     /// <summary>
@@ -708,6 +739,7 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("decision")] string? Decision,
         [property: JsonPropertyName("pendingKind")] string? PendingKind,
         [property: JsonPropertyName("handedOver")] bool HandedOver,
+        [property: JsonPropertyName("nemesisOf")] string? NemesisOf,
         [property: JsonPropertyName("playerKey")] string? PlayerKey);
 
     private sealed record WiredDetail(
@@ -752,7 +784,10 @@ public sealed class ApiMembershipStore
     private sealed record Sending(
         [property: JsonPropertyName("label")] string Label,
         [property: JsonPropertyName("payload")] string Payload,
-        [property: JsonPropertyName("kind")] string Kind);
+        [property: JsonPropertyName("kind")] string Kind,
+        [property: JsonPropertyName("nemesisOf")] string? NemesisOf);
+
+    private sealed record Rekeying([property: JsonPropertyName("nemesisOf")] string NemesisOf);
 
     private sealed record Deciding([property: JsonPropertyName("version")] int Version);
 }
