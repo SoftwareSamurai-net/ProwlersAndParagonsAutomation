@@ -193,6 +193,21 @@
                                 @onclick="() => Reorder(order)">@Word(order)</button>
                     }
                 </div>
+
+                @* **Everyone, Heroes or Villains**, the switch the GM's campaign roster has, and on
+                   the same terms: only where the list holds both — the rule the kind chip follows —
+                   and not written down anywhere, because it is a fact about this glance. *@
+                @if (_showKinds)
+                {
+                    <div class="roster-order" role="group" aria-label="Show these characters">
+                        @foreach (var kind in KindsShown)
+                        {
+                            <button type="button"
+                                    aria-pressed="@(_kind == kind ? "true" : "false")"
+                                    @onclick="() => _kind = kind">@KindWord(kind)</button>
+                        }
+                    </div>
+                }
             }
 
             @foreach (var group in Grouped())
@@ -589,12 +604,32 @@
         _ => "Recent",
     };
 
+    /// <summary>Which kind the switch is showing. Everyone until somebody chooses.</summary>
+    private RosterKind _kind = RosterKind.Everyone;
+
+    private static readonly RosterKind[] KindsShown = [RosterKind.Everyone, RosterKind.Heroes, RosterKind.Villains];
+
+    private static string KindWord(RosterKind kind) => kind switch
+    {
+        RosterKind.Heroes => "Heroes",
+        RosterKind.Villains => "Villains",
+        _ => "Everyone",
+    };
+
+    /// <summary>
+    /// The rows the switch lets through, before the box filters them. Everyone wherever the switch
+    /// is not drawn, so a choice made while the list held both cannot go on hiding rows after it
+    /// stops holding both.
+    /// </summary>
+    private IReadOnlyList<SavedCharacterSummary> OfKind =>
+        Roster.OfKind(_others, _showKinds ? _kind : RosterKind.Everyone);
+
     /// <summary>How many rows the filter is letting through, across every group.</summary>
-    private int Shown => _others.Count(c => Roster.Admits(c, _query, _names));
+    private int Shown => OfKind.Count(c => Roster.Admits(c, _query, _names));
 
     /// <summary>The rows to draw, in their groups. Recomputed per render; see <see cref="Roster"/>.</summary>
     private IReadOnlyList<RosterGroup> Grouped() =>
-        Roster.Group(_others, _query, _order, _names, Elsewhere);
+        Roster.Group(OfKind, _query, _order, _names, Elsewhere);
 
     private void Typed(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
 

@@ -487,6 +487,76 @@ public sealed class RosterTests
     }
 
     /// <summary>
+    /// <b>Everyone, Heroes or Villains</b> — the switch the GM's campaign roster has, on the
+    /// character roster too. Drawn only where the list holds both kinds, and the count beside the
+    /// box follows it.
+    /// </summary>
+    [Fact]
+    public async Task TheRosterShowsHeroesOrVillainsAlone()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.Api.Limit = 40;
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        for (var i = 1; i <= 4; i++)
+        {
+            await account.SaveAsync(SavedCharacters.NewId(), $"Hero {i}", SampleCharacters.Hero(), SheetMode.Hero);
+        }
+        for (var i = 1; i <= 3; i++)
+        {
+            await account.SaveAsync(SavedCharacters.NewId(), $"Villain {i}", SampleCharacters.Villain(), SheetMode.Villain);
+        }
+
+        var cut = ctx.Render<CharacterManager>();
+        string[] Names() => [.. cut.FindAll(".character-list .open-target .nm").Select(n => n.TextContent.Trim())];
+        AngleSharp.Dom.IElement Button(string word) => cut.FindAll(".roster-order button").Single(b => b.TextContent.Trim() == word);
+
+        // The control: everyone is listed first, so the narrowing below is the switch's doing.
+        var everyone = Names();
+        Assert.Contains("Hero 1", everyone);
+        Assert.Contains("Villain 1", everyone);
+
+        await Button("Villains").ClickAsync(new MouseEventArgs());
+        Assert.All(Names(), n => Assert.StartsWith("Villain", n, StringComparison.Ordinal));
+        Assert.Equal("true", Button("Villains").GetAttribute("aria-pressed"));
+        Assert.Contains(" of ", cut.Find(".options-count").TextContent, StringComparison.Ordinal);
+        Assert.StartsWith(Names().Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            cut.Find(".options-count").TextContent.Trim(), StringComparison.Ordinal);
+
+        await Button("Heroes").ClickAsync(new MouseEventArgs());
+        Assert.All(Names(), n => Assert.StartsWith("Hero", n, StringComparison.Ordinal));
+
+        await Button("Everyone").ClickAsync(new MouseEventArgs());
+        Assert.Equal(everyone, Names());
+    }
+
+    [Fact]
+    public async Task ARosterOfOneKindHasNoKindSwitch()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.Api.Limit = 40;
+        await Fill(ctx, 8);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        Assert.NotEmpty(cut.FindAll(".roster-order"));
+        Assert.DoesNotContain(cut.FindAll(".roster-order button"), b => b.TextContent.Trim() == "Villains");
+    }
+
+    [Fact]
+    public void ARowWithNoRecordedKindIsInEveryoneAndNeitherKind()
+    {
+        SavedCharacterSummary Row(string id, string? kind) => new(id, id, 0, Kind: kind);
+        IReadOnlyList<SavedCharacterSummary> rows = [Row("a", "hero"), Row("b", "villain"), Row("c", null)];
+
+        Assert.Equal(["a", "b", "c"], Roster.OfKind(rows, RosterKind.Everyone).Select(r => r.Id));
+        Assert.Equal(["a"], Roster.OfKind(rows, RosterKind.Heroes).Select(r => r.Id));
+        Assert.Equal(["b"], Roster.OfKind(rows, RosterKind.Villains).Select(r => r.Id));
+    }
+
+    /// <summary>
     /// The time is drawn under "Recent", where it is what the order means, and not under "By
     /// game", where it was the column that read the same on every row.
     /// </summary>
