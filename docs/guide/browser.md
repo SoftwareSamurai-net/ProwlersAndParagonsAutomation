@@ -2105,6 +2105,13 @@ works and nobody can reach.
     rough. All of it is switched off outright under reduced motion — an infinite
     loop at the collapsed 0.01ms tokens is a strobe, not an absence. `ProofPages.TheNemesis` drives it in Chrome beside three
     twins: the island removed, the motion removed, and the reduced-motion rule removed.
+  - **The send warning asks whose nemesis it is**, offering the sender's own rows in that game that
+    the account index does not call a Villain, and Send stays dead until one is picked; with none,
+    a sentence says to join a Hero first. **The GM's roster is laid out in pairs** — `Arranged()`
+    puts each nemesis under the Hero it names, then every nemesis whose Hero is not there, so no row
+    is dropped for having nowhere to sit — with an Everyone / Heroes / Villains switch that is not
+    stored, and a "Hunts" select on a handed-over row for re-keying. A nemesis row is
+    `.nemesis.nemesis-row`, so only the row is on the night ground and what it opens is not.
   - **The roster's "Given away" rows come from the memberships**, because the character's own row
     is gone from the account. They open nothing.
   - **A tab still holding the Villain after the GM approves keeps it on screen** until it is next

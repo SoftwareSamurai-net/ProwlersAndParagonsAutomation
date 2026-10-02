@@ -493,6 +493,13 @@ their cap; the player keeps no sheet and sees only its name. The contract is
   back on its next autosave. The refusal is 410, told apart from the cap's 409 by a re-read on the
   refusal path only.
 
+- **A nemesis is keyed to a Hero by membership id, never by character id** (`0012`). A membership
+  is a row this server already scopes, so "one of the sender's own Heroes in the same game" is a
+  join on `player_user_id`, `gm_user_id` and `campaign_id` inside the write's own `WHERE` — the
+  same no-read-in-front shape as the cap. A character id would have needed the server to know which
+  of a player's characters is a Hero, which is reading a sheet. Re-keying is the GM's alone and only
+  once the Villain is theirs, to any non-nemesis row in the game.
+
 ## An account has a name it can change
 
 `display_name` is set once at first sign-in to the email's local part, and `PUT /api/me/display-name`
