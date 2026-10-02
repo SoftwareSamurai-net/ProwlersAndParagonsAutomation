@@ -907,7 +907,7 @@ public sealed class ProofPages
 
     /// <summary>
     /// <b>The nemesis a handed-over Villain is drawn as, in a browser: night ground on a daylight
-    /// Hero page, the eyes and the smoke moving, and nothing moving for a reader who asked for no
+    /// Hero page, the name surfacing and the smoke moving, and nothing moving for a reader who asked for no
     /// motion.</b>
     ///
     /// <para>None of the three is visible to bUnit, which has no cascade and no clock. The page is
@@ -953,7 +953,7 @@ public sealed class ProofPages
 
     /// <summary>app.css with the reduced-motion rule for the nemesis gone.</summary>
     private static string NemesisReducedBroken() => WithDefect("css/app.css",
-        "    .nemesis-eye, .nemesis-veil { animation: none; }",
+        "    .nemesis-name, .nemesis-veil { animation: none; }",
         "    /* defect: the nemesis loops are left running under reduced motion */");
 
     /// <summary>A stylesheet as a <c>data:</c> URL, for the reason <see cref="AsScriptSrc"/> gives.</summary>
@@ -994,14 +994,13 @@ public sealed class ProofPages
 
           const card = document.querySelector('.nemesis');
           const name = card && card.querySelector('.nemesis-name');
-          const eyes = card ? [...card.querySelectorAll('.nemesis-eye')] : [];
           const near = card && card.querySelector('.nemesis-veil:not(.nemesis-veil-far)');
           const far = card && card.querySelector('.nemesis-veil-far');
 
           // **The positive control on the subject**: the block is there and says who it is.
-          check('the nemesis is drawn, with its name and two eyes (positive control)',
-                !!card && !!name && name.textContent.trim() === 'The Hollow Regent' && eyes.length === 2 && !!near && !!far,
-                `card ${!!card}, name "${name && name.textContent.trim()}", eyes ${eyes.length}, veils ${!!near}/${!!far}`);
+          check('the nemesis is drawn, with its name and both veils (positive control)',
+                !!card && !!name && name.textContent.trim() === 'The Hollow Regent' && !!near && !!far,
+                `card ${!!card}, name "${name && name.textContent.trim()}", veils ${!!near}/${!!far}`);
 
           // **Night on a daylight Hero page.** The document is stamped hero and light, so the
           // block's own ground can only be villain-dark's if the stylesheet put it there.
@@ -1019,25 +1018,27 @@ public sealed class ProofPages
                 `name z ${nameZ}, veil z ${veilZ}`);
 
           const running = (el) => el ? el.getAnimations().filter((a) => a.playState === 'running') : [];
-          const blinking = eyes.filter((e) => running(e)
-            .some((a) => a.effect.getTiming().iterations === Infinity)).length;
+          // The surfacing is finite, so it is found by name rather than by being infinite — and a
+          // `both` fill keeps it attached once it has run, so its absence means it never did.
+          const surfacing = name ? name.getAnimations()
+            .filter((a) => a.animationName === 'nemesis-surface').length : 0;
           const drifting = running(near).length;
           const driftingFar = running(far).filter((a) => a.effect.getTiming().iterations === Infinity).length;
 
           if (!reduced) {
-            check('the eyes blink and the smoke drifts (positive control on the motion)',
-                  blinking === 2 && drifting > 0 && driftingFar > 0,
-                  `blinking eyes ${blinking}/2, drifting veils near ${drifting} far ${driftingFar}`);
+            check('the name surfaces and the smoke drifts (positive control on the motion)',
+                  surfacing === 1 && drifting > 0 && driftingFar > 0,
+                  `surfacing ${surfacing}, drifting veils near ${drifting} far ${driftingFar}`);
           } else {
-            const any = eyes.concat(near ? [near] : [], far ? [far] : []).reduce((n, el) => n + el.getAnimations().length, 0);
+            const any = [name, near, far].filter(Boolean).reduce((n, el) => n + el.getAnimations().length, 0);
             check('nothing moves for a reader who asked for no motion',
                   any === 0,
                   `animations still attached ${any}`);
-            const open = eyes.length === 2 && eyes.every((e) => getComputedStyle(e).opacity === '1' &&
-              getComputedStyle(e).transform === 'none');
-            check('and the eyes rest open',
-                  open,
-                  eyes.map((e) => `${getComputedStyle(e).opacity}/${getComputedStyle(e).transform}`).join(', '));
+            const clear = !!name && getComputedStyle(name).opacity === '1' &&
+              getComputedStyle(name).filter === 'none';
+            check('and the name is simply there, clear',
+                  clear,
+                  name ? `${getComputedStyle(name).opacity}/${getComputedStyle(name).filter}` : 'no name');
           }
 
           const ok = checks.length > 0 && checks.every((c) => c.ok);
@@ -3000,7 +3001,8 @@ public sealed class ProofPages
 
     private static string[] NemesisMarkers(string stylesheet) =>
     [
-        stylesheet, "class=\"nemesis\"", "nemesis-eye", "nemesis-veil", "The Hollow Regent",
+        stylesheet, "class=\"nemesis\"", "nemesis-name", "nemesis-veil", "The Hollow Regent",
+        "nemesis-surface",
         "prefers-reduced-motion", "getAnimations", "positive control", "#111114",
         "NEMESIS: PASS", "NEMESIS: FAIL", "measuring", "checks.every", "document.title",
         "data-mode=\"hero\"", "data-theme=\"light\"",

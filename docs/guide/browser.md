@@ -2099,9 +2099,9 @@ works and nobody can reach.
   - **The GM is told from `PendingKind`, the word the server will act on**, never from the sheet
     drawn in the diff, so the sentence and what approving does cannot disagree. A full account is
     `DecisionOutcome.AccountFull` with the limit, and the request stays open.
-  - **The player sees `Nemesis`, not a row.** Always on villain-dark (the owner's choice), the eyes
-    and smoke switched off outright under reduced motion — an infinite loop at the collapsed 0.01ms
-    tokens is a strobe, not an absence. `ProofPages.TheNemesis` drives it in Chrome beside three
+  - **The player sees `Nemesis`, not a row.** Always on villain-dark, the name surfacing once out of
+    drifting smoke (the owner's choices), and all of it switched off outright under reduced motion —
+    an infinite loop at the collapsed 0.01ms tokens is a flicker, not an absence. `ProofPages.TheNemesis` drives it in Chrome beside three
     twins: the island removed, the motion removed, and the reduced-motion rule removed.
   - **The roster's "Given away" rows come from the memberships**, because the character's own row
     is gone from the account. They open nothing.
