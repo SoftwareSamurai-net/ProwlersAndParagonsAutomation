@@ -2711,7 +2711,8 @@ pitch first.
   to the live database and runs once, after the keying column exists, from a reviewed statement.
 - **Answered by the owner on 2026-10-02, every recommendation taken**: the sender's own Heroes
   only; a player with no Hero in the game is refused with a sentence; the GM can re-key once the
-  Villain is theirs; the switch is on the GM's campaign roster only. Eyes A of the second pitch
+  Villain is theirs; the switch is on the GM's campaign roster only — and, at the owner's later ask
+the same day, on the character roster too, drawn only where that list holds both kinds. Eyes A of the second pitch
   went over the surfacing name in the same pass.
 
 **Built 2026-10-02 — see the pull request that carried it.** The Subject X-02 backdate ran the same day against the live database, after `0012` deployed: three statements chained by their own `WHERE`s, the shape `approveSubmission` uses, copying the approved sheet to the GM under a fresh id, stamping the membership handed over at its original approval time and keyed to Jetstream, and removing the player's copy.
