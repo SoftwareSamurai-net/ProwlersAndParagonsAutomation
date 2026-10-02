@@ -746,12 +746,18 @@ else
     /// When the thing a row is about happened — the waiting snapshot's sending, or the clone's
     /// approval — or null where the server sent no time. A GM deciding between two requests, or
     /// wondering whether a player is still waiting on one, reads this before anything else.
+    ///
+    /// <para><b>The bare age where the standing beside it already says "Approved"</b>, which it
+    /// prints first: the row read "Approved Approved 23 days ago". A turned-down row keeps the
+    /// word, because there the age is of a different event from the one its standing names.</para>
     /// </summary>
     private static string? When(MembershipSummary one) =>
         one.HasPending
             ? Ages.Since(one.PendingAt ?? 0, DateTimeOffset.UtcNow) is { } sent ? $"Sent {sent}" : null
             : one.HasApproved
-                ? Ages.Since(one.ApprovedAt ?? 0, DateTimeOffset.UtcNow) is { } approved ? $"Approved {approved}" : null
+                ? Ages.Since(one.ApprovedAt ?? 0, DateTimeOffset.UtcNow) is { } approved
+                    ? one.Standing == CampaignStanding.Approved ? approved : $"Approved {approved}"
+                    : null
                 : null;
 
     /// <summary>

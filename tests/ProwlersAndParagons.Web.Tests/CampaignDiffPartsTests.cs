@@ -236,7 +236,9 @@ public sealed class CampaignDiffPartsTests
         Assert.Equal(DecisionOutcome.Done, (await store.ApproveAsync(membership, 1)).Outcome);
 
         var settled = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, "g_0000000000000000000000"));
-        Assert.Equal("Approved just now", settled.Find(".campaign-row .when").TextContent);
+        // The standing says "Approved" and the age follows it, rather than each saying it once.
+        Assert.Equal("just now", settled.Find(".campaign-row .when").TextContent);
+        Assert.Equal(1, settled.Find(".campaign-row .who").TextContent.Split("Approved").Length - 1);
 
         await settled.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
         Assert.Equal("Approved just now.", settled.Find(".campaign-diff .diff-when").TextContent);
