@@ -98,6 +98,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **[2](#2-what-the-sheet-still-cannot-say)** — every printed page carries the character's name and `page N of M` in a `@page` margin box, in Chrome (measured on 153); Firefox and Safari print no margin boxes, so the document title and colophon stay as their fallback. Verified by the orchestrator 2026-09-23: a SheetView that never publishes the name turned five `RunningHeadTests` red. Not driven in a real browser on CI — the margin box was proved by hand on a dev server
 - [x] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — every rules chapter is extracted as verified data: Chapters 3, 4, 5 and 7 and Ch.6 pp.87–90 on the play side, Ch.6 pp.88–104 on the creation side, all locked to the page and to the corpus. Verified by the orchestrator 2026-09-08: a Plate feature, a Lifting threshold, the Vehicle Point rate, a Size grade and a toxin's option each went red under mutation. What is left is Chapter 8's stat blocks, which are GM material rather than rules, and consuming what was extracted — item 32
 - [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
+- [ ] **[42](#42-a-nemesis-is-keyed-to-the-hero-it-hunts)** — the owner's asks of 2026-10-02: a Villain sent to a campaign names the Hero it is the nemesis of, the GM's campaign view lays each nemesis out under its Hero, Heroes and Villains can be viewed apart, and Subject X-02 in Blood & Justice is put into the system as Jetstream's nemesis. Recorded, to be pitched before it is built
 - [x] **[41](#41-two-play-tests-fail-on-every-windows-checkout)** — `mcp-play/PLAY-POLICY.md` and `data/rules/play/combat.json` are pinned `eol=lf` in `.gitattributes`, so the two play tests that search them for LF-joined text pass on a Windows checkout as they do in CI. Verified 2026-10-01: both red on a CRLF checkout, both green after the pin and a fresh checkout of the two files
 - [x] **[36](#36-four-validator-checks-still-skip-a-gadgets-powers)** — every per-Power validator check walks one enumeration of every Power a sheet pays for, `EveryPaidPower`, so a Gadget's Powers draw the same findings as the character's own and a further check cannot forget them; `GadgetPowerWalkReadTests` holds every remaining direct walk of `SelectedPowers` to a written reason and a count. Verified by the orchestrator 2026-09-30: dropping the Gadget branch of the enumeration turned seven probes red, pointing `CheckPowerCosts` back at `SelectedPowers` turned the source guard red naming the line, and keying the duplicate pool by Gadget name instead of identity turned the same-name-Gadgets test red. One residual is recorded in the entry
 - [x] **[37](#37-joining-a-campaign-is-one-character-at-a-time-and-each-join-re-reads-the-page)** — the join box lists the account's characters to tick and joins them in one press, a character not on screen written back by id with the pointer untouched, every refusal said per character, the code kept in the box, and the page's reads run in parallel. Verified by the orchestrator 2026-10-01: the by-id read switched to the pointer-moving one turned `TheNonOpenCharacterIsWrittenByIdAndThePointerDoesNotMove` red, and the in-flight flag removed turned `ASecondCallWhileTheFirstIsInFlightChangesNothing` red; the agent's nine mutations are in the pull request
@@ -2687,6 +2688,29 @@ or pin both files `eol=lf` in `.gitattributes`. The second is one line and fixes
 reader too; check that nothing on the Windows side depends on CRLF in them first. Either way, a
 local full run that is red for a reason unrelated to the change is how a real red gets waved
 through, which is why it is worth an item.
+
+### 42. A nemesis is keyed to the Hero it hunts
+
+**The owner's asks of 2026-10-02, made while the nemesis handover's effect was being changed to the
+name surfacing through smoke.** Recorded here rather than built, because the layout half needs a
+pitch first.
+
+- **Sending a Villain names its Hero.** Send for approval on a Villain asks which of the player's
+  Heroes in that campaign it is the nemesis of, and has to be answered before it goes. The answer is
+  stored on the membership beside `pending_kind` — a membership id the server stores and returns
+  without reading either character, which keeps the accounts server's one rule.
+- **The GM's campaign view is laid out by Hero**, each nemesis under the Hero it is keyed to, so the
+  GM reads the table as pairs rather than as a flat list of members.
+- **Heroes and Villains can be viewed apart** — asked as "might also be useful", so a pitch question
+  rather than a ruling: where the split lives (the GM's campaign roster, the character roster, or
+  both) and whether it is a filter or two lists.
+- **Backdating.** Subject X-02 in the owner's Blood & Justice campaign is to become Jetstream's
+  nemesis: handed over to the GM as an approved Villain is, and keyed to Jetstream. That is a write
+  to the live database and runs once, after the keying column exists, from a reviewed statement.
+- **Open questions for the pitch**: whether a Villain may be keyed to a Hero belonging to another
+  player in the same campaign (the owner's example is one player's pair, so the recommendation is
+  the sender's own Heroes only); what a player with no Hero in the campaign is offered; whether the
+  key can be changed after approval and by whom.
 
 ## Completed work
 

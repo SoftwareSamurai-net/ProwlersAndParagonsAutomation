@@ -1337,6 +1337,12 @@ label {
    daylight page. Two sheets of smoke drift against each other at the back, and the name surfaces
    out of them once, as the block arrives, and then stays clear — the smoke never crosses it.
 
+   **Only `transform`, `opacity` and the name's `filter` move**, so every frame is composited
+   rather than laid out again. The first cut animated `letter-spacing` on the name, which reflows
+   the line on every frame, and ran the smoke `alternate` on the state-change curve, which stalls
+   visibly at each turn — the owner found both rough. The smoke now travels a closed path, so a
+   loop has no turning point to stall at.
+
    **Durations are the motion tokens multiplied**, so a slow ambient loop is still a token and not
    a number this file chose. They are long because smoke is slow; the reduced-motion block at the
    foot of this file switches the surfacing and both loops off outright, since at 0.01ms an
@@ -1375,7 +1381,9 @@ label {
     line-height: 1.05;
     letter-spacing: var(--heading-track);
     text-shadow: 0 0 1.1rem var(--surface);
-    animation: nemesis-surface calc(var(--enter) * 8) var(--ease-out) both;
+    transform-origin: left bottom;
+    will-change: transform, opacity, filter;
+    animation: nemesis-surface calc(var(--enter) * 9) var(--ease-out) both;
 }
 
 .nemesis-who { font-size: var(--text-sm); color: var(--muted); }
@@ -1389,7 +1397,8 @@ label {
         radial-gradient(40% 30% at 30% 60%, color-mix(in srgb, var(--panel) 85%, transparent), transparent 70%),
         radial-gradient(35% 25% at 70% 40%, color-mix(in srgb, var(--rule) 70%, transparent), transparent 70%),
         radial-gradient(30% 22% at 55% 75%, color-mix(in srgb, var(--primary) 35%, transparent), transparent 70%);
-    animation: nemesis-drift calc(var(--enter) * 46) var(--ease) infinite alternate;
+    will-change: transform;
+    animation: nemesis-drift calc(var(--enter) * 70) linear infinite;
 }
 
 .nemesis-veil-far {
@@ -1398,23 +1407,28 @@ label {
         radial-gradient(30% 25% at 60% 55%, color-mix(in srgb, var(--panel) 80%, transparent), transparent 70%),
         radial-gradient(45% 30% at 25% 35%, color-mix(in srgb, var(--rule) 55%, transparent), transparent 70%);
     animation-name: nemesis-drift-far;
-    animation-duration: calc(var(--enter) * 62);
+    animation-duration: calc(var(--enter) * 95);
 }
 
 @keyframes nemesis-surface {
-    from { opacity: 0; filter: blur(0.6rem); letter-spacing: 0.2em; }
-    to { opacity: 1; filter: blur(0); letter-spacing: var(--heading-track); }
+    from { opacity: 0; filter: blur(0.6rem); transform: translateY(0.4rem) scale(1.06); }
+    to { opacity: 1; filter: blur(0); transform: none; }
 }
 
 @keyframes nemesis-drift {
-    from { transform: translate(-6%, 2%) scale(1); }
-    to { transform: translate(7%, -4%) scale(1.12); }
+    0%, 100% { transform: translate(-6%, 2%) scale(1); }
+    25% { transform: translate(1%, -3%) scale(1.06); }
+    50% { transform: translate(7%, -4%) scale(1.12); }
+    75% { transform: translate(0%, 3%) scale(1.05); }
 }
 
 @keyframes nemesis-drift-far {
-    from { transform: translate(5%, -3%) scale(1.1); }
-    to { transform: translate(-7%, 4%) scale(1); }
+    0%, 100% { transform: translate(5%, -3%) scale(1.1); }
+    25% { transform: translate(-1%, 3%) scale(1.04); }
+    50% { transform: translate(-7%, 4%) scale(1); }
+    75% { transform: translate(1%, -2%) scale(1.07); }
 }
+
 
 /* The warning Send for approval gives before a Villain goes — see `Campaigns.razor`. Set in from
    the row the way a row's settings are, with the danger edge because what it describes cannot be

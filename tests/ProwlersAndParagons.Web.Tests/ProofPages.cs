@@ -948,7 +948,7 @@ public sealed class ProofPages
 
     /// <summary>app.css with the near veil's loop gone — the block drawn, and never moving.</summary>
     private static string NemesisStillBroken() => WithDefect("css/app.css",
-        "    animation: nemesis-drift calc(var(--enter) * 46) var(--ease) infinite alternate;",
+        "    animation: nemesis-drift calc(var(--enter) * 70) linear infinite;",
         "    animation: none; /* defect: the veil never moves */");
 
     /// <summary>app.css with the reduced-motion rule for the nemesis gone.</summary>
