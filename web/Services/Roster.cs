@@ -1,5 +1,21 @@
 namespace ProwlersAndParagonsAutomation.Web.Services;
 
+/// <summary>
+/// Which kind of character a roster is showing — the owner's ask of 2026-10-02, after the same
+/// switch went on the GM's campaign roster.
+/// </summary>
+public enum RosterKind
+{
+    /// <summary>Every row, whatever it is.</summary>
+    Everyone,
+
+    /// <summary>Rows the index records as Heroes.</summary>
+    Heroes,
+
+    /// <summary>Rows the index records as Villains.</summary>
+    Villains,
+}
+
 /// <summary>Which order a roster's rows are drawn in.</summary>
 public enum RosterOrder
 {
@@ -127,6 +143,26 @@ public static class Roster
     /// bargain a Power's tags make on the Powers tab. Typing a campaign's name is how somebody
     /// asks for "everyone in that game", and it is the question a roster exists to answer.</para>
     /// </summary>
+    /// <summary>
+    /// The rows of one kind, read off the index's <c>kind</c> and never a payload.
+    ///
+    /// <para><b>A row with no recorded kind is in Everyone and in neither of the other two.</b> A
+    /// row saved before the index carried a kind has not said what it is, and putting it under
+    /// Heroes would be this list guessing; it acquires one on its next save.</para>
+    /// </summary>
+    public static IReadOnlyList<SavedCharacterSummary> OfKind(
+        IReadOnlyList<SavedCharacterSummary> characters, RosterKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(characters);
+
+        return kind switch
+        {
+            RosterKind.Heroes => [.. characters.Where(c => c.Kind == "hero")],
+            RosterKind.Villains => [.. characters.Where(c => c.Kind == SavedCharacters.VillainKind)],
+            _ => characters,
+        };
+    }
+
     public static bool Admits(SavedCharacterSummary one, string query, RosterNames names)
     {
         ArgumentNullException.ThrowIfNull(one);

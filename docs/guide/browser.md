@@ -1097,6 +1097,12 @@ never parses a character — so the client sends them alongside, exactly as it s
   that is not here" falls back to the sentence the panel has always carried about where these
   characters live.
 
+**Everyone, Heroes or Villains** is `Roster.OfKind`, applied before the box filters, and drawn
+only where the list holds both kinds — the rule the kind chip already follows. A row with no
+recorded kind is in Everyone and in neither of the other two, because putting it under Heroes
+would be the list guessing. The choice is not stored, and it falls back to Everyone whenever the
+switch is not drawn, so it cannot go on hiding rows after the list stops holding both.
+
 ### The decisions are in `Roster`, not in the component
 
 Which rows survive a query, which heading they land under and what the count beside it says are all
