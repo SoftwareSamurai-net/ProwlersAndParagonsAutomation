@@ -308,8 +308,20 @@ export async function submit(request, env, deps, user, id) {
     const kind = normaliseKind(body.value.kind);
     if (kind === undefined) return fail(400, 'That is not a value this server can store.');
 
+    // **A Villain is sent as the nemesis of one of the sender's own Heroes in this game** — the
+    // owner's ruling of 2026-10-02. The Hero is named by its membership id, a row this server can
+    // check without reading a character. A Hero's snapshot carries no key, whatever was sent.
+    const heroId = body.value.nemesisOf ?? null;
+    if (heroId !== null && (typeof heroId !== 'string' || !ID_PATTERN.test(heroId))) {
+        return fail(400, 'That is not a membership id this server uses.');
+    }
+    if (kind === VILLAIN && heroId === null) {
+        return fail(400, 'A Villain is sent as the nemesis of one of your Heroes in this game. Name the Hero.');
+    }
+    const nemesisOf = kind === VILLAIN ? heroId : null;
+
     const written = await db.submitToCampaign(env.DB,
-        { id, playerUserId: user.id, label, payload, kind, now: deps.now() });
+        { id, playerUserId: user.id, label, payload, kind, nemesisOf, now: deps.now() });
 
     if (!written) {
         // Nothing matched, and there are now two reasons rather than one. The row is re-read to
@@ -328,6 +340,13 @@ export async function submit(request, env, deps, user, id) {
         // and no hand-back, so a further snapshot would be a request nobody can grant.
         if (row.handed_over_at !== null && row.handed_over_at !== undefined) {
             return fail(409, 'That Villain belongs to the campaign now, so nothing more can be sent.');
+        }
+
+        // **The Hero named is not one of the sender's in this game** — somebody else's, this
+        // membership itself, a nemesis, or a row that has gone.
+        if (nemesisOf !== null
+            && !(await db.isOwnHeroInGame(env.DB, { membershipId: id, heroId: nemesisOf, playerUserId: user.id }))) {
+            return fail(400, 'That Hero is not one of yours in this game.');
         }
 
         // **The membership is theirs and the campaign is gone.** A 404 here would be a lie the
@@ -368,6 +387,37 @@ export async function approve(request, env, deps, user, id) {
  */
 export async function reject(request, env, deps, user, id) {
     return await decide(request, env, deps, user, id, db.rejectSubmission);
+}
+
+/**
+ * The GM changes which Hero a nemesis of theirs hunts.
+ *
+ * <p><b>Only the GM, only a handed-over Villain</b>, for the reason `db.rekeyNemesis` gives. A
+ * player asking, an id that is not a nemesis, and a game that is gone are all one 404 — none is a
+ * row this caller may re-key — and a Hero who is not in this game is the one 409, because the
+ * nemesis is there and the remedy is choosing another Hero.</p>
+ */
+export async function rekey(request, env, deps, user, id) {
+    if (!sameOrigin(request)) return fail(403, 'This request did not come from this site.');
+    if (!ID_PATTERN.test(id)) return fail(400, 'That is not a membership id this server uses.');
+
+    const body = await readJson(request);
+    if (!body) return fail(400, 'That request is too large or is not JSON.');
+
+    const heroId = body.value.nemesisOf;
+    if (typeof heroId !== 'string' || !ID_PATTERN.test(heroId)) {
+        return fail(400, 'That is not a membership id this server uses.');
+    }
+
+    if (await db.rekeyNemesis(env.DB, { id, gmUserId: user.id, nemesisOf: heroId })) return noContent();
+
+    const row = await db.getMembership(env.DB, user.id, id);
+    if (!row || row.gm_user_id !== user.id || row.handed_over_at === null || row.handed_over_at === undefined
+        || !(await db.campaignStillThere(env.DB, { gmUserId: user.id, campaignId: row.campaign_id }))) {
+        return fail(404, 'This account has no nemesis with that id.');
+    }
+
+    return fail(409, 'That Hero is not in this game.');
 }
 
 /**
@@ -519,6 +569,10 @@ function asPlayerRow(row) {
         // given away rather than lost.
         handedOver: row.handed_over_at !== null && row.handed_over_at !== undefined,
 
+        // **Which of the player's memberships this Villain hunts**, so their nemesis block can
+        // name the Hero. A membership id, never a character's — see 0012.
+        nemesisOf: row.nemesis_of ?? null,
+
         // **And to which game, by the name the player was shown when they joined it** — the one
         // thing the roster's sentence needs that a membership row does not otherwise carry.
         // Answered only for a handed-over row, and null where the campaign has since been
@@ -558,6 +612,10 @@ async function asGmRow(env, row) {
         // **Whether this membership's Villain is the GM's now**, so the campaign's roster marks
         // it as the nemesis rather than as an ordinary approval.
         handedOver: row.handed_over_at !== null && row.handed_over_at !== undefined,
+
+        // **The Hero this Villain hunts**, by membership id, so the GM's table can lay each
+        // nemesis out under its Hero.
+        nemesisOf: row.nemesis_of ?? null,
 
         // **The one field the player's row must never gain**, and the reason it stays out of
         // `asPlayerRow`: a player has no use for "which of my own rows share an account with

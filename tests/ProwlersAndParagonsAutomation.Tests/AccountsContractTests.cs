@@ -391,13 +391,13 @@ public sealed class AccountsContractTests
         // matching yields nothing and would satisfy an "all of these are routed" assertion for
         // free, which is how this repository has shipped a guard measuring nothing four times.
         var tails = Regex.Matches(indexJs,
-                @"(?:membershipId|tail)\s*===\s*'([a-z]+)'",
+                @"(?:membershipId|tail)\s*===\s*'([a-z-]+)'",
                 RegexOptions.None, TimeSpan.FromSeconds(5))
             .Select(m => m.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        foreach (var tail in new[] { "inbox", "join", "submission", "approve", "reject", "table" })
+        foreach (var tail in new[] { "inbox", "join", "submission", "approve", "reject", "table", "nemesis-of" })
         {
             Assert.Contains(tail, tails, StringComparer.Ordinal);
         }
@@ -483,7 +483,7 @@ public sealed class AccountsContractTests
             + "test cannot see which sub-paths are routed and would pass whatever they were.");
 
         var tails = Regex.Matches(block.Groups["body"].Value,
-                @"(?:membershipId|tail)\s*===\s*'([a-z]+)'",
+                @"(?:membershipId|tail)\s*===\s*'([a-z-]+)'",
                 RegexOptions.None, TimeSpan.FromSeconds(5))
             .Select(m => m.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
@@ -625,7 +625,7 @@ public sealed class AccountsContractTests
         // A PUT or POST with a StringContent body is invisible to
         // EveryFieldTheBrowserSendsIsOneTheServerReads, which only sees PostAsJsonAsync and query
         // strings — which is exactly how a key could go unread.
-        foreach (var (record, expected) in new[] { ("Joining", 3), ("Sending", 3), ("Deciding", 1) })
+        foreach (var (record, expected) in new[] { ("Joining", 3), ("Sending", 4), ("Deciding", 1), ("Rekeying", 1) })
         {
             var sent = BoundKeys(store, record);
 

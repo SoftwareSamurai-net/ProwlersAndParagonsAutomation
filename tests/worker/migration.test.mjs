@@ -598,3 +598,25 @@ test('a membership survives 0011 whole, with no kind and nothing handed over', (
         'nothing is backfilled — a kind could only come from parsing the payload');
     assert.equal(row.handed_over_at, null, 'nothing written before 0011 was ever handed over');
 });
+
+// ── 0012, the Hero a nemesis is keyed to ─────────────────────────────────────────────────────
+
+test('a membership survives 0012 whole, keyed to nobody', () => {
+    const db = new DatabaseSync(':memory:');
+    for (const migration of MIGRATIONS.slice(0, 11)) db.exec(readFileSync(migration, 'utf8'));
+    user(db, 'u_gm', 'gm@example.test');
+    user(db, 'u_pl', 'player@example.test');
+    db.prepare(
+        'INSERT INTO campaign_members (id, campaign_id, gm_user_id, player_user_id, character_id, '
+        + '  label, approved_payload, pending_version, joined_at, pending_kind, handed_over_at) '
+        + "VALUES ('m_a', 'g_a', 'u_gm', 'u_pl', 'c_a', 'Subject X-02', ?, 2, 5, 'villain', 40)")
+        .run('{"a":1}');
+
+    db.exec(readFileSync(MIGRATIONS[11], 'utf8'));
+
+    const row = db.prepare('SELECT * FROM campaign_members WHERE id = ?').all('m_a')[0];
+    assert.equal(row.approved_payload, '{"a":1}', 'byte for byte, unparsed');
+    assert.equal(row.handed_over_at, 40, "0011's columns survive");
+    assert.equal(row.pending_kind, 'villain');
+    assert.equal(row.nemesis_of, null, 'nothing is backfilled — no Hero was ever named');
+});

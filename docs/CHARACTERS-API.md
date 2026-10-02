@@ -228,6 +228,7 @@ the **whole snapshot**. Accepting replaces the campaign's clone. Both sides keep
 | `DELETE` | `/api/memberships/{id}` | end it — the player leaving, or the GM removing them |
 | `PUT` | `/api/memberships/{id}/submission` | send a snapshot for approval |
 | `POST` | `/api/memberships/{id}/approve` | accept the snapshot at a named version |
+| `PUT` | `/api/memberships/{id}/nemesis-of` | the GM re-keys a nemesis of theirs to another Hero |
 | `POST` | `/api/memberships/{id}/reject` | turn it down, at a named version |
 | `GET` | `/api/memberships/{id}/table` | the campaign this membership names, for the **player** |
 | `POST` | `/api/campaigns/{id}/code` | replace a campaign's join code |
@@ -457,6 +458,14 @@ approval is unchanged.
 - **There is no hand-back.** Nothing more can be submitted into the membership (409), a save naming
   the old id is 410, and leaving or removing the membership afterwards ends the record and leaves
   the Villain with the GM.
+- **A Villain names the Hero it hunts** (`0012`, the owner's asks of 2026-10-02). The submission
+  carries `nemesisOf`, the membership id of one of the **sender's own** Heroes in the same game —
+  checked in the write's own `WHERE`, never by reading a character — and a Villain sent without
+  one is 400. A Hero's submission stores no key whatever it sends. Both list rows carry
+  `nemesisOf`. Once the Villain is the GM's, **only the GM** may re-key it, to any membership in
+  the game that is not itself a nemesis: `PUT /api/memberships/{id}/nemesis-of` with
+  `{ "nemesisOf": "m_…" }`, 204 on success, 404 for a caller or row that may not be re-keyed, 409
+  for a Hero not in this game.
 - **Both list rows say so.** The player's row carries `handedOver` and `givenTo` — the campaign's
   name, only for a handed-over row, null once the campaign is deleted — because their character's
   own row is gone. The GM's row carries `handedOver` and `pendingKind`, the word approval will act

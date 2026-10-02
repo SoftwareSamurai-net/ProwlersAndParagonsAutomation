@@ -541,7 +541,7 @@ export async function listMembershipsForPlayer(db, playerUserId) {
     // is a `LEFT JOIN` so a deleted campaign leaves the row and answers no name.
     const result = await db.prepare(
         'SELECT m.id, m.campaign_id, m.character_id, m.label, m.approved_at, m.pending_at, '
-        + '       m.pending_version, m.decision, m.handed_over_at, '
+        + '       m.pending_version, m.decision, m.handed_over_at, m.nemesis_of, '
         + '       CASE WHEN m.handed_over_at IS NOT NULL THEN c.label END AS given_to, '
         + '       m.approved_payload IS NOT NULL AS has_approved, '
         + '       m.pending_payload IS NOT NULL AS has_pending '
@@ -579,7 +579,7 @@ export async function listMembershipsForPlayer(db, playerUserId) {
 export async function listMembershipsForGm(db, gmUserId) {
     const result = await db.prepare(
         'SELECT id, campaign_id, player_user_id, label, approved_at, pending_at, pending_version, '
-        + '       decision, pending_kind, handed_over_at, '
+        + '       decision, pending_kind, handed_over_at, nemesis_of, '
         + '       approved_payload IS NOT NULL AS has_approved, '
         + '       pending_payload IS NOT NULL AS has_pending '
         + 'FROM campaign_members WHERE gm_user_id = ? '
@@ -614,17 +614,65 @@ export async function listMembershipsForGm(db, gmUserId) {
  * the clone and the standing survive, so a restore brings back exactly what was there — but
  * accepting new work into a game that is gone is not a state to report, it is one to refuse.</p>
  */
-export async function submitToCampaign(db, { id, playerUserId, label, payload, kind, now }) {
+export async function submitToCampaign(db, { id, playerUserId, label, payload, kind, nemesisOf = null, now }) {
+    // **The key is checked in the same `WHERE` that writes it**: another membership of this very
+    // player, in this very game, not this one and not itself handed over. A read in front of the
+    // write would let a Hero leave between the two and the key name a row that is gone.
     return await db.prepare(
         'UPDATE campaign_members SET '
-        + '  label = ?, pending_payload = ?, pending_kind = ?, pending_at = ?, '
+        + '  label = ?, pending_payload = ?, pending_kind = ?, nemesis_of = ?, pending_at = ?, '
         + '  pending_version = pending_version + 1 '
         + 'WHERE id = ? AND player_user_id = ? AND handed_over_at IS NULL '
+        + '  AND (? IS NULL OR EXISTS (SELECT 1 FROM campaign_members h '
+        + '                            WHERE h.id = ? AND h.id <> campaign_members.id '
+        + '                              AND h.player_user_id = campaign_members.player_user_id '
+        + '                              AND h.gm_user_id = campaign_members.gm_user_id '
+        + '                              AND h.campaign_id = campaign_members.campaign_id '
+        + '                              AND h.handed_over_at IS NULL)) '
         + '  AND EXISTS (SELECT 1 FROM campaigns c '
         + '              WHERE c.user_id = campaign_members.gm_user_id '
         + '                AND c.id = campaign_members.campaign_id) '
         + 'RETURNING pending_version')
-        .bind(label, payload, kind, now, id, playerUserId).first();
+        .bind(label, payload, kind, nemesisOf, now, id, playerUserId, nemesisOf, nemesisOf).first();
+}
+
+/**
+ * Whether `heroId` is a membership the sender may key a nemesis to: their own, in the same game
+ * as `membershipId`, not that membership itself, and not handed over. Asked only on the refusal
+ * path of `submitToCampaign`, to say which of its refusals it was.
+ */
+export async function isOwnHeroInGame(db, { membershipId, heroId, playerUserId }) {
+    return await db.prepare(
+        'SELECT 1 AS yes FROM campaign_members m JOIN campaign_members h '
+        + '  ON h.player_user_id = m.player_user_id AND h.gm_user_id = m.gm_user_id '
+        + ' AND h.campaign_id = m.campaign_id AND h.id <> m.id AND h.handed_over_at IS NULL '
+        + 'WHERE m.id = ? AND m.player_user_id = ? AND h.id = ?')
+        .bind(membershipId, playerUserId, heroId).first() !== null;
+}
+
+/**
+ * The GM re-keys a nemesis that is theirs to another Hero in the same game.
+ *
+ * <p><b>Only a handed-over Villain, and only by its GM</b> — the owner's ruling of 2026-10-02:
+ * the Villain is the GM's, so the GM may change whose nemesis it is, and the player may not once it
+ * has gone. The target is any membership in the same game that is not itself a nemesis, not only
+ * the maker's: the GM runs the table. One statement, the scope and the target both in its
+ * `WHERE`.</p>
+ */
+export async function rekeyNemesis(db, { id, gmUserId, nemesisOf }) {
+    return await db.prepare(
+        'UPDATE campaign_members SET nemesis_of = ? '
+        + 'WHERE id = ? AND gm_user_id = ? AND handed_over_at IS NOT NULL '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
+        + '  AND EXISTS (SELECT 1 FROM campaign_members h '
+        + '              WHERE h.id = ? AND h.id <> campaign_members.id '
+        + '                AND h.gm_user_id = campaign_members.gm_user_id '
+        + '                AND h.campaign_id = campaign_members.campaign_id '
+        + '                AND h.handed_over_at IS NULL) '
+        + 'RETURNING id')
+        .bind(nemesisOf, id, gmUserId, nemesisOf).first();
 }
 
 /**
