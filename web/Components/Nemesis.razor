@@ -1,22 +1,31 @@
 @* A Villain the player made and the GM now holds, drawn back to the player as their nemesis.
 
    **The owner's ruling of 2026-10-01: the name and an effect, never the sheet.** "Just give them
-   something they can see and go 'holy crap'" — so the name surfaces out of drifting smoke, and
-   the stats stay the GM's. Specimen B of the pitch, the owner's choice of the two, with its two
-   other answers: always the Villain's night palette, and either side may still end the
-   membership.
+   something they can see and go 'holy crap'" — so the name surfaces out of drifting smoke while
+   two slit-pupilled eyes open behind it, and the stats stay the GM's. The owner's choices, in
+   order: specimen B's surfacing name (2026-10-02), then the second pitch's eyes A over it; always
+   the Villain's night palette; either side may still end the membership.
 
    **Always night, whatever the reader's screen is.** `theme.css` gives `.nemesis` the villain-dark
    token set in every state, so this block is a window into somebody else's game on a Hero's page
    in daylight. Nothing here names a colour; the tokens do.
 
-   **The name surfaces once and then stays legible**, and the smoke never crosses it — the veils
-   sit below the text. Under reduced motion `app.css` switches the surfacing and both smoke loops
-   off outright rather than letting the 0.01ms duration tokens turn an infinite drift into a
-   flicker; the resting frame is the name clear and the smoke still. `ProofPages.TheNemesis`
-   drives this in a browser beside three broken twins. *@
+   **The eyes are HTML, not SVG, and that is what makes them smooth.** Each is an element cut to an
+   almond by `clip-path`, its pupil a pseudo-element; the glow is one pre-blurred element behind
+   them. So the blink is a composited `transform` and the glow a composited `opacity` — the first
+   cut animated SVG groups under a blur filter, which repainted the blur on every frame.
+
+   **The name stays legible at rest and the smoke never crosses it.** Under reduced motion `app.css`
+   switches every animation here off outright: the eyes rest open, the glow is steady, the name is
+   clear and the smoke still. `ProofPages.TheNemesis` drives this in a browser beside three broken
+   twins. *@
 
 <div class="nemesis">
+    <span class="nemesis-eyes" aria-hidden="true">
+        <span class="nemesis-glow"></span>
+        <span class="nemesis-eye nemesis-eye-left"></span>
+        <span class="nemesis-eye nemesis-eye-right"></span>
+    </span>
     <span class="nemesis-veil" aria-hidden="true"></span>
     <span class="nemesis-veil nemesis-veil-far" aria-hidden="true"></span>
 

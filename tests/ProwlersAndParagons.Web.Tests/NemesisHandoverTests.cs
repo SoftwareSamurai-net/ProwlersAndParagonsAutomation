@@ -261,6 +261,7 @@ public sealed class NemesisHandoverTests
         Assert.Equal("The Hollow Regent", nemesis.QuerySelector(".nemesis-name")!.TextContent.Trim());
         Assert.Contains("The GM of Nightfall holds it now.", nemesis.TextContent, StringComparison.Ordinal);
         Assert.Equal(2, nemesis.QuerySelectorAll(".nemesis-veil").Length);
+        Assert.Equal(2, nemesis.QuerySelectorAll(".nemesis-eye").Length);
 
         Assert.DoesNotContain(page.FindAll("button"), b => b.TextContent.Trim() == "Send for approval");
         Assert.Contains("Given to Nightfall as a nemesis", page.Markup, StringComparison.Ordinal);
