@@ -194,6 +194,9 @@ public sealed class UppercasedTextTests
             // the menu rather than to write two more exemptions. This file already records four
             // exemptions that had been false since the day they were written.
             OpenedSettings(over),
+
+            // The nemesis a handed-over Villain is drawn as, whose kicker is set in capitals.
+            ctx.Render<Nemesis>(p => p.Add(n => n.Name, "The Hollow Regent").Add(n => n.Campaign, "Nightfall")),
         };
 
         var seen = 0;

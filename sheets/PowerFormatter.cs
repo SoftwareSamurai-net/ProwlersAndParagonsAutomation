@@ -23,26 +23,51 @@ public static class PowerFormatter
     /// <param name="choices">The selections, in the order the character carries them.</param>
     /// <param name="label">How to name one — the callers differ, so they say.</param>
     public static string ModifierLine(
+        IEnumerable<SelectedProCon> choices, Func<SelectedProCon, string> label) =>
+        string.Join(", ", Modifiers(choices, label).Select(m => m.Text));
+
+    /// <summary>
+    /// The same line, one entry per distinct option — the label the sheet prints for it, the
+    /// choice it was first seen on, and the text with its <c>×N</c> where it repeats.
+    ///
+    /// <para><b>Split out of <see cref="ModifierLine"/> so the browser's sheet can explain each
+    /// option rather than print the joined string.</b> A Con on the sheet was a word with no
+    /// tooltip, and a reader who met Immortality's own <i>Vulnerable</i> looked the word up and
+    /// found the <i>Vulnerability</i> Flaw instead — the owner's report. Each entry carries the
+    /// choice so the caller can say what the option is; the text is what <see cref="ModifierLine"/>
+    /// joins, so the two cannot word a repeat differently.</para>
+    /// </summary>
+    public static IReadOnlyList<Modifier> Modifiers(
         IEnumerable<SelectedProCon> choices, Func<SelectedProCon, string> label)
     {
         ArgumentNullException.ThrowIfNull(choices);
         ArgumentNullException.ThrowIfNull(label);
 
-        var labelled = choices.Select(label).ToList();
+        var labelled = choices.Select(c => (Choice: c, Label: label(c))).ToList();
 
         // First-seen order rather than GroupBy's, so a sheet lists options in the order the
         // character carries them and a repeat does not reshuffle the line.
-        var parts  = new List<string>();
-        var seen   = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var text in labelled) if (seen.Add(text)) parts.Add(text);
+        var first = new List<(SelectedProCon Choice, string Label)>();
+        var seen  = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in labelled) if (seen.Add(entry.Label)) first.Add(entry);
 
         var counts = labelled
-            .GroupBy(t => t, StringComparer.Ordinal)
+            .GroupBy(e => e.Label, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 
-        return string.Join(", ",
-            parts.Select(t => counts[t] > 1 ? $"{t} ×{counts[t].ToString(CultureInfo.InvariantCulture)}" : t));
+        return [.. first.Select(e => new Modifier(
+            e.Choice,
+            e.Label,
+            counts[e.Label] > 1
+                ? $"{e.Label} ×{counts[e.Label].ToString(CultureInfo.InvariantCulture)}"
+                : e.Label))];
     }
+
+    /// <summary>One distinct option on a Pros or Cons line. See <see cref="Modifiers"/>.</summary>
+    /// <param name="Choice">The first selection carrying this label.</param>
+    /// <param name="Label">The option's printed name, with its grade where it has one.</param>
+    /// <param name="Text">The label, with <c>×N</c> where the option repeats.</param>
+    public sealed record Modifier(SelectedProCon Choice, string Label, string Text);
 
     /// <summary>
     /// What each unit of a Power is, as one line — "Immunities: Toxins, Fire" — or null when

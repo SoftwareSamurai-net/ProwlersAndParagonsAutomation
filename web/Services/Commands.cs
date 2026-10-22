@@ -51,6 +51,19 @@ public enum CommandKind
     /// that kind would inflate that count by one for any query it happens to match.</para>
     /// </summary>
     Roster,
+
+    /// <summary>
+    /// A rules term — a generic Pro or Con, a Perk, a Flaw, or a Power's own Pro or Con — with
+    /// its description as the detail line and, for a Power's own, whose it is.
+    ///
+    /// <para><b>Exists because a word can name two rules.</b> Immortality's own <i>Vulnerable</i>
+    /// and the <i>Vulnerability</i> Flaw are one syllable apart, and a reader who typed the
+    /// second found the book's passage for the Flaw and took it for the Con on their sheet. Every
+    /// row here says which kind of thing it is before it says what it does. Choosing one goes
+    /// where it is bought — the Power's editor for a Power's own, the Powers, Perks or Flaws
+    /// section otherwise — and adds nothing, exactly as a Power row does.</para>
+    /// </summary>
+    Term,
 }
 
 /// <summary>
@@ -533,7 +546,64 @@ public sealed class Commands
             found.Add(new Command(CommandKind.AssetRow, row.Id, row.Name, detail, row.Keywords));
         }
 
+        // The rules terms, counted apart for the same reason as everything above them. **The
+        // description is matched as well as shown**, unlike a Power's tags: a reader asking what
+        // "killed" means on their sheet is asking about a sentence, not a name.
+        foreach (var term in Terms)
+        {
+            if (found.Count(c => c.Kind == CommandKind.Term) >= limit) break;
+
+            if (!OptionFilter.Matches(query, [term.Label, term.Detail ?? "", .. term.Keywords])) continue;
+
+            found.Add(term);
+        }
+
         return found;
+    }
+
+    /// <summary>
+    /// Every rules term the palette can name, built once: the generic Pros and Cons, the Perks,
+    /// the Flaws, and each Power's own Pros and Cons. See <see cref="CommandKind.Term"/>.
+    ///
+    /// <para><b>A Power's own option is labelled with the Power on the row and in the keywords</b>,
+    /// so "immortality vulnerable" finds it and "vulnerable" alone lists it beside the Flaw with
+    /// its owner named — which is the whole of the confusion this exists to end. The target says
+    /// where choosing it goes: <c>power:</c> and the Power's id, or <c>section:</c> and the
+    /// characteristics section the option is bought on.</para>
+    /// </summary>
+    private IReadOnlyList<Command> Terms => _terms ??= BuildTerms();
+
+    private IReadOnlyList<Command>? _terms;
+
+    private List<Command> BuildTerms()
+    {
+        var rules = _session.Rules;
+        var terms = new List<Command>();
+
+        foreach (var pro in rules.Pros.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+            terms.Add(new Command(CommandKind.Term, "section:powers", pro.Name, $"Pro · {pro.Description}", ["pro"]));
+
+        foreach (var con in rules.Cons.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
+            terms.Add(new Command(CommandKind.Term, "section:powers", con.Name, $"Con · {con.Description}", ["con"]));
+
+        foreach (var perk in rules.Perks.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+            terms.Add(new Command(CommandKind.Term, "section:perks", perk.Name, $"Perk · {perk.Description}", ["perk"]));
+
+        foreach (var flaw in rules.Flaws.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+            terms.Add(new Command(CommandKind.Term, "section:flaws", flaw.Name, $"Flaw · {flaw.Description}", ["flaw"]));
+
+        foreach (var power in rules.Powers.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (var own in power.PowerPros)
+                terms.Add(new Command(CommandKind.Term, $"power:{power.Id}", own.Name,
+                    $"{power.Name}'s own Pro · {own.Description}", ["pro", power.Name]));
+
+            foreach (var own in power.PowerCons)
+                terms.Add(new Command(CommandKind.Term, $"power:{power.Id}", own.Name,
+                    $"{power.Name}'s own Con · {own.Description}", ["con", power.Name]));
+        }
+
+        return terms;
     }
 
     /// <summary>

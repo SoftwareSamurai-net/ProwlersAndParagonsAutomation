@@ -49,7 +49,7 @@ public sealed class CampaignHouseRuleTests
         var page = ctx.Render<Campaigns>();
 
         await page.Find("#join-code").InputAsync(new() { Value = code });
-        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Join").ClickAsync(new());
+        await page.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Join", StringComparison.Ordinal)).ClickAsync(new());
 
         return page;
     }

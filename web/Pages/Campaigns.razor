@@ -358,15 +358,7 @@ else
 
             @if (TableChanges is { Count: > 0 } moved)
             {
-                <ul class="diff-rows">
-                    @foreach (var row in moved)
-                    {
-                        <li>
-                            <span class="what">@row.What</span>
-                            <span class="was">@Moved(row)</span>
-                        </li>
-                    }
-                </ul>
+                <DiffRows Rows="moved" />
                 <p class="small muted" role="status">
                     The character keeps its own until it joins again.
                 </p>
@@ -408,8 +400,33 @@ else
         }
         else
         {
+            @* **A Villain the GM approved is theirs now, and comes back to its maker as a nemesis**
+               — the name and the effect, never the sheet (the owner's rulings of 2026-10-01).
+               Drawn above the ordinary rows because it is not one: there is nothing to send and
+               no sheet to open. Leave stays, the owner's third answer: ending the membership takes
+               the block away and hands nothing back. *@
+            @foreach (var one in _playing.Where(m => m.HandedOver))
+            {
+                <Nemesis Name="@one.Label" Campaign="@one.GivenTo" Hunts="@HeroLabel(one.NemesisOf)" />
+                <div class="campaign-row nemesis-standing">
+                    <span class="who"><span class="meta">@Standings.Say(one.Standing, one.GivenTo)</span></span>
+                    @if (_leaving == one.Id)
+                    {
+                        <button type="button" class="btn small"
+                                @onclick="() => Leave(one.Id)">Leave for good</button>
+                        <button type="button" class="btn small quiet"
+                                @onclick="() => _leaving = null">Cancel</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn small quiet"
+                                @onclick="() => _leaving = one.Id">Leave</button>
+                    }
+                </div>
+            }
+
             <ul class="campaign-list">
-                @foreach (var one in _playing)
+                @foreach (var one in _playing.Where(m => !m.HandedOver))
                 {
                     <li>
                         <div class="campaign-row">
@@ -432,9 +449,14 @@ else
                                before anybody meant it to be seen. *@
                             @if (one.CharacterId == _openId)
                             {
-                                <button type="button" class="btn small" @onclick="() => Submit(one)">
-                                    Send for approval
-                                </button>
+                                @* While the warning below is up it carries the second press, so
+                                   this button steps aside rather than offering to send twice. *@
+                                @if (_confirmingHandover != one.Id)
+                                {
+                                    <button type="button" class="btn small" @onclick="() => Submit(one)">
+                                        Send for approval
+                                    </button>
+                                }
                             }
                             else
                             {
@@ -475,6 +497,56 @@ else
                            `role="status"` per row rather than one region for the panel, because
                            the message is about this membership and a reader who lands on it by
                            keyboard should meet it where the button is. *@
+                        @* **Approval is the one act on this screen nobody can undo, so a Villain asks
+                           first** — the owner's ruling: warn, then a second press, the way Leave
+                           does. Under the row it is about, for the reason the sentence below is. *@
+                        @if (_confirmingHandover == one.Id)
+                        {
+                            <div class="handover-warning" role="status">
+                                @* **A Villain is sent as the nemesis of one of the sender's own Heroes
+                                   in this game** — the owner's rulings of 2026-10-02. With none, the
+                                   send is refused with a sentence rather than offered unkeyed. *@
+                                @if (HeroesBeside(one) is { Count: > 0 } heroes)
+                                {
+                                    <fieldset class="hero-pick">
+                                        <legend>Whose nemesis is it?</legend>
+                                        @foreach (var hero in heroes)
+                                        {
+                                            <label>
+                                                <input type="radio" name="nemesis-of-@one.Id" value="@hero.Id"
+                                                       checked="@(_nemesisOf == hero.Id)"
+                                                       @onchange="() => _nemesisOf = hero.Id" />
+                                                @hero.Label
+                                            </label>
+                                        }
+                                    </fieldset>
+                                    <p>
+                                        <b>If the GM approves this Villain, it becomes theirs for good.</b>
+                                        It leaves your characters, and you will see only its name.
+                                        Turned down, it stays yours.
+                                    </p>
+                                    <span class="choices">
+                                        <button type="button" class="btn small danger"
+                                                disabled="@(_nemesisOf is null)"
+                                                @onclick="() => Submit(one, handOverConfirmed: true)">Send it anyway</button>
+                                        <button type="button" class="btn small quiet"
+                                                @onclick="() => _confirmingHandover = null">Keep it</button>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <p>
+                                        A Villain is sent as a Hero's nemesis, and you have no Hero in this
+                                        game yet. Join one of your Heroes to it, then send the Villain.
+                                    </p>
+                                    <span class="choices">
+                                        <button type="button" class="btn small quiet"
+                                                @onclick="() => _confirmingHandover = null">Close</button>
+                                    </span>
+                                }
+                            </div>
+                        }
+
                         @if (_sentAbout == one.Id && _sent is { } sent)
                         {
                             <p class="small muted spaced" role="status">@sent</p>
@@ -501,20 +573,66 @@ else
                        @bind="_code" @bind:event="oninput" />
             </Field>
 
-            @* **Names the character rather than restating the rule.** A disabled Join with a
-               sentence about "the character on screen" leaves a reader looking for the character
-               on screen; saying which one it is, or that there is none, is the same sentence
-               doing the work. *@
-            <p class="small muted" role="status">@WhoJoins</p>
+            @* **Who joins, as a checkbox list rather than a single sentence about the character
+               on screen.** Adding several characters to one game used to cost a re-typed code and
+               a trip through the character manager for each one after the first; the fix is
+               picking who joins here, in one press. The list is
+               <c>AccountCharacterStore.ListAsync()</c> — the same index the roster reads — so
+               drawing it costs no payload read per row. *@
+            @if (JoinCandidates.Count > 0)
+            {
+                <fieldset class="house-rules">
+                    <legend class="others-head">Who joins</legend>
+
+                    @foreach (var row in JoinCandidates)
+                    {
+                        <label class="house-rule">
+                            <input type="checkbox"
+                                   checked="@(_toJoin.Contains(row.Id))"
+                                   disabled="@AlreadyInAGame(row)"
+                                   @onchange="e => ToggleJoin(row.Id, e.Value is true)" />
+                            <span>@row.Label</span>
+
+                            @* **"Already in a game", not "already in this game".** A code only
+                               says which campaign it names once it has been redeemed —
+                               <c>JoinAsync</c> posts and joins in the same call, and there is no
+                               address that looks a code up without joining it. So this cannot say
+                               whether the game named here is the one the code is for; it says the
+                               weaker, honest thing the index already knows. The character on
+                               screen is exempt: its own row keeps today's join exactly, which
+                               already allows rejoining a game it is in. See
+                               <see cref="AlreadyInAGame"/>. *@
+                            @if (AlreadyInAGame(row))
+                            {
+                                <span class="small muted">Already in a game</span>
+                            }
+                        </label>
+                    }
+                </fieldset>
+            }
 
             <div class="inline">
-                <button type="button" class="btn primary" disabled="@(_openId is null)"
-                        @onclick="Join">Join</button>
+                @* **`_joining` as well as the empty-selection check.** A second click landing
+                   while the first press is still awaiting its round trips would run `Join` again
+                   over the same ticked characters — see `_joining`'s own remarks for the lost
+                   update that opens. *@
+                <button type="button" class="btn primary"
+                        disabled="@(EligibleToJoin.Count == 0 || _joining)"
+                        @onclick="Join">@JoinButtonLabel</button>
             </div>
 
-            @if (_joined is { } joined)
+            @* **One line per character, in a single status region.** Joining several at once
+               means several outcomes can be true at the same time — one tier disagreement does
+               not hide a success beside it — so each gets its own sentence rather than one
+               summary trying to cover all of them. *@
+            @if (_joinResults.Count > 0)
             {
-                <p class="small muted spaced" role="status">@joined</p>
+                <div role="status">
+                    @foreach (var (label, message) in _joinResults)
+                    {
+                        <p class="small muted spaced">@label: @message</p>
+                    }
+                </div>
             }
         </div>
     </Panel>
@@ -559,6 +677,30 @@ else
     /// <summary>Which membership is one press away from being left, or null.</summary>
     private string? _leaving;
 
+    /// <summary>
+    /// Which membership's Villain is one press away from being sent, or null — the warning that an
+    /// approved Villain becomes the GM's is on screen under that row.
+    /// </summary>
+    private string? _confirmingHandover;
+
+    /// <summary>The Hero picked under the warning, by membership id, or null until one is.</summary>
+    private string? _nemesisOf;
+
+    /// <summary>
+    /// The sender's own Heroes in the same game as <paramref name="villain"/>, which are the only
+    /// ones a Villain may be keyed to. A row is a Hero unless the account's own index says its
+    /// character is a Villain — the index is what this page already holds, and a row with no
+    /// index entry is offered rather than hidden, since the server checks the rest.
+    /// </summary>
+    private List<MembershipSummary> HeroesBeside(MembershipSummary villain) =>
+        _playing?.Where(m => m.CampaignId == villain.CampaignId && m.Id != villain.Id && !m.HandedOver
+                && _characters.FirstOrDefault(c => c.Id == m.CharacterId)?.Kind != SavedCharacters.VillainKind)
+            .ToList() ?? [];
+
+    /// <summary>What the Hero a nemesis hunts is called, or null where it is not one of these rows.</summary>
+    private string? HeroLabel(string? membershipId) =>
+        membershipId is null ? null : _playing?.FirstOrDefault(m => m.Id == membershipId)?.Label;
+
     /// <summary>What became of the last leave, or null. Rendered outside the row it was about.</summary>
     private string? _said;
 
@@ -590,8 +732,50 @@ else
     /// </summary>
     private bool _offerReload;
 
-    /// <summary>What became of the last join. Cleared at the start of the next one.</summary>
-    private string? _joined;
+    /// <summary>
+    /// The account's characters, for the checkbox list — the same index the roster reads, with no
+    /// payload read behind any row. Refreshed alongside everything else, never per keystroke.
+    /// </summary>
+    private IReadOnlyList<SavedCharacterSummary> _characters = [];
+
+    /// <summary>
+    /// Which characters are ticked to join, by id. Reset to the character on screen alone on every
+    /// refresh — see <see cref="Refresh"/> — because a join moves which games those characters are
+    /// in, and a stale tick would offer to rejoin a game one of them just joined.
+    /// </summary>
+    private HashSet<string> _toJoin = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// What became of the last join, one line per character it was about, in the order they were
+    /// joined. Cleared at the start of the next press.
+    ///
+    /// <para><b>A list of pairs rather than one sentence, and the label travels with its own
+    /// message rather than being looked up afterwards.</b> Joining several characters at once
+    /// means several outcomes can be true together — a tier disagreement for one character must
+    /// not swallow a success for another — and a row can vanish from <see cref="JoinCandidates"/>
+    /// in the course of the very press that reports on it: the account-cap race
+    /// <see cref="JoinOther"/> exists to report is exactly a character ceasing to be listed. A
+    /// message keyed on an id that is no longer in the list it is drawn from would be a message
+    /// nothing prints.</para>
+    /// </summary>
+    private List<(string Label, string Message)> _joinResults = [];
+
+    /// <summary>
+    /// Whether a press of Join is still running its round trips.
+    ///
+    /// <para><b>The guard against a second press landing while the first is still in flight.</b>
+    /// A double-click, or a second tab pressing the same button, would otherwise run
+    /// <see cref="Join"/> again over the same ticked characters while the first call is still
+    /// awaiting its network round trips. The on-screen character is covered already —
+    /// <see cref="Autosave"/>'s own remarks record the lost update two overlapping writes caused
+    /// before it serialised them — but <see cref="JoinOther"/>'s read, apply, write-back has
+    /// nothing on the wire saying which read a write follows, so two overlapping presses would
+    /// read-modify-write the same character and the later write would silently lose whatever the
+    /// earlier one did. Set before the first <c>await</c> in <see cref="Join"/> and cleared in a
+    /// <c>finally</c>, so a call that somehow throws still clears it rather than wedging the
+    /// button shut.</para>
+    /// </summary>
+    private bool _joining;
 
     /// <summary>
     /// What became of the last send, and which row it was about — drawn inside that row, under
@@ -999,13 +1183,6 @@ else
     /// agree between the two screens is the row — its name and its two values — and that is
     /// <see cref="CampaignDiff"/>'s, computed once.</para>
     /// </summary>
-    private static string Moved(DiffRow row) => row.Kind switch
-    {
-        DiffKind.Added => row.After is { } after ? $"added {after}" : "added",
-        DiffKind.Removed => row.Before is { } before ? $"removed {before}" : "removed",
-        _ => $"{row.Before} → {row.After}",
-    };
-
     private string RunAside => $"{_running.Count} to run";
 
     private string InAside => _playing is { } playing ? $"{playing.Count} joined" : "Not read";
@@ -1063,26 +1240,84 @@ else
         $"{Nav.BaseUri.TrimEnd('/')}/campaign?join={row.JoinCode}";
 
     /// <summary>
-    /// Which character a join would use, named.
+    /// The rows the checkbox list draws: the account's characters, plus the one on screen when it
+    /// is not among them yet.
     ///
-    /// <para><b>Said rather than implied.</b> The sentence here used to describe the rule — "the
-    /// character on screen joins" — beside a Join button that was disabled with no reason next to
-    /// it, which left a reader hunting for a character they had not opened. Naming the character,
-    /// or saying there is none, is the same sentence doing the work.</para>
+    /// <para><b>The synthetic row is why this is a property and not <see cref="_characters"/>
+    /// itself.</b> A character built from a fresh, unsaved slot — or one whose autosave has not
+    /// landed — has no row in the account's own index yet, and the character a join or a send is
+    /// about is always the one on screen whether or not it has been written down. Naming it here
+    /// rather than leaving it off the list is the same choice <c>WhoJoins</c> made before this
+    /// list existed: saying which character it is, rather than a reader hunting for a checkbox
+    /// that is not there.</para>
+    ///
+    /// <para>Put first rather than wherever the account's own ordering would put it, because it is
+    /// the row a reader is already looking at.</para>
     /// </summary>
-    /// <remarks>
-    /// <b>There is deliberately no "open a character first" case, because there is no such
-    /// state.</b> <c>SavedCharacters.CurrentIdAsync</c> falls back to <c>LegacyId</c> rather than
-    /// answering null, so once this box is on screen at all — which needs <c>_available is
-    /// true</c>, and that is the same branch that assigns <c>_openId</c> — a character is open.
-    /// The <c>disabled</c> binding on Join below and the null guard in <see cref="Join"/> are
-    /// inert belt-and-braces, and the sentence this replaced promised a reader they could reach a
-    /// state they cannot. An unnamed character is the real edge, and it has the fallback.
-    /// </remarks>
-    private string WhoJoins =>
-        string.IsNullOrWhiteSpace(Session.Sheet.Name)
-            ? "The character on screen will join. Its tier is filled in if you have not chosen one."
-            : $"{Session.Sheet.Name} will join. Its tier is filled in if you have not chosen one.";
+    private IReadOnlyList<SavedCharacterSummary> JoinCandidates =>
+        _openId is { Length: > 0 } open && _characters.All(c => c.Id != open)
+            ? [new SavedCharacterSummary(open, SavedCharacters.LabelFor(Session.Sheet), 0, Session.Sheet.CampaignId), .. _characters]
+            : _characters;
+
+    /// <summary>
+    /// Which ticked characters a press of Join would actually put into the game, in the order they
+    /// would be joined: the character on screen first, then every other ticked row.
+    ///
+    /// <para><b>The on-screen character is never excluded here</b>, whatever its own
+    /// <see cref="SavedCharacterSummary.CampaignId"/> says — its row keeps today's join exactly,
+    /// which has always allowed rejoining a game it is already in.</para>
+    ///
+    /// <para><b>Every other row's eligibility is <see cref="AlreadyInAGame"/>'s alone, read off
+    /// <see cref="_characters"/> once here rather than re-asked.</b> There is no path by which a
+    /// row ticked while eligible can turn ineligible before this is read: <see cref="_characters"/>
+    /// only ever changes inside <see cref="Refresh"/>, and that same method resets
+    /// <see cref="_toJoin"/> to the character on screen alone in the same pass — so the two are
+    /// never out of step with each other. A second, independent check here would be exactly the
+    /// kind of defence a mutation cannot tell from its own absence, which this file's own rule
+    /// about such checks does not allow keeping.</para>
+    /// </summary>
+    private IReadOnlyList<string> EligibleToJoin
+    {
+        get
+        {
+            var ids = new List<string>();
+
+            if (_openId is { Length: > 0 } open && _toJoin.Contains(open)) ids.Add(open);
+
+            foreach (var row in _characters)
+            {
+                if (row.Id != _openId && _toJoin.Contains(row.Id)) ids.Add(row.Id);
+            }
+
+            return ids;
+        }
+    }
+
+    /// <summary>
+    /// What the Join button says: how many characters a press would actually join, singular and
+    /// plural said correctly. Plain "Join" only while nothing is ticked, which is also when the
+    /// button is disabled — there being nobody to name is the one case with nothing to count.
+    /// </summary>
+    private string JoinButtonLabel => EligibleToJoin.Count switch
+    {
+        0 => "Join",
+        1 => "Join with 1 character",
+        var n => $"Join with {n} characters",
+    };
+
+    /// <summary>Tick or untick a character to join. Ignored for a row the list has disabled.</summary>
+    private void ToggleJoin(string id, bool on)
+    {
+        if (on) _toJoin.Add(id); else _toJoin.Remove(id);
+    }
+
+    /// <summary>
+    /// Whether a row's checkbox should be disabled: it names a game already and it is not the
+    /// character on screen. <see cref="EligibleToJoin"/> trusts this rather than re-asking it —
+    /// see that property's own remarks for why that is safe rather than merely convenient.
+    /// </summary>
+    private bool AlreadyInAGame(SavedCharacterSummary row) =>
+        row.Id != _openId && row.CampaignId is not null;
 
     /// <summary>
     /// Take a code out of <c>?join=</c>, fill the box with it, and then take it out of the address
@@ -1186,6 +1421,8 @@ else
             _running = [];
             _playing = [];
             _inbox = [];
+            _characters = [];
+            _toJoin = new HashSet<string>(StringComparer.Ordinal);
 
             // Nothing resolves for somebody not signed in, and saying "that campaign is not here"
             // to them would be true of the moment rather than of their character. The panels are
@@ -1200,10 +1437,34 @@ else
             return;
         }
 
-        _running = await Store.ListAsync();
-        _playing = await Memberships.MineAsync();
-        _inbox = await Memberships.InboxAsync();
-        _openId = await Characters.CurrentIdAsync();
+        // **Four independent reads, asked at once rather than one after another.** None of the
+        // four needs another's answer — the games this account runs, its own memberships, the
+        // inbox behind them, and the account's own characters for the checkbox list below — so
+        // awaiting them in series cost four round trips end to end where one wait does. The
+        // current-character pointer joins them for the same reason: nothing else here needs it
+        // first.
+        var runningTask = Store.ListAsync();
+        var playingTask = Memberships.MineAsync();
+        var inboxTask = Memberships.InboxAsync();
+        var charactersTask = Characters.ListAsync();
+        var openIdTask = Characters.CurrentIdAsync();
+
+        await Task.WhenAll(runningTask, playingTask, inboxTask, charactersTask, openIdTask);
+
+        _running = await runningTask;
+        _playing = await playingTask;
+        _inbox = await inboxTask;
+        _characters = (await charactersTask).Characters;
+        _openId = await openIdTask;
+
+        // **Reset to the character on screen alone, on every refresh.** A join is what moves which
+        // games a character is in, and this page reloads right after one — so carrying a tick
+        // forward would offer, on the very next render, to rejoin a game a character was just put
+        // into (now shown disabled, but still a stale intention nobody stated this time).
+        _toJoin = _openId is { Length: > 0 } open
+            ? new HashSet<string>(StringComparer.Ordinal) { open }
+            : new HashSet<string>(StringComparer.Ordinal);
+
         _empty = await EmptySubmissions.AmongAsync(Memberships, Session, _playing);
 
         await ResolveCampaign();
@@ -1345,55 +1606,96 @@ else
     {
         _leaving = null;
 
+        // A nemesis row is a record, not a seat: the Villain went to the GM on approval and
+        // ending the record hands nothing back, so "no longer holds a copy" would be false there.
+        var nemesis = _playing?.Any(m => m.Id == membershipId && m.HandedOver) == true;
+
         // **`GameIsGone` is deliberately not a case here, and that is a fact about the server
         // rather than a gap.** `leaveCampaign` is a bare `player_user_id = ?` with no `EXISTS` on
         // the campaign, precisely so a player can walk out of a game the GM has thrown away — so
         // the 409 that value models is one only a GM's removal can be answered.
-        _said = await Memberships.LeaveAsync(membershipId) == LeftOutcome.Done
-            ? "You have left that game. It no longer holds a copy of that character."
-            : "That could not be done just now. Try again in a moment.";
+        _said = await Memberships.LeaveAsync(membershipId) != LeftOutcome.Done
+            ? "That could not be done just now. Try again in a moment."
+            : nemesis
+                ? "You have left that game. Its GM still holds the Villain you gave them."
+                : "You have left that game. It no longer holds a copy of that character.";
 
         await Refresh();
     }
 
     /// <summary>
-    /// Put the character on screen into a campaign, by a code somebody read out.
+    /// Put every ticked, eligible character into the campaign the code names, one at a time.
     ///
-    /// <para><b>The join's own outcome decides what is written, and a disagreement writes
-    /// nothing.</b> <see cref="CampaignJoin.Apply"/> inherits into an empty tier and reports a
-    /// mismatch otherwise — reported here as information rather than as an error, because a
-    /// campaign that climbs tiers in play makes this ordinary traffic.</para>
+    /// <para><b>The code stays in the box.</b> Several characters share the one code that was
+    /// typed in, and clearing it between them — the single-character join's own habit — would
+    /// undo the whole point of ticking more than one.</para>
+    ///
+    /// <para><b>Each character's own outcome decides what is written for it, and a disagreement
+    /// writes nothing for that character alone.</b> <see cref="CampaignJoin.Apply"/> inherits into
+    /// an empty tier and reports a mismatch otherwise — reported as information rather than as an
+    /// error, because a campaign that climbs tiers in play makes this ordinary traffic, and one
+    /// character's mismatch must not stop the others in the same press.</para>
     /// </summary>
     private async Task Join()
     {
-        _joined = null;
+        // **Re-entrancy, not merely emptiness.** A double-click, or a second tab pressing the
+        // same button, reaches this method again while the first press is still awaiting its
+        // round trips — the button's own `disabled` binding only runs between presses, never
+        // during one. Set before anything else, including before `EligibleToJoin` is read, so the
+        // second call is a cheap no-op rather than a second pass over the same characters. See
+        // `_joining`'s own remarks for the lost update this stops.
+        if (_joining) return;
+        _joining = true;
 
-        if (_openId is null) return;
-
-        // **Before anything is written, and before the label is read off the sheet.** Joining
-        // writes a tier onto the character on screen and fires the autosave that puts it under
-        // the pointer's id — so a sheet that is not the pointer's character would be written over
-        // one that is, under a label taken from the wrong sheet. See `TheCharacterOnScreenIsThePointers`.
-        if (await TheCharacterOnScreenIsThePointers(_openId) is { } refusal)
+        try
         {
-            _joined = refusal;
-            return;
-        }
+            var ids = EligibleToJoin;
+            if (ids.Count == 0) return;
 
-        var joined = await Memberships.JoinAsync(_code, _openId, Session.Sheet.Name);
+            // The label each row is showing right now, read off before anything runs. `JoinOther`
+            // reads the stored sheet's own name for the label it actually sends the server — this
+            // is only for the line printed back to the reader, and it has to be the name they
+            // ticked rather than one <see cref="Refresh"/> might answer differently by the time
+            // this method returns.
+            var labels = JoinCandidates.ToDictionary(row => row.Id, row => row.Label, StringComparer.Ordinal);
 
-        if (joined is not { } got)
-        {
-            _joined = Memberships.LastJoinRefusal switch
+            var results = new List<(string Label, string Message)>();
+
+            // One at a time and awaited in turn, never `Task.WhenAll`: two joins with the same
+            // code race the account's join-attempt counter and the on-screen path mutates
+            // `Session.Sheet`, which nothing here may do from two calls at once.
+            foreach (var id in ids)
             {
-                JoinRefusal.NotACode => "That is not a code. Check the letters and try again.",
-                JoinRefusal.NoSuchCampaign => "No game is using that code. Ask for a fresh one.",
-                JoinRefusal.TooManyTries => "That is a lot of codes. Try again a little later.",
-                _ => "Nothing could be reached just now. Try again in a moment.",
-            };
+                var message = id == _openId ? await JoinOnScreen(id) : await JoinOther(id);
+                results.Add((labels.GetValueOrDefault(id, "That character"), message));
+            }
 
-            return;
+            _joinResults = results;
+
+            await Refresh();
         }
+        finally
+        {
+            _joining = false;
+        }
+    }
+
+    /// <summary>
+    /// The one character this act may write through the session rather than by id — unchanged
+    /// from the single-character join this replaced, down to the sentence it prints.
+    ///
+    /// <para><b>Before anything is written, and before the label is read off the sheet.</b>
+    /// Joining writes a tier onto the character on screen and fires the autosave that puts it
+    /// under the pointer's id — so a sheet that is not the pointer's character would be written
+    /// over one that is, under a label taken from the wrong sheet. See
+    /// <see cref="TheCharacterOnScreenIsThePointers"/>.</para>
+    /// </summary>
+    private async Task<string> JoinOnScreen(string id)
+    {
+        if (await TheCharacterOnScreenIsThePointers(id) is { } refusal) return refusal;
+
+        var joined = await Memberships.JoinAsync(_code, id, Session.Sheet.Name);
+        if (joined is not { } got) return JoinRefusalMessage();
 
         var result = CampaignJoin.Apply(Session.Sheet, got.Campaign);
 
@@ -1404,7 +1706,7 @@ else
             Session.NotifyChanged();
         }
 
-        _joined = result.Outcome switch
+        return result.Outcome switch
         {
             CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined =>
                 $"Joined {got.Campaign.Name}.{Took(result, got.Campaign)}{PutBack()}",
@@ -1412,10 +1714,86 @@ else
                 $"{got.Campaign.Name} is played at a different tier. Nothing was changed.{PutBack()}",
             _ => "That game is not here.",
         };
-
-        _code = "";
-        await Refresh();
     }
+
+    /// <summary>
+    /// A character other than the one on screen: read by id, joined, and written back by id —
+    /// never through the session, so joining several characters at once never so much as flickers
+    /// the pointer at any of them.
+    /// </summary>
+    /// <remarks>
+    /// <b>Only ever called for a row <see cref="EligibleToJoin"/> already excluded from an
+    /// existing game</b>, so the campaign this is about to name is never one the character
+    /// already carries. What it cannot know in advance is whether that game is the very one the
+    /// code redeems into — see the checkbox list's own remark on <c>JoinCandidates</c> in the
+    /// markup for why "already in a game" is the honest thing to say rather than "already in this
+    /// one".
+    /// </remarks>
+    private async Task<string> JoinOther(string id)
+    {
+        // `ReadAsync`, never `OpenAsync`: this is not switching to a character, and opening one
+        // would move the pointer on the way past for every character after the first ticked.
+        if (await Characters.ReadAsync(id) is not { } stored)
+        {
+            // The same two sentences `Submit` tells its own read failure apart with, for the same
+            // reason: a dropped connection is worth retrying and a character this build cannot
+            // open is not, and telling the second reader to try again teaches them to distrust
+            // the message.
+            return Characters.LastReadRefusal == ReadRefusal.NotThere
+                ? "That character could not be read: it is not on this account any more, or "
+                  + "this version of the app cannot open it."
+                : "That character could not be read just now — the connection may have "
+                  + "dropped, or your sign-in may have ended.";
+        }
+
+        var (sheet, mode) = stored;
+
+        // The same refusal `Submit` gives an empty stored sheet, for the same reason: a slot
+        // nothing has been built into yet is not a character to put in front of a GM.
+        if (Session.HasNothingOnIt(sheet))
+        {
+            return "This character has nothing on it yet, so it was not put into the game.";
+        }
+
+        var label = SavedCharacters.LabelFor(sheet);
+        var joined = await Memberships.JoinAsync(_code, id, label);
+        if (joined is not { } got) return JoinRefusalMessage();
+
+        var result = CampaignJoin.Apply(sheet, got.Campaign);
+
+        // **Only write when the join actually changed something.** A tier disagreement leaves the
+        // sheet exactly as `CampaignJoin.Apply` found it, and writing it back regardless would be
+        // a save with nothing to save — the same rule the on-screen path follows by only ringing
+        // `NotifyChanged` for the same two outcomes.
+        if (result.Outcome is CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined)
+        {
+            var landed = await Characters.RestoreAsync(id, label, sheet, mode);
+
+            if (!landed)
+            {
+                return $"Joined {got.Campaign.Name}, but the change could not be saved just "
+                     + "now — the account may be full. Try again in a moment.";
+            }
+        }
+
+        return result.Outcome switch
+        {
+            CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined =>
+                $"Joined {got.Campaign.Name}.{Took(result, got.Campaign)}",
+            CampaignJoinOutcome.TierDisagrees =>
+                $"{got.Campaign.Name} is played at a different tier. Nothing was changed.",
+            _ => "That game is not here.",
+        };
+    }
+
+    /// <summary>Why the code itself was refused, in the four sentences the box has always used.</summary>
+    private string JoinRefusalMessage() => Memberships.LastJoinRefusal switch
+    {
+        JoinRefusal.NotACode => "That is not a code. Check the letters and try again.",
+        JoinRefusal.NoSuchCampaign => "No game is using that code. Ask for a fresh one.",
+        JoinRefusal.TooManyTries => "That is a lot of codes. Try again a little later.",
+        _ => "Nothing could be reached just now. Try again in a moment.",
+    };
 
     /// <summary>
     /// What the join actually took, said exactly — or nothing, for a join that took nothing.
@@ -1582,7 +1960,7 @@ else
     /// Nothing is written to put a bad row right — the player resubmits, which is the remedy this
     /// screen already has.</para>
     /// </summary>
-    private async Task Submit(MembershipSummary one)
+    private async Task Submit(MembershipSummary one, bool handOverConfirmed = false)
     {
         ArgumentNullException.ThrowIfNull(one);
 
@@ -1646,7 +2024,21 @@ else
             return;
         }
 
-        _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
+        // **Asked of the sheet that is about to go, not of the row or the screen's palette**,
+        // because that sheet's mode is the word the server will act on — the stored copy can be a
+        // Villain while the session is empty, and the other way round. The first press stops here
+        // and draws the warning; the warning's own button comes back with the confirmation.
+        if (sending.Value.Mode == SheetMode.Villain && !handOverConfirmed)
+        {
+            _sentAbout = null;
+            _confirmingHandover = one.Id;
+            _nemesisOf = null;
+            return;
+        }
+
+        _confirmingHandover = null;
+
+        _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode, _nemesisOf) is null
             ? "That could not be sent just now. Try again in a moment."
             // **The name on the sheet that was actually sent, not the label the row was carrying.**
             // A membership's label is whatever the character was called when it last joined or
@@ -1655,7 +2047,9 @@ else
             // shape that teaches somebody to distrust the ones that are true. It is also the same
             // string the server was handed: `SubmitAsync` takes the label off this sheet.
             : $"Sent to {SavedCharacters.LabelFor(sending.Value.Sheet)}."
-              + $" Your own copy is unchanged.{PutBack()}";
+              + (sending.Value.Mode == SheetMode.Villain
+                  ? $" It is still yours until the GM approves it.{PutBack()}"
+                  : $" Your own copy is unchanged.{PutBack()}");
 
         await Refresh();
     }

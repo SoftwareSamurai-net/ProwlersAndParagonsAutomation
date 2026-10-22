@@ -62,7 +62,7 @@ public sealed class CampaignSharedAssetTests
         var page = ctx.Render<ProwlersAndParagonsAutomation.Web.Pages.Campaigns>();
 
         await page.Find("#join-code").InputAsync(new() { Value = code });
-        await page.FindAll("button").Single(b => b.TextContent.Trim() == "Join").ClickAsync(new());
+        await page.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Join", StringComparison.Ordinal)).ClickAsync(new());
     }
 
     /// <summary>The "Shared with the campaign" panel, found rather than assumed to be the only one.</summary>

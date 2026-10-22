@@ -12,6 +12,12 @@
 *.editorconfig text
 *.gitattributes text
 
+# Read by tests that search for LF-joined text — a paragraph's end as two newlines, a twin's
+# substituted line — so a CRLF checkout failed them on every Windows machine while CI on Linux
+# passed. Pinned LF on every platform; nothing reads either file expecting CRLF.
+mcp-play/PLAY-POLICY.md      text eol=lf
+data/rules/play/combat.json  text eol=lf
+
 # Binary — never touch these.
 *.pdf       binary
 *.png       binary

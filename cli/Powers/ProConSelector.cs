@@ -70,11 +70,11 @@ public sealed class ProConSelector
                         .UseConverter(k => $"{k}  (+{proModel.CostModifierRange[k]} HP)")
                         .AddChoices(grades));
 
-                selected.Add(new SelectedProCon(proModel.Id, variantKey));
+                selected.Add(new SelectedProCon(proModel.Id, variantKey) { Detail = PromptDetail(proModel.NarrativeConstraint) });
             }
             else
             {
-                selected.Add(new SelectedProCon(proModel.Id));
+                selected.Add(new SelectedProCon(proModel.Id) { Detail = PromptDetail(proModel.NarrativeConstraint) });
             }
 
             AnsiConsole.MarkupLine($"  [green]Pro added:[/] {Markup.Escape(proModel.Name)}");
@@ -131,11 +131,11 @@ public sealed class ProConSelector
                         .UseConverter(k => $"{k}  ({conModel.CostModifierRange[k]} HP)")
                         .AddChoices(conModel.CostModifierRange.Keys));
 
-                selected.Add(new SelectedProCon(conModel.Id, variantKey));
+                selected.Add(new SelectedProCon(conModel.Id, variantKey) { Detail = PromptDetail(conModel.NarrativeConstraint) });
             }
             else
             {
-                selected.Add(new SelectedProCon(conModel.Id));
+                selected.Add(new SelectedProCon(conModel.Id) { Detail = PromptDetail(conModel.NarrativeConstraint) });
             }
 
             AnsiConsole.MarkupLine($"  [yellow]Con added:[/] {Markup.Escape(conModel.Name)}");
@@ -183,7 +183,27 @@ public sealed class ProConSelector
                         : Spectre.Console.ValidationResult.Error("Must be at least 1.")));
         }
 
-        return new SelectedProCon(entry.Id, variantKey) { Units = units };
+        return new SelectedProCon(entry.Id, variantKey)
+        {
+            Units = units,
+            Detail = PromptDetail(entry.NarrativeConstraint)
+        };
+    }
+
+    /// <summary>
+    /// What the entry asks the player to write, asked in the entry's own words, or nothing
+    /// where it asks nothing. Required, as the Flaws prompt requires its detail: the book says
+    /// "must define", and a Con with its condition nowhere is a discount with no rule behind it.
+    /// </summary>
+    internal static string? PromptDetail(string? constraint)
+    {
+        if (string.IsNullOrWhiteSpace(constraint)) return null;
+
+        return AnsiConsole.Prompt(
+            new TextPrompt<string>(Markup.Escape(constraint))
+                .Validate(text => string.IsNullOrWhiteSpace(text)
+                    ? Spectre.Console.ValidationResult.Error("The book asks for this. Write something.")
+                    : Spectre.Console.ValidationResult.Success())).Trim();
     }
 
     private static string FormatPowerProCon(PowerProConModel e)

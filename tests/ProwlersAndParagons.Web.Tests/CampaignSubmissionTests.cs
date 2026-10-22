@@ -159,7 +159,7 @@ public sealed class CampaignSubmissionTests
     private static void Join(IRenderedComponent<Campaigns> page, string code)
     {
         page.Find("#join-code").Input(code);
-        page.FindAll("button").Single(b => b.TextContent.Trim() == "Join").Click();
+        page.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Join", StringComparison.Ordinal)).Click();
     }
 
     /// <summary>Presses the one "Send for approval" the page is offering.</summary>

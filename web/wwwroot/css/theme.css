@@ -276,7 +276,14 @@
         --banner-track: 0.06em;
     }
 
-    :root[data-theme="dark"][data-mode="villain"] {
+    /* `.nemesis` shares the set, and it is the one element below :root that declares a palette.
+       A Villain the GM now holds is drawn back to the player who made it on the villain's night
+       ground in every state — on a Hero's page, in daylight — so the block reads as a window into
+       somebody else's game (the owner's choice, 2026-10-01). Listed here rather than restated so
+       there is no third copy of villain-dark to keep in step; `screen` keeps it off paper with
+       the rest. See `Nemesis.razor`. */
+    :root[data-theme="dark"][data-mode="villain"],
+    .nemesis {
         --surface:      #111114;
         --panel:        #1C1C22;
         --ink:          #EDE8E4;

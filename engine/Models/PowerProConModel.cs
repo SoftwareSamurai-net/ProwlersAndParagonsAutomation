@@ -40,6 +40,12 @@ public record PowerProConModel
     public string Description { get; init; } = "";
 
     /// <summary>
+    /// What the entry asks the player to write on taking it — Immortality's Vulnerable says
+    /// "describe how". Null for the rest. The answer is <c>SelectedProCon.Detail</c>.
+    /// </summary>
+    public string? NarrativeConstraint { get; init; }
+
+    /// <summary>
     /// True when the rulebook says this option may be taken more than once on the same
     /// Power, each copy charged again. Also X is the case: Energy Absorption's entry reads
     /// "You can absorb one extra type of energy … each time you select this Pro" (Ch.2

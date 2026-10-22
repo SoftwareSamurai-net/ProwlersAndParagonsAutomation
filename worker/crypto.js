@@ -119,6 +119,19 @@ export function newMembershipId() {
 }
 
 /**
+ * The id a handed-over Villain takes on the GM's account — the one character id this server
+ * mints rather than the browser.
+ *
+ * <p><b>Fresh rather than the player's own `c_…`</b>, because a GM who redeemed their own join
+ * code is the player too, and the player's id under the GM's account would then be the row the
+ * handover removes. It is the same shape the browser mints, so nothing on either side can tell
+ * the two apart.</p>
+ */
+export function newCharacterId() {
+    return 'c_' + newSecret().slice(0, 22);
+}
+
+/**
  * The alphabet a join code is written in: 30 symbols, with `I`, `L`, `O`, `U`, `0` and `1` left
  * out.
  *

@@ -279,6 +279,12 @@ async function route(request, env, deps) {
                     () => memberships.reject(request, env, deps, user, membershipId));
             }
 
+            // The GM re-keys a nemesis of theirs to another Hero in the game.
+            if (tail === 'nemesis-of') {
+                return only('PUT', method,
+                    () => memberships.rekey(request, env, deps, user, membershipId));
+            }
+
             // **The one address here a player reaches and the GM of the same row does not.** A
             // campaign is scoped to the account that owns it, so a member cannot read the game
             // they are in; this answers that game's own payload, authorised by their own row.

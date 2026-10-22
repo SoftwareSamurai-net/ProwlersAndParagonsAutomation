@@ -157,6 +157,13 @@ export async function write(request, env, deps, user, id) {
     });
 
     if (!stored) {
+        // **Gone for good, which is not the same as full.** A character handed to a campaign as a
+        // nemesis is the GM's now and has no hand-back; 410 rather than the cap's 409, because
+        // nothing the player can do — deleting another character included — makes this save land.
+        if (await db.wasHandedOver(env.DB, { userId: user.id, characterId: id })) {
+            return fail(410, 'That character was given to a campaign as a nemesis, so it can no longer be saved here.');
+        }
+
         const limit = await db.characterLimit(env.DB, user.id);
 
         return json({ error: `This account already holds ${limit} characters.`, limit }, { status: 409 });

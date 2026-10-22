@@ -553,12 +553,23 @@ public sealed class HeadlessPushTests : IDisposable
             Assert.Contains(clause, serverSql, StringComparison.Ordinal);
             Assert.Contains(clause, ourSql, StringComparison.Ordinal);
         }
+
+        // **The one clause the copy deliberately leaves out**: the server refuses a save naming a
+        // character its account handed to a campaign as a nemesis, so a browser tab cannot write
+        // the Villain back. `push` never reads or writes `campaign_members` (see
+        // mcp-and-headless.md), matches by label on the target account — where a handed-over row
+        // no longer is — and so can only reach such an id when an operator names it with `--id`.
+        // Asserted both ways, so the server's guard cannot be dropped and the copy cannot quietly
+        // start reading approval state.
+        const string HandedOver = "AND handed_over_at IS NOT NULL";
+        Assert.Contains(HandedOver, serverSql, StringComparison.Ordinal);
+        Assert.DoesNotContain("campaign_members", ourSql, StringComparison.Ordinal);
     }
 
     private static readonly string[] UpsertClauses =
     [
         "ON CONFLICT (user_id, id) DO UPDATE SET",
-        "WHERE EXISTS (SELECT 1 FROM characters WHERE user_id = ",
+        "EXISTS (SELECT 1 FROM characters WHERE user_id = ",
         "OR (SELECT COUNT(*) FROM characters WHERE user_id = ",
         "< (SELECT character_limit FROM users WHERE id = ",
         "RETURNING id",

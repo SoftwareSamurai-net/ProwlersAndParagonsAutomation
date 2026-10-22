@@ -204,8 +204,14 @@ public sealed class SourceGrouping
         var mods = sheet.AbilityModifiers.GetValueOrDefault(abilityId);
         if (mods is null || mods.Count == 0) return null;
 
+        // `Item: armor` where the player wrote what the item is, `Item` where they did not —
+        // which is the book's own shape for Stronghold's line, and was this project's recorded
+        // gap while the selection had no words on it.
         return string.Join(", ", mods.Select(m =>
-            _rules.GetCon(m.Id)?.Name ?? _rules.GetPro(m.Id)?.Name ?? m.Id));
+        {
+            var name = _rules.GetCon(m.Id)?.Name ?? _rules.GetPro(m.Id)?.Name ?? m.Id;
+            return string.IsNullOrWhiteSpace(m.Detail) ? name : $"{name}: {m.Detail.Trim()}";
+        }));
     }
 
     /// <summary>

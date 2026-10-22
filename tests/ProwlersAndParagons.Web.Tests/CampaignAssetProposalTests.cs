@@ -244,6 +244,8 @@ public sealed class CampaignAssetProposalTests
 
         var row = page.Find(".proposal-row");
         Assert.Contains("already holds an object", row.TextContent, StringComparison.Ordinal);
-        Assert.Contains("Speed: 8d → 12d", row.TextContent, StringComparison.Ordinal);
+        var speed = Assert.Single(row.QuerySelectorAll(".diff-rows li"),
+            r => r.QuerySelector(".what")?.TextContent == "Speed");
+        Assert.Contains("8d → 12d", speed.TextContent, StringComparison.Ordinal);
     }
 }

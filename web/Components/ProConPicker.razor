@@ -47,6 +47,10 @@
                         {
                             <span class="muted small"> ×@u</span>
                         }
+                        @if (choice.Detail is { Length: > 0 } detail)
+                        {
+                            <span class="muted small"> — @detail</span>
+                        }
                         @if (Own(choice.Id) is not null)
                         {
                             <span class="tag own">this Power</span>
@@ -122,6 +126,17 @@
                 </Field>
             }
 
+            @* **The entry's own ask, as the box's label, and Add waits for an answer** — the
+               Flaws tab's idiom exactly. Eleven Cons and three Pros say "the player must define
+               …" and this panel never said so, so a Conditional went onto the sheet with its
+               condition nowhere. The sentence is the rules data's, never this component's. *@
+            @if (ConstraintFor(pending.Id) is { } ask)
+            {
+                <Field For="@($"pcd-{Slot}")" Label="@ask">
+                    <input id="@($"pcd-{Slot}")" type="text" class="wide" @bind="_detail" @bind:event="oninput" />
+                </Field>
+            }
+
             <div class="inline">
                 <button type="button" class="btn primary small" disabled="@(!CanConfirm())" @onclick="Confirm">Add</button>
                 <button type="button" class="btn small" @onclick="() => _pending = null">Cancel</button>
@@ -179,6 +194,7 @@
     private SelectedProCon? _pending;
     private string _variantKey = "";
     private int _units = 1;
+    private string _detail = "";
 
     /// <summary>
     /// The Power's own Pros or Cons, printed inside its rulebook entry. An Ability or a
@@ -241,6 +257,7 @@
         _pending    = new SelectedProCon(id);
         _variantKey = "";
         _units      = 1;
+        _detail     = "";
         _adding     = false;
     }
 
@@ -252,12 +269,22 @@
             _pending.Id,
             string.IsNullOrEmpty(_variantKey) ? null : _variantKey)
         {
-            Units = NeedsUnits(_pending.Id) ? _units : null
+            Units  = NeedsUnits(_pending.Id) ? _units : null,
+            Detail = string.IsNullOrWhiteSpace(_detail) ? null : _detail.Trim()
         });
 
         _pending = null;
         await OnChanged.InvokeAsync();
     }
+
+    /// <summary>
+    /// What the option's entry asks the player to write, or null where it asks nothing. A
+    /// Power's own entry first, for the reason <see cref="DisplayName"/> looks there first.
+    /// </summary>
+    private string? ConstraintFor(string id) =>
+        Own(id) is { } own
+            ? own.NarrativeConstraint
+            : IsPro ? Session.Rules.GetPro(id)?.NarrativeConstraint : Session.Rules.GetCon(id)?.NarrativeConstraint;
 
     private async Task Remove(SelectedProCon choice)
     {
@@ -267,7 +294,8 @@
 
     private bool CanConfirm() =>
         _pending is not null
-        && (VariantsFor(_pending.Id) is not { Count: > 0 } || !string.IsNullOrEmpty(_variantKey));
+        && (VariantsFor(_pending.Id) is not { Count: > 0 } || !string.IsNullOrEmpty(_variantKey))
+        && (ConstraintFor(_pending.Id) is null || !string.IsNullOrWhiteSpace(_detail));
 
     /// <summary>
     /// The grades an option offers, as label/price pairs. A Power's own entry can be

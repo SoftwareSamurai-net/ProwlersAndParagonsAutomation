@@ -15,6 +15,12 @@ public interface IGenericProCon
     string Name { get; }
 
     /// <summary>
+    /// What the entry asks the player to write on taking it, or null where it asks nothing.
+    /// The answer is <c>SelectedProCon.Detail</c>.
+    /// </summary>
+    string? NarrativeConstraint { get; }
+
+    /// <summary>
     /// How the option is priced: "flat" for the great majority, "flat_variable" for a graded
     /// one, and <b>"special" for Overkill and Weak alone</b> — the two that change a Power's
     /// rate per rank rather than its total, which is why neither prints a figure and why

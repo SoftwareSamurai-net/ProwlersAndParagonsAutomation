@@ -336,8 +336,20 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   question: it is the longest text on any of these rows and it made the palette answer "kno" with
   Hidden, whose entry says a route few people *know*, burying the rulebook passage the reader was
   after. The step it lands on is where the prose belongs.
+- **The rules terms are the fifth group, and every row says its kind before its description.**
+  The generic Pros and Cons, the Perks, the Flaws and each Power's own Pros and Cons, under a
+  **"Rules terms"** heading, matched in the browser and capped like the Powers. The detail line
+  is `Con · …`, `Flaw · …`, or `Immortality's own Con · …` — because a word can name two rules:
+  the owner met Immortality's own *Vulnerable* on a sheet, typed *Vulnerability*, and was handed
+  the Flaw's passage from the book (2026-09-30). **The description is matched as well as
+  shown**, unlike a Power's tags, since a reader asking what "killed" means on their sheet is
+  asking about a sentence. Choosing one adds nothing and goes where the thing is bought: a
+  Power's own option is `RequestPower` on that Power, exactly as choosing the Power; a generic
+  option, a Perk or a Flaw is `RequestSection` on the Powers, Perks or Flaws section of the
+  characteristics step. The target spells which — `power:<id>` or `section:<key>` — and
+  `RulesTermTests` drives both.
 - **A row carries its kind as a class — `kind-step`, `kind-power`, `kind-gear`, `kind-asset`,
-  `kind-passage` — and nothing styles on them.** They exist so a question about one kind of row can
+  `kind-passage`, `kind-term` — and nothing styles on them.** They exist so a question about one kind of row can
   be asked precisely. `PaletteBookTests` used to reach for `.palette-group ~ .palette-row`, which
   means "every row after *any* heading": correct for exactly as long as the book was the only
   group, and the day a second one appeared three waits in that file started returning before the
@@ -871,6 +883,30 @@ is one sheet in this app by design.
   the character is finished before anybody looks. **It subscribes only when `Character` is null**: a
   recording is handed over as a parameter, and tying it to the visitor's edits is the influence the
   replay renders two pages to forbid.
+- **Every Pro and Con on a Power's line is a `Term`, and a Power's own says whose it is first.**
+  The line used to be `PowerFormatter.ModifierLine`'s joined string — the same words, no
+  tooltip — so a reader who met Immortality's own *Vulnerable* had nothing to hover and looked
+  the word up instead. `PowerFormatter.Modifiers` is that line one entry at a time, with the
+  choice each label came from, and `SheetView.ModifierTerms` draws each as a term: a generic
+  option's sentence is its entry's description, a Power's own opens *"Immortality's own Con."*
+  and then the Power's own text. **The id is keyed on the Power as well as the option**
+  (`Term.IdKey`), because ten of the Powers' own option ids recur on different Powers under one
+  name — Blast's own *Subdual* and Strike's own *Subdual*, two *Deflect*s — each with its own
+  Power's sentence, and two terms sharing an id share one `aria-describedby` sentence. (This
+  bullet first blamed *Line* and *Selection* as spelled both generic and own; a review checked
+  and neither is generic.) The
+  printed words are unchanged — `ModifierLine` is now `Modifiers` joined — and the text export
+  still writes the ids. With `Explain` off the line is the bare words, as before.
+- **Where an entry asks the player to write something, the editor asks in the entry's words and
+  Add waits for the answer.** The Flaws and Perks tabs did this from the start; `ProConPicker`
+  and `PowerEditor` do it since 2026-09-30, for the eleven Cons, three Pros, one of a Power's own
+  Cons and two Powers whose entries say "define…" or "name…" (`narrative_constraint` in the
+  data, answered in `SelectedProCon.Detail` / `SelectedPower.Detail`). Before that the picker
+  never printed the ask, so Conditional went onto the sheet with its condition nowhere. The sheet
+  prints the words after the option — `Conditional (Often Works) — only under an open sky` — and
+  a named Power as `Expertise: Firearms`; the Powers tab, both exports, the CLI's prompts, the MCP
+  option listings and the approval diff (as a part, so a rewritten condition is a change) all
+  carry them. Held by `NarrativeDetailEditorTests` and `NarrativeDetailTests`.
 - **The preview is on the characteristics step alone.** That is where the character is built and
   nothing there types letter by letter — the ranks are steppers and the lists are pickers, so the
   sheet redraws on a choice rather than on a keystroke. The finishing step is where the free text is.
@@ -1061,6 +1097,12 @@ never parses a character — so the client sends them alongside, exactly as it s
   is on. One group that is a real game keeps the game's name; one that is "In no game" or "A game
   that is not here" falls back to the sentence the panel has always carried about where these
   characters live.
+
+**Everyone, Heroes or Villains** is `Roster.OfKind`, applied before the box filters, and drawn
+only where the list holds both kinds — the rule the kind chip already follows. A row with no
+recorded kind is in Everyone and in neither of the other two, because putting it under Heroes
+would be the list guessing. The choice is not stored, and it falls back to Everyone whenever the
+switch is not drawn, so it cannot go on hiding rows after the list stops holding both.
 
 ### The decisions are in `Roster`, not in the component
 
@@ -1602,6 +1644,7 @@ Ch.9 builds Villains exactly like Heroes and prints no separate stat-block forma
 - **The theme preference is per-browser and is not on the character**, and not on the account either: `pp.theme.v1` in local storage, read and stamped by `js/theme.js`. A theme on `CharacterSheet` would travel through an export and change the screen of whoever imported somebody else's character; a theme on the account would let somebody signed in on a shared machine impose it on the next reader. `localStorage` over a cookie because a cookie rides on every asset request to a server with no use for it.
 - **`js/theme.js` is loaded from `<head>` and is the only render-blocking script in the app.** The payload is ~27 MiB, so there are seconds of boot screen: a theme applied from C# lands after the reader has already seen the wrong one, and so does one applied from the foot of `<body>`. Both leave every test in both suites green. `TheThemeIsStampedBeforeTheFirstPaint` reads the tag's **offset** against `</head>` — its first version searched the head slice for the file name and passed with the script moved, because a comment near the top of `index.html` mentions it.
 - **Persistence has no C# guard and cannot have one.** Deleting the `localStorage.setItem` — so a choice applies for the visit and is forgotten on reload — left all 4,115 tests green: the C# side checks that the right word goes out and that a stored value is read back, and both are true of a script that stores nothing. `proof-theme.html` drives the shipped file in a browser and re-executes the module, which is what a reload does. It is in the build workflow beside the other harnesses.
+- **One element below `:root` declares a palette, and only one: `.nemesis`.** It shares villain-dark's block by selector list rather than restating it, so a handed-over Villain is drawn on the night ground on any page in any state — see the campaign section. Do not add a second; a palette that follows an element rather than the document is a third axis.
 - Both palettes are CSS custom properties on `:root[data-mode="hero"]` and `[data-mode="villain"]` in `web/wwwroot/css/theme.css`. **No component ever names a colour** — that is what keeps the switch a one-attribute change, and there is a grep in the PR notes proving it holds.
 - **`--[a-z-]+` does not match `--shadow-1`.** The contrast instrument's token regex was written that way and silently dropped every shadow, space and type token from every palette it resolved. It is `--[a-z0-9-]+` now. A palette resolver that skips tokens reports a palette nobody is looking at.
 - **Headless Chrome here reports `prefers-color-scheme: dark`**, so an un-stamped proof page renders the *dark* palette. Correct behaviour; it means judging a light palette from a screenshot needs an explicit `data-theme="light"` on the harness.
@@ -1790,6 +1833,30 @@ works and nobody can reach.
   obvious fixture ids (`code`, `flight`) are written exactly the way their printed names are, so a
   case-insensitive check on those cannot tell a leak from a correct lookup. That took three goes at
   one fixture; the test records all three.
+- **A row's detail is drawn part by part, and `DiffRows` is the one component that draws a
+  row.** `Before → After` over a Power's line printed a rank, a Source and six modifiers twice and
+  left the GM to find the three words that differed — the owner's report of 2026-09-30, on a Life
+  Drain. `DiffRow.Parts` (`CampaignDiff.PartsOf`) splits both sides on the separator every detail
+  line is joined with and says of each part whether it stayed, went, arrived or changed form: what
+  is on both sides verbatim is kept, a part whose head — the text before its bracket or multiplier,
+  or "a rank", or a count's noun — is left over exactly once on each side is one change
+  (`8d → 6d`, `Conditional (Often Works) → Conditional (Occasionally Works)`), and the rest is
+  what went and what came, in the old side's order with arrivals last. **Two left over on one side
+  are never paired**, because a guess prints a change nobody made. One part each side is one
+  change whatever it is called, so `Might 6d → 8d` and `Fatal Damage on → off` read exactly as
+  they always have. On screen a removed part is a `<del>` struck through, an added one an `<ins>`
+  at the heading's weight, each with an `sr-only` word because neither element is reliably
+  announced, and kept parts recede to `--muted`; a whole-row addition or removal says its word
+  once. The list is a grid with a fixed name column, because as a wrapping flex row a long detail
+  dropped under its own name and the left edge a reader scans down was different on every other
+  row. The same component draws the member's table panel and an amended shared object.
+- **A row says when it was sent, and the diff says what it is measured against.** The server has
+  sent `pendingAt` and `approvedAt` since the memberships route existed and the GM's screen read
+  neither, so a request three weeks old and one from this morning were the same row. `.when` on
+  the roster row reads *Sent 3 days ago* or *Approved 2 weeks ago* through `Ages.Since`, and
+  `.diff-when` above the rows reads *Sent 3 days ago. The sheet it would replace was approved 2
+  weeks ago.* — the second time is what makes the first mean something. A server that sent no
+  time draws nothing, because `Ages` answers null for zero rather than "56 years ago".
 - **The Trait Cap row is the cap in force, not the field.** `Trait Cap 12d → 6d`, through
   `EffectiveTraitCap`, so the ceiling a GM decides about is the one the validator judged the
   submission by and the one its Resolve was measured from. A house cap written at exactly the
@@ -2029,6 +2096,34 @@ works and nobody can reach.
   layout.** A campaign row can open a block beneath itself, so the `<li>` is a column and the row
   inside it is the flex line. Reusing `.character-list` would have needed that structure imposed on
   the character manager too.
+- **An approved Villain is the GM's, and three screens say so** — the owner's rulings of
+  2026-10-01; the server half is in [`accounts-server.md`](accounts-server.md).
+  - **Send asks first, of the sheet that is about to go.** `Submit` works out which sheet it would
+    send — the one on screen, or the stored read — and stops at a warning if *that* sheet is a
+    Villain; the warning's own button comes back with the confirmation. Asking the page's palette
+    or the row instead would warn about the wrong sheet whenever the session and the stored copy
+    differ, which is the state that whole section above is about.
+  - **The GM is told from `PendingKind`, the word the server will act on**, never from the sheet
+    drawn in the diff, so the sentence and what approving does cannot disagree. A full account is
+    `DecisionOutcome.AccountFull` with the limit, and the request stays open.
+  - **The player sees `Nemesis`, not a row.** Always on villain-dark, the name surfacing once out of
+    drifting smoke under two slit-pupilled eyes (the owner's choices). The eyes are elements cut by
+    `clip-path`, not SVG: a blur filter inside an SVG repaints on every frame, which the owner saw as
+    rough. All of it is switched off outright under reduced motion — an infinite
+    loop at the collapsed 0.01ms tokens is a strobe, not an absence. `ProofPages.TheNemesis` drives it in Chrome beside three
+    twins: the island removed, the motion removed, and the reduced-motion rule removed.
+  - **The send warning asks whose nemesis it is**, offering the sender's own rows in that game that
+    the account index does not call a Villain, and Send stays dead until one is picked; with none,
+    a sentence says to join a Hero first. **The GM's roster is laid out in pairs** — `Arranged()`
+    puts each nemesis under the Hero it names, then every nemesis whose Hero is not there, so no row
+    is dropped for having nowhere to sit — with an Everyone / Heroes / Villains switch that is not
+    stored, and a "Hunts" select on a handed-over row for re-keying. A nemesis row is
+    `.nemesis.nemesis-row`, so only the row is on the night ground and what it opens is not.
+  - **The roster's "Given away" rows come from the memberships**, because the character's own row
+    is gone from the account. They open nothing.
+  - **A tab still holding the Villain after the GM approves keeps it on screen** until it is next
+    loaded, and every edit is refused by the server's 410 — said in `.save-status` through
+    `WriteRefused`, `SaveOutcome.GivenAway`, so it is never a sheet that silently goes nowhere.
 - **`.others-head` is reused for the section labels rather than a new uppercase class being
   added.** `UppercasedTextTests` reads every `text-transform: uppercase` rule out of `app.css` and
   requires each selector to be found on a page in its own hand-maintained list — so a new uppercase

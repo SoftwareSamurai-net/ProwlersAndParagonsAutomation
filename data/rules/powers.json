@@ -196,6 +196,7 @@
   },
   {
     "id": "animation",
+    "narrative_constraint": "Name the Trait — Agility, Might or Toughness — that your creations hold at your full rank.",
     "name": "Animation",
     "category": "Control",
     "range": "ranged",
@@ -1370,6 +1371,7 @@
   },
   {
     "id": "expertise",
+    "narrative_constraint": "Name the specialisation, and the Ability or Talent it sits under.",
     "name": "Expertise",
     "category": "Utility",
     "range": "self",
@@ -1949,6 +1951,7 @@
     "power_cons": [
       {
         "id": "vulnerable",
+        "narrative_constraint": "Describe how you can be killed.",
         "name": "Vulnerable",
         "cost_type": "flat",
         "cost_modifier": -1,

@@ -346,6 +346,7 @@ because no Trait can be lower than 1d. A tier and a flaw alone comes back with e
       "CostVariantKey": null,            // required where cost_type is *_variable
       "Units": 1,                        // for a per_unit Power
       "UnitNames": null,                 // Immunity: one name per unit, e.g. [ "toxins" ]
+      "Detail": null,                    // Expertise: the specialisation you name; only where the entry asks
       "BaselineTraitId": null            // required for Boost and Expertise
     }
   ],
@@ -367,7 +368,7 @@ because no Trait can be lower than 1d. A tier and a flaw alone comes back with e
 }
 ```
 
-A Pro or Con is `{ "Id": "...", "VariantKey": null, "Units": null }`.
+A Pro or Con is `{ "Id": "...", "VariantKey": null, "Units": null, "Detail": null }`. `Detail` is the player's own words where the entry asks for them — `list_options` shows the ask as `narrative_constraint`: Conditional's condition, Side Effect's side effect, the Item Con's item — and a Power whose entry asks (Expertise's specialisation, Animation's full-rank Trait) takes its answer in `Detail` on the Power; leave it out where nothing is asked.
 
 **`VariantKey` is required for a Pro or Con priced by grade, and omitting it is an error, not
 a default.** Those are the ones with a `cost_modifier_range` in `pros.json` / `cons.json` —

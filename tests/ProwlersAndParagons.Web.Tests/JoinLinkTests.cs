@@ -156,11 +156,13 @@ public sealed class JoinLinkTests
     }
 
     /// <summary>
-    /// The join box names the character a join would use.
+    /// The join box names the character a join would use — now a ticked row in the checkbox list
+    /// rather than a sentence, since item 37 turned "who joins" into a list of several.
     ///
-    /// <para><b>It used to describe the rule instead</b> — "the character on screen joins" — which
-    /// leaves a reader looking for the character on screen. There is no "none is open" case to
-    /// draw: <c>CurrentIdAsync</c> falls back to a default id rather than answering null.</para>
+    /// <para><b>It used to be a sentence</b> — "Ninefold will join" — which itself replaced "the
+    /// character on screen joins" for the same reason this replaces it again: naming the character
+    /// is the same work a reader needs, whichever control does it. There is no "none is open" case
+    /// to draw: <c>CurrentIdAsync</c> falls back to a default id rather than answering null.</para>
     /// </summary>
     [Fact]
     public async Task TheJoinBoxNamesTheCharacterThatWouldJoin()
@@ -170,12 +172,16 @@ public sealed class JoinLinkTests
         ctx.Api.SignedIn = ("u_player", "The Player");
         ctx.Session.Sheet.Name = "Ninefold";
 
-        var markup = ctx.Render<Campaigns>().Markup;
+        var page = ctx.Render<Campaigns>();
 
-        Assert.Contains("Ninefold will join", markup, StringComparison.Ordinal);
+        var row = page.FindAll("label.house-rule")
+            .Single(l => l.TextContent.Contains("Ninefold", StringComparison.Ordinal));
 
-        // And the sentence it replaced is gone, not merely joined by a better one.
-        Assert.DoesNotContain("The character on screen joins", markup, StringComparison.Ordinal);
+        Assert.True(row.QuerySelector("input[type=checkbox]")!.HasAttribute("checked"));
+
+        // And the sentences it replaced are gone, not merely joined by a better one.
+        Assert.DoesNotContain("The character on screen joins", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ninefold will join", page.Markup, StringComparison.Ordinal);
     }
 
     /// <summary>An unnamed character is the one real edge, and it is said rather than left blank.</summary>
@@ -187,12 +193,12 @@ public sealed class JoinLinkTests
         ctx.Api.SignedIn = ("u_player", "The Player");
         ctx.Session.Sheet.Name = "   ";
 
-        var markup = ctx.Render<Campaigns>().Markup;
+        var page = ctx.Render<Campaigns>();
 
-        Assert.Contains("The character on screen will join", markup, StringComparison.Ordinal);
-        Assert.DoesNotContain("will join. Its tier", markup.Replace(
-            "The character on screen will join. Its tier is filled in if you have not chosen one.",
-            "", StringComparison.Ordinal), StringComparison.Ordinal);
+        var row = page.FindAll("label.house-rule")
+            .Single(l => l.TextContent.Contains("Unnamed character", StringComparison.Ordinal));
+
+        Assert.True(row.QuerySelector("input[type=checkbox]")!.HasAttribute("checked"));
     }
 
     /// <summary>

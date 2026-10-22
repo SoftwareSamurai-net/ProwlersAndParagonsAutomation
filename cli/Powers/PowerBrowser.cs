@@ -172,6 +172,10 @@ public sealed class PowerBrowser
 
         var sourceId = PromptSource(power);
 
+        // What the entry asks the player to name — an Expertise's specialisation — in the
+        // entry's own words; the same prompt a Pro or Con with an ask gets.
+        var detail = ProConSelector.PromptDetail(power.NarrativeConstraint);
+
         var selection = new SelectedPower(
             power.Id,
             purchasedRanks,
@@ -182,7 +186,8 @@ public sealed class PowerBrowser
             Units           = units,
             UnitNames       = unitNames,
             BaselineTraitId = baselineTraitId,
-            SourceId        = sourceId
+            SourceId        = sourceId,
+            Detail          = detail
         };
 
         var cost          = _costs.PowerCost(selection, sheet.ImmortalityCost);

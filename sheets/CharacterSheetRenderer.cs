@@ -204,6 +204,8 @@ public static class CharacterSheetRenderer
                 sb.AppendLine($"  {name}{review}");
                 if (power is not null)
                     sb.AppendLine($"    {PowerFormatter.StatLine(power)}");
+                if (!string.IsNullOrWhiteSpace(sp.Detail))
+                    sb.AppendLine($"    Detail: {sp.Detail.Trim()}");
 
                 sb.AppendLine(effective > 0
                     ? $"    Effective rank: {effective}d  " +
@@ -228,8 +230,14 @@ public static class CharacterSheetRenderer
     /// How the text export names one Pro or Con: its id, and its grade where it has one. Ids
     /// rather than printed names, because this export is the machine-readable half.
     /// </summary>
-    private static string Keyed(SelectedProCon choice) =>
-        choice.VariantKey is null ? choice.Id : $"{choice.Id}:{choice.VariantKey}";
+    private static string Keyed(SelectedProCon choice)
+    {
+        var keyed = choice.VariantKey is null ? choice.Id : $"{choice.Id}:{choice.VariantKey}";
+
+        // The player's own words in brackets after the key, so a Conditional's condition
+        // travels with the line that names it.
+        return string.IsNullOrWhiteSpace(choice.Detail) ? keyed : $"{keyed} ({choice.Detail.Trim()})";
+    }
 
     private static void WritePerks(StringBuilder sb, CharacterSheet sheet, RulesRepository rules, CostCalculator costs)
     {
@@ -576,6 +584,7 @@ public static class CharacterSheetRenderer
                     ["unit_names"]      = new JsonArray(sp.BoughtUnitNames()
                                               .Select(n => (JsonNode)JsonValue.Create(n)!).ToArray()),
                     ["cost_variant"]    = sp.CostVariantKey,
+                    ["detail"]          = sp.Detail,
                     ["cost"]            = powerCost,
                     ["source"]          = sp.SourceId,
                     ["source_heading"]  = SourceGrouping.HeadingFor(
@@ -588,12 +597,14 @@ public static class CharacterSheetRenderer
                     ["pros"] = new JsonArray(sp.Pros.Select(p => (JsonNode)new JsonObject
                     {
                         ["id"]          = p.Id,
-                        ["variant_key"] = p.VariantKey
+                        ["variant_key"] = p.VariantKey,
+                        ["detail"]      = p.Detail
                     }).ToArray()),
                     ["cons"] = new JsonArray(sp.Cons.Select(c => (JsonNode)new JsonObject
                     {
                         ["id"]          = c.Id,
-                        ["variant_key"] = c.VariantKey
+                        ["variant_key"] = c.VariantKey,
+                        ["detail"]      = c.Detail
                     }).ToArray())
                 };
             }).ToArray()),
