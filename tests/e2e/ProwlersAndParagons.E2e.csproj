@@ -51,7 +51,7 @@
              its comments as *claims* ("7.5:1", "9.5:1"), two of its tokens are `color-mix()` which
              only a browser resolves, and nothing in this repository measured either in the
              assembled app. -->
-        <PackageReference Include="Deque.AxeCore.Playwright" Version="4.13.0" />
+        <PackageReference Include="Deque.AxeCore.Playwright" Version="4.14.0" />
     </ItemGroup>
 
 </Project>
