@@ -24,7 +24,7 @@
              adapter (xunit.runner.visualstudio) nor Microsoft.NET.Test.Sdk is needed — see
              PROGRESS.md item 20 and docs/guide/testing.md. -->
         <PackageReference Include="xunit.v3" Version="4.0.2" />
-        <PackageReference Include="bunit" Version="2.12.5" />
+        <PackageReference Include="bunit" Version="2.13.3" />
     </ItemGroup>
 
     <ItemGroup>

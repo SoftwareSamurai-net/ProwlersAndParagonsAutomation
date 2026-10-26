@@ -30,7 +30,7 @@
     <ItemGroup>
         <!-- Core rather than the hosting package, and pinned exactly: the same two decisions
              mcp/ records, for the same two reasons. -->
-        <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
+        <PackageReference Include="ModelContextProtocol.Core" Version="2.3.0" />
     </ItemGroup>
 
     <ItemGroup>
