@@ -454,7 +454,7 @@ approval is unchanged.
   ```
 
   A stale version is still the stale 409 above — the cap is only reached once the snapshot is the
-  one the GM saw. A GM approving their own Villain into their own game is not counted twice.
+  one the GM saw.
 - **There is no hand-back.** Nothing more can be submitted into the membership (409), a save naming
   the old id is 410, and leaving or removing the membership afterwards ends the record and leaves
   the Villain with the GM.
@@ -470,6 +470,21 @@ approval is unchanged.
   name, only for a handed-over row, null once the campaign is deleted — because their character's
   own row is gone. The GM's row carries `handedOver` and `pendingKind`, the word approval will act
   on, so the approval screen can say that approving takes the character.
+
+### The GM's own characters go straight into the GM's own game
+
+**The owner's ruling of 2026-10-28**: a GM who joins one of their own characters to their own
+campaign — a villain of the week, a boss, a Hero they play — is not asking anybody's permission.
+
+- **A submission into a membership the caller holds on both sides is applied, not queued.**
+  `PUT /api/memberships/{id}/submission` writes the snapshot straight into the approved slot,
+  recorded as `decision: "approved"`, with nothing waiting, no `nemesisOf` (a Villain needs none and
+  any sent is dropped) and no handover — the character is the GM's already. The answer is the same
+  `{ "version": n }`. The scope is `gm_user_id = player_user_id` in the write's own `WHERE`, so a
+  player's row matches nothing and is the ordinary submission above.
+- **Both list rows carry `gmsOwn`**; the GM's also carries `ownKind`, the word that copy was sent
+  with, so the roster can sort it among Heroes or Villains. `ownKind` is null on every other row.
+- **A snapshot of that shape already waiting** (sent before this) approves without a handover.
 
 ### Everything above keeps the one invariant this document opens with
 

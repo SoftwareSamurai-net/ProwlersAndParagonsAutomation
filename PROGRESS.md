@@ -82,7 +82,8 @@ as in scope. **Nothing here is a defect.**
 - [x] **[38](#38-a-villain-approved-into-a-campaign-becomes-the-gms-and-the-players-nemesis)** — an approved Villain moves to the campaign owner's account for good, inside their cap, in one D1 batch; the server is told the snapshot's kind beside it and acts on the stored word. Send on a Villain warns and needs a second press; the GM's screen says approving takes it and names the cap when full; the player sees the name drawn as their nemesis (surfacing out of smoke with two slit-pupilled eyes behind it, on the villain night palette, still under reduced motion) and the roster lists it as given away. Verified 2026-10-01: eleven server mutations (the cap clause, the kind read from the player's row, the chained `WHERE`, the player's delete, the save-back guard, the batch rollback among them) and ten browser and contract mutations each went red; the nemesis harness says PASS in both motion modes and each of its three twins says FAIL
 - [x] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — character variants get a mechanism. **Slice one built 2026-09-11** (see the pull request that carried it): a sheet may say it is a version of a root character — *later*, *as seen by another audience*, or an *alternate form* — the roster and the switcher draw the family as a tree, and a "Version of…" control makes or clears the link. Verified by the orchestrator: the cycle guard and the tree's read of the index field each went red under mutation. **Slice two built 2026-09-23**: `engine/AlternateForms.cs` checks a roster's `alternate_form` families through `build --from … --from …` — both pay for the Power at the same total, a form's power level is one the root paid for and not above the root's, one Resolve pool at the lowest of the forms. Verified by the orchestrator: the pool taken as the highest instead turned `ThePoolIsTheLowestOfTheForms…` red. **Slice three built 2026-09-29, and the item is closed**: the owner ruled on p.21's Trait Cap sentence — *the form declares, the family verifies*. An `alternate_form` sheet may carry its root's Trait Cap above its own tier, so `TRAIT_CAP_ABOVE_TIER` is waived on it, and `AlternateForms` reports `ALTERNATE_FORM_CAP_NOT_ROOTS` on a form whose cap above its tier is not the root's; Resolve and the pool follow from the declared cap. A family's findings now print on the roster and in the banner switcher, labelled Error or Warning, with the shared pool on the root's row, and the character server has a seventh tool, `check_alternate_forms`, that answers `ok: false` when any member did not parse. Verified by the orchestrator: dropping the waiver, accepting any form cap, waiving it for every sheet, printing an Error unlabelled and calling an unreadable roster ok each went red under mutation
 - [x] **A Resolve and Adversity quick reference**, on the owner's ask of 2026-09-29, at `/reference/resolve` and open without an account: every entry of `data/rules/play/resolve.json` under For players, For the GM or Table limits, each with a table-facing `summary` (new on all 28 entries), its cost and its page. `web/` may name that one whole path and no other play file, by a narrowed `NothingInTheApplicationNamesAPlayRulesFile`, and reads it with its own strict display-only reader. Verified by the orchestrator: another play file named from `web/`, the exempt path split to hide it, the engine naming it, a hard-coded assisting rate, the description shown instead of the summary and program vocabulary in a summary each went red under mutation
-- [ ] **[43](#43-spend-and-gain-resolve-from-the-sheet)** — a Hero's player spends and gains Resolve on `/sheet` during play, seeded from the engine's figure on every open and held in this browser for 24 hours against an accidental refresh. Built 2026-10-28; awaiting the orchestrator's verification
+- [ ] **[43](#43-spend-and-gain-resolve-from-the-sheet)** — a player spends and gains Resolve on `/sheet` during play, seeded from the engine's figure on every open and held in this browser for 24 hours against an accidental refresh; a Villain's sheet counts the same pool as Adversity. Built 2026-10-28; awaiting the orchestrator's verification
+- [ ] **[44](#44-a-gms-own-characters-go-straight-into-the-gms-own-game)** — a GM's own character in their own game goes in when sent: no approval, no Hero to hunt, no handover, either kind. Built 2026-10-28; awaiting the orchestrator's verification
 - [x] **The approval diff reads part by part, and says when it was sent**, on the owner's report of 2026-09-30: a Power's row printed its whole line twice around an arrow, and a request carried no date. `DiffRow.Parts` marks each part of a row as kept, gone, new or changed and `DiffRows` draws it so on every screen that draws a diff; the roster row and the diff carry the sent and approved times the server was already sending. Verified: pairing switched off, the whole line drawn again, and the dates hidden each went red under mutation
 - [x] **[1](#1-close-the-last-three-heroes)** — **closed by the owner's ruling of 2026-09-23**: the three Heroes still 1 HP out (Scáthach +1, Shadow +1, Vigilant −1) are dropped as a target. The rules here are adapted, so the smallest distance to fitting is taken as correct and no further investigation is owed. Shadow's and Vigilant's custom gear features stay untranscribed, because adding them would move both further out. The residual guard stays at 1
 - [x] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver, and `kill_tree` proved directly. Verified by the orchestrator 2026-09-05: nine checks green, nine twins red on the kind each declares, both drivers, no process left behind. **CI run 33949251306 then proved the Linux leak for real** — the port holder survived outside the tree — and the cause is recorded in the entry; the fix's Linux verdict was given by run 33960793977: all seven kill-tree checks green on `ubuntu-latest`, the real wrangler tree included, and no "still listening" warning anywhere in the job
@@ -2758,19 +2759,42 @@ it was written. No issue is tracked, nothing goes to the account, and nothing go
 play-state field.
 
 **Built — see the pull request that carried it.** `ResolveTracker` under the four figures, drawn
-only by `SheetPage`, absent for a Villain and carrying `no-print`; `ResolveNow` stores one integer
+only by `SheetPage` and carrying `no-print`; `ResolveNow` stores one integer
 per character id with one write open at a time, latest count coalesced. The engine's figure is
 the opening pool, not a ceiling, so a count can go past it; the floor is 0. `ResolveTrackerTests`
 holds it.
 
-**Seen in passing, not changed:** the sheet's ruled Resolve box still prints the engine's figure on
-a Villain, which the settled rules call noise.
+**A Villain's sheet counts Adversity**, on the owner's ask of 2026-10-28: the same counter and the
+same figure, and the ruled box above it, labelled Adversity rather than left out — for flavour, and
+for a campaign played as Villains. `PoolName` is the one place the word is chosen; the `.txt` and
+`.json` exports still say Resolve, because `sheets/` may not read the palette flag.
+`ResolveTrackerTests.AVillainCountsAdversity` holds it.
 
 **Left open, named rather than hidden:** a character that has never been saved is counted under a
 fallback key, and its first save gives it an id, so a count made before that save goes back to
 the opening figure. On `/sheet` a character has nearly always been saved already.
 And no test watches `/sheet/{id}` draw no counter while its read is out: under bUnit that read
 answers at once, so a counter keyed early would be gone before a test could see it.
+
+### 44. A GM's own characters go straight into the GM's own game
+
+**The owner's report of 2026-10-28**: a GM who joined their own Villain to their own campaign was
+asked which Hero it hunted, and refused with no Hero — and approving it would have handed the GM a
+copy of their own character. *"What if I wanted bad guys who are just villain of the week or big
+boss man McGee or a hero or two played by me."*
+
+**Built — see the pull request that carried it.** A membership the caller holds on both sides
+(`gm_user_id = player_user_id`) is applied when sent: the approved slot written at once, no
+approval, no `nemesisOf`, no handover, either kind (`db.applyOwnSnapshot`). Both list rows carry
+`gmsOwn` and the GM's carries `ownKind`. The campaign page's row says *Put in the game* and asks no
+Hero; the GM's roster lists their own Villains last, under nobody, and their own Heroes among the
+Heroes, where a nemesis may be keyed to them. The GM's settings say how: join with the game's own
+code. Held by `tests/worker/nemesis.test.mjs` and `GmsOwnCharactersTests`; the own-apply scope,
+the approval's own-row clause, the contract key and the send path each went red under mutation.
+
+**Not built:** the join box still adds the GM's characters and putting each in is a second press
+per character on screen, because the join cannot know which campaign a code names until it is
+redeemed.
 
 ## Completed work
 
