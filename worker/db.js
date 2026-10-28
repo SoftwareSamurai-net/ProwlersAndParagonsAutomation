@@ -542,6 +542,7 @@ export async function listMembershipsForPlayer(db, playerUserId) {
     const result = await db.prepare(
         'SELECT m.id, m.campaign_id, m.character_id, m.label, m.approved_at, m.pending_at, '
         + '       m.pending_version, m.decision, m.handed_over_at, m.nemesis_of, '
+        + '       m.player_user_id = m.gm_user_id AS gms_own, '
         + '       CASE WHEN m.handed_over_at IS NOT NULL THEN c.label END AS given_to, '
         + '       m.approved_payload IS NOT NULL AS has_approved, '
         + '       m.pending_payload IS NOT NULL AS has_pending '
@@ -580,6 +581,7 @@ export async function listMembershipsForGm(db, gmUserId) {
     const result = await db.prepare(
         'SELECT id, campaign_id, player_user_id, label, approved_at, pending_at, pending_version, '
         + '       decision, pending_kind, handed_over_at, nemesis_of, '
+        + '       player_user_id = gm_user_id AS gms_own, '
         + '       approved_payload IS NOT NULL AS has_approved, '
         + '       pending_payload IS NOT NULL AS has_pending '
         + 'FROM campaign_members WHERE gm_user_id = ? '
@@ -634,6 +636,35 @@ export async function submitToCampaign(db, { id, playerUserId, label, payload, k
         + '                AND c.id = campaign_members.campaign_id) '
         + 'RETURNING pending_version')
         .bind(label, payload, kind, nemesisOf, now, id, playerUserId, nemesisOf, nemesisOf).first();
+}
+
+/**
+ * The GM puts one of their own characters into their own game: the snapshot becomes the
+ * campaign's copy at once, with no approval, no nemesis key and no handover.
+ *
+ * <p><b>The owner's ruling of 2026-10-28.</b> A GM running a villain of the week, a boss, or a
+ * Hero of their own at the table is not sending anybody a request — there is nobody else to
+ * approve it, and the character is theirs already, so a nemesis key or a handover would be asking
+ * a GM to justify their own NPCs. Either kind goes in the same way.</p>
+ *
+ * <p><b>`gm_user_id = player_user_id` is in the `WHERE`</b>, so this matches only a membership
+ * the caller holds on both sides; a player's row matches nothing and the route goes on to the
+ * ordinary submission. `pending_kind` keeps the word the snapshot was sent with — the kind of the
+ * copy the campaign now holds — so the GM's roster can sort it without reading a sheet.</p>
+ */
+export async function applyOwnSnapshot(db, { id, userId, label, payload, kind, now }) {
+    return await db.prepare(
+        'UPDATE campaign_members SET '
+        + '  label = ?, approved_payload = ?, approved_at = ?, '
+        + '  pending_payload = NULL, pending_at = NULL, pending_kind = ?, nemesis_of = NULL, '
+        + "  decision = 'approved', decided_at = ?, pending_version = pending_version + 1 "
+        + 'WHERE id = ? AND player_user_id = ? AND gm_user_id = player_user_id '
+        + '  AND handed_over_at IS NULL '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
+        + 'RETURNING pending_version')
+        .bind(label, payload, now, kind, now, id, userId).first();
 }
 
 /**
@@ -723,6 +754,10 @@ export async function approveSubmission(db, { id, gmUserId, version, now, newCha
     // **A Hero takes only step 2**, unchanged from before: step 1's `pending_kind = 'villain'`
     // matches nothing and step 2's `CASE` leaves `handed_over_at` null. A row submitted before
     // 0011 carries a null kind and approves as a Hero, which is what it was sent as.
+    //
+    // **So does the GM's own Villain in their own game** (`player_user_id = gm_user_id`): it is
+    // theirs already, so there is nothing to hand over. `applyOwnSnapshot` means no new snapshot
+    // of that shape waits for a decision; this covers one sent before it did.
     const membership =
         'FROM campaign_members m '
         + 'WHERE m.id = ? AND m.gm_user_id = ? AND m.pending_version = ? '
@@ -736,7 +771,7 @@ export async function approveSubmission(db, { id, gmUserId, version, now, newCha
             + '  (user_id, id, label, payload, campaign_id, kind, updated_at) '
             + 'SELECT m.gm_user_id, ?, m.label, m.pending_payload, m.campaign_id, m.pending_kind, ? '
             + membership
-            + "  AND m.pending_kind = 'villain' "
+            + "  AND m.pending_kind = 'villain' AND m.player_user_id <> m.gm_user_id "
             + '  AND (SELECT COUNT(*) FROM characters h '
             + '       WHERE h.user_id = m.gm_user_id '
             + '         AND NOT (h.user_id = m.player_user_id AND h.id = m.character_id)) '
@@ -749,13 +784,14 @@ export async function approveSubmission(db, { id, gmUserId, version, now, newCha
             + '  approved_payload = pending_payload, approved_at = ?, '
             + '  pending_payload = NULL, pending_at = NULL, '
             + "  decision = 'approved', decided_at = ?, "
-            + "  handed_over_at = CASE WHEN pending_kind = 'villain' THEN ? END "
+            + "  handed_over_at = CASE WHEN pending_kind = 'villain' "
+            + '                         AND player_user_id <> gm_user_id THEN ? END '
             + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
             + '  AND pending_payload IS NOT NULL AND handed_over_at IS NULL '
             + '  AND EXISTS (SELECT 1 FROM campaigns c '
             + '              WHERE c.user_id = campaign_members.gm_user_id '
             + '                AND c.id = campaign_members.campaign_id) '
-            + "  AND (pending_kind IS NOT 'villain' "
+            + "  AND (pending_kind IS NOT 'villain' OR player_user_id = gm_user_id "
             + '       OR EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?)) '
             + 'RETURNING id, pending_version, handed_over_at')
             .bind(now, now, now, id, gmUserId, version, gmUserId, newCharacterId),

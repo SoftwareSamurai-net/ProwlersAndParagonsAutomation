@@ -315,7 +315,19 @@ export async function submit(request, env, deps, user, id) {
     if (heroId !== null && (typeof heroId !== 'string' || !ID_PATTERN.test(heroId))) {
         return fail(400, 'That is not a membership id this server uses.');
     }
-    if (kind === VILLAIN && heroId === null) {
+    // **The GM's own character in their own game goes straight in** — the owner's ruling of
+    // 2026-10-28. There is nobody else to approve it and it is the GM's already, so it needs no
+    // Hero to hunt and nothing is handed over: a villain of the week, a boss, or a Hero the GM
+    // plays. Tried first and scoped by its own `WHERE`, so a player's row matches nothing and goes
+    // on to the ordinary submission below.
+    const own = await db.applyOwnSnapshot(env.DB,
+        { id, userId: user.id, label, payload, kind, now: deps.now() });
+    if (own) return json({ version: own.pending_version });
+
+    // **The GM's own row that `applyOwnSnapshot` refused is not asked for a Hero** — its game is
+    // gone, or it was handed over before 2026-10-28 — so it falls through to the refusal that
+    // says which. Read only here, on a path that is already a refusal for everybody else.
+    if (kind === VILLAIN && heroId === null && !(await isGmsOwn(env, user, id))) {
         return fail(400, 'A Villain is sent as the nemesis of one of your Heroes in this game. Name the Hero.');
     }
     const nemesisOf = kind === VILLAIN ? heroId : null;
@@ -578,6 +590,10 @@ function asPlayerRow(row) {
         // Answered only for a handed-over row, and null where the campaign has since been
         // deleted: a name nobody holds any more is not one to print.
         givenTo: row.given_to ?? null,
+
+        // **Whether this is the GM's own character in their own game**, which went straight in
+        // and is nobody's nemesis — so the row offers to put it in rather than to ask.
+        gmsOwn: row.gms_own === 1,
     };
 }
 
@@ -617,6 +633,12 @@ async function asGmRow(env, row) {
         // nemesis out under its Hero.
         nemesisOf: row.nemesis_of ?? null,
 
+        // **Whether this is the GM's own character**, put in without approval, and what kind it
+        // went in as — so the roster can sort it among Heroes or Villains without a sheet. The
+        // kind is answered for the GM's own rows only: a player's is `pendingKind`'s, above.
+        gmsOwn: row.gms_own === 1,
+        ownKind: row.gms_own === 1 ? (row.pending_kind ?? null) : null,
+
         // **The one field the player's row must never gain**, and the reason it stays out of
         // `asPlayerRow`: a player has no use for "which of my own rows share an account with
         // me" — they already know — and sending it there for free would be one more field this
@@ -624,6 +646,14 @@ async function asGmRow(env, row) {
         // `AccountsContractTests` exists to catch.
         playerKey: await playerKey(env, row.campaign_id, row.player_user_id),
     };
+}
+
+/** Whether the caller holds this membership on both sides: their own character in their own game. */
+async function isGmsOwn(env, user, id) {
+    const row = await db.getMembership(env.DB, user.id, id);
+
+    return row !== null && row !== undefined
+        && row.player_user_id === user.id && row.gm_user_id === user.id;
 }
 
 function isJson(text) {

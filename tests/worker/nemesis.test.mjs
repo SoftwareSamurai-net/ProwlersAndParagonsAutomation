@@ -278,44 +278,137 @@ test('a Villain the player never saved to their account still moves: what moves 
     assert.equal((await characters(app, gm.cookie)).characters.length, 1);
 });
 
-test('a GM approving their own Villain into their own game is not counted twice against the cap', async () => {
+/**
+ * The GM, at their own table, with their own characters: five on the account, the cap, and the
+ * campaign joined with its own code. Goes through the real endpoints throughout.
+ */
+async function aGmsOwnCharacter() {
     const app = server();
     const gm = await signIn(app, 'gm@example.test');
     assert.equal((await putCampaign(app, gm.cookie)).status, 204);
 
-    // Five characters, the cap, one of them the Villain about to be handed over.
     for (let i = 1; i <= 4; i++) assert.equal((await putCharacter(app, gm.cookie, cid(i))).status, 204);
-    assert.equal((await putCharacter(app, gm.cookie, cid(), { label: 'The Hollow Regent', kind: 'villain' })).status, 204);
+    assert.equal((await putCharacter(app, gm.cookie, cid(),
+        { label: 'The Hollow Regent', payload: villainPayload(), kind: 'villain' })).status, 204);
 
     const code = (await (await app.call('/api/campaigns', { cookie: gm.cookie })).json()).campaigns[0].joinCode;
     const joined = await app.call('/api/memberships/join', {
         method: 'POST', body: { code, characterId: cid(), label: 'The Hollow Regent' }, cookie: gm.cookie,
     });
-    const membership = (await joined.json()).id;
-    await aHeroFor(app, gm.cookie, code, membership);
+    assert.equal(joined.status, 200);
 
-    assert.equal((await submit(app, gm.cookie, membership)).status, 200);
+    return { app, gm, code, membership: (await joined.json()).id };
+}
+
+test('the GM’s own Villain goes straight into their own game: no Hero, no approval, nothing moves', async () => {
+    // The owner's ruling of 2026-10-28: a villain of the week or a boss is the GM's already, so
+    // asking which Hero it hunts, or handing it to the account that already holds it, was asking
+    // the GM to justify their own NPCs.
+    const { app, gm, membership } = await aGmsOwnCharacter();
+    const sent = villainPayload('The Hollow Regent, as sent');
+
+    const put = await submit(app, gm.cookie, membership, { payload: sent, nemesisOf: null });
+    assert.equal(put.status, 200, 'sent with no Hero at all');
+    assert.equal((await put.json()).version, 1);
+
+    // In the game at once, as the campaign's copy, and nobody's nemesis.
+    const theirs = await gmRow(app, gm.cookie, membership);
+    assert.equal(theirs.gmsOwn, true);
+    assert.equal(theirs.ownKind, 'villain');
+    assert.equal(theirs.hasApproved, true);
+    assert.equal(theirs.hasPending, false, 'nothing waiting for a decision');
+    assert.equal(theirs.pendingKind, null);
+    assert.equal(theirs.handedOver, false);
+    assert.equal(theirs.nemesisOf, null);
+    assert.equal(theirs.decision, 'approved');
+
+    const mine = await playerRow(app, gm.cookie, membership);
+    assert.equal(mine.gmsOwn, true);
+    assert.equal(mine.handedOver, false);
+
+    const detail = await (await app.call(`/api/memberships/${membership}`, { cookie: gm.cookie })).json();
+    assert.equal(detail.approved, sent, 'the snapshot that was sent, byte for byte');
+
+    // Nothing moved on the account: the same five, the original id among them, no copy minted.
+    const held = (await characters(app, gm.cookie)).characters;
+    assert.equal(held.length, 5);
+    assert.ok(held.some(c => c.id === cid()), 'the GM keeps their own character under its own id');
+
+    // There is nothing to approve, so approving is refused as nothing waiting.
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 409);
+});
+
+test('a player’s Villain still waits for the GM and still needs a Hero: the shortcut is the GM’s alone', async () => {
+    // The control for the test above: the same submission from a player's account is the
+    // ordinary request it always was.
+    const { app, gm, player, membership } = await aVillainAtTheTable();
+
+    const refused = await submit(app, player.cookie, membership, { nemesisOf: null });
+    assert.equal(refused.status, 400);
+    assert.match((await refused.json()).error, /Name the Hero/);
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    const theirs = await gmRow(app, gm.cookie, membership);
+    assert.equal(theirs.gmsOwn, false);
+    assert.equal(theirs.ownKind, null);
+    assert.equal(theirs.hasPending, true);
+    assert.equal(theirs.hasApproved, false);
+    assert.equal((await playerRow(app, player.cookie, membership)).gmsOwn, false);
+});
+
+test('a GM’s own Hero goes straight in as well, and a later send replaces it', async () => {
+    const { app, gm, membership } = await aGmsOwnCharacter();
+    const hero = JSON.stringify({ Version: 1, Mode: 0, Sheet: { Name: 'Jetstream' } });
+
+    assert.equal((await submit(app, gm.cookie, membership, { payload: hero, kind: 'hero', nemesisOf: null })).status, 200);
+    assert.equal((await gmRow(app, gm.cookie, membership)).ownKind, 'hero');
+
+    const again = JSON.stringify({ Version: 1, Mode: 0, Sheet: { Name: 'Jetstream II' } });
+    const put = await submit(app, gm.cookie, membership, { payload: again, kind: 'hero', nemesisOf: null });
+    assert.equal((await put.json()).version, 2);
+
+    const detail = await (await app.call(`/api/memberships/${membership}`, { cookie: gm.cookie })).json();
+    assert.equal(detail.approved, again);
+});
+
+test('a GM’s own Villain sent before the shortcut existed approves without being handed over', async () => {
+    // A snapshot already waiting from an older build: the approval must not mint a copy of a
+    // character the GM already holds and delete the original.
+    const { app, gm, membership } = await aGmsOwnCharacter();
+    app.db.raw.prepare(
+        "UPDATE campaign_members SET pending_payload = ?, pending_kind = 'villain', pending_at = 1, "
+        + 'pending_version = 1 WHERE id = ?').run(villainPayload(), membership);
+
     assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
 
+    const theirs = await gmRow(app, gm.cookie, membership);
+    assert.equal(theirs.handedOver, false);
+    assert.equal(theirs.hasApproved, true);
+
     const held = (await characters(app, gm.cookie)).characters;
-    assert.equal(held.length, 5, 'the copy arrived and the original went');
-    assert.ok(!held.some(c => c.id === cid()), 'the original id is gone');
+    assert.equal(held.length, 5, 'no copy minted');
+    assert.ok(held.some(c => c.id === cid()), 'the original is still there');
+});
+
+test('a GM whose own game is gone is told so, not asked for a Hero', async () => {
+    const { app, gm, membership } = await aGmsOwnCharacter();
+    assert.equal((await submit(app, gm.cookie, membership, { nemesisOf: null })).status, 200);
+    assert.equal((await app.call(`/api/campaigns/${gid()}`, { method: 'DELETE', cookie: gm.cookie })).status, 204);
+
+    const refused = await submit(app, gm.cookie, membership, { nemesisOf: null });
+    assert.equal(refused.status, 409);
+    assert.equal((await refused.json()).error, 'That campaign is no longer here, so nothing can be sent to it.');
 });
 
 test('a GM who is also the player is told the game is gone, not that their account is full', async () => {
     // The player's half of `getMembership` matches without the campaign, so this account reaches
-    // the refusal path for a game it deleted. Both decisions must say what is true.
-    const app = server();
-    const gm = await signIn(app, 'gm@example.test');
-    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
-    for (let i = 1; i <= 5; i++) assert.equal((await putCharacter(app, gm.cookie, cid(i))).status, 204);
-
-    const code = (await (await app.call('/api/campaigns', { cookie: gm.cookie })).json()).campaigns[0].joinCode;
-    const membership = (await (await app.call('/api/memberships/join', {
-        method: 'POST', body: { code, characterId: cid(), label: 'The Hollow Regent' }, cookie: gm.cookie,
-    })).json()).id;
-    await aHeroFor(app, gm.cookie, code, membership);
-    assert.equal((await submit(app, gm.cookie, membership)).status, 200);
+    // the decision's refusal path for a game it deleted. A snapshot waiting from an older build is
+    // the one way such a row still holds something to decide about.
+    const { app, gm, membership } = await aGmsOwnCharacter();
+    assert.equal((await putCharacter(app, gm.cookie, cid(5))).status, 409, 'the account is at its cap');
+    app.db.raw.prepare(
+        "UPDATE campaign_members SET pending_payload = ?, pending_kind = 'villain', pending_at = 1, "
+        + 'pending_version = 1 WHERE id = ?').run(villainPayload(), membership);
     assert.equal((await app.call(`/api/campaigns/${gid()}`, { method: 'DELETE', cookie: gm.cookie })).status, 204);
 
     for (const what of ['approve', 'reject']) {
