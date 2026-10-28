@@ -2769,6 +2769,8 @@ a Villain, which the settled rules call noise.
 **Left open, named rather than hidden:** a character that has never been saved is counted under a
 fallback key, and its first save gives it an id, so a count made before that save goes back to
 the opening figure. On `/sheet` a character has nearly always been saved already.
+And no test watches `/sheet/{id}` draw no counter while its read is out: under bUnit that read
+answers at once, so a counter keyed early would be gone before a test could see it.
 
 ## Completed work
 
