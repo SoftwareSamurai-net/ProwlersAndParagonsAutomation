@@ -278,6 +278,11 @@
                 <DerivedStatBlocks Class="quad" WithPoints="true" Explain="@Explain"
                                    Character="@Character" ShowBudget="@ShowBudget" />
 
+                @if (TrackResolveFor is { } resolveKey)
+                {
+                    <ResolveTracker @key="resolveKey" Sheet="@Sheet" CharacterKey="@resolveKey" />
+                }
+
                 <SheetSection Title="Origin" Class="fill">
                     @if (Sources.Count > 0)
                     {
@@ -476,6 +481,14 @@
     /// <em>that</em> one is a Villain has nothing to do with the palette this visitor is in.
     /// </summary>
     [Parameter] public bool? ShowBudget { get; set; }
+
+    /// <summary>
+    /// Which character's Resolve to count during play, under the four figures; null draws no
+    /// counter. Only <c>SheetPage</c> passes it, because every other surface that draws this
+    /// component — the review step, the editors' preview, a replay, the approval page — is not
+    /// somebody playing.
+    /// </summary>
+    [Parameter] public string? TrackResolveFor { get; set; }
 
     private CharacterSheet Sheet => Character ?? Session.Sheet;
 
