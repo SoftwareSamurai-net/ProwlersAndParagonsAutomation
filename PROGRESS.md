@@ -1800,26 +1800,7 @@ figures above count *how often a region changes*. A separate experiment on 2026-
 three-way merges in a throwaway clone and found that **two branches editing two different `###`
 items merge clean today** — even adjacent ones, even when one deletes its whole block. What
 conflicted there were two shared anchors: the triage preamble that used to name every open item in
-wrapped prose, so any two closures collided inside one bullet, and the `### 43. Spend and gain Resolve from the sheet
-
-**The owner's ask of 2026-10-28**: *"when a player is viewing their sheet, they can dynamically
-spend and gain resolve."* Pitched first; the owner's ruling on persistence replaced the pitch's
-recommendation: Resolve resets every issue, so every open of a sheet seeds the count from the
-engine's figure, and browser storage only survives an accidental refresh, expiring 24 hours after
-it was written. No issue is tracked, nothing goes to the account, and nothing goes on
-`CharacterSheet`, whose strict reader would make an older build refuse every sheet carrying a
-play-state field.
-
-**Built — see the pull request that carried it.** `ResolveTracker` under the four figures, drawn
-only by `SheetPage`, absent for a Villain and carrying `no-print`; `ResolveNow` stores one integer
-per character id with one write open at a time, latest count coalesced. The engine's figure is
-the opening pool, not a ceiling, so a count can go past it; the floor is 0. `ResolveTrackerTests`
-holds it.
-
-**Seen in passing, not changed:** the sheet's ruled Resolve box still prints the engine's figure on
-a Villain, which the settled rules call noise.
-
-## Completed work`
+wrapped prose, so any two closures collided inside one bullet, and the `## Completed work`
 boundary that every new item is appended at.
 
 **The preamble half is fixed** — it is now the one-line-per-item checklist above, so two closures
@@ -2765,6 +2746,29 @@ the same day, on the character roster too, drawn only where that list holds both
   went over the surfacing name in the same pass.
 
 **Built 2026-10-02 — see the pull request that carried it.** The Subject X-02 backdate ran the same day against the live database, after `0012` deployed: three statements chained by their own `WHERE`s, the shape `approveSubmission` uses, copying the approved sheet to the GM under a fresh id, stamping the membership handed over at its original approval time and keyed to Jetstream, and removing the player's copy.
+
+### 43. Spend and gain Resolve from the sheet
+
+**The owner's ask of 2026-10-28**: *"when a player is viewing their sheet, they can dynamically
+spend and gain resolve."* Pitched first; the owner's ruling on persistence replaced the pitch's
+recommendation: Resolve resets every issue, so every open of a sheet seeds the count from the
+engine's figure, and browser storage only survives an accidental refresh, expiring 24 hours after
+it was written. No issue is tracked, nothing goes to the account, and nothing goes on
+`CharacterSheet`, whose strict reader would make an older build refuse every sheet carrying a
+play-state field.
+
+**Built — see the pull request that carried it.** `ResolveTracker` under the four figures, drawn
+only by `SheetPage`, absent for a Villain and carrying `no-print`; `ResolveNow` stores one integer
+per character id with one write open at a time, latest count coalesced. The engine's figure is
+the opening pool, not a ceiling, so a count can go past it; the floor is 0. `ResolveTrackerTests`
+holds it.
+
+**Seen in passing, not changed:** the sheet's ruled Resolve box still prints the engine's figure on
+a Villain, which the settled rules call noise.
+
+**Left open, named rather than hidden:** a character that has never been saved is counted under a
+fallback key, and its first save gives it an id, so a count made before that save goes back to
+the opening figure. On `/sheet` a character has nearly always been saved already.
 
 ## Completed work
 
