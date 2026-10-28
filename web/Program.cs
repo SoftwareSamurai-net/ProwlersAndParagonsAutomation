@@ -84,6 +84,11 @@ builder.Services.AddScoped<RunningHead>();
 builder.Services.AddScoped<ReplayLoader>();
 builder.Services.AddScoped<Sliders>();
 
+// Resolve during play, held in this browser for a day. The clock is a service so a test can move
+// it past the expiry rather than wait a day for it.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<ResolveNow>();
+
 // The write-through that follows every edit. Registered rather than written out at the foot of
 // this file so that the bUnit context can resolve the same one the app runs — a mirror of three
 // lines is a mirror that drifts, and the ordering it enforces is exactly what a test has to be

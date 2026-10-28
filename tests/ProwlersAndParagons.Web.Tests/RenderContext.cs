@@ -55,7 +55,12 @@ public sealed class RenderContext : BunitContext
     /// gated route refuses or fails. There is no way to reach that state through the UI, and it
     /// is the state in which the replay pages have to say something true rather than guess.
     /// </param>
-    public RenderContext(bool recordingsUnavailable = false, bool storesForReal = false)
+    /// <param name="clock">
+    /// The time the app reads, for a test that has to move past an expiry rather than wait for it.
+    /// A parameter rather than a registration after the fact, because this constructor resolves
+    /// services and bUnit refuses a registration after the first resolution.
+    /// </param>
+    public RenderContext(bool recordingsUnavailable = false, bool storesForReal = false, TimeProvider? clock = null)
     {
         var rules     = RulesRepository.FromBasePath(RepoRoot());
         var costs     = new CostCalculator(rules);
@@ -154,6 +159,11 @@ public sealed class RenderContext : BunitContext
         // three above it: a row that could not resolve it would throw on every render, not only
         // on a test written about the guard.
         Services.AddScoped<Sliders>();
+
+        // Resolve during play — registered as Program.cs registers it, on the test's clock when it
+        // passed one.
+        Services.AddSingleton(clock ?? TimeProvider.System);
+        Services.AddScoped<ResolveNow>();
 
         // The mode switch and the sample loader both call into JS. Loose mode records the
         // calls and answers nothing, which is right here: what those calls do to the

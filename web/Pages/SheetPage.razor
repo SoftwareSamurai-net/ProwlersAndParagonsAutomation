@@ -86,7 +86,7 @@ else
 
        Keying on the id makes each address its own instance, so the component is created and
        disposed with the same answer to "is this the session's character" that it was born with. *@
-    <SheetView @key="Id" Character="_show" ShowBudget="_showBudget" />
+    <SheetView @key="Id" Character="_show" ShowBudget="_showBudget" TrackResolveFor="@ResolveKey" />
 
     @* Under the sheet rather than over it, so the first thing on the screen and the first thing
        on the paper are the same thing. `no-print` takes them off the page — the print block
@@ -269,6 +269,20 @@ else
         // would take.
         return string.Join(" · ", inGames.Select(m => Standings.Say(m.Standing)));
     }
+
+    /// <summary>
+    /// Which character the Resolve counter is remembered under, or null to draw none yet.
+    ///
+    /// <para>The route's id for a saved character, but only once it has been read — until then
+    /// <c>SheetView</c> is drawing the session's sheet, and a counter keyed to one character over
+    /// another's opening figure would say a wrong number with a straight face. The bare address
+    /// uses the session's held id, with the same fallback <see cref="DismissedFindings"/> keys an
+    /// unsaved character under.</para>
+    /// </summary>
+    private string? ResolveKey =>
+        string.IsNullOrWhiteSpace(Id) ? DismissedFindings.CharacterKey(Session)
+        : _show is null ? null
+        : Id;
 
     private Task Print() => Js.InvokeVoidAsync("print").AsTask();
 }

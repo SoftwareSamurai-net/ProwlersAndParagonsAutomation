@@ -1,0 +1,89 @@
+@inject CharacterSession Session
+@inject ResolveNow Store
+
+@* A Hero's Resolve during play: spend one, gain one, and go back to the figure the sheet opens
+   on. Drawn under the four figures on `/sheet` and nowhere else that shows a sheet — the review
+   step, the editors' preview, a replay and the approval page are not play.
+
+   **Screen only.** `no-print` keeps it off paper, where the ruled Resolve box above still prints
+   the engine's figure and a pen does this job. **Absent for a Villain**, who has no Resolve: the
+   GM spends Adversity, and a count here would be noise somebody might quote.
+
+   **No ceiling.** The engine's figure is where an issue opens, not a maximum — earning adds to
+   the pool (Ch.5 pp.83-84), so a Hero who opened on 4 and earned 2 legitimately holds 6. The
+   floor is 0; a Sacrifice point is spent the moment it is taken, so it never shows. *@
+@if (!Sheet.IsVillain)
+{
+    <section class="resolve-now no-print" aria-label="Resolve during play">
+        <div class="resolve-now-row">
+            <span class="resolve-now-label">Resolve now</span>
+            <button type="button" class="btn resolve-now-step" aria-label="Spend 1 Resolve"
+                    disabled="@(Now <= 0)" @onclick="Spend">−</button>
+            <output class="resolve-now-value" aria-live="polite">@Now</output>
+            <button type="button" class="btn resolve-now-step" aria-label="Gain 1 Resolve"
+                    @onclick="Gain">+</button>
+        </div>
+        <div class="resolve-now-row">
+            <span class="small muted resolve-now-opening">Starts each issue at @Opening.</span>
+            @if (_now is not null)
+            {
+                <button type="button" class="btn small resolve-now-reset" @onclick="Reset">Reset to @Opening</button>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    /// <summary>The character whose Resolve this is — the same sheet the figures above are read from.</summary>
+    [Parameter, EditorRequired] public CharacterSheet Sheet { get; set; } = null!;
+
+    /// <summary>Which character the count is remembered under: its stored id, or a fixed fallback for one with none.</summary>
+    [Parameter, EditorRequired] public string CharacterKey { get; set; } = "";
+
+    /// <summary>
+    /// The count the player has moved it to, or null for "at the opening figure" — which then
+    /// follows the engine, so an untouched tracker on a sheet being edited stays true to it.
+    /// </summary>
+    private int? _now;
+
+    /// <summary>Which character's stored count has been asked for, so a switch re-reads and a redraw does not.</summary>
+    private string? _loaded;
+
+    private int Opening => Session.Derived.CalculateResolve(Sheet);
+
+    private int Now => _now ?? Opening;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == CharacterKey) return;
+
+        var asked = CharacterKey;
+        _loaded = asked;
+        _now = null;
+
+        var stored = await Store.LoadAsync(asked);
+
+        // Another character arrived while this read was out, or the player clicked before it
+        // answered. Either way what is on screen now is newer than what storage held.
+        if (_loaded == asked && _now is null) _now = stored;
+    }
+
+    private Task Spend()
+    {
+        if (Now <= 0) return Task.CompletedTask;
+        _now = Now - 1;
+        return Store.SaveAsync(CharacterKey, _now.Value);
+    }
+
+    private Task Gain()
+    {
+        _now = Now + 1;
+        return Store.SaveAsync(CharacterKey, _now.Value);
+    }
+
+    private Task Reset()
+    {
+        _now = null;
+        return Store.ClearAsync(CharacterKey);
+    }
+}
