@@ -42,7 +42,9 @@ Two consequences come with it, both intended:
   sees it. `ATighterCapLowersTheResolveCeiling` pins both figures.
 - **It is noise on a Villain.** Only Heroes have Resolve (below), so on the NPC sheets that
   surfaced this the house cap is doing validation work and the Resolve half is a figure nobody
-  should quote. Both halves land; only one is visible per kind of character.
+  should quote as Resolve. Both halves land. The browser labels the figure **Adversity** on a
+  Villain's sheet (`web/Services/PoolName.cs`, the owner's flavour ruling of 2026-10-28); this
+  project and `sheets/` still never read the palette flag, so the exports say Resolve.
 
 **Read the cap through `EffectiveTraitCap` and nowhere else** — *every* surface that answers “what
 is this character built to”, and there is deliberately no number in that sentence. They are

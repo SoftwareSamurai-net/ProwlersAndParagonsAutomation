@@ -1036,8 +1036,10 @@ public sealed class FakeApi : HttpMessageHandler
          "decision":{{((DecisionOnTheWire ?? row.Decision) is not { } word ? "null" : Quote(word))}},
          "handedOver":{{Lower(row.HandedOver)}},
          "nemesisOf":{{(row.NemesisOf is { } key ? Quote(key) : "null")}},
+         "gmsOwn":{{Lower(row.GmAccount == row.PlayerAccount)}},
          {{(forGm
              ? $"\"pendingKind\":{(row.Pending is not null && row.PendingKind is { } kind ? Quote(kind) : "null")},"
+               + $"\"ownKind\":{(row.GmAccount == row.PlayerAccount && row.PendingKind is { } own ? Quote(own) : "null")},"
              : $"\"givenTo\":{(row.HandedOver && _campaigns.TryGetValue((row.GmAccount, row.CampaignId), out var game) ? Quote(game.Label) : "null")},")}}
          "playerKey":{{(forGm ? Quote($"pk_{row.CampaignId}:{row.PlayerAccount}") : "null")}}}
         """;
@@ -1170,7 +1172,7 @@ public sealed class FakeApi : HttpMessageHandler
         if (tail == "submission")
         {
             if (request.Method != HttpMethod.Put) return await Status(HttpStatusCode.MethodNotAllowed);
-            if (isGm) return await Status(HttpStatusCode.NotFound);
+            if (row.PlayerAccount != who.Key) return await Status(HttpStatusCode.NotFound);
 
             var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
             using var sent = JsonDocument.Parse(body);
@@ -1195,9 +1197,24 @@ public sealed class FakeApi : HttpMessageHandler
             var label = sent.RootElement.TryGetProperty("label", out var l)
                 ? l.GetString() ?? row.Label : row.Label;
 
+            var kind = SentString(sent.RootElement, "kind");
+
+            // The GM's own character in their own game goes straight in, as `applyOwnSnapshot`
+            // does: the campaign's copy at once, no key, nothing waiting, nothing handed over.
+            if (row.GmAccount == row.PlayerAccount)
+            {
+                _memberships[id] = row with
+                {
+                    Label = label, Approved = payload, ApprovedAt = ++_clock,
+                    Pending = null, PendingAt = null, PendingKind = kind, NemesisOf = null,
+                    Decision = "approved", PendingVersion = row.PendingVersion + 1,
+                };
+
+                return await Json($$"""{"version":{{_memberships[id].PendingVersion}}}""");
+            }
+
             // The key, as the real server takes it: a Villain needs one of the sender's own Heroes
             // in the same game, and a Hero's snapshot stores none whatever was sent.
-            var kind = SentString(sent.RootElement, "kind");
             var heroId = SentString(sent.RootElement, "nemesisOf");
             if (kind == "villain")
             {
@@ -1288,7 +1305,7 @@ public sealed class FakeApi : HttpMessageHandler
             // `approveSubmission`'s batch does: the GM's copy under a fresh id, the player's row
             // gone, the membership marked. A full account refuses the whole approval with the
             // limit attached, and nothing moves.
-            if (tail == "approve" && row.PendingKind == "villain")
+            if (tail == "approve" && row.PendingKind == "villain" && row.GmAccount != row.PlayerAccount)
             {
                 var held = _characters.Count(e => e.Key.Account == who.Key
                     && !(e.Key.Account == row.PlayerAccount && e.Key.Id == row.CharacterId));

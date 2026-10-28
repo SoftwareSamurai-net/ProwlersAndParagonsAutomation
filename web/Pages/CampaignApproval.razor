@@ -82,7 +82,7 @@ else
                                     <span class="nemesis-kicker">@NemesisKicker(one)</span>
                                 }
                                 <b class="nm">@one.Label</b>
-                                <span class="meta">@Standings.Say(one.Standing)</span>
+                                <span class="meta">@(one.GmsOwn ? OwnStanding(one) : Standings.Say(one.Standing))</span>
 
                                 @* **The same sentence one level out, where a GM reads first.**
                                    Opening the row has said this since the slice that added it —
@@ -131,7 +131,7 @@ else
                                         {
                                             <option value="">Nobody</option>
                                         }
-                                        @foreach (var hero in _waiting.Where(m => !m.IsNemesis))
+                                        @foreach (var hero in _waiting.Where(IsHeroSeat))
                                         {
                                             <option value="@hero.Id">@hero.Label</option>
                                         }
@@ -695,16 +695,18 @@ else
     ///
     /// <para><b>Everyone</b> is each Hero in the list's own order with its nemeses under it, then
     /// every nemesis whose Hero is not here — keyed to nobody, or to a Hero who has left — so no
-    /// row is ever dropped for having nowhere to sit. <b>Heroes</b> and <b>Villains</b> are each one
-    /// flat list.</para>
+    /// row is ever dropped for having nowhere to sit, then the GM's own Villains. A Hero the GM
+    /// plays sits among the Heroes and can be hunted like any other. <b>Heroes</b> and
+    /// <b>Villains</b> are each one flat list.</para>
     /// </summary>
     private IEnumerable<(MembershipSummary Row, bool Nested)> Arranged()
     {
-        var heroes = _waiting.Where(m => !m.IsNemesis).ToList();
+        var heroes = _waiting.Where(IsHeroSeat).ToList();
         var nemeses = _waiting.Where(m => m.IsNemesis).ToList();
+        var ownVillains = _waiting.Where(m => m.IsGmsOwnVillain).ToList();
 
         if (_show == Show.Heroes) return heroes.Select(m => (m, false));
-        if (_show == Show.Villains) return nemeses.Select(m => (m, false));
+        if (_show == Show.Villains) return nemeses.Concat(ownVillains).Select(m => (m, false));
 
         var placed = new HashSet<string>(StringComparer.Ordinal);
         var order = new List<(MembershipSummary, bool)>();
@@ -722,12 +724,30 @@ else
 
         order.AddRange(nemeses.Where(n => !placed.Contains(n.Id)).Select(n => (n, false)));
 
+        // **The GM's own Villains last, and under nobody** — a villain of the week or a boss is
+        // the GM's to run against the whole table, not one Hero's.
+        order.AddRange(ownVillains.Select(v => (v, false)));
+
         return order;
     }
 
+    /// <summary>
+    /// A row a nemesis can hunt: a player's Hero, or a Hero the GM plays — never a Villain, and the
+    /// GM's own Villain is one even though nobody handed it over.
+    /// </summary>
+    private static bool IsHeroSeat(MembershipSummary m) => !m.IsNemesis && !m.IsGmsOwnVillain;
+
+    /// <summary>
+    /// Where the GM's own character stands. Not "Approved": nobody approved it, it went in when
+    /// the GM sent it.
+    /// </summary>
+    private static string OwnStanding(MembershipSummary m) =>
+        (m.IsGmsOwnVillain ? "Your Villain" : "Yours")
+        + (m.HasApproved ? ", in the game" : ", not put in yet");
+
     /// <summary>The line over a nemesis's name: whose it is, or that it is keyed to nobody here.</summary>
     private string NemesisKicker(MembershipSummary foe) =>
-        _waiting.FirstOrDefault(m => m.Id == foe.NemesisOf && !m.IsNemesis) is { } hero
+        _waiting.FirstOrDefault(m => m.Id == foe.NemesisOf && IsHeroSeat(m)) is { } hero
             ? $"Nemesis of {hero.Label}"
             : "Nemesis of nobody in this game";
 

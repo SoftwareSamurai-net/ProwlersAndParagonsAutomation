@@ -139,6 +139,15 @@ public enum MembershipDecision
 /// The membership id of the Hero this Villain hunts, or null — on both sides' rows. A membership
 /// id, never a character id, because it is a row the server can check without reading a sheet.
 /// </param>
+/// <param name="GmsOwn">
+/// Whether this is the GM's own character in their own game — on both sides' rows. It goes in
+/// when it is sent, with no approval and no Hero to hunt, and it is never handed over: the owner's
+/// ruling of 2026-10-28, so a GM can seat a villain of the week, a boss or a Hero of their own.
+/// </param>
+/// <param name="OwnKind">
+/// What the GM's own character went in as, on the GM's row only, so the roster can sort it among
+/// Heroes or Villains without reading a sheet. Null on every other row.
+/// </param>
 public sealed record MembershipSummary(
     string Id,
     string CampaignId,
@@ -154,7 +163,9 @@ public sealed record MembershipSummary(
     bool HandedOver = false,
     string? GivenTo = null,
     string? PendingKind = null,
-    string? NemesisOf = null)
+    string? NemesisOf = null,
+    bool GmsOwn = false,
+    string? OwnKind = null)
 {
     /// <summary>
     /// Whether this row is a Villain on the GM's table: one handed over, or one waiting to be.
@@ -166,7 +177,11 @@ public sealed record MembershipSummary(
     /// Whether approving what is waiting would hand a Villain to the GM — read off the word the
     /// snapshot was sent with, which is the word the approval acts on.
     /// </summary>
-    public bool ApprovingHandsOver => HasPending && PendingKind == SavedCharacters.VillainKind;
+    public bool ApprovingHandsOver =>
+        HasPending && PendingKind == SavedCharacters.VillainKind && !GmsOwn;
+
+    /// <summary>Whether this is the GM's own Villain — a seat at the table, but nobody's nemesis.</summary>
+    public bool IsGmsOwnVillain => GmsOwn && OwnKind == SavedCharacters.VillainKind;
 
     /// <summary>
     /// Where this character stands. Read off the two slots rather than stored, because a third
@@ -363,7 +378,8 @@ public sealed class ApiMembershipStore
                     m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
                     m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion,
                     Decided(m.Decision), m.PlayerKey,
-                    HandedOver: m.HandedOver, PendingKind: m.PendingKind, NemesisOf: m.NemesisOf))];
+                    HandedOver: m.HandedOver, PendingKind: m.PendingKind, NemesisOf: m.NemesisOf,
+                    GmsOwn: m.GmsOwn, OwnKind: m.OwnKind))];
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }
@@ -384,7 +400,8 @@ public sealed class ApiMembershipStore
                     m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
                     m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion,
                     Decided(m.Decision),
-                    HandedOver: m.HandedOver, GivenTo: m.GivenTo, NemesisOf: m.NemesisOf))];
+                    HandedOver: m.HandedOver, GivenTo: m.GivenTo, NemesisOf: m.NemesisOf,
+                    GmsOwn: m.GmsOwn))];
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }
@@ -717,7 +734,8 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("decision")] string? Decision,
         [property: JsonPropertyName("handedOver")] bool HandedOver,
         [property: JsonPropertyName("nemesisOf")] string? NemesisOf,
-        [property: JsonPropertyName("givenTo")] string? GivenTo);
+        [property: JsonPropertyName("givenTo")] string? GivenTo,
+        [property: JsonPropertyName("gmsOwn")] bool GmsOwn);
 
     /// <summary>
     /// The GM's inbox list, which is <see cref="WiredList"/> plus <see cref="WiredGmRow.PlayerKey"/>
@@ -740,6 +758,8 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("pendingKind")] string? PendingKind,
         [property: JsonPropertyName("handedOver")] bool HandedOver,
         [property: JsonPropertyName("nemesisOf")] string? NemesisOf,
+        [property: JsonPropertyName("gmsOwn")] bool GmsOwn,
+        [property: JsonPropertyName("ownKind")] string? OwnKind,
         [property: JsonPropertyName("playerKey")] string? PlayerKey);
 
     private sealed record WiredDetail(

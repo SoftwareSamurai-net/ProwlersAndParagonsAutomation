@@ -95,22 +95,39 @@ public sealed class ResolveTrackerTests
     }
 
     /// <summary>
-    /// A Villain has no Resolve — the GM spends Adversity — so there is nothing to count.
-    /// The Hero render beside it is the positive control.
+    /// A Villain's sheet counts the same pool under the word Adversity — the owner's ask of
+    /// 2026-10-28 — on the counter and on the ruled box above it. The Hero render beside it is the
+    /// control: the same counter, still called Resolve.
     /// </summary>
     [Fact]
-    public void AVillainHasNoCounter()
+    public void AVillainCountsAdversity()
     {
         using (var hero = new RenderContext().With(SheetMode.Hero))
         {
-            Assert.Single(hero.Render<SheetPage>().FindAll(".resolve-now"));
+            var heroPage = hero.Render<SheetPage>();
+            Assert.Equal("Resolve now", heroPage.Find(".resolve-now-label").TextContent.Trim());
+            Assert.Single(heroPage.FindAll("button[aria-label='Spend 1 Resolve']"));
+            Assert.DoesNotContain("Adversity", heroPage.Find(".sheet").TextContent, StringComparison.Ordinal);
         }
 
         using var ctx = new RenderContext().With(SheetMode.Villain);
         var page = ctx.Render<SheetPage>();
+        var opening = Opening(ctx, ctx.Session.Sheet);
 
-        Assert.Single(page.FindAll(".sheet"));
-        Assert.Empty(page.FindAll(".resolve-now"));
+        Assert.Equal("Adversity now", page.Find(".resolve-now-label").TextContent.Trim());
+        Assert.Equal("Adversity during play", page.Find(".resolve-now").GetAttribute("aria-label"));
+        Assert.Equal(opening, Shown(page));
+
+        page.Find("button[aria-label='Gain 1 Adversity']").Click();
+        Assert.Equal(opening + 1, Shown(page));
+        page.Find("button[aria-label='Spend 1 Adversity']").Click();
+        Assert.Equal(opening, Shown(page));
+
+        // The ruled box above it carries the same word, and Resolve is nowhere a label on it.
+        var labels = page.FindAll(".sheet .stat-block .label .term-name").Select(l => l.TextContent.Trim()).ToList();
+        Assert.Contains("Edge", labels);
+        Assert.Contains("Adversity", labels);
+        Assert.DoesNotContain("Resolve", labels);
     }
 
     /// <summary>

@@ -383,8 +383,8 @@ that boring**. Nine addresses — eight under `/api/memberships`, one under
   one statement and removes the question.
 - **The membership id is the only id this server mints, bar one.** Every other one is the client's
   (`c_`, `g_`) so a PUT is idempotent. The exception is a handed-over Villain's copy on the GM's
-  account — see the section below — which takes a fresh `c_…` because the player's own id under a
-  GM who redeemed their own code would be the very row the handover removes. A membership is not created by a PUT to a known address — it is
+  account — see the section below — which takes a fresh `c_…` so it can never collide with the
+  player's own row. A membership is not created by a PUT to a known address — it is
   created by redeeming a code, at the one moment when the server is the only party that can see both
   accounts. Minting it here is also what keeps an account id off the wire: the GM approves `m_…` and
   is never told whose account is on the other side. `characterId` is answered to the player, who
@@ -499,6 +499,12 @@ their cap; the player keeps no sheet and sees only its name. The contract is
   same no-read-in-front shape as the cap. A character id would have needed the server to know which
   of a player's characters is a Hero, which is reading a sheet. Re-keying is the GM's alone and only
   once the Villain is theirs, to any non-nemesis row in the game.
+- **The GM's own character in the GM's own game skips all of it** — the owner's ruling of
+  2026-10-28, so a GM can seat a villain of the week or a Hero of their own without justifying it.
+  `db.applyOwnSnapshot` is tried first on every submission and matches only
+  `gm_user_id = player_user_id`; it writes the approved slot directly, keys nothing and hands
+  nothing over. `approveSubmission` carries the same clause so an older waiting snapshot of that
+  shape is never handed to the account that already holds it.
 
 ## An account has a name it can change
 

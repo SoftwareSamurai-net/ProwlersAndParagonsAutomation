@@ -13,9 +13,12 @@
     <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Sheet).ToString()"
                Formula="@(WithFormulas ? HealthRule : null)"
                LabelTerm="@(Explain ? HealthRule : null)" />
-    <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Sheet).ToString()"
-               Formula="@(WithFormulas ? ResolveRule : null)"
-               LabelTerm="@(Explain ? ResolveRule : null)" />
+    @* **A Villain's says Adversity** — the owner's ask of 2026-10-28, for flavour: the same
+       figure, under the name of the pool a Villain's side spends, so a villain campaign reads
+       right. The engine's word is unchanged; only the label follows the palette. *@
+    <StatBlock Label="@PoolName.For(Sheet)" Value="@Session.Derived.CalculateResolve(Sheet).ToString()"
+               Formula="@(WithFormulas ? PoolRule : null)"
+               LabelTerm="@(Explain ? PoolRule : null)" />
     @if (WithPoints)
     {
         @* The published sheet sets Hero Points beside the other three, and on paper that is
@@ -107,6 +110,13 @@
     private const string ResolveRule =
         "Trait Cap less the character's highest relevant rank, doubled. Determination adds 1 "
         + "for every 5 Hero Points spent on it, and each Condition or Plot Hook adds 1.";
+
+    private string PoolRule => Sheet.IsVillain ? AdversityRule : ResolveRule;
+
+    private const string AdversityRule =
+        "Worked out the way a Hero's Resolve is: Trait Cap less the character's highest relevant "
+        + "rank, doubled. Determination adds 1 for every 5 Hero Points spent on it, and each "
+        + "Condition or Plot Hook adds 1.";
 
     private bool Budgeted => ShowBudget ?? Session.ShowBudget;
 

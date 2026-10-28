@@ -2128,6 +2128,10 @@ works and nobody can reach.
     `.nemesis.nemesis-row`, so only the row is on the night ground and what it opens is not.
   - **The roster's "Given away" rows come from the memberships**, because the character's own row
     is gone from the account. They open nothing.
+  - **The GM's own character in their own game is read off `GmsOwn`**, never inferred from a
+    sheet: its button says *Put in the game* rather than *Send for approval*, no warning or Hero
+    question is drawn, and on the GM's roster `IsHeroSeat` keeps their own Villain out of the Hero
+    pairs — it sits last, under nobody, and in the Villains view by `OwnKind`.
   - **A tab still holding the Villain after the GM approves keeps it on screen** until it is next
     loaded, and every edit is refused by the server's 410 — said in `.save-status` through
     `WriteRefused`, `SaveOutcome.GivenAway`, so it is never a sheet that silently goes nowhere.
