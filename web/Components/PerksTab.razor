@@ -56,11 +56,42 @@
             </Field>
         }
 
-        @if (perk.NarrativeConstraint is not null)
+        @* **Each question its own box**, from `PerkQuestions` — the same list the terminal asks.
+           Patron's constraint is three questions and Contacts' is one per contact type bought, and
+           a single line invited a single answer to both. The answers are joined into the one line
+           of detail the sheet has always stored. *@
+        @if (perk.NarrativePerUnit && perk.NarrativeConstraint is { } heading)
         {
-            <Field For="pk-detail" Label="@perk.NarrativeConstraint">
-                <input id="pk-detail" type="text" class="wide" @bind="_detail" @bind:event="oninput" />
-            </Field>
+            <p class="small">@heading</p>
+        }
+
+        @for (var i = 0; i < Questions(perk).Count; i++)
+        {
+            var at = i;
+            var question = Questions(perk)[at];
+
+            @if (question.Choices is { } choices)
+            {
+                <fieldset class="perk-identity">
+                    <legend class="small">@question.Ask</legend>
+                    @foreach (var choice in choices)
+                    {
+                        <label class="small">
+                            <input type="radio" name="pk-identity" value="@choice"
+                                   checked="@(Answer(at) == choice)"
+                                   @onchange="() => SetAnswer(at, choice)" />
+                            @choice
+                        </label>
+                    }
+                </fieldset>
+            }
+            else
+            {
+                <Field For="@($"pk-detail-{at}")" Label="@question.Ask">
+                    <input id="@($"pk-detail-{at}")" type="text" class="wide"
+                           value="@Answer(at)" @oninput="e => SetAnswer(at, e.Value?.ToString())" />
+                </Field>
+            }
         }
 
         <div class="inline">
@@ -96,7 +127,23 @@ else
 
     private PerkModel? _pending;
     private int _units = 1;
-    private string _detail = "";
+
+    /// <summary>The answers so far, by question. Kept when the unit count moves, so raising it adds empty boxes rather than clearing filled ones.</summary>
+    private readonly List<string?> _answers = [];
+
+    private IReadOnlyList<PerkQuestion> Questions(PerkModel perk) =>
+        PerkQuestions.For(perk, perk.CostType == "per_unit" ? Math.Max(1, _units) : 1, Session.Sheet);
+
+    private string? Answer(int at) => at < _answers.Count ? _answers[at] : null;
+
+    private void SetAnswer(int at, string? value)
+    {
+        while (_answers.Count <= at) _answers.Add(null);
+        _answers[at] = value;
+    }
+
+    /// <summary>The one line the answers make, or null while any is missing.</summary>
+    private string? Detail(PerkModel perk) => PerkQuestions.Compose(Questions(perk), _answers);
 
     private List<PerkModel> Available =>
         Session.Rules.Perks
@@ -108,23 +155,23 @@ else
     {
         _pending = perk;
         _units   = 1;
-        _detail  = "";
+        _answers.Clear();
     }
 
     /// <summary>
-    /// A perk that states a narrative constraint needs an answer before it means anything
-    /// — "Contacts" with no contact type named is not a perk, it is a blank. The CLI
-    /// refuses an empty answer for the same reason.
+    /// A perk that asks something needs every answer before it means anything — "Contacts"
+    /// with no contact type named is not a perk, it is a blank, and two contact types with one
+    /// named is half of one. The CLI refuses an empty answer for the same reason.
     /// </summary>
     private bool CanAdd(PerkModel perk) =>
-        perk.NarrativeConstraint is null || !string.IsNullOrWhiteSpace(_detail);
+        Questions(perk).Count == 0 || Detail(perk) is not null;
 
     private void Add(PerkModel perk)
     {
         Session.Sheet.Perks.Add(new SelectedPerk(
             perk.Id,
             perk.CostType == "per_unit" ? Math.Max(1, _units) : 1,
-            string.IsNullOrWhiteSpace(_detail) ? null : _detail.Trim()));
+            Detail(perk)));
 
         _pending = null;
         Session.NotifyChanged();

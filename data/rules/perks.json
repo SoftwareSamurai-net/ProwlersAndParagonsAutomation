@@ -5,7 +5,7 @@
     "cost_type": "flat",
     "cost": 3,
     "description": "You have more authority, rights, or social power than the average person. This could include access to secret government installations, diplomatic immunity, top secret security clearance, authority to arrest and detain people, or just being a member of the nobility or ruling class.",
-    "narrative_constraint": null,
+    "narrative_constraint": "Say what authority you hold (a security clearance, diplomatic immunity, the right to arrest, a title).",
     "needs_review": false
   },
   {
@@ -16,6 +16,7 @@
     "unit_label": "contact type",
     "description": "You know people who can provide you with information and the occasional favor. Each Hero Point spent gives you one type of contact. Common types include: academic, business, criminal, legal, media, military, police, political, and scientific.",
     "narrative_constraint": "Name each type of contact you are purchasing.",
+    "narrative_per_unit": true,
     "needs_review": false
   },
   {
@@ -25,6 +26,7 @@
     "cost": 3,
     "description": "You are famous. People who recognize you generally react favorably, and some will fall all over themselves trying to get your attention, an autograph, or a selfie with you. If you have a secret identity, you must decide whether this Perk applies to your civilian identity or your heroic alter ego.",
     "narrative_constraint": null,
+    "identity_choice": true,
     "needs_review": false
   },
   {
@@ -62,6 +64,11 @@
     "cost": 3,
     "description": "You are connected to a person, group, or organization that provides you with information, equipment, funding, and support for your heroic activities. Common patrons include government organizations, rebel groups, and wealthy humanitarians who just love adopting teenagers with superpowers.",
     "narrative_constraint": "Describe your patron (who they are, what they provide, and what they expect in return).",
+    "narrative_prompts": [
+      { "label": "Who", "ask": "Who is your patron?" },
+      { "label": "Provides", "ask": "What do they provide you with?" },
+      { "label": "Expects", "ask": "What do they expect in return?" }
+    ],
     "needs_review": false
   },
   {
@@ -81,6 +88,7 @@
     "cost": 3,
     "description": "You have a reputation that works to your benefit — authority, credibility, or respect in a particular arena. For example, in your civilian life, you might be an attorney known to be an absolute terror in the courtroom. If you have a secret identity, you must decide whether this Perk applies to your civilian identity or your heroic alter ego.",
     "narrative_constraint": "Describe the specific arena in which you have a reputation.",
+    "identity_choice": true,
     "needs_review": false
   },
   {
