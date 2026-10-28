@@ -72,6 +72,13 @@ public sealed class ResolveTrackerTests
     {
         using var ctx = new RenderContext();
         Open(ctx, "standard");
+
+        // Saved once before the page opens, so the edit below does not give the character its
+        // first id. That first save moves the key the count is held under, which re-creates the
+        // counter — and a fresh counter follows the engine whether or not a live one would.
+        ctx.Session.NotifyChanged();
+        var key = DismissedFindings.CharacterKey(ctx.Session);
+
         var page = ctx.Render<SheetPage>();
         var before = Shown(page);
 
@@ -83,6 +90,7 @@ public sealed class ResolveTrackerTests
 
         var after = Opening(ctx, ctx.Session.Sheet);
         Assert.NotEqual(before, after);
+        Assert.Equal(key, DismissedFindings.CharacterKey(ctx.Session));
         page.WaitForAssertion(() => Assert.Equal(after, Shown(page)));
     }
 
