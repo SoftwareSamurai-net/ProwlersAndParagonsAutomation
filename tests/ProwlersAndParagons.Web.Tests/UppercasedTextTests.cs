@@ -167,6 +167,10 @@ public sealed class UppercasedTextTests
             ctx.Render<Review>(),
             ctx.Render<Characteristics>(),
             ctx.Render<SheetView>(),
+
+            // The sheet as a document, which is the only host that draws the Resolve counter and
+            // its capitalised label — `SheetView` above is rendered without one.
+            ctx.Render<SheetPage>(),
             ctx.Render<HpBudgetBar>(),
             ctx.Render<StepNav>(),
 

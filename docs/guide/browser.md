@@ -515,6 +515,13 @@ have inherited all three by construction, which is the whole reason this is not 
   reads as their character having been renamed.
 - **The two controls sit under the sheet** and carry `no-print`, so the first thing on the screen
   and the first thing on the paper are the same thing.
+- **A Hero's Resolve is counted here during play, and nowhere else that draws a sheet.** `SheetPage`
+  passes `TrackResolveFor` and no other host does, so the review step, the preview, a replay and the
+  approval page draw no counter. The engine's figure is where an issue *opens*, not a ceiling —
+  earning adds to the pool — so the count has a floor of 0 and no top. It is held by `ResolveNow` in
+  this browser for 24 hours, keyed by character id, and never on `CharacterSheet`: the owner ruled
+  that a count which resets every issue is not worth more persistence than surviving a refresh.
+  Absent for a Villain, and `no-print`, so the ruled box above still prints the opening figure.
 - **A route with nothing linking to it is a feature nobody can reach**, and
   `EveryRoutedPageIsReachableFromAnotherPage` is what says so — it caught this page before it
   shipped. The links are in the character manager: the open character's block, and `sheet/{id}` on
