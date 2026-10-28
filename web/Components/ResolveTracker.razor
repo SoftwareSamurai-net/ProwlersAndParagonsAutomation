@@ -19,7 +19,7 @@
             <span class="resolve-now-label">Resolve now</span>
             <button type="button" class="btn resolve-now-step" aria-label="Spend 1 Resolve"
                     disabled="@(Now <= 0)" @onclick="Spend">−</button>
-            <output class="resolve-now-value" aria-live="polite">@Now</output>
+            <output class="resolve-now-value @Standing" aria-live="polite">@Now</output>
             <button type="button" class="btn resolve-now-step" aria-label="Gain 1 Resolve"
                     @onclick="Gain">+</button>
         </div>
@@ -52,6 +52,13 @@
     private int Opening => Session.Derived.CalculateResolve(Sheet);
 
     private int Now => _now ?? Opening;
+
+    /// <summary>
+    /// Whether the count sits above or below where the issue opened, for its colour — the owner's
+    /// ask, so a glance says "earned some" or "spent some". Colour is not the only cue: the opening
+    /// figure is printed beside it.
+    /// </summary>
+    private string Standing => Now > Opening ? "above" : Now < Opening ? "below" : "";
 
     protected override async Task OnParametersSetAsync()
     {

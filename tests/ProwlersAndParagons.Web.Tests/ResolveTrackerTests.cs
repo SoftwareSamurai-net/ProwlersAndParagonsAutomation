@@ -164,6 +164,55 @@ public sealed class ResolveTrackerTests
         Assert.Equal(opening + 2, Shown(page));
     }
 
+    /// <summary>
+    /// The count is marked below the opening figure once something is spent and above it once
+    /// something is earned past it, and unmarked at the opening figure itself.
+    /// </summary>
+    [Fact]
+    public void TheCountIsMarkedAboveAndBelowTheOpeningFigure()
+    {
+        using var ctx = new RenderContext();
+        Open(ctx);
+        var page = ctx.Render<SheetPage>();
+        IReadOnlyList<string> Marks() =>
+            page.Find(".resolve-now-value").ClassList.Where(c => c is "above" or "below").ToList();
+
+        Assert.Empty(Marks());
+
+        Spend(page);
+        Assert.Equal(["below"], Marks());
+
+        Gain(page);
+        Assert.Empty(Marks());
+
+        Gain(page);
+        Assert.Equal(["above"], Marks());
+    }
+
+    /// <summary>
+    /// The two marks are coloured from the palette, each its own ink: the heading ink above, the
+    /// danger ink below. Read from the shipped stylesheet, since a render cannot see a colour.
+    /// </summary>
+    [Theory]
+    [InlineData("above", "--heading")]
+    [InlineData("below", "--danger")]
+    public void EachMarkHasItsOwnInk(string mark, string token)
+    {
+        var css = File.ReadAllText(Path.Combine(RepoRoot(), "web", "wwwroot", "css", "app.css"));
+        var rule = System.Text.RegularExpressions.Regex.Match(
+            css, $@"\.resolve-now-value\.{mark}\s*\{{([^}}]*)\}}");
+
+        Assert.True(rule.Success, $".resolve-now-value.{mark} has no rule in app.css");
+        Assert.Matches($@"(^|;)\s*color:\s*var\({token}\)\s*;", rule.Groups[1].Value);
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && dir.GetFiles("*.sln").Length == 0) dir = dir.Parent;
+        return dir?.FullName ?? throw new InvalidOperationException("no .sln above the test binaries");
+    }
+
     /// <summary>The floor is 0: spending stops there, and the button says so by being disabled.</summary>
     [Fact]
     public void SpendingStopsAtZero()

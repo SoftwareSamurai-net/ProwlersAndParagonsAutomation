@@ -2529,6 +2529,10 @@ label {
     font-variant-numeric: tabular-nums;
     text-align: center;
 }
+/* Above the opening figure in the heading ink, below it in the danger ink — both measured on
+   --panel, which is this box's ground, in EveryScreenPairInUseHoldsItsContrastFloor. */
+.resolve-now-value.above { color: var(--heading); }
+.resolve-now-value.below { color: var(--danger); }
 .resolve-now-opening { flex: 1 1 auto; }
 
 .stat-table { width: 100%; border-collapse: collapse; }
