@@ -114,6 +114,23 @@ else
                                 <p class="small muted">
                                     Deleting leaves every character naming it, and says so on their sheet.
                                 </p>
+
+                                @* **The GM's own characters join by the same code** and go straight
+                                   in when put in — no approval and nobody's nemesis. Said here
+                                   because this is where a GM is looking for how to add them. *@
+                                @if (one.JoinCode is not null)
+                                {
+                                    <p class="others-head">Your own characters</p>
+                                    <p class="small muted">
+                                        Villains of the week, a boss, or a Hero you play: join them
+                                        with this code below. They go straight in, with no approval,
+                                        and are nobody's nemesis.
+                                    </p>
+                                    <div class="inline">
+                                        <button type="button" class="btn small"
+                                                @onclick="() => _code = one.Spoken ?? one.JoinCode">Use this code below</button>
+                                    </div>
+                                }
                             </div>
                         }
                     </li>
@@ -432,7 +449,7 @@ else
                         <div class="campaign-row">
                             <span class="who">
                                 <b class="nm">@one.Label</b>
-                                <span class="meta">@Standings.Say(one.Standing)</span>
+                                <span class="meta">@(one.GmsOwn ? OwnStanding(one) : Standings.Say(one.Standing))</span>
 
                                 @* **The list level said "Approved" over a game holding nothing.**
                                    Opening the row says so and always has; a reader arrives at the
@@ -454,7 +471,7 @@ else
                                 @if (_confirmingHandover != one.Id)
                                 {
                                     <button type="button" class="btn small" @onclick="() => Submit(one)">
-                                        Send for approval
+                                        @SendLabel(one)
                                     </button>
                                 }
                             }
@@ -696,6 +713,21 @@ else
         _playing?.Where(m => m.CampaignId == villain.CampaignId && m.Id != villain.Id && !m.HandedOver
                 && _characters.FirstOrDefault(c => c.Id == m.CharacterId)?.Kind != SavedCharacters.VillainKind)
             .ToList() ?? [];
+
+    /// <summary>
+    /// What the row's send button says. The GM's own character in their own game is put in rather
+    /// than sent for approval, because there is nobody else to approve it.
+    /// </summary>
+    private static string SendLabel(MembershipSummary one) =>
+        !one.GmsOwn ? "Send for approval"
+        : one.HasApproved ? "Update the game's copy"
+        : "Put in the game";
+
+    /// <summary>
+    /// Where the GM's own character stands in their own game. Not "Approved": nobody approved it.
+    /// </summary>
+    private static string OwnStanding(MembershipSummary one) =>
+        one.HasApproved ? "In your game" : "Not put in yet";
 
     /// <summary>What the Hero a nemesis hunts is called, or null where it is not one of these rows.</summary>
     private string? HeroLabel(string? membershipId) =>
@@ -2028,7 +2060,7 @@ else
         // because that sheet's mode is the word the server will act on — the stored copy can be a
         // Villain while the session is empty, and the other way round. The first press stops here
         // and draws the warning; the warning's own button comes back with the confirmation.
-        if (sending.Value.Mode == SheetMode.Villain && !handOverConfirmed)
+        if (sending.Value.Mode == SheetMode.Villain && !handOverConfirmed && !one.GmsOwn)
         {
             _sentAbout = null;
             _confirmingHandover = one.Id;
@@ -2037,6 +2069,18 @@ else
         }
 
         _confirmingHandover = null;
+
+        // **The GM's own character in their own game goes straight in** — no approval, no Hero to
+        // hunt and no handover (the owner's ruling of 2026-10-28), so it is told so in those words.
+        if (one.GmsOwn)
+        {
+            _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode) is null
+                ? "That could not be put in just now. Try again in a moment."
+                : $"{SavedCharacters.LabelFor(sending.Value.Sheet)} is in the game. Your own copy is unchanged.{PutBack()}";
+
+            await Refresh();
+            return;
+        }
 
         _sent = await Memberships.SubmitAsync(one.Id, sending.Value.Sheet, sending.Value.Mode, _nemesisOf) is null
             ? "That could not be sent just now. Try again in a moment."
