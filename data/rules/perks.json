@@ -36,6 +36,13 @@
     "cost": 6,
     "description": "You believe you are a character in a comic book (and you might be right). You often break the fourth wall to interact directly with the audience. Any time you break the fourth wall and crack a joke that gets everyone at the table laughing, you earn 1 point of Resolve. You can only do this once per scene. Best reserved for comedic or lighthearted games.",
     "narrative_constraint": null,
+    "resolve_limit": {
+      "direction": "earn",
+      "points": 1,
+      "occasion": "any time you break the fourth wall and crack a joke that gets everyone at the table laughing",
+      "once_per": "scene",
+      "page": 54
+    },
     "needs_review": false
   },
   {
@@ -126,6 +133,13 @@
     "cost": 6,
     "description": "You are one of the wealthiest people in the world. At this level, money is almost meaningless. Not only can you buy whatever you want, but you can spend 1 point of Resolve once per issue to make a truly absurd purchase — like buying an island or a major corporation. GMs may want to restrict Great Wealth, as characters with this much money can spend their way around most problems.",
     "narrative_constraint": null,
+    "resolve_limit": {
+      "direction": "spend",
+      "points": 1,
+      "occasion": "to make a truly absurd purchase",
+      "once_per": "issue",
+      "page": 55
+    },
     "needs_review": false
   }
 ]

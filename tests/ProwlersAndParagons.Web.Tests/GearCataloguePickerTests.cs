@@ -178,4 +178,34 @@ public sealed class GearCataloguePickerTests
 
         Assert.Empty(ctx.Session.Sheet.SelectedPowers);
     }
+
+    // ── The Perks the GM weighs ──────────────────────────────────────────────
+
+    private static List<string> PerkNotes(IRenderedComponent<Gear> page) =>
+        page.FindAll(".gear-perk-note").Select(n => n.TextContent.Trim()).ToList();
+
+    /// <summary>
+    /// <b>The step says p.91's Perks at the top and p.92's beside a feature being chosen</b>, and
+    /// names those this character holds. The page is the control for the panel: one note before
+    /// anything is customised, two once something is.
+    /// </summary>
+    [Fact]
+    public void TheGearStepNamesThePerksTheGmWeighs()
+    {
+        using var ctx = Ctx();
+        ctx.Session.Sheet.Perks.Add(new SelectedPerk("resources"));
+        ctx.Session.Sheet.Gear.Add(new SelectedGear("Jo Sticks"));
+
+        var page = ctx.Render<Gear>();
+        var top = Assert.Single(PerkNotes(page));
+        Assert.Contains("Contacts, Patron, Resources and Wealth", top, StringComparison.Ordinal);
+        Assert.EndsWith("(p.91). This character has Resources.", top, StringComparison.Ordinal);
+
+        page.FindAll("button").First(b => b.TextContent.Contains("Customise", StringComparison.Ordinal)).Click();
+
+        var notes = PerkNotes(page);
+        Assert.Equal(2, notes.Count);
+        Assert.Contains("Patron, Resources or Wealth", notes[1], StringComparison.Ordinal);
+        Assert.EndsWith("(p.92). This character has Resources.", notes[1], StringComparison.Ordinal);
+    }
 }

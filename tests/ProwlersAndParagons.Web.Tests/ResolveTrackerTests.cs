@@ -427,4 +427,46 @@ public sealed class ResolveTrackerTests
 
         Assert.Equal(5, await store.LoadAsync("c_A"));
     }
+
+    // ── Perks that limit it ──────────────────────────────────────────────────────────
+
+    private static List<string> Limits(IRenderedComponent<SheetPage> page) =>
+        page.FindAll(".resolve-now .resolve-now-limit").Select(l => l.TextContent.Trim()).ToList();
+
+    /// <summary>
+    /// Fourth Wall and Great Wealth each say their limit under the counter, in their entry's words
+    /// and with its page. The control is the same character before either is bought, and Wealth —
+    /// a Perk with no limit — which is held throughout and says nothing.
+    /// </summary>
+    [Fact]
+    public void APerkThatLimitsResolveSaysSoUnderTheCounter()
+    {
+        using var ctx = new RenderContext();
+        Open(ctx);
+        ctx.Session.Sheet.Perks.Add(new SelectedPerk("wealth"));
+
+        Assert.Empty(Limits(ctx.Render<SheetPage>()));
+
+        ctx.Session.Sheet.Perks.Add(new SelectedPerk("fourth_wall"));
+        ctx.Session.Sheet.Perks.Add(new SelectedPerk("great_wealth"));
+        var limits = Limits(ctx.Render<SheetPage>());
+
+        Assert.Equal(
+        [
+            "Fourth Wall: earn 1 Resolve any time you break the fourth wall and crack a joke that gets everyone at the table laughing, once per scene (p.54)",
+            "Great Wealth: spend 1 Resolve to make a truly absurd purchase, once per issue (p.55)",
+        ], limits);
+    }
+
+    /// <summary>On a Villain's sheet the limit names the pool the counter names.</summary>
+    [Fact]
+    public void AVillainsLimitIsInAdversity()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Villain);
+        ctx.Session.Sheet.Perks.Add(new SelectedPerk("great_wealth"));
+
+        var limit = Assert.Single(Limits(ctx.Render<SheetPage>()));
+
+        Assert.StartsWith("Great Wealth: spend 1 Adversity ", limit, StringComparison.Ordinal);
+    }
 }

@@ -2534,6 +2534,7 @@ label {
 .resolve-now-value.above { color: var(--heading); }
 .resolve-now-value.below { color: var(--danger); }
 .resolve-now-opening { flex: 1 1 auto; }
+.resolve-now-limit { margin: 0; }
 
 .stat-table { width: 100%; border-collapse: collapse; }
 .stat-table td { padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--rule); }

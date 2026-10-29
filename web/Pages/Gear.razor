@@ -10,6 +10,10 @@
     Mundane gear is free and untracked (Ch.6) — armour and weapons included. Signature
     equipment is a Power with the Item Con, on the Powers tab.
 </p>
+@if (MundaneNote is { } mundane)
+{
+    <p class="muted gear-perk-note">@mundane</p>
+}
 
 <Panel Title="Carried" Cost="@($"{Session.Costs.TotalGearCost(Session.Sheet)} HP")">
     @if (Session.Sheet.Gear.Count == 0)
@@ -77,6 +81,10 @@
         <p class="small muted">
             Gear floors at <b>0</b>, not 1. The Item Con is not credited.
         </p>
+        @if (CustomFeatureNote is { } gated)
+        {
+            <p class="small muted gear-perk-note">@gated</p>
+        }
 
         <Field Label="Custom features (Ch.6, p.93)">
             @if (target.Features.Count > 0)
@@ -137,6 +145,12 @@
 @code {
     /// <summary>Read fresh on every render — see <c>Review.razor</c>'s own <c>Validation</c>.</summary>
     private ValidationResult Validation => Session.Validate();
+
+    /// <summary>p.91's Perks the GM weighs for mundane gear, and which of them this character holds.</summary>
+    private string? MundaneNote => GearPerkNotes.MundaneGear(Session.Rules, Session.Sheet);
+
+    /// <summary>p.92's Perks the GM may ask for before a custom feature, likewise.</summary>
+    private string? CustomFeatureNote => GearPerkNotes.CustomFeatures(Session.Rules, Session.Sheet);
 
     private string _newItem = "";
     private SelectedGear? _editing;

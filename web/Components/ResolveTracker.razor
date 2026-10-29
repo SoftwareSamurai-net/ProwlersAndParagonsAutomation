@@ -29,6 +29,13 @@
             <button type="button" class="btn small resolve-now-reset" @onclick="Reset">Reset to @Opening</button>
         }
     </div>
+    @* A Perk whose entry limits how often it earns or spends the pool says so here, in the entry's
+       words — Fourth Wall once per scene, Great Wealth once per issue. Said, never enforced: the
+       counter does not know what a scene is, and the table does. *@
+    @foreach (var (name, limit) in Limits)
+    {
+        <p class="small resolve-now-limit"><b>@name</b>@($": {LimitWords(limit)} (p.{limit.Page})")</p>
+    }
 </section>
 
 @code {
@@ -53,6 +60,18 @@
     private string Pool => PoolName.For(Sheet);
 
     private int Now => _now ?? Opening;
+
+    /// <summary>Each Perk this character holds whose entry limits its Resolve, once each, in sheet order.</summary>
+    private IEnumerable<(string Name, PerkResolveLimit Limit)> Limits =>
+        Sheet.Perks
+            .Select(p => p.PerkId).Distinct(StringComparer.Ordinal)
+            .Select(Session.Rules.GetPerk)
+            .Where(p => p?.ResolveLimit is not null)
+            .Select(p => (p!.Name, p.ResolveLimit!));
+
+    /// <summary>"earn 1 Adversity any time you … once per scene", under the pool's own word.</summary>
+    private string LimitWords(PerkResolveLimit limit) =>
+        $"{limit.Direction} {limit.Points} {Pool} {limit.Occasion}, once per {limit.OncePer}";
 
     /// <summary>
     /// Whether the count sits above or below where the issue opened, for its colour — the owner's

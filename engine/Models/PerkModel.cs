@@ -40,7 +40,33 @@ public record PerkModel
     /// </summary>
     public bool IdentityChoice { get; init; }
 
+    /// <summary>
+    /// The entry's own limit on earning or spending Resolve through this Perk — Fourth Wall's once
+    /// per scene, Great Wealth's once per issue. Null on every Perk whose text sets none. Words for
+    /// the sheet beside the Resolve counter, never enforced.
+    /// </summary>
+    public PerkResolveLimit? ResolveLimit { get; init; }
+
     public bool NeedsReview { get; init; }
+}
+
+/// <summary>How often a Perk lets its holder earn or spend Resolve, in the entry's own terms.</summary>
+public sealed record PerkResolveLimit
+{
+    /// <summary><c>earn</c> or <c>spend</c>.</summary>
+    public string Direction { get; init; } = "";
+
+    /// <summary>How many points each time — 1 on both entries that set a limit.</summary>
+    public int Points { get; init; }
+
+    /// <summary>When it applies, quoted from the entry: "to make a truly absurd purchase".</summary>
+    public string Occasion { get; init; } = "";
+
+    /// <summary><c>scene</c> or <c>issue</c>.</summary>
+    public string OncePer { get; init; } = "";
+
+    /// <summary>The page the Perk is printed on, in Ch.2.</summary>
+    public int Page { get; init; }
 }
 
 /// <summary>One of a Perk's separate questions: the short label it prints under, and the question.</summary>
