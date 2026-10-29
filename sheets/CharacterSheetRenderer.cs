@@ -68,7 +68,7 @@ public static class CharacterSheetRenderer
         WriteFlaws(sb, sheet, rules);
         WriteGear(sb, sheet, rules, costs);
         WriteAssets(sb, sheet, rules, costs);
-        WriteDerived(sb, sheet, derived);
+        WriteDerived(sb, sheet, rules, derived);
         WriteNarrative(sb, sheet);
         WriteValidation(sb, validation, generatedAt);
         return sb.ToString();
@@ -372,12 +372,22 @@ public static class CharacterSheetRenderer
         sb.AppendLine();
     }
 
-    private static void WriteDerived(StringBuilder sb, CharacterSheet sheet, DerivedStatsCalculator derived)
+    private static void WriteDerived(
+        StringBuilder sb, CharacterSheet sheet, RulesRepository rules, DerivedStatsCalculator derived)
     {
         sb.AppendLine("─── DERIVED STATS ──────────────────────────────────────────");
         sb.AppendLine($"  Edge:    {derived.CalculateEdge(sheet)}");
         sb.AppendLine($"  Health:  {derived.CalculateHealth(sheet)}");
-        sb.AppendLine($"  Resolve: {derived.CalculateResolve(sheet)}");
+
+        // **A Resolve that depends on another character says so on paper** — the owner's ask of
+        // 2026-10-29. This file has one sheet, so it cannot count a companion in; it can see the
+        // Perk that makes the figure conditional, and the link that makes it borrowed.
+        sb.AppendLine(CompanionResolveNote(sheet, rules) switch
+        {
+            { Borrowed: true } note => $"  Resolve: none — {note.Text}",
+            { } note                => $"  Resolve: {derived.CalculateResolve(sheet)}* ({note.Text})",
+            null                    => $"  Resolve: {derived.CalculateResolve(sheet)}"
+        });
 
         // **Only when a suit is being worn**, because a line reading "Armor: —" on every sheet in
         // the game would be a stat nobody has. It is derived and not bought: p.88 hands the Power
@@ -736,6 +746,10 @@ public static class CharacterSheetRenderer
                 ["health"]  = derived.CalculateHealth(sheet),
                 ["resolve"] = derived.CalculateResolve(sheet),
 
+                // Null unless the figure above is not the whole answer: an owner's Resolve moves
+                // with a companion this file cannot see, and a companion spends its owner's.
+                ["resolve_note"] = CompanionResolveNote(sheet, rules)?.Text,
+
                 // Resolve's twin: computed for anybody, quoted for a Hero. Written whether or not
                 // it is greater than zero, unlike the text sheet's line, because a machine reader
                 // wants a field rather than a silence — the same reason armor_from_gear is a key
@@ -841,4 +855,19 @@ public static class CharacterSheetRenderer
     /// <inheritdoc cref="Priceable(OwnedVehicle, CostCalculator)"/>
     private static bool Priceable(OwnedHeadquarters headquarters, CostCalculator costs) =>
         AssetFormatter.Reachable(() => costs.BasePointsSpent(headquarters)) is not null;
+
+    /// <summary>
+    /// Why a Resolve figure on one sheet is not the whole answer under Pet/Sidekick (Ch.2 p.55),
+    /// or null where it is. A companion borrows its owner's; an owner's moves with a companion's
+    /// higher Traits and its Flaws.
+    /// </summary>
+    private static (bool Borrowed, string Text)? CompanionResolveNote(CharacterSheet sheet, RulesRepository rules)
+    {
+        if (Companions.IsCompanion(sheet))
+            return (true, "a companion spends its owner's Resolve (p.55)");
+
+        return Companions.BuysACompanion(sheet, rules)
+            ? (false, "* without its companion: a companion's higher Traits lower this and its Flaws raise it (p.55)")
+            : null;
+    }
 }

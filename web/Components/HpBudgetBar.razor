@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject CharacterSession Session
+@inject Companionship Companions
 @inject Motion Motion
 
 @* The Hero Point budget, straight from CostCalculator — nothing here adds anything up.
@@ -25,9 +26,15 @@
    lost the one panel that says where the points went. No cap, no rail, no remaining figure. *@
 @if (Session.Sheet.SelectedTierId is not null)
 {
-    var budget   = Session.Budget;
+    @* **A companion's budget is its owner's Pet/Sidekick, not its tier's** (Ch.2 p.55): the
+       engine matches it to one purchase and this draws that figure. Until the owner has been
+       read, or where no purchase pays for it, there is no figure to measure against, so the strip
+       is a running total and says why. *@
+    var companion = CompanionRoster.IsCompanion(Session.Sheet);
+    var family   = Companions.Current;
+    var budget   = companion ? family?.Budget ?? 0 : Session.Budget;
     var spent    = CharacterSession.TryCost(() => Session.Spent);
-    var budgeted = Session.ShowBudget;
+    var budgeted = companion ? family?.Budget is not null : Session.ShowBudget;
 
     <section class="budget" aria-label="@(budgeted ? "Hero Point budget" : "Hero Points spent")">
         @if (spent is null)
@@ -80,6 +87,11 @@
                 else
                 {
                     <span class="budget-left num">@remaining left</span>
+                }
+
+                @if (companion)
+                {
+                    <span class="budget-source small muted">@Source(family)</span>
                 }
 
                 <span class="spacer"></span>
@@ -205,7 +217,21 @@
         return _overAnnouncement;
     }
 
-    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += StateHasChanged;
+        Companions.Changed += Redraw;
+        await Companions.EnsureAsync();
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    /// <summary>Where a companion's budget comes from, in the owner's name, or why there is none.</summary>
+    private static string Source(CompanionView? family) =>
+        family is null ? "budget set by its owner's Pet/Sidekick"
+        : family.Budget is not null ? $"from {family.OwnerName}'s Pet/Sidekick"
+        : family.Family.Owner is null ? $"{family.OwnerName} can't be read, so the budget is unknown"
+        : $"no Pet/Sidekick of {family.OwnerName}'s is left to pay for this companion";
 
     /// <summary>
     /// The element holding the spent figure, so it can be counted to its new value.
@@ -292,5 +318,9 @@
             ? 0
             : Math.Clamp(value.Value * 100 / total.Value, 0, 100);
 
-    public void Dispose() => Session.Changed -= StateHasChanged;
+    public void Dispose()
+    {
+        Session.Changed -= StateHasChanged;
+        Companions.Changed -= Redraw;
+    }
 }

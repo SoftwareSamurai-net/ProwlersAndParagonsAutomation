@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject CharacterSession Session
 @inject AccountCampaignStore Campaigns
+@inject Companionship Companions
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
 
@@ -44,6 +45,22 @@
    whole app a reader is meant to compare against each other rather than search through,
    which is why this list alone turns its filter box off — and why each card carries its
    consequence, the budget and the cap, as a line of its own under the description. *@
+@* **A companion takes its owner's tier rather than choosing one** (Ch.2 p.55): its Hero Points
+   come from the owner's Pet/Sidekick and its Trait Cap is the owner's, so the six cards and the
+   limit below would offer it choices it does not have. Until the owner has been read the cards
+   stay, rather than a panel with nothing to say. *@
+@if (CompanionRoster.IsCompanion(Session.Sheet) && Companions.Current is { Family.Owner: { } owner } family)
+{
+    <Panel Title="A companion's tier">
+        <p class="small">@CompanionTierLine(family, owner.Sheet)</p>
+        @if (!HasOwnersTier(owner.Sheet))
+        {
+            <button type="button" class="btn small" @onclick="() => TakeOwnersTier(owner.Sheet)">Use @family.OwnerName's tier</button>
+        }
+    </Panel>
+}
+else
+{
 <OptionList Class="cards" Filterable="false">
     @foreach (var tier in Session.Rules.Tiers)
     {
@@ -122,6 +139,7 @@
         </OptionRow>
     </OptionList>
 </section>
+}
 
 <Panel Title="Starting package" Aside="Optional">
     <p class="small muted">
@@ -226,10 +244,44 @@
     /// the character manager's own split exists to avoid. A campaign changes when somebody edits it
     /// on the campaign screen, which is a navigation away from here and back.</para>
     /// </summary>
-    protected override async Task OnInitializedAsync() =>
+    protected override async Task OnInitializedAsync()
+    {
+        Companions.Changed += Redraw;
         _campaign = await Campaigns.ForAsync(Session.Sheet);
+        await Companions.EnsureAsync();
+    }
 
-    public void Dispose() => Session.Changed -= StateHasChanged;
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Session.Changed -= StateHasChanged;
+        Companions.Changed -= Redraw;
+    }
+
+    private int? CapOf(CharacterSheet sheet) =>
+        DerivedStatsCalculator.EffectiveTraitCap(sheet,
+            sheet.SelectedTierId is { } id ? Session.Rules.GetTier(id) : null);
+
+    private bool HasOwnersTier(CharacterSheet owner) =>
+        owner.SelectedTierId == Session.Sheet.SelectedTierId && CapOf(owner) == CapOf(Session.Sheet);
+
+    /// <summary>Where a companion's Hero Points and Trait Cap come from, in its owner's name.</summary>
+    private string CompanionTierLine(CompanionView family, CharacterSheet owner)
+    {
+        var budget = family.Budget is { } hp ? $"{hp} Hero Points from {family.OwnerName}'s Pet/Sidekick"
+            : $"Hero Points from {family.OwnerName}'s Pet/Sidekick, which has none left for it";
+        var cap = CapOf(owner) is { } c ? $"{family.OwnerName}'s Trait Cap of {c}d" : $"{family.OwnerName}'s Trait Cap";
+
+        return $"A companion of {family.OwnerName} (p.55): {budget}, and {cap}.";
+    }
+
+    /// <summary>The owner's tier and house cap, copied — the one repair this page offers, because the rule is the owner's.</summary>
+    private void TakeOwnersTier(CharacterSheet owner)
+    {
+        Engine.Companions.TakeOwnersTier(Session.Sheet, owner);
+        Session.NotifyChanged();
+    }
 
     /// <summary>
     /// What choosing this tier means, in one line.

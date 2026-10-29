@@ -46,6 +46,20 @@
     [Parameter, EditorRequired] public string CharacterKey { get; set; } = "";
 
     /// <summary>
+    /// The Pet/Sidekick family the sheet is in, where the host read it. A companion has no Resolve
+    /// of its own and its owner spends theirs on its behalf (Ch.2 p.55), so on a companion's sheet
+    /// this counts the owner's pool, under the owner's key and name; on an owner's it opens on the
+    /// figure counted with the companions.
+    /// </summary>
+    [Parameter] public CompanionView? Companion { get; set; }
+
+    /// <summary>Whether this is a companion's sheet counting its owner's pool.</summary>
+    private bool Borrowed => Companion is { ShownIsCompanion: true, Family.Owner: not null };
+
+    /// <summary>Whose count this is: the owner's, on a companion's sheet.</summary>
+    private string Key => Borrowed ? Companion!.Family.OwnerId : CharacterKey;
+
+    /// <summary>
     /// The count the player has moved it to, or null for "at the opening figure" — which then
     /// follows the engine, so an untouched tracker on a sheet being edited stays true to it.
     /// </summary>
@@ -54,10 +68,13 @@
     /// <summary>Which character's stored count has been asked for, so a switch re-reads and a redraw does not.</summary>
     private string? _loaded;
 
-    private int Opening => Session.Derived.CalculateResolve(Sheet);
+    private int Opening =>
+        Companion is { AllRead: true, Family.OwnerResolve: { } with } && (Borrowed || !Companion.ShownIsCompanion)
+            ? with
+            : Session.Derived.CalculateResolve(Sheet);
 
-    /// <summary>Resolve, or Adversity on a Villain's sheet.</summary>
-    private string Pool => PoolName.For(Sheet);
+    /// <summary>Resolve, or Adversity on a Villain's sheet — the owner's, on a companion's.</summary>
+    private string Pool => Borrowed ? $"{Companion!.OwnerName}'s {PoolName.For(Sheet)}" : PoolName.For(Sheet);
 
     private int Now => _now ?? Opening;
 
@@ -82,9 +99,9 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_loaded == CharacterKey) return;
+        if (_loaded == Key) return;
 
-        var asked = CharacterKey;
+        var asked = Key;
         _loaded = asked;
         _now = null;
 
@@ -99,18 +116,18 @@
     {
         if (Now <= 0) return Task.CompletedTask;
         _now = Now - 1;
-        return Store.SaveAsync(CharacterKey, _now.Value);
+        return Store.SaveAsync(Key, _now.Value);
     }
 
     private Task Gain()
     {
         _now = Now + 1;
-        return Store.SaveAsync(CharacterKey, _now.Value);
+        return Store.SaveAsync(Key, _now.Value);
     }
 
     private Task Reset()
     {
         _now = null;
-        return Store.ClearAsync(CharacterKey);
+        return Store.ClearAsync(Key);
     }
 }

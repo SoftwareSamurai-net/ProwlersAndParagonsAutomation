@@ -276,11 +276,11 @@
                    published sheet sets them. Hero Points is the tier budget: a Villain has
                    none (Ch.9), so that box carries what the character cost instead. *@
                 <DerivedStatBlocks Class="quad" WithPoints="true" Explain="@Explain"
-                                   Character="@Character" ShowBudget="@ShowBudget" />
+                                   Character="@Character" ShowBudget="@ShowBudget" Companion="@Companion" />
 
                 @if (TrackResolveFor is { } resolveKey)
                 {
-                    <ResolveTracker @key="resolveKey" Sheet="@Sheet" CharacterKey="@resolveKey" />
+                    <ResolveTracker @key="resolveKey" Sheet="@Sheet" CharacterKey="@resolveKey" Companion="@Companion" />
                 }
 
                 <SheetSection Title="Origin" Class="fill">
@@ -489,6 +489,13 @@
     /// somebody playing.
     /// </summary>
     [Parameter] public string? TrackResolveFor { get; set; }
+
+    /// <summary>
+    /// The Pet/Sidekick family this sheet is in, where the host has read it — the Resolve and Hero
+    /// Points boxes need the other members to be true. Null for a host that has not, which leaves
+    /// the boxes to say their figure is the character's alone.
+    /// </summary>
+    [Parameter] public CompanionView? Companion { get; set; }
 
     private CharacterSheet Sheet => Character ?? Session.Sheet;
 

@@ -6,6 +6,7 @@
 @inject ApiMembershipStore Memberships
 @inject AccountCampaignStore Campaigns
 @inject AlternateFormEngine Forms
+@inject CompanionEngine CompanionFamilies
 
 @* The characters this browser — or this account — is holding, and the way between them.
 
@@ -947,7 +948,7 @@
         // under a different heading than one of its forms, so this has to see every character
         // this browser or account holds rather than one heading's worth.
         var families = CharacterVariants.Group(_characters.Select(CharacterVariants.FromSummary));
-        _formNotes = await AlternateFormRosterNotes.BuildAsync(families, Forms, LoadSheetAsync);
+        _formNotes = await AlternateFormRosterNotes.BuildAsync(families, Forms, LoadSheetAsync, CompanionFamilies);
     }
 
     /// <summary>
