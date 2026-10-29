@@ -881,6 +881,31 @@ anybody.
   with nothing on screen looking wrong.
 
 
+## Pet/Sidekick: a companion is a second character, and the screens know whose
+
+A companion (Ch.2 p.55) is a stored character linked to its owner with `Variant.Kind`
+`companion`; `engine/Companions.cs` judges the pair. The browser's half is assembling the roster
+and saying what the engine answered.
+
+- **`Companionship` is the session's family**, read when the character on screen changes which
+  family it is in (its id, its link, whether it holds the Perk) and answered afresh from the live
+  sheet on every ask. `CompanionRoster` is the same read for a sheet that is not the session's —
+  `/sheet/{id}` — and both call the engine through `CompanionEngine`, the `AlternateFormEngine`
+  indirection for the same type-name guard.
+- **The Perks row builds the companion** through `Companions.Begin` — the owner's tier and house
+  cap, the link — writing the owner down under its own id first, then the companion, then
+  opening it. The palette is copied here, because rules code may not read it.
+- **A companion's budget strip is its owner's purchase**, and names the owner; with no owner read
+  or no purchase left for it, the strip is a running total and says which. Its tier step shows
+  where its tier comes from and offers the owner's when it differs.
+- **A Resolve that depends on another character says so**, the owner's ask of 2026-10-29: counted
+  with the companions where all of them were read ("with Talon · 22 alone"), marked `22*` and
+  footnoted where the family was not read, "—" on a companion with its owner named, and the
+  companion's counter is the owner's pool under the owner's key. **A test context that drops the
+  current-character pointer will autosave one character over another**, so the companion tests
+  run with `storesForReal: true`.
+- The roster's family notes (`AlternateFormRosterNotes`) take the companion families too.
+
 ## The sheet beside the editors
 
 `SheetView` is drawn in a second column on the characteristics step above 1500px — Phase 4 of

@@ -84,7 +84,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **A Resolve and Adversity quick reference**, on the owner's ask of 2026-09-29, at `/reference/resolve` and open without an account: every entry of `data/rules/play/resolve.json` under For players, For the GM or Table limits, each with a table-facing `summary` (new on all 28 entries), its cost and its page. `web/` may name that one whole path and no other play file, by a narrowed `NothingInTheApplicationNamesAPlayRulesFile`, and reads it with its own strict display-only reader. Verified by the orchestrator: another play file named from `web/`, the exempt path split to hide it, the engine naming it, a hard-coded assisting rate, the description shown instead of the summary and program vocabulary in a summary each went red under mutation
 - [ ] **[43](#43-spend-and-gain-resolve-from-the-sheet)** — a player spends and gains Resolve on `/sheet` during play, seeded from the engine's figure on every open and held in this browser for 24 hours against an accidental refresh; a Villain's sheet counts the same pool as Adversity. Built 2026-10-28; awaiting the orchestrator's verification
 - [ ] **[45](#45-a-perks-benefit-and-whether-the-player-can-write-it-down)** — Patron, Contacts, Fame, Reputation and Authority ask each thing their entry asks, in its own box, in the browser, the terminal and the MCP listing. Built 2026-10-28; awaiting the orchestrator's verification
-- [ ] **[46](#46-the-rest-of-the-perk-audit)** — Great Wealth's and Fourth Wall's limits said under the Resolve counter, and the Perks the GM weighs said beside the gear in the browser and the terminal: built 2026-10-29, awaiting the orchestrator's verification. **Pet/Sidekick slice one built 2026-10-29** — the engine judges an owner and companion as a pair, through `build --from` and `check_companions` — awaiting the orchestrator's verification. **Slice two, the browser, is open**, and carries the owner's ask that a sheet say when its Resolve is conditional
+- [ ] **[46](#46-the-rest-of-the-perk-audit)** — Great Wealth's and Fourth Wall's limits said under the Resolve counter, and the Perks the GM weighs said beside the gear in the browser and the terminal: built 2026-10-29, awaiting the orchestrator's verification. **Pet/Sidekick slice one built 2026-10-29** — the engine judges an owner and companion as a pair, through `build --from` and `check_companions` — awaiting the orchestrator's verification. **Slice two, the browser, built 2026-10-29**, with the owner's ask that a sheet say when its Resolve is conditional — awaiting the orchestrator's verification. What it leaves is in the entry
 - [ ] **[44](#44-a-gms-own-characters-go-straight-into-the-gms-own-game)** — a GM's own character in their own game goes in when sent: no approval, no Hero to hunt, no handover, either kind. Built 2026-10-28; awaiting the orchestrator's verification
 - [x] **The approval diff reads part by part, and says when it was sent**, on the owner's report of 2026-09-30: a Power's row printed its whole line twice around an arrow, and a request carried no date. `DiffRow.Parts` marks each part of a row as kept, gone, new or changed and `DiffRows` draws it so on every screen that draws a diff; the roster row and the diff carry the sent and approved times the server was already sending. Verified: pairing switched off, the whole line drawn again, and the dates hidden each went red under mutation
 - [x] **[1](#1-close-the-last-three-heroes)** — **closed by the owner's ruling of 2026-09-23**: the three Heroes still 1 HP out (Scáthach +1, Shadow +1, Vigilant −1) are dropped as a target. The rules here are adapted, so the smallest distance to fitting is taken as correct and no further investigation is owed. Shadow's and Vigilant's custom gear features stay untranscribed, because adding them would move both further out. The residual guard stays at 1
@@ -2863,14 +2863,24 @@ an unlimited-budget sheet too: the validator is never told about that switch (se
 two. And Pet/Sidekick is not marked `repeatable`, because no check refuses a Perk bought twice —
 a second purchase is already accepted, and a flag nothing reads would be a claim, not a rule.
 
-**Slice two, the browser, is open.** The Perks row with the companion's budget and a Build the
-companion button; the companion's budget strip naming its owner; the companion's `/sheet` with no
-Resolve of its own and the owner's counter; the roster. **And the owner's ask of 2026-10-29: a
-sheet must say when its Resolve is conditional.** Proposed: where the companion is loaded, the
-box shows the figure with the companions counted and says so ("with Talon · 8 alone"); where it is
-not — a lone export, the MCP `character_sheet` — the owner's own figure is marked and footnoted,
-which `sheets/` can do from one sheet because it can see the Perk. A sheet holding Pet/Sidekick
-never prints an unmarked Resolve.
+**Slice two, the browser, is built — see the pull request that carried it.** The Perks row says
+what a purchase gives its companion and the ceiling — the GM's call on a character built without a
+limit — and builds the companion as a linked character, or opens it. A companion's budget strip is
+its owner's purchase and names the owner; its tier step takes the owner's tier instead of offering
+six. `Companionship` reads the family beside the session; `CompanionRoster` reads it beside a
+stored sheet at `/sheet/{id}`; both hand the live sheet to the engine on every ask.
+
+**The owner's ask of 2026-10-29, that a sheet say when its Resolve is conditional, is built as
+proposed.** An owner whose companions were all read shows the figure counted with them and says
+so ("with Talon · 22 alone"); one with none built says "no companion yet"; a sheet whose family
+was not read — a replay, the approval page, the `.txt` and `.json` exports and so the MCP
+`character_sheet` — marks the owner's own figure and footnotes it. A companion's box shows none,
+and its counter is its owner's pool under its owner's name. The roster prints the owner's Resolve
+with the companion beside the pair's findings. Sixteen browser and export mutations each went red — two of them, the counter's key and the re-read on a switch, only after their tests were tightened to catch them. Driving the real app found what the suite had not: the front door and the character list's open row measured a companion against its tier. `Companionship.Budget` is now the one answer to what the character on screen is measured against, and both read it.
+
+**Left open:** the terminal wizard builds no companion, by the owner's ruling, so a companion made
+there is a hand-written link. And a sheet whose family read fails prints the marked figure rather
+than saying the read failed — honest, but it does not say why.
 
 ## Completed work
 
