@@ -84,7 +84,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **A Resolve and Adversity quick reference**, on the owner's ask of 2026-09-29, at `/reference/resolve` and open without an account: every entry of `data/rules/play/resolve.json` under For players, For the GM or Table limits, each with a table-facing `summary` (new on all 28 entries), its cost and its page. `web/` may name that one whole path and no other play file, by a narrowed `NothingInTheApplicationNamesAPlayRulesFile`, and reads it with its own strict display-only reader. Verified by the orchestrator: another play file named from `web/`, the exempt path split to hide it, the engine naming it, a hard-coded assisting rate, the description shown instead of the summary and program vocabulary in a summary each went red under mutation
 - [ ] **[43](#43-spend-and-gain-resolve-from-the-sheet)** — a player spends and gains Resolve on `/sheet` during play, seeded from the engine's figure on every open and held in this browser for 24 hours against an accidental refresh; a Villain's sheet counts the same pool as Adversity. Built 2026-10-28; awaiting the orchestrator's verification
 - [ ] **[45](#45-a-perks-benefit-and-whether-the-player-can-write-it-down)** — Patron, Contacts, Fame, Reputation and Authority ask each thing their entry asks, in its own box, in the browser, the terminal and the MCP listing. Built 2026-10-28; awaiting the orchestrator's verification
-- [ ] **[46](#46-the-rest-of-the-perk-audit)** — Great Wealth's and Fourth Wall's limits said under the Resolve counter, and the Perks the GM weighs said beside the gear in the browser and the terminal: built 2026-10-29, awaiting the orchestrator's verification. A Pet/Sidekick companion that can be built is **pitched and waiting on the owner's answer**; nothing of it is built
+- [ ] **[46](#46-the-rest-of-the-perk-audit)** — Great Wealth's and Fourth Wall's limits said under the Resolve counter, and the Perks the GM weighs said beside the gear in the browser and the terminal: built 2026-10-29, awaiting the orchestrator's verification. **Pet/Sidekick slice one built 2026-10-29** — the engine judges an owner and companion as a pair, through `build --from` and `check_companions` — awaiting the orchestrator's verification. **Slice two, the browser, is open**, and carries the owner's ask that a sheet say when its Resolve is conditional
 - [ ] **[44](#44-a-gms-own-characters-go-straight-into-the-gms-own-game)** — a GM's own character in their own game goes in when sent: no approval, no Hero to hunt, no handover, either kind. Built 2026-10-28; awaiting the orchestrator's verification
 - [x] **The approval diff reads part by part, and says when it was sent**, on the owner's report of 2026-09-30: a Power's row printed its whole line twice around an arrow, and a request carried no date. `DiffRow.Parts` marks each part of a row as kept, gone, new or changed and `DiffRows` draws it so on every screen that draws a diff; the roster row and the diff carry the sent and approved times the server was already sending. Verified: pairing switched off, the whole line drawn again, and the dates hidden each went red under mutation
 - [x] **[1](#1-close-the-last-three-heroes)** — **closed by the owner's ruling of 2026-09-23**: the three Heroes still 1 HP out (Scáthach +1, Shadow +1, Vigilant −1) are dropped as a target. The rules here are adapted, so the smallest distance to fitting is taken as correct and no further investigation is owed. Shadow's and Vigilant's custom gear features stay untranscribed, because adding them would move both further out. The residual guard stays at 1
@@ -2844,8 +2844,33 @@ mutation: a limit retyped, a page moved, a limit dropped, the pool word hard-cod
 drawn, the held Perks never named, the page dropped, the custom-feature line dropped, and a Perk
 dropped from p.91's list.
 
-**Pet/Sidekick is still open**: pitched to the owner on 2026-10-29, and nothing is built until they
-answer.
+**Pet/Sidekick: the owner took all seven of the pitch's recommendations on 2026-10-29, and slice
+one is built — see the pull request that carried it.** A companion is its own saved character
+linked to its owner with `Variant.Kind` `companion`. `perks.json`'s Pet/Sidekick carries a
+`companion` block, every field held to the entry's text and the printed page by
+`CompanionTests.TheCompanionRuleIsWhatPageFiftyFiveSays`. `engine/Companions.cs` judges the pair:
+one purchase pays for one companion at 10 Hero Points a unit, matched best-fit in roster order;
+the companion abides by its owner's Trait Cap; and the owner's Resolve counts the companions'
+higher Traits and their Flaws, through a `DerivedStatsCalculator.CalculateResolve` overload that is
+handed the companions and never reads the link. `CharacterValidator` checks the half-of-the-owner
+ceiling on the owner, refuses Determination and a companion's own companion, and waives a
+companion's tier budget. `build --from` reports `roster.companions`, and the MCP server has an
+eighth tool, `check_companions`. Twelve mutations each went red.
+
+**Two departures from the pitch, both deliberate.** The half-of-the-owner ceiling is reported on
+an unlimited-budget sheet too: the validator is never told about that switch (see
+`CharacterSheet.UnlimitedBudget`), so saying "the GM's call" there is the browser's job in slice
+two. And Pet/Sidekick is not marked `repeatable`, because no check refuses a Perk bought twice —
+a second purchase is already accepted, and a flag nothing reads would be a claim, not a rule.
+
+**Slice two, the browser, is open.** The Perks row with the companion's budget and a Build the
+companion button; the companion's budget strip naming its owner; the companion's `/sheet` with no
+Resolve of its own and the owner's counter; the roster. **And the owner's ask of 2026-10-29: a
+sheet must say when its Resolve is conditional.** Proposed: where the companion is loaded, the
+box shows the figure with the companions counted and says so ("with Talon · 8 alone"); where it is
+not — a lone export, the MCP `character_sheet` — the owner's own figure is marked and footnoted,
+which `sheets/` can do from one sheet because it can see the Perk. A sheet holding Pet/Sidekick
+never prints an unmarked Resolve.
 
 ## Completed work
 
