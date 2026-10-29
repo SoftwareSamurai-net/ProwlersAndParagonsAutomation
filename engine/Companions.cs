@@ -66,6 +66,56 @@ public sealed class Companions
     private readonly CostCalculator _costs;
     private readonly DerivedStatsCalculator _derived;
 
+    /// <summary>
+    /// Whether <paramref name="sheet"/> is a companion: linked to an owner by a
+    /// <see cref="CharacterVariant.Companion"/> link. Asked here, where the link's consequences
+    /// live, so a one-sheet reader such as a printed sheet can say "spends its owner's Resolve"
+    /// without reading the link itself.
+    /// </summary>
+    public static bool IsCompanion(CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        return sheet.Variant is { Kind: CharacterVariant.Companion } link && !string.IsNullOrWhiteSpace(link.OfCharacterId);
+    }
+
+    /// <summary>Whether <paramref name="sheet"/> holds a Perk that buys a companion — the Perk's own data says which.</summary>
+    public static bool BuysACompanion(CharacterSheet sheet, RulesRepository rules)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(rules);
+        return sheet.Perks.Any(p => p.PerkId is not null && rules.GetPerk(p.PerkId)?.Companion is not null);
+    }
+
+    /// <summary>
+    /// A new companion for <paramref name="owner"/>, stored as <paramref name="ownerId"/>: empty but
+    /// for its name, the link, and the owner's tier and house Trait Cap — p.55's "the game's Trait
+    /// Cap" is the owner's, so it starts there rather than at a tier somebody picks. The palette is
+    /// a host's to carry over; rules code may not read it.
+    /// </summary>
+    public static CharacterSheet Begin(CharacterSheet owner, string ownerId, string name)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+
+        var companion = new CharacterSheet
+        {
+            Name    = name,
+            Variant = new CharacterVariant(ownerId, CharacterVariant.Companion)
+        };
+        TakeOwnersTier(companion, owner);
+        return companion;
+    }
+
+    /// <summary>Gives <paramref name="companion"/> its owner's tier and house Trait Cap — what <c>COMPANION_CAP_NOT_OWNERS</c> asks for.</summary>
+    public static void TakeOwnersTier(CharacterSheet companion, CharacterSheet owner)
+    {
+        ArgumentNullException.ThrowIfNull(companion);
+        ArgumentNullException.ThrowIfNull(owner);
+
+        companion.SelectedTierId = owner.SelectedTierId;
+        companion.TraitCapRank   = owner.TraitCapRank;
+    }
+
     public Companions(RulesRepository rules, CostCalculator costs, DerivedStatsCalculator derived)
     {
         _rules   = rules   ?? throw new ArgumentNullException(nameof(rules));
@@ -237,7 +287,7 @@ public sealed class Companions
         .. sheet.Perks
             .Select(p => (Selected: p, Rule: p.PerkId is null ? null : _rules.GetPerk(p.PerkId)?.Companion))
             .Where(p => p.Rule is not null)
-            .Select(p => new Purchase(p.Selected.Units, checked(p.Selected.Units * p.Rule!.HeroPointsPerUnit), p.Rule))
+            .Select(p => new Purchase(p.Selected.Units, checked((int)p.Rule!.HeroPointsFor(p.Selected.Units)), p.Rule))
     ];
 
     /// <summary>The companion's own total, or null where the engine declines to price it — already a finding on that sheet.</summary>

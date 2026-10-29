@@ -906,7 +906,8 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
         var sheet = SampleCharacters.Hero();
         var derived = Render(sheet)["derived"]!.AsObject();
 
-        AssertKeys(derived, "edge", "health", "resolve", "armor_from_gear", "teamwork");
+        AssertKeys(derived, "edge", "health", "resolve", "resolve_note", "armor_from_gear", "teamwork");
+        Assert.Null(derived["resolve_note"]);
         Assert.Equal(_f.Derived.CalculateEdge(sheet), derived["edge"]!.GetValue<int>());
         Assert.Equal(_f.Derived.CalculateHealth(sheet), derived["health"]!.GetValue<int>());
         Assert.Equal(_f.Derived.CalculateResolve(sheet), derived["resolve"]!.GetValue<int>());

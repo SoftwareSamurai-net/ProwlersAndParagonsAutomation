@@ -5,6 +5,8 @@
 @inject AccountCharacterStore Characters
 @inject ApiMembershipStore Memberships
 @inject IJSRuntime Js
+@inject Companionship Companions
+@inject CompanionEngine CompanionFamilies
 
 @* One character, read as a document. No steps, no budget strip, no validation panel — the
    banner and then the sheet.
@@ -86,7 +88,7 @@ else
 
        Keying on the id makes each address its own instance, so the component is created and
        disposed with the same answer to "is this the session's character" that it was born with. *@
-    <SheetView @key="Id" Character="_show" ShowBudget="_showBudget" TrackResolveFor="@ResolveKey" />
+    <SheetView @key="Id" Character="_show" ShowBudget="_showBudget" TrackResolveFor="@ResolveKey" Companion="@Companion" />
 
     @* Under the sheet rather than over it, so the first thing on the screen and the first thing
        on the paper are the same thing. `no-print` takes them off the page — the print block
@@ -173,9 +175,38 @@ else
     /// character, but the page title above it reads the same sheet and nothing else would tell
     /// this component the name had been typed.</para>
     /// </summary>
-    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+    protected override void OnInitialized()
+    {
+        Session.Changed += StateHasChanged;
+        Companions.Changed += Redraw;
+    }
 
-    public void Dispose() => Session.Changed -= StateHasChanged;
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    /// <summary>
+    /// The family of the character being built, asked for once on the way in — the read below
+    /// returns early for the bare address, so it cannot be the place.
+    /// </summary>
+    protected override Task OnInitializedAsync() => Companions.EnsureAsync();
+
+    public void Dispose()
+    {
+        Session.Changed -= StateHasChanged;
+        Companions.Changed -= Redraw;
+    }
+
+    /// <summary>The Pet/Sidekick family of a stored character shown at its own address, read with it.</summary>
+    private CompanionRoster? _family;
+
+    /// <summary>
+    /// The family the sheet on screen is in: the session's for the character being built, and the
+    /// one read beside a stored character for any other — so its Resolve is counted with its
+    /// companions, or says it is not.
+    /// </summary>
+    private CompanionView? Companion =>
+        string.IsNullOrWhiteSpace(Id) ? Companions.Current
+        : _show is { } shown ? _family?.View(shown, CompanionFamilies)
+        : null;
 
     /// <summary>
     /// Read the named character, once per id.
@@ -207,12 +238,14 @@ else
         _showBudget = null;
         _missing = false;
         _standing = null;
+        _family = null;
 
         if (string.IsNullOrWhiteSpace(asked))
         {
             // The bare address: the character being built, whose id is the current-character
             // pointer rather than a route parameter.
             _standing = await StandingFor(await Characters.CurrentIdAsync());
+            await Companions.EnsureAsync();
             return;
         }
 
@@ -238,6 +271,12 @@ else
         // of character can carry it.
         _showBudget = !character.Sheet.UnlimitedBudget;
         _standing = await StandingFor(asked);
+
+        var family = await CompanionRoster.LoadAsync(asked, character.Sheet, Session.Rules,
+            async () => (await Characters.ListAsync()).Characters,
+            async other => (await Characters.ReadAsync(other))?.Sheet);
+
+        if (string.Equals(_read, asked, StringComparison.Ordinal)) _family = family;
     }
 
     /// <summary>

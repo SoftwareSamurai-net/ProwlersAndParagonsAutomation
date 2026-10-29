@@ -83,6 +83,17 @@ public sealed record PerkCompanionRule
 
     /// <summary>The page the Perk is printed on, in Ch.2.</summary>
     public int Page { get; init; }
+
+    /// <summary>The Hero Points a purchase of <paramref name="units"/> gives its companion. Wide, so a nonsense unit count cannot wrap.</summary>
+    public long HeroPointsFor(int units) => (long)units * HeroPointsPerUnit;
+
+    /// <summary>The most Hero Points a companion may have: <paramref name="ownerHeroPoints"/> divided as the entry says, rounded down.</summary>
+    public int CeilingFor(int ownerHeroPoints) =>
+        CapDivisorOfOwner <= 0 ? ownerHeroPoints : ownerHeroPoints / CapDivisorOfOwner;
+
+    /// <summary>The most units an owner with <paramref name="ownerHeroPoints"/> may buy for one companion.</summary>
+    public int MostUnitsFor(int ownerHeroPoints) =>
+        HeroPointsPerUnit <= 0 ? 0 : CeilingFor(ownerHeroPoints) / HeroPointsPerUnit;
 }
 
 /// <summary>How often a Perk lets its holder earn or spend Resolve, in the entry's own terms.</summary>

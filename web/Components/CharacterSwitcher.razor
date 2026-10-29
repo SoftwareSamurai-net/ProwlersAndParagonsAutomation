@@ -3,6 +3,7 @@
 @inject CharacterSession Session
 @inject Accounts Accounts
 @inject AlternateFormEngine Forms
+@inject CompanionEngine CompanionFamilies
 
 @* Which character is open, and a way to reach another from any step.
 
@@ -186,7 +187,7 @@
         _only = listed.Characters.Count == 1;
 
         Families = CharacterVariants.Group(listed.Characters.Select(CharacterVariants.FromSummary));
-        _formNotes = await AlternateFormRosterNotes.BuildAsync(Families, Forms, LoadSheetAsync);
+        _formNotes = await AlternateFormRosterNotes.BuildAsync(Families, Forms, LoadSheetAsync, CompanionFamilies);
     }
 
     private async Task Toggle()

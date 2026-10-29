@@ -474,16 +474,15 @@ public sealed class CharacterValidator
         foreach (var purchase in sheet.Perks)
         {
             if (Perk(purchase.PerkId) is not { Companion: { } rule } perk) continue;
-            if (rule.CapDivisorOfOwner <= 0) continue;
 
-            var budget = (long)purchase.Units * rule.HeroPointsPerUnit;
-            if (budget * rule.CapDivisorOfOwner <= tier.HeroPoints) continue;
+            var budget  = rule.HeroPointsFor(purchase.Units);
+            var ceiling = rule.CeilingFor(tier.HeroPoints);
+            if (budget <= ceiling) continue;
 
-            var ceiling = tier.HeroPoints / rule.CapDivisorOfOwner;
             issues.Add(new(ValidationSeverity.Error, "PET_SIDEKICK_OVER_HALF",
                 $"{perk.Name} at {purchase.Units} gives a companion {budget} Hero Points, and a companion "
                 + $"can have at most half of this character's {tier.HeroPoints} — {ceiling} (p.{rule.Page}). "
-                + $"Buy at most {ceiling / rule.HeroPointsPerUnit}.")
+                + $"Buy at most {rule.MostUnitsFor(tier.HeroPoints)}.")
             {
                 SubjectKind = ValidationSubject.Character,
                 SubjectId   = perk.Id,

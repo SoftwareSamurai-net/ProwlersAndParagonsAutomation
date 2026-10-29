@@ -6,6 +6,8 @@
 @inject ApiMembershipStore Memberships
 @inject AccountCampaignStore Campaigns
 @inject AlternateFormEngine Forms
+@inject CompanionEngine CompanionFamilies
+@inject Companionship Companionship
 
 @* The characters this browser — or this account — is holding, and the way between them.
 
@@ -872,8 +874,9 @@
             if (!Session.HasSomethingToLose) return "Nothing chosen yet";
             if (CharacterSession.TryCost(() => Session.Spent) is not { } spent) return "";
 
-            return Session.ShowBudget && Session.Budget > 0
-                ? $"{spent} of {Session.Budget} Hero Points"
+            // A companion's budget is its owner's Pet/Sidekick, not its tier's (Ch.2 p.55).
+            return Companionship.Budget is { } budget
+                ? $"{spent} of {budget} Hero Points"
                 : $"{spent} Hero Points spent";
         }
     }
@@ -882,8 +885,10 @@
     {
         Accounts.Changed += Reload;
         Session.Changed += Redraw;
+        Companionship.Changed += RedrawLater;
 
         await Refresh();
+        await Companionship.EnsureAsync();
     }
 
     /// <summary>
@@ -893,6 +898,9 @@
     /// step would be a read per letter typed. Same split the banner's switcher makes.
     /// </summary>
     private void Redraw() => StateHasChanged();
+
+    /// <summary>A companion's family arrives after a read, off the render that asked for it.</summary>
+    private void RedrawLater() => InvokeAsync(StateHasChanged);
 
     /// <summary>
     /// Re-reads the list. Called on every change so the character marked open is the one that is.
@@ -947,7 +955,7 @@
         // under a different heading than one of its forms, so this has to see every character
         // this browser or account holds rather than one heading's worth.
         var families = CharacterVariants.Group(_characters.Select(CharacterVariants.FromSummary));
-        _formNotes = await AlternateFormRosterNotes.BuildAsync(families, Forms, LoadSheetAsync);
+        _formNotes = await AlternateFormRosterNotes.BuildAsync(families, Forms, LoadSheetAsync, CompanionFamilies);
     }
 
     /// <summary>
@@ -1124,5 +1132,6 @@
     {
         Accounts.Changed -= Reload;
         Session.Changed -= Redraw;
+        Companionship.Changed -= RedrawLater;
     }
 }

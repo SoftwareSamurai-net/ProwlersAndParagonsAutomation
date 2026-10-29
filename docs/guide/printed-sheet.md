@@ -79,6 +79,15 @@ Rasterising the result needs a PDF library, and none is installed for either run
 - `h1 { display: none }` in print: the page heading is the tool's, not the sheet's.
 
 
+## A Resolve that depends on a companion is marked
+
+The `.txt` and `.json` exports have one sheet, so they cannot count a Pet/Sidekick companion into
+its owner's Resolve. An owner holding the Perk prints `Resolve: 22* (* without its companion: …)`
+and the JSON's `derived.resolve_note` says the same; a companion prints `Resolve: none — a
+companion spends its owner's Resolve (p.55)`. `sheets/` asks `Companions.IsCompanion` rather
+than reading the link itself, which `CharacterVariantTests` forbids. The browser's printed sheet
+counts the companion in where it was read — see [`browser.md`](browser.md).
+
 ## The two sample characters
 
 `SampleCharacters.Hero()` and `.Villain()` return finished Standard-tier sheets, offered on **`/portfolio`** so a sheet can be previewed without building one. They fill every section a printed sheet has, which an empty sheet does not.

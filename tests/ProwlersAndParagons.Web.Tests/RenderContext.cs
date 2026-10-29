@@ -74,6 +74,7 @@ public sealed class RenderContext : BunitContext
         Services.AddSingleton(new ProConApplicability(rules));
         Services.AddSingleton(new SourceGrouping(rules));
         Services.AddSingleton(new AlternateFormEngine(new AlternateForms(rules, costs, derived)));
+        Services.AddSingleton(new CompanionEngine(new Companions(rules, costs, derived)));
 
         Services.AddScoped<CharacterSession>();
 
@@ -123,6 +124,7 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<CharacterImport>();
         Services.AddScoped<AccountCharacterStore>();
         Services.AddScoped<DiscardedCharacter>();
+        Services.AddScoped<Companionship>();
 
         // Campaigns, and the approval slot beside them — the same three the app registers.
         // **Account-only, with no local half**: a campaign exists so that two accounts can hand a

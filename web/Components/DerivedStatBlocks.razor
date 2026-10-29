@@ -1,4 +1,6 @@
+@implements IDisposable
 @inject CharacterSession Session
+@inject Companionship Companions
 
 @* Edge, Health and Resolve as ruled boxes. The derived-stats step and the sheet itself
    both show them, and they must never disagree, so they ask once from here. *@
@@ -16,7 +18,12 @@
     @* **A Villain's says Adversity** — the owner's ask of 2026-10-28, for flavour: the same
        figure, under the name of the pool a Villain's side spends, so a villain campaign reads
        right. The engine's word is unchanged; only the label follows the palette. *@
-    <StatBlock Label="@PoolName.For(Sheet)" Value="@Session.Derived.CalculateResolve(Sheet).ToString()"
+    @* **A Resolve that depends on another character says so** — the owner's ask of 2026-10-29.
+       Pet/Sidekick (p.55) lowers its owner's Resolve by the companion's higher Traits and raises
+       it by the companion's Flaws, and a companion has none of its own. So the box carries the
+       figure counted with the companions where they have been read, and marks the character's
+       own where they have not. *@
+    <StatBlock Label="@PoolName.For(Sheet)" Value="@ResolveValue" Sub="@ResolveSub"
                Formula="@(WithFormulas ? PoolRule : null)"
                LabelTerm="@(Explain ? PoolRule : null)" />
     @if (WithPoints)
@@ -36,6 +43,40 @@
 </StatBlockRow>
 
 @code {
+    /// <summary>
+    /// The Pet/Sidekick family this sheet is in. Left out by a host showing the character being
+    /// built, which then reads the session's own; a host showing another character passes what it
+    /// read, or nothing, and nothing makes the Resolve box say its figure is the character's alone.
+    /// </summary>
+    [Parameter] public CompanionView? Companion { get; set; }
+
+    private CompanionView? Family => Companion ?? (Character is null ? Companions.Current : null);
+
+    private bool IsCompanion => CompanionRoster.IsCompanion(Sheet);
+
+    private int OwnResolve => Session.Derived.CalculateResolve(Sheet);
+
+    /// <summary>The figure in the box: the owner's with the companions where they were all read; none for a companion.</summary>
+    private string ResolveValue =>
+        IsCompanion ? "—"
+        : Family is { ShownIsCompanion: false, AllRead: true, Companions.Count: > 0, Family.OwnerResolve: { } with } ? with.ToString()
+        : CompanionRoster.HoldsThePerk(Sheet, Session.Rules) && Family is not { AllRead: true } ? $"{OwnResolve}*"
+        : OwnResolve.ToString();
+
+    /// <summary>What the figure depends on, in small type under it.</summary>
+    private string? ResolveSub =>
+        IsCompanion ? $"spends {Family?.OwnerName ?? "its owner"}'s"
+        : Family is { ShownIsCompanion: false, AllRead: true, Companions.Count: > 0 } family ? $"with {family.CompanionNames} · {OwnResolve} alone"
+        : CompanionRoster.HoldsThePerk(Sheet, Session.Rules) && Family is not { AllRead: true } ? "* without its companion"
+        : CompanionRoster.HoldsThePerk(Sheet, Session.Rules) ? "no companion yet"
+        : null;
+
+    protected override void OnInitialized() => Companions.Changed += Redraw;
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Companions.Changed -= Redraw;
+
     /// <summary>`quad` sets them two-by-two, which is how the sheet's column wants them.</summary>
     [Parameter] public string? Class { get; set; }
 
@@ -118,7 +159,7 @@
         + "rank, doubled. Determination adds 1 for every 5 Hero Points spent on it, and each "
         + "Condition or Plot Hook adds 1.";
 
-    private bool Budgeted => ShowBudget ?? Session.ShowBudget;
+    private bool Budgeted => IsCompanion ? Family?.Budget is not null : ShowBudget ?? Session.ShowBudget;
 
     private int? Spent => CharacterSession.TryCost(() => Session.Costs.TotalCost(Sheet));
 
@@ -133,5 +174,6 @@
     /// so there is nothing to measure against and the box carries the spend alone.
     /// </summary>
     private string? Budget =>
-        Budgeted && Tier is { } tier && Spent is not null ? $"of {tier.HeroPoints}" : null;
+        IsCompanion ? Family?.Budget is { } hp && Spent is not null ? $"of {hp}" : null
+        : Budgeted && Tier is { } tier && Spent is not null ? $"of {tier.HeroPoints}" : null;
 }

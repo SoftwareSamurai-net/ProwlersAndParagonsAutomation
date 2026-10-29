@@ -52,10 +52,16 @@ public static class AlternateFormRosterNotes
     /// cannot read it, which <see cref="Result.ByMemberId"/> then says on that row rather than
     /// silently dropping it from the family.
     /// </param>
+    /// <param name="companions">
+    /// <see cref="CompanionEngine"/>, for Pet/Sidekick families (Ch.2 p.55) — the second rule that
+    /// needs two sheets, surfaced the same way: each finding beside the member it is about, and the
+    /// owner's Resolve counted with the companions on the owner's row. Null leaves them out.
+    /// </param>
     public static async Task<Result> BuildAsync(
         IReadOnlyList<VariantFamily> families,
         AlternateFormEngine forms,
-        Func<string, Task<CharacterSheet?>> load)
+        Func<string, Task<CharacterSheet?>> load,
+        CompanionEngine? companions = null)
     {
         ArgumentNullException.ThrowIfNull(families);
         ArgumentNullException.ThrowIfNull(forms);
@@ -70,6 +76,9 @@ public static class AlternateFormRosterNotes
                 byMember[id] = list = [];
             list.Add(new Note(text, warning));
         }
+
+        if (companions is not null)
+            await CompanionNotesAsync(families, companions, load, Add, pools);
 
         foreach (var family in families)
         {
@@ -120,11 +129,73 @@ public static class AlternateFormRosterNotes
                     Add(subject, issue.Message, issue.Severity == ValidationSeverity.Warning);
 
             if (engineFamily.SharedResolve is { } pool)
-                pools[root.Id] = $"Shared Resolve pool: {pool}";
+                pools[root.Id] = pools.TryGetValue(root.Id, out var said)
+                    ? $"Shared Resolve pool: {pool} · {said}"
+                    : $"Shared Resolve pool: {pool}";
         }
 
         return new Result(
             byMember.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<Note>)kv.Value, StringComparer.Ordinal),
             pools);
+    }
+
+    /// <summary>
+    /// The Pet/Sidekick half: every owner with a companion in the list, judged by the engine with
+    /// every companion's own sheet, and the owner's Resolve counted with them. A family with a
+    /// member that cannot be read is said on that row and judged no further, as above.
+    /// </summary>
+    private static async Task CompanionNotesAsync(
+        IReadOnlyList<VariantFamily> families,
+        CompanionEngine companions,
+        Func<string, Task<CharacterSheet?>> load,
+        Action<string, string, bool> add,
+        Dictionary<string, string> pools)
+    {
+        foreach (var family in families)
+        {
+            if (family.Root is not { } root) continue;
+
+            var members = family.Children
+                .Where(c => c.Variant is { Kind: CharacterVariant.Companion })
+                .ToList();
+            if (members.Count == 0) continue;
+
+            var roster = new List<RosterEntry>();
+            var readable = true;
+
+            foreach (var id in new[] { root.Id }.Concat(members.Select(m => m.Id)))
+            {
+                if (await load(id) is { } sheet) { roster.Add(new RosterEntry(id, sheet)); continue; }
+
+                add(id, "This character could not be loaded, so its companion findings cannot be checked.", true);
+                readable = false;
+            }
+
+            if (!readable) continue;
+
+            CompanionFamily? answered;
+            try
+            {
+                answered = companions.Families(roster)
+                    .SingleOrDefault(f => string.Equals(f.OwnerId, root.Id, StringComparison.Ordinal));
+            }
+            catch (ArgumentException)
+            {
+                continue;
+            }
+
+            if (answered is null) continue;
+
+            foreach (var issue in answered.Issues)
+                if (issue.SubjectId is { Length: > 0 } subject)
+                    add(subject, issue.Message, issue.Severity == ValidationSeverity.Warning);
+
+            if (answered is { Owner: { } owner, OwnerResolve: { } with })
+            {
+                var names = answered.Members.Select(m => string.IsNullOrWhiteSpace(m.Sheet.Name) ? m.Id : m.Sheet.Name).ToList();
+                var joined = names.Count == 1 ? names[0] : $"{string.Join(", ", names.Take(names.Count - 1))} and {names[^1]}";
+                pools[root.Id] = $"{PoolName.For(owner.Sheet)} {with} with {joined}";
+            }
+        }
     }
 }

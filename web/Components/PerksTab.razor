@@ -1,4 +1,8 @@
+@implements IDisposable
 @inject CharacterSession Session
+@inject Companionship Companions
+@inject AccountCharacterStore Store
+@inject NavigationManager Nav
 
 <Panel Title="Perks"
        Aside="Social advantages from the world around you — no ranks, no Pros or Cons"
@@ -30,13 +34,38 @@
                         {
                             <div class="small muted">@sp.NarrativeDetail</div>
                         }
+                        @* Pet/Sidekick buys a second character (Ch.2 p.55), so its row says what
+                           that character gets and opens it — on an owner's sheet only: a
+                           companion's own purchase is refused, and the row's finding says so. *@
+                        @if (CompanionRule(sp) is { } rule && !CompanionRoster.IsCompanion(Session.Sheet))
+                        {
+                            <div class="small muted companion-line">@CompanionLine(sp, rule)</div>
+                        }
                     </Body>
                     <Actions>
+                        @if (CompanionRule(sp) is not null && !CompanionRoster.IsCompanion(Session.Sheet))
+                        {
+                            @if (CompanionOf(sp) is { } companion)
+                            {
+                                <button type="button" class="btn small" disabled="@_busy"
+                                        @onclick="() => OpenCompanion(companion.Id)">Open @companion.Name</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn small" disabled="@_busy"
+                                        @onclick="() => BuildCompanion(sp)">Build the companion</button>
+                            }
+                        }
                         <button type="button" class="btn small danger" @onclick="() => Remove(sp)">Remove</button>
                     </Actions>
                 </ChosenRow>
             }
         </ChosenList>
+    }
+
+    @if (_refusal is not null)
+    {
+        <p class="small muted spaced" role="status">@_refusal</p>
     }
 </Panel>
 
@@ -181,5 +210,111 @@ else
     {
         Session.Sheet.Perks.Remove(sp);
         Session.NotifyChanged();
+    }
+
+    // ── Pet/Sidekick ─────────────────────────────────────────────────────
+
+    private bool _busy;
+    private string? _refusal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Companions.Changed += Redraw;
+        await Companions.EnsureAsync();
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Companions.Changed -= Redraw;
+
+    private PerkCompanionRule? CompanionRule(SelectedPerk sp) =>
+        sp.PerkId is null ? null : Session.Rules.GetPerk(sp.PerkId)?.Companion;
+
+    /// <summary>
+    /// What this purchase gives, and the ceiling — the owner's own tier halved, which the engine
+    /// answers. Without a budget limit there is no tier figure to halve, so the ceiling is the GM's.
+    /// </summary>
+    private string CompanionLine(SelectedPerk sp, PerkCompanionRule rule)
+    {
+        var gives = $"Gives a companion {rule.HeroPointsFor(sp.Units)} Hero Points (p.{rule.Page}).";
+
+        if (!Session.ShowBudget) return $"{gives} With no budget limit, how many it may have is the GM's call.";
+        if (Session.Budget <= 0) return gives;
+
+        return $"{gives} At most {rule.MostUnitsFor(Session.Budget)}: a companion may have half of {Session.Budget}.";
+    }
+
+    /// <summary>
+    /// The companion the engine matched to this purchase — the one whose budget is what this
+    /// purchase gives — or null while none is built. Two purchases of one size share the
+    /// companions of that size in roster order.
+    /// </summary>
+    private (string Id, string Name)? CompanionOf(SelectedPerk sp)
+    {
+        if (Companions.Current is not { ShownIsCompanion: false } family || CompanionRule(sp) is not { } rule) return null;
+
+        var same = Session.Sheet.Perks.Where(p => CompanionRule(p) is not null && p.Units == sp.Units).ToList();
+        var nth  = same.IndexOf(sp);
+        var hp   = rule.HeroPointsFor(sp.Units);
+
+        var matched = family.Companions
+            .Where(c => family.Family.Budget.GetValueOrDefault(c.Id) is { } budget && budget == hp)
+            .ToList();
+
+        return nth >= 0 && nth < matched.Count ? matched[nth] : null;
+    }
+
+    /// <summary>
+    /// Makes the companion a character of its own, linked to this one, and opens it.
+    ///
+    /// <para><b>The owner is written down under its own id first</b>, so the purchase that pays
+    /// for the companion is in storage before the pointer moves to the new one — otherwise the
+    /// first write to the companion's slot could land before the owner's last edit did.</para>
+    /// </summary>
+    private async Task BuildCompanion(SelectedPerk sp)
+    {
+        _busy = true;
+        _refusal = null;
+
+        try
+        {
+            var owner   = Session.Sheet;
+            var ownerId = await Companions.CurrentIdAsync();
+            var ownerName = string.IsNullOrWhiteSpace(owner.Name) ? "Unnamed character" : owner.Name;
+
+            if (!await Store.RestoreAsync(ownerId, ownerName, owner, Session.Mode))
+            {
+                _refusal = "This character could not be saved, so its companion was not made. Try again in a moment.";
+                return;
+            }
+
+            var companion = Engine.Companions.Begin(owner, ownerId, $"{ownerName}'s companion");
+            companion.IsVillain = owner.IsVillain;
+
+            var id = SavedCharacters.NewId();
+            if (!await Store.RestoreAsync(id, companion.Name, companion, Session.Mode))
+            {
+                _refusal = "The companion could not be saved. If your account is full, make room in your characters first.";
+                return;
+            }
+
+            await OpenCompanion(id);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task OpenCompanion(string id)
+    {
+        if (await Store.OpenAsync(id) is not { } opened)
+        {
+            _refusal = "The companion could not be opened.";
+            return;
+        }
+
+        Session.Open(opened.Sheet, opened.Mode, id);
+        Nav.NavigateTo("build");
     }
 }
