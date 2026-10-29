@@ -94,7 +94,15 @@ public sealed class CompanionBrowserTests
         var ctx = account.Ctx;
         var tab = ctx.Render<PerksTab>();
 
+        // The strip is up before the switch, so what it shows after is the family read again for
+        // the companion, not the owner's left standing.
+        var bar = ctx.Render<HpBudgetBar>();
+        bar.WaitForAssertion(() => Assert.Equal("/ 125", bar.Find(".budget-of").TextContent.Trim()));
+
         await tab.FindAll("button").Single(b => b.TextContent.Trim() == "Build the companion").ClickAsync(new());
+
+        bar.WaitForAssertion(() => Assert.Equal("/ 40", bar.Find(".budget-of").TextContent.Trim()));
+        Assert.Equal("from Kestrel's Pet/Sidekick", bar.Find(".budget-source").TextContent.Trim());
 
         tab.WaitForAssertion(() => Assert.True(Companions.IsCompanion(ctx.Session.Sheet)));
         Assert.Equal(account.OwnerId, ctx.Session.Sheet.Variant!.OfCharacterId);
@@ -225,6 +233,12 @@ public sealed class CompanionBrowserTests
         Assert.Equal("—", Resolve(page));
         Assert.Equal("Kestrel's Resolve now", page.Find(".resolve-now-label").TextContent.Trim());
         Assert.Contains("Starts each issue at 7.", page.Find(".resolve-now").TextContent, StringComparison.Ordinal);
+
+        // Spent on Talon's behalf comes out of Kestrel's count, stored under Kestrel's id.
+        await page.Find("button[aria-label=\"Spend 1 Kestrel's Resolve\"]").ClickAsync(new());
+        var now = account.Ctx.Services.GetRequiredService<ResolveNow>();
+        Assert.Equal(6, await now.LoadAsync(account.OwnerId));
+        Assert.Null(await now.LoadAsync(account.TalonId!));
     }
 
     /// <summary>A stored owner shown at its own address is counted with its companion too.</summary>
