@@ -170,6 +170,18 @@ public sealed class CompanionBrowserTests
         Assert.EndsWith("HP over", bar.Find(".over-text").TextContent.Trim(), StringComparison.Ordinal);
     }
 
+    /// <summary>The open character's row measures a companion against its owner's purchase too, not its tier.</summary>
+    [Fact]
+    public async Task TheOpenRowMeasuresACompanionAgainstItsOwnersPurchase()
+    {
+        await using var account = await Kestrel(openTalon: true);
+        var manager = account.Ctx.Render<CharacterManager>();
+
+        manager.WaitForAssertion(() =>
+            Assert.Contains($"{account.Ctx.Session.Spent} of 40 Hero Points", manager.Markup, StringComparison.Ordinal));
+        Assert.DoesNotContain("of 125 Hero Points", manager.Markup, StringComparison.Ordinal);
+    }
+
     /// <summary>A companion's tier step says where its tier comes from instead of offering six, and offers the owner's when it differs.</summary>
     [Fact]
     public async Task ACompanionsTierStepTakesItsOwnersTier()

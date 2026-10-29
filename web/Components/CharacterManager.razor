@@ -7,6 +7,7 @@
 @inject AccountCampaignStore Campaigns
 @inject AlternateFormEngine Forms
 @inject CompanionEngine CompanionFamilies
+@inject Companionship Companionship
 
 @* The characters this browser — or this account — is holding, and the way between them.
 
@@ -873,6 +874,12 @@
             if (!Session.HasSomethingToLose) return "Nothing chosen yet";
             if (CharacterSession.TryCost(() => Session.Spent) is not { } spent) return "";
 
+            // A companion's budget is its owner's Pet/Sidekick, not its tier's (Ch.2 p.55).
+            if (CompanionRoster.IsCompanion(Session.Sheet))
+                return Companionship.Current?.Budget is { } hp
+                    ? $"{spent} of {hp} Hero Points"
+                    : $"{spent} Hero Points spent";
+
             return Session.ShowBudget && Session.Budget > 0
                 ? $"{spent} of {Session.Budget} Hero Points"
                 : $"{spent} Hero Points spent";
@@ -883,8 +890,10 @@
     {
         Accounts.Changed += Reload;
         Session.Changed += Redraw;
+        Companionship.Changed += RedrawLater;
 
         await Refresh();
+        await Companionship.EnsureAsync();
     }
 
     /// <summary>
@@ -894,6 +903,9 @@
     /// step would be a read per letter typed. Same split the banner's switcher makes.
     /// </summary>
     private void Redraw() => StateHasChanged();
+
+    /// <summary>A companion's family arrives after a read, off the render that asked for it.</summary>
+    private void RedrawLater() => InvokeAsync(StateHasChanged);
 
     /// <summary>
     /// Re-reads the list. Called on every change so the character marked open is the one that is.
@@ -1125,5 +1137,6 @@
     {
         Accounts.Changed -= Reload;
         Session.Changed -= Redraw;
+        Companionship.Changed -= RedrawLater;
     }
 }
