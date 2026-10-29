@@ -1,5 +1,7 @@
 @page "/"
+@implements IDisposable
 @inject CharacterSession Session
+@inject Companionship Companionship
 @inject RulebookReader Rulebook
 
 @* The front door: what this site does, and a way into each of it.
@@ -87,7 +89,16 @@
     /// </summary>
     private int? _sections;
 
-    protected override async Task OnInitializedAsync() => _sections = await Rulebook.CountAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        Companionship.Changed += Redraw;
+        _sections = await Rulebook.CountAsync();
+        await Companionship.EnsureAsync();
+    }
+
+    private void Redraw() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Companionship.Changed -= Redraw;
 
     /// <summary>Whether there is a character here already, rather than an empty sheet.</summary>
     private bool Resuming => Session.HasSomethingToLose;
@@ -105,7 +116,7 @@
     /// there is a limit to say it against is the character's own answer — the same one the
     /// budget strip asks, so the two cannot say different things about one character.
     /// </summary>
-    private string Carried => Session.ShowBudget && Session.Budget > 0
-        ? $"of {Session.Budget} Hero Points spent"
+    private string Carried => Companionship.Budget is { } budget
+        ? $"of {budget} Hero Points spent"
         : "Hero Points spent";
 }

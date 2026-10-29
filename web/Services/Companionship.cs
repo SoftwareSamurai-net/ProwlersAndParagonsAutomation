@@ -219,6 +219,17 @@ public sealed class Companionship : IDisposable
     /// <summary>The family of the character on screen, or null for one in none or not read yet.</summary>
     public CompanionView? Current => _roster?.View(_session.Sheet, _engine);
 
+    /// <summary>
+    /// The Hero Points the character on screen is measured against: a companion's owner's purchase
+    /// (Ch.2 p.55), the tier's for anybody else, or null where there is no limit — no budget switch
+    /// on, no tier, or a companion whose owner has not been read or pays for it with nothing.
+    /// One answer, so the front door, the list and the strip cannot say different figures.
+    /// </summary>
+    public int? Budget =>
+        Companions.IsCompanion(_session.Sheet) ? Current?.Budget
+        : _session.ShowBudget && _session.Budget > 0 ? _session.Budget
+        : null;
+
     /// <summary>The stored id of the character on screen: the session's, or the pointer's.</summary>
     public async Task<string> CurrentIdAsync() => _session.HeldId ?? await _store.CurrentIdAsync();
 

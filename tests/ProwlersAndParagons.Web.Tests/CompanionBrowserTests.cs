@@ -182,6 +182,22 @@ public sealed class CompanionBrowserTests
         Assert.DoesNotContain("of 125 Hero Points", manager.Markup, StringComparison.Ordinal);
     }
 
+    /// <summary>The front door says the same of a companion in progress.</summary>
+    [Fact]
+    public async Task TheFrontDoorMeasuresACompanionAgainstItsOwnersPurchase()
+    {
+        await using (var owner = await Kestrel())
+        {
+            var door = owner.Ctx.Render<Home>();
+            door.WaitForAssertion(() => Assert.Contains("of 125 Hero Points spent", door.Markup, StringComparison.Ordinal));
+        }
+
+        await using var account = await Kestrel(openTalon: true);
+        var page = account.Ctx.Render<Home>();
+
+        page.WaitForAssertion(() => Assert.Contains("of 40 Hero Points spent", page.Markup, StringComparison.Ordinal));
+    }
+
     /// <summary>A companion's tier step says where its tier comes from instead of offering six, and offers the owner's when it differs.</summary>
     [Fact]
     public async Task ACompanionsTierStepTakesItsOwnersTier()

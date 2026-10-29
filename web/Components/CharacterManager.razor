@@ -875,13 +875,8 @@
             if (CharacterSession.TryCost(() => Session.Spent) is not { } spent) return "";
 
             // A companion's budget is its owner's Pet/Sidekick, not its tier's (Ch.2 p.55).
-            if (CompanionRoster.IsCompanion(Session.Sheet))
-                return Companionship.Current?.Budget is { } hp
-                    ? $"{spent} of {hp} Hero Points"
-                    : $"{spent} Hero Points spent";
-
-            return Session.ShowBudget && Session.Budget > 0
-                ? $"{spent} of {Session.Budget} Hero Points"
+            return Companionship.Budget is { } budget
+                ? $"{spent} of {budget} Hero Points"
                 : $"{spent} Hero Points spent";
         }
     }
