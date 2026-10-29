@@ -35,6 +35,12 @@ public sealed class ChooseGearStep : IWizardStep
                                "Add anything the GM considers reasonable for your character.[/]");
         AnsiConsole.MarkupLine("[grey]Custom features (Ch.6) do cost Hero Points, " +
                                "and are subject to the GM's approval.[/]");
+
+        // Both GM discretion, so said and never enforced — see GearPerkNotes.
+        foreach (var note in new[] { GearPerkNotes.MundaneGear(rules, sheet), GearPerkNotes.CustomFeatures(rules, sheet) })
+        {
+            if (note is not null) AnsiConsole.MarkupLine($"[grey]{Markup.Escape(note)}[/]");
+        }
         AnsiConsole.WriteLine();
 
         while (true)

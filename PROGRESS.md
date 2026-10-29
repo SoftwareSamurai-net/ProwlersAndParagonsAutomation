@@ -84,7 +84,7 @@ as in scope. **Nothing here is a defect.**
 - [x] **A Resolve and Adversity quick reference**, on the owner's ask of 2026-09-29, at `/reference/resolve` and open without an account: every entry of `data/rules/play/resolve.json` under For players, For the GM or Table limits, each with a table-facing `summary` (new on all 28 entries), its cost and its page. `web/` may name that one whole path and no other play file, by a narrowed `NothingInTheApplicationNamesAPlayRulesFile`, and reads it with its own strict display-only reader. Verified by the orchestrator: another play file named from `web/`, the exempt path split to hide it, the engine naming it, a hard-coded assisting rate, the description shown instead of the summary and program vocabulary in a summary each went red under mutation
 - [ ] **[43](#43-spend-and-gain-resolve-from-the-sheet)** — a player spends and gains Resolve on `/sheet` during play, seeded from the engine's figure on every open and held in this browser for 24 hours against an accidental refresh; a Villain's sheet counts the same pool as Adversity. Built 2026-10-28; awaiting the orchestrator's verification
 - [ ] **[45](#45-a-perks-benefit-and-whether-the-player-can-write-it-down)** — Patron, Contacts, Fame, Reputation and Authority ask each thing their entry asks, in its own box, in the browser, the terminal and the MCP listing. Built 2026-10-28; awaiting the orchestrator's verification
-- [ ] **[46](#46-the-rest-of-the-perk-audit)** — a Pet/Sidekick companion that can be built (pitch first), Patron/Resources/Wealth's gear hook said beside the gear, and the once-per-issue and once-per-scene limits on Great Wealth and Fourth Wall
+- [ ] **[46](#46-the-rest-of-the-perk-audit)** — Great Wealth's and Fourth Wall's limits said under the Resolve counter, and the Perks the GM weighs said beside the gear in the browser and the terminal: built 2026-10-29, awaiting the orchestrator's verification. A Pet/Sidekick companion that can be built is **pitched and waiting on the owner's answer**; nothing of it is built
 - [ ] **[44](#44-a-gms-own-characters-go-straight-into-the-gms-own-game)** — a GM's own character in their own game goes in when sent: no approval, no Hero to hunt, no handover, either kind. Built 2026-10-28; awaiting the orchestrator's verification
 - [x] **The approval diff reads part by part, and says when it was sent**, on the owner's report of 2026-09-30: a Power's row printed its whole line twice around an arrow, and a request carried no date. `DiffRow.Parts` marks each part of a row as kept, gone, new or changed and `DiffRows` draws it so on every screen that draws a diff; the roster row and the diff carry the sent and approved times the server was already sending. Verified: pairing switched off, the whole line drawn again, and the dates hidden each went red under mutation
 - [x] **[1](#1-close-the-last-three-heroes)** — **closed by the owner's ruling of 2026-09-23**: the three Heroes still 1 HP out (Scáthach +1, Shadow +1, Vigilant −1) are dropped as a target. The rules here are adapted, so the smallest distance to fitting is taken as correct and no further investigation is owed. Shadow's and Vigilant's custom gear features stay untranscribed, because adding them would move both further out. The residual guard stays at 1
@@ -2829,9 +2829,23 @@ the small-gaps slice did not take:
 - **Patron's, Resources' and Wealth's gear hook is transcribed and read by nothing.** p.91 has the
   GM weigh them for mundane gear and p.92 lets the GM put custom gear features behind them —
   `perks_the_gm_weighs` and `gm_may_gate_features_behind_perks` in `gear.json`. Both are GM
-  discretion, so the most an app can do is say so beside the gear; nothing does yet.
+  discretion, so the most an app can do is say so beside the gear.
 - **Great Wealth and Fourth Wall spend and earn Resolve** — once per issue and once per scene. The
-  sheet's counter (item 43) lets the player do either by hand, and nothing names the limit.
+  sheet's counter (item 43) lets the player do either by hand, and nothing named the limit.
+
+**The last two are built — see the pull request that carried them.** A Perk carrying
+`resolve_limit` in `perks.json` says it under the Resolve counter on `/sheet`, in the entry's words
+and with its page, under Adversity on a Villain; nothing counts uses. `GearPerkNotes` writes the
+p.91 and p.92 lines from `gear.json`'s two lists and each entry's `source_ref`, naming the Perks the
+character holds, and both the Gear step and the terminal wizard's print them; nothing is priced or
+validated. `PerkResolveLimitTests` reads each limit back out of its entry's text and its page out of
+the corpus; `GearPerkNotesTests` and the two bUnit additions hold the lines. Each went red under
+mutation: a limit retyped, a page moved, a limit dropped, the pool word hard-coded, the limits not
+drawn, the held Perks never named, the page dropped, the custom-feature line dropped, and a Perk
+dropped from p.91's list.
+
+**Pet/Sidekick is still open**: pitched to the owner on 2026-10-29, and nothing is built until they
+answer.
 
 ## Completed work
 
