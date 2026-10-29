@@ -332,18 +332,26 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                         : Spectre.Console.ValidationResult.Error("Must be at least 1.")));
         }
 
-        string? narrativeDetail = null;
-        if (perk.NarrativeConstraint is not null)
+        // The same questions the browser asks, from `PerkQuestions`, each answered on its own —
+        // Patron's three, one per contact type, and the identity a secret identity has to choose.
+        var questions = PerkQuestions.For(perk, units, sheet);
+        if (perk.NarrativePerUnit && perk.NarrativeConstraint is { } heading)
+            AnsiConsole.MarkupLine($"[yellow]Required detail:[/] {Markup.Escape(heading)}");
+
+        var answers = new List<string?>();
+        foreach (var question in questions)
         {
-            AnsiConsole.MarkupLine($"[yellow]Required detail:[/] {Markup.Escape(perk.NarrativeConstraint)}");
-            narrativeDetail = AnsiConsole.Prompt(
-                new TextPrompt<string>("Your answer:")
-                    .Validate(v => !string.IsNullOrWhiteSpace(v)
-                        ? Spectre.Console.ValidationResult.Success()
-                        : Spectre.Console.ValidationResult.Error("Cannot be empty.")));
+            answers.Add(question.Choices is { } options
+                ? AnsiConsole.Prompt(new SelectionPrompt<string>()
+                    .Title(Markup.Escape(question.Ask)).AddChoices(options))
+                : AnsiConsole.Prompt(
+                    new TextPrompt<string>($"[yellow]{Markup.Escape(question.Ask)}[/]")
+                        .Validate(v => !string.IsNullOrWhiteSpace(v)
+                            ? Spectre.Console.ValidationResult.Success()
+                            : Spectre.Console.ValidationResult.Error("Cannot be empty."))));
         }
 
-        var selection = new SelectedPerk(perk.Id, units, narrativeDetail?.Trim());
+        var selection = new SelectedPerk(perk.Id, units, PerkQuestions.Compose(questions, answers));
         sheet.Perks.Add(selection);
 
         var cost = costs.PerkCost(selection);

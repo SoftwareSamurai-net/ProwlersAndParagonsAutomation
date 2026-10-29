@@ -218,7 +218,14 @@ public sealed class CharacterTools
                     ["id"] = p.Id, ["name"] = p.Name, ["cost_type"] = p.CostType,
                     ["hero_points"] = p.Cost, ["hero_points_per_unit"] = p.CostPerUnit,
                     ["unit"] = p.UnitLabel, ["description"] = p.Description,
-                    ["narrative_constraint"] = p.NarrativeConstraint
+                    ["narrative_constraint"] = p.NarrativeConstraint,
+
+                    // The separate questions the constraint asks, so a model writing the one line
+                    // of detail answers all of them: Patron's three, one name per contact type,
+                    // and — with the Secret Identity Flaw — which identity Fame or Reputation is.
+                    ["narrative_questions"] = new JsonArray([.. p.NarrativePrompts.Select(q => (JsonNode)q.Ask)]),
+                    ["narrative_per_unit"] = p.NarrativePerUnit,
+                    ["identity_choice"] = p.IdentityChoice
                 })];
                 break;
 

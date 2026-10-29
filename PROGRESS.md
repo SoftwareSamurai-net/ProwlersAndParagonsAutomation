@@ -83,6 +83,8 @@ as in scope. **Nothing here is a defect.**
 - [x] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — character variants get a mechanism. **Slice one built 2026-09-11** (see the pull request that carried it): a sheet may say it is a version of a root character — *later*, *as seen by another audience*, or an *alternate form* — the roster and the switcher draw the family as a tree, and a "Version of…" control makes or clears the link. Verified by the orchestrator: the cycle guard and the tree's read of the index field each went red under mutation. **Slice two built 2026-09-23**: `engine/AlternateForms.cs` checks a roster's `alternate_form` families through `build --from … --from …` — both pay for the Power at the same total, a form's power level is one the root paid for and not above the root's, one Resolve pool at the lowest of the forms. Verified by the orchestrator: the pool taken as the highest instead turned `ThePoolIsTheLowestOfTheForms…` red. **Slice three built 2026-09-29, and the item is closed**: the owner ruled on p.21's Trait Cap sentence — *the form declares, the family verifies*. An `alternate_form` sheet may carry its root's Trait Cap above its own tier, so `TRAIT_CAP_ABOVE_TIER` is waived on it, and `AlternateForms` reports `ALTERNATE_FORM_CAP_NOT_ROOTS` on a form whose cap above its tier is not the root's; Resolve and the pool follow from the declared cap. A family's findings now print on the roster and in the banner switcher, labelled Error or Warning, with the shared pool on the root's row, and the character server has a seventh tool, `check_alternate_forms`, that answers `ok: false` when any member did not parse. Verified by the orchestrator: dropping the waiver, accepting any form cap, waiving it for every sheet, printing an Error unlabelled and calling an unreadable roster ok each went red under mutation
 - [x] **A Resolve and Adversity quick reference**, on the owner's ask of 2026-09-29, at `/reference/resolve` and open without an account: every entry of `data/rules/play/resolve.json` under For players, For the GM or Table limits, each with a table-facing `summary` (new on all 28 entries), its cost and its page. `web/` may name that one whole path and no other play file, by a narrowed `NothingInTheApplicationNamesAPlayRulesFile`, and reads it with its own strict display-only reader. Verified by the orchestrator: another play file named from `web/`, the exempt path split to hide it, the engine naming it, a hard-coded assisting rate, the description shown instead of the summary and program vocabulary in a summary each went red under mutation
 - [ ] **[43](#43-spend-and-gain-resolve-from-the-sheet)** — a player spends and gains Resolve on `/sheet` during play, seeded from the engine's figure on every open and held in this browser for 24 hours against an accidental refresh; a Villain's sheet counts the same pool as Adversity. Built 2026-10-28; awaiting the orchestrator's verification
+- [ ] **[45](#45-a-perks-benefit-and-whether-the-player-can-write-it-down)** — Patron, Contacts, Fame, Reputation and Authority ask each thing their entry asks, in its own box, in the browser, the terminal and the MCP listing. Built 2026-10-28; awaiting the orchestrator's verification
+- [ ] **[46](#46-the-rest-of-the-perk-audit)** — a Pet/Sidekick companion that can be built (pitch first), Patron/Resources/Wealth's gear hook said beside the gear, and the once-per-issue and once-per-scene limits on Great Wealth and Fourth Wall
 - [ ] **[44](#44-a-gms-own-characters-go-straight-into-the-gms-own-game)** — a GM's own character in their own game goes in when sent: no approval, no Hero to hunt, no handover, either kind. Built 2026-10-28; awaiting the orchestrator's verification
 - [x] **The approval diff reads part by part, and says when it was sent**, on the owner's report of 2026-09-30: a Power's row printed its whole line twice around an arrow, and a request carried no date. `DiffRow.Parts` marks each part of a row as kept, gone, new or changed and `DiffRows` draws it so on every screen that draws a diff; the roster row and the diff carry the sent and approved times the server was already sending. Verified: pairing switched off, the whole line drawn again, and the dates hidden each went red under mutation
 - [x] **[1](#1-close-the-last-three-heroes)** — **closed by the owner's ruling of 2026-09-23**: the three Heroes still 1 HP out (Scáthach +1, Shadow +1, Vigilant −1) are dropped as a target. The rules here are adapted, so the smallest distance to fitting is taken as correct and no further investigation is owed. Shadow's and Vigilant's custom gear features stay untranscribed, because adding them would move both further out. The residual guard stays at 1
@@ -2795,6 +2797,41 @@ the approval's own-row clause, the contract key and the send path each went red 
 **Not built:** the join box still adds the GM's characters and putting each in is a second press
 per character on screen, because the join cannot know which campaign a code names until it is
 redeemed.
+
+### 45. A Perk's benefit, and whether the player can write it down
+
+**The owner's question of 2026-10-28**: do Patron and the Perks like it let a player represent
+what they get, and are they asked enough? The audit answered by Perk. Headquarters and Unique
+Vehicle have their own builders (item 32); Wealth, Infamy and Resources are a name and the book
+gives no number. **The owner chose the small gaps first.**
+
+**Built — see the pull request that carried it.** Patron asks who, what they provide and what they
+expect, each in its own box; Contacts asks one name per contact type bought; Fame and Reputation
+ask which identity holds them when the character has the Secret Identity Flaw, as their entries
+require; Authority asks what authority. `PerkQuestions` is the one list the browser, the terminal
+and the MCP listing share, and the answers join into the one line `SelectedPerk.NarrativeDetail`
+already stored, so no sheet's shape moved. `PerkQuestionsTests` and `PerkQuestionEditorTests` hold
+it; the blank-answer check, the Secret Identity condition and the editor's Add gate each went red
+under mutation.
+
+**What it left is item 46**, on the owner's word of 2026-10-28 to put the rest on the list.
+
+### 46. The rest of the Perk audit
+
+**The owner's word of 2026-10-28: "TODO the rest."** Three things the audit in item 45 found and
+the small-gaps slice did not take:
+
+- **Pet/Sidekick is a Perk whose benefit cannot be represented at all.** Each unit is 10 Hero
+  Points for a companion, capped at half the owner's total and at the game's Trait Cap, earning 1
+  Hero Point for every 2 the owner earns, with no Resolve of its own. There is no companion: the
+  player gets one line of text. A companion is a second character tied to the first, as an
+  alternate form is (item 21), so it needs a pitch before a build.
+- **Patron's, Resources' and Wealth's gear hook is transcribed and read by nothing.** p.91 has the
+  GM weigh them for mundane gear and p.92 lets the GM put custom gear features behind them —
+  `perks_the_gm_weighs` and `gm_may_gate_features_behind_perks` in `gear.json`. Both are GM
+  discretion, so the most an app can do is say so beside the gear; nothing does yet.
+- **Great Wealth and Fourth Wall spend and earn Resolve** — once per issue and once per scene. The
+  sheet's counter (item 43) lets the player do either by hand, and nothing names the limit.
 
 ## Completed work
 

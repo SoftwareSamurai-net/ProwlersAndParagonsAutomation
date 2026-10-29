@@ -2049,7 +2049,8 @@ public sealed class McpServerTests
 
             case "perks":
                 fields = ["id", "name", "cost_type", "hero_points", "hero_points_per_unit",
-                          "unit", "description", "narrative_constraint"];
+                          "unit", "description", "narrative_constraint", "narrative_questions",
+                          "narrative_per_unit", "identity_choice"];
 
                 foreach (var (entry, perk) in entries.Zip(_f.Rules.Perks))
                 {
@@ -2061,6 +2062,10 @@ public sealed class McpServerTests
                     Assert.Equal(perk.UnitLabel, entry["unit"]?.GetValue<string>());
                     Assert.Equal(perk.Description, entry["description"]?.GetValue<string>());
                     Assert.Equal(perk.NarrativeConstraint, entry["narrative_constraint"]?.GetValue<string>());
+                    Assert.Equal(perk.NarrativePrompts.Select(q => q.Ask),
+                        entry["narrative_questions"]!.AsArray().Select(q => q!.GetValue<string>()));
+                    Assert.Equal(perk.NarrativePerUnit, entry["narrative_per_unit"]!.GetValue<bool>());
+                    Assert.Equal(perk.IdentityChoice, entry["identity_choice"]!.GetValue<bool>());
                 }
 
                 break;
