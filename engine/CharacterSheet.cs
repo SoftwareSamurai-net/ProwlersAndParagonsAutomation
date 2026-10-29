@@ -471,8 +471,16 @@ public record CharacterVariant(string OfCharacterId, string Kind)
     /// </summary>
     public const string AlternateForm = "alternate_form";
 
+    /// <summary>
+    /// A Pet/Sidekick companion, Ch.2 p.55: a second character the linked one bought with the
+    /// Perk, built on 10 Hero Points a unit and spending its owner's Resolve. Not a version of the
+    /// owner, so a host offering "a version of…" leaves it out. Its rules are about the pair — see
+    /// <see cref="Companions"/>.
+    /// </summary>
+    public const string Companion = "companion";
+
     /// <summary>Every kind a link may name, for a host offering a choice and for the validator's message.</summary>
-    public static IReadOnlyList<string> Kinds { get; } = [Later, AsSeenBy, AlternateForm];
+    public static IReadOnlyList<string> Kinds { get; } = [Later, AsSeenBy, AlternateForm, Companion];
 }
 
 /// <summary>

@@ -22,6 +22,7 @@ public sealed class CharacterVariantsTests
     [InlineData(CharacterVariant.Later, "later version")]
     [InlineData(CharacterVariant.AsSeenBy, "as seen by another audience")]
     [InlineData(CharacterVariant.AlternateForm, "alternate form")]
+    [InlineData(CharacterVariant.Companion, "companion")]
     public void EveryKnownKindHasALabel(string kind, string expected) =>
         Assert.Equal(expected, CharacterVariants.Label(kind));
 

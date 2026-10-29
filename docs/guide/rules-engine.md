@@ -503,6 +503,34 @@ joins, and the engine reads the character. Nothing here resolves a campaign id; 
   something. `CampaignTable.IsTheBook` is that question, and the browser stores the book as null.
 
 
+## Pet/Sidekick: the second rule that needs two sheets
+
+A companion (Ch.2 p.55) is a sheet linked to its owner with `Variant.Kind` `companion`, and
+`engine/Companions.cs` judges the pair the way `AlternateForms` judges a family: handed
+`RosterEntry` pairs, one `CompanionFamily` per owner, findings beside the sheets and nothing on a
+single sheet moved. `perks.json`'s Pet/Sidekick carries the `companion` block it reads; a Perk is
+found by that block, never by id.
+
+- **One purchase, one companion, best fit.** Each companion in roster order takes the smallest
+  unspent purchase that covers its `TotalCost`, or the largest when none does, so
+  `COMPANION_OVER_BUDGET` names the nearest miss. Nothing on a sheet says which purchase is
+  whose, so this is the only reading there is. `COMPANION_NOT_PAID` is a companion no purchase
+  is left for; `PET_SIDEKICK_NO_COMPANION` (a warning) is a purchase nobody used.
+- **The owner's Trait Cap**, as `COMPANION_CAP_NOT_OWNERS`; an absent owner is
+  `COMPANION_OWNER_NOT_IN_ROSTER`, a warning, with no budget and no Resolve.
+- **The owner's Resolve with the companions** is `DerivedStatsCalculator.CalculateResolve(owner,
+  companions)`: the highest relevant rank across all of them, and their Condition and Plot Hook
+  Flaws added to the owner's. The single-sheet overload is that with no companions, so the
+  arithmetic exists once. `CompanionFamily` carries both figures, and a host showing a Resolve
+  for an owner must say which one it is.
+- **What one sheet says alone is `CharacterValidator`'s**: `PET_SIDEKICK_OVER_HALF` (units × 10
+  above half the owner's tier budget, per purchase), and on a companion
+  `COMPANION_HAS_NO_RESOLVE` (Determination) and `COMPANION_HAS_COMPANION`. A companion's tier
+  budget is waived, because its real budget is its owner's — the companion declares, the family
+  verifies, as for an alternate form's cap.
+- Earning ("1 Hero Point for every 2 that you earn") is transcribed and not computed: nothing
+  tracks Hero Points earned in play.
+
 ## Alternate forms: the one rule that needs two sheets
 
 `CharacterSheet.Variant` links a sheet to a root as *later*, *as seen by* or *alternate form*

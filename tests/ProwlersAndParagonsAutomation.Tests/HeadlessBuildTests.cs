@@ -1565,6 +1565,73 @@ public sealed class HeadlessBuildTests : IDisposable
         Assert.Equal("warning", (string?)issue["severity"]);
     }
 
+    /// <summary>Kestrel with Pet/Sidekick at <paramref name="units"/>, and Talon linked as Kestrel's companion.</summary>
+    private (CharacterSheet Owner, CharacterSheet Companion) Kestrel(int units)
+    {
+        var owner = _f.LegalSheet();
+        owner.Name = "Kestrel";
+        owner.Perks.Add(new SelectedPerk("pet_sidekick", units, "Talon"));
+
+        var talon = _f.LegalSheet();
+        talon.Name = "Talon";
+        talon.AbilityRanks["agility"] = 9;
+        talon.Flaws.Add(new SelectedFlaw("enemy"));
+        talon.Variant = new CharacterVariant("kestrel", CharacterVariant.Companion);
+
+        return (owner, talon);
+    }
+
+    /// <summary>
+    /// <b>A Pet/Sidekick owner and their companion are reported under <c>roster.companions</c></b>,
+    /// with the engine's figures: the budget the purchase gives, what the companion spent, and
+    /// the owner's Resolve alone and with the companion.
+    /// </summary>
+    [Fact]
+    public void ACompanionIsReportedWithItsBudgetAndItsOwnersResolve()
+    {
+        var (owner, talon) = Kestrel(units: 4);
+        var family = Assert.Single(new Companions(_f.Rules, _f.Costs, _f.Derived)
+            .Families([new("kestrel", owner), new("talon", talon)]));
+
+        var run = Invoke("--from", NamedCharacterFile("kestrel.json", owner),
+                         "--from", NamedCharacterFile("talon.json", talon), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+
+        var reported = Assert.Single(run.Report["roster"]!["companions"]!.AsArray())!;
+        Assert.Equal("kestrel", (string?)reported["owner_id"]);
+        Assert.True((bool)reported["owner_in_roster"]!);
+        Assert.Equal(family.OwnResolve, (int)reported["own_resolve"]!);
+        Assert.Equal(family.OwnerResolve, (int)reported["owner_resolve"]!);
+        Assert.NotEqual(family.OwnResolve, family.OwnerResolve);
+
+        var companion = Assert.Single(reported["companions"]!.AsArray())!;
+        Assert.Equal("talon", (string?)companion["id"]);
+        Assert.Equal(40, (int)companion["hero_points"]!);
+        Assert.Equal(_f.Costs.TotalCost(talon), (int)companion["spent"]!);
+        Assert.Empty(reported["issues"]!.AsArray());
+    }
+
+    /// <summary>
+    /// A companion over its owner's purchase breaks a rule as a pair: exit 1 on the roster, with
+    /// each character legal on its own — the same split the alternate forms make.
+    /// </summary>
+    [Fact]
+    public void ACompanionOverBudgetIsTheRostersExitCode()
+    {
+        var (owner, talon) = Kestrel(units: 1);
+
+        var run = Invoke("--from", NamedCharacterFile("kestrel.json", owner),
+                         "--from", NamedCharacterFile("talon.json", talon), "--no-export");
+
+        Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
+        Assert.All(run.Report["characters"]!.AsArray(),
+            c => Assert.Equal(BuildCommand.Ok, (int)c!["exit_code"]!));
+
+        var issue = Assert.Single(run.Report["roster"]!["companions"]![0]!["issues"]!.AsArray())!;
+        Assert.Equal("COMPANION_OVER_BUDGET", (string?)issue["code"]);
+    }
+
     [Fact]
     public void ARosterWithNoLinkReportsNoFamilies()
     {
@@ -1573,6 +1640,7 @@ public sealed class HeadlessBuildTests : IDisposable
         var run = Invoke("--from", first, "--from", second, "--no-export");
 
         Assert.Empty(run.Report["roster"]!["alternate_forms"]!.AsArray());
+        Assert.Empty(run.Report["roster"]!["companions"]!.AsArray());
     }
 
     /// <summary>

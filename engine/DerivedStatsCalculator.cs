@@ -131,14 +131,48 @@ public sealed class DerivedStatsCalculator
     /// That is the one read this method makes of the cap and it is deliberately the only one —
     /// see that method for why substituting is the honest answer and gating is not.</para>
     /// </summary>
-    public int CalculateResolve(CharacterSheet sheet)
+    public int CalculateResolve(CharacterSheet sheet) => CalculateResolve(sheet, []);
+
+    /// <summary>
+    /// An owner's starting Resolve with their Pet/Sidekick companions counted, Ch.2 p.55: "if your
+    /// companion has higher Trait ranks than you, use their Traits when determining your Resolve",
+    /// and "if your companion has Flaws, you earn Resolve as if that character were a Hero". So the
+    /// highest relevant rank is the highest across the owner and every companion, and each
+    /// companion's Condition and Plot Hook Flaws count as the owner's. The cap and Determination
+    /// stay the owner's: a companion abides by the owner's Trait Cap and has no Resolve to buy.
+    ///
+    /// <para><b>The companions are handed in, never looked up.</b> This class cannot read a link
+    /// between sheets; <c>Companions</c> decides who an owner's companions are and asks this for
+    /// the figure, so the arithmetic stays here and only here.</para>
+    /// </summary>
+    public int CalculateResolve(CharacterSheet owner, IReadOnlyList<CharacterSheet> companions)
     {
-        if (sheet.SelectedTierId is null) return 0;
-        var tier = _rules.GetTier(sheet.SelectedTierId);
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(companions);
+
+        if (owner.SelectedTierId is null) return 0;
+        var tier = _rules.GetTier(owner.SelectedTierId);
         if (tier is null) return 0;
 
-        var traitCap = EffectiveTraitCap(sheet, tier) ?? tier.TraitCapRank;
+        var traitCap = EffectiveTraitCap(owner, tier) ?? tier.TraitCapRank;
 
+        var highestRelevant = companions.Select(HighestResolveRank).Prepend(HighestResolveRank(owner)).Max();
+        var baseResolve     = Math.Max(0, (traitCap - highestRelevant) * 2);
+
+        // Determination has no rank: 5 HP buys 1 extra starting Resolve, and Units
+        // holds how many Resolve were bought.
+        var determination      = owner.GetPower("determination");
+        var determinationBonus = determination?.Units ?? 0;
+
+        // Condition / Plot Hook flaws: +1 each at start of every issue
+        var flawBonus = FlawResolve(owner) + companions.Sum(FlawResolve);
+
+        return baseResolve + determinationBonus + flawBonus;
+    }
+
+    /// <summary>The highest rank on a sheet that counts against Resolve: any Ability, or a Power that affects it.</summary>
+    private int HighestResolveRank(CharacterSheet sheet)
+    {
         var highestAbility = sheet.AbilityRanks.Values.DefaultIfEmpty(0).Max();
 
         var highestPower = sheet.SelectedPowers
@@ -146,23 +180,16 @@ public sealed class DerivedStatsCalculator
             .DefaultIfEmpty(0)
             .Max();
 
-        var highestRelevant = Math.Max(highestAbility, highestPower);
-        var baseResolve     = Math.Max(0, (traitCap - highestRelevant) * 2);
+        return Math.Max(highestAbility, highestPower);
+    }
 
-        // Determination has no rank: 5 HP buys 1 extra starting Resolve, and Units
-        // holds how many Resolve were bought.
-        var determination      = sheet.GetPower("determination");
-        var determinationBonus = determination?.Units ?? 0;
-
-        // Condition / Plot Hook flaws: +1 each at start of every issue
-        var flawBonus = sheet.Flaws.Count(sf =>
+    /// <summary>One Resolve for each Condition or Plot Hook Flaw on the sheet.</summary>
+    private int FlawResolve(CharacterSheet sheet) =>
+        sheet.Flaws.Count(sf =>
         {
             var flaw = _rules.GetFlaw(sf.FlawId);
             return flaw?.FlawType is "condition" or "plot_hook" or "plot_hook_and_condition";
         });
-
-        return baseResolve + determinationBonus + flawBonus;
-    }
 
     /// <summary>
     /// Returns whether a power's effective rank contributes to the Resolve calculation.

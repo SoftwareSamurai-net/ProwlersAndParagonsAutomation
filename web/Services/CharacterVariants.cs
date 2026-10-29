@@ -72,6 +72,7 @@ public static class CharacterVariants
         CharacterVariant.Later => "later version",
         CharacterVariant.AsSeenBy => "as seen by another audience",
         CharacterVariant.AlternateForm => "alternate form",
+        CharacterVariant.Companion => "companion",
         _ => null,
     };
 

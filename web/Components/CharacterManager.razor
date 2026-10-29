@@ -576,7 +576,12 @@
     /// a component naming its own engine types on screen is exactly what that guard exists to
     /// catch.
     /// </summary>
-    private static IReadOnlyList<string> VersionKinds { get; } = CharacterVariant.Kinds;
+    /// <summary>
+    /// The kinds a "version of" link may take. A companion is a second character rather than a
+    /// version of the first, and is made from its owner's Pet/Sidekick rather than from here.
+    /// </summary>
+    private static IReadOnlyList<string> VersionKinds { get; } =
+        [.. CharacterVariant.Kinds.Where(k => k != CharacterVariant.Companion)];
 
     private void ChangeVersionOfKind(ChangeEventArgs e) =>
         _versionOfKind = e.Value?.ToString() is { Length: > 0 } chosen ? chosen : CharacterVariant.Later;

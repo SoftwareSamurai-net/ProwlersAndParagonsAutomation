@@ -61,17 +61,17 @@ public sealed class McpServerTests
     /// asserted, so a tool that quietly stops being served fails here.
     /// </summary>
     /// <summary>
-    /// The seven names a stranger's configuration and an assistant's tool calls use, written
+    /// The eight names a stranger's configuration and an assistant's tool calls use, written
     /// out rather than taken from the constants that produce them.
     /// </summary>
     private static readonly string[] WireNames =
     [
-        "character_sheet", "check_alternate_forms", "check_character", "creation_guide",
-        "list_options", "power_detail", "search_powers"
+        "character_sheet", "check_alternate_forms", "check_character", "check_companions",
+        "creation_guide", "list_options", "power_detail", "search_powers"
     ];
 
     [Fact]
-    public async Task TheServerServesTheSevenToolsUnderTheirWireNames()
+    public async Task TheServerServesTheEightToolsUnderTheirWireNames()
     {
         await WithClient(async client =>
         {
@@ -270,6 +270,62 @@ public sealed class McpServerTests
             Assert.Equal(expected, report["families"]![0]!["shared_resolve"]!.GetValue<int>());
             Assert.Empty(report["families"]![0]!["issues"]!.AsArray());
         });
+    }
+
+    /// <summary>
+    /// The eighth tool, over the wire: an owner with Pet/Sidekick and their companion, answered
+    /// with the figures <see cref="Companions"/> builds in this process.
+    /// </summary>
+    [Fact]
+    public async Task ACompanionRosterSentOverTheWireIsAnsweredByCompanionsFamilies()
+    {
+        var (owner, talon) = CompanionPair();
+        var family = Assert.Single(new Companions(_f.Rules, _f.Costs, _f.Derived)
+            .Families([new("kestrel", owner), new("talon", talon)]));
+
+        await WithClient(async client =>
+        {
+            var report = await Call(client, CharacterServer.CheckCompanionsTool,
+                new Dictionary<string, object?> { ["roster"] = Roster(("kestrel", owner), ("talon", talon)) });
+
+            Assert.True(report["ok"]!.GetValue<bool>(), report.ToJsonString());
+            var answered = report["families"]![0]!;
+            Assert.Equal(family.OwnerResolve, answered["owner_resolve"]!.GetValue<int>());
+            Assert.Equal(family.OwnResolve, answered["own_resolve"]!.GetValue<int>());
+            Assert.NotEqual(family.OwnResolve, family.OwnerResolve);
+            Assert.Equal(40, answered["companions"]![0]!["hero_points"]!.GetValue<int>());
+        });
+    }
+
+    /// <summary>A companion over its budget makes the roster not ok, with the engine's code.</summary>
+    [Fact]
+    public void CheckCompanionsReportsACompanionOverItsBudget()
+    {
+        var (owner, talon) = CompanionPair();
+        owner.Perks[0] = owner.Perks[0] with { Units = 1 };
+
+        var report = Parse(Tools().CheckCompanions(Roster(("kestrel", owner), ("talon", talon))));
+
+        Assert.False(report["ok"]!.GetValue<bool>());
+        var issue = report["families"]![0]!["issues"]!.AsArray().Single()!;
+        Assert.Equal("COMPANION_OVER_BUDGET", issue["code"]!.GetValue<string>());
+        Assert.Equal(10, issue["limit"]!.GetValue<int>());
+    }
+
+    /// <summary>Kestrel with Pet/Sidekick at 4, and Talon: Agility 9 and the Enemy Flaw, linked as Kestrel's companion.</summary>
+    private (CharacterSheet Owner, CharacterSheet Companion) CompanionPair()
+    {
+        var owner = _f.LegalSheet();
+        owner.Name = "Kestrel";
+        owner.Perks.Add(new SelectedPerk("pet_sidekick", 4, "Talon"));
+
+        var talon = _f.LegalSheet();
+        talon.Name = "Talon";
+        talon.AbilityRanks["agility"] = 9;
+        talon.Flaws.Add(new SelectedFlaw("enemy"));
+        talon.Variant = new CharacterVariant("kestrel", CharacterVariant.Companion);
+
+        return (owner, talon);
     }
 
     // ── The judge ─────────────────────────────────────────────────────────

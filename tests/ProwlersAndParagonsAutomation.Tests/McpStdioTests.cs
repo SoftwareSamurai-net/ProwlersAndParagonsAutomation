@@ -409,6 +409,23 @@ public sealed class McpStdioTests
             },
             "DUPLICATE_ROSTER_ID");
 
+        // The eighth: Pet/Sidekick's companion, linked to the hero. The owner holds no Perk, so
+        // the family is COMPANION_NOT_PAID — this drives the roster being read and a family being
+        // built, which is all the cover here is for.
+        var companion = hero.DeepClone().AsObject();
+        companion["Variant"] = new JsonObject { ["OfCharacterId"] = "root_1", ["Kind"] = "companion" };
+
+        yield return (CharacterServer.CheckCompanionsTool,
+            new JsonObject
+            {
+                ["roster"] = new JsonArray
+                {
+                    new JsonObject { ["id"] = "root_1", ["character"] = hero.DeepClone() },
+                    new JsonObject { ["id"] = "pet_1", ["character"] = companion }
+                }
+            },
+            "COMPANION_NOT_PAID");
+
         // The masthead the text renderer writes, which the judge's JSON report cannot contain.
         yield return (CharacterServer.CharacterSheetTool,
             new JsonObject { ["character"] = hero.DeepClone() }, "CHARACTER SHEET");

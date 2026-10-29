@@ -31,6 +31,7 @@ public static class CharacterServer
     public const string PowerDetailTool = "power_detail";
     public const string CheckCharacterTool = "check_character";
     public const string CheckAlternateFormsTool = "check_alternate_forms";
+    public const string CheckCompanionsTool = "check_companions";
     public const string CharacterSheetTool = "character_sheet";
 
     /// <summary>
@@ -80,6 +81,7 @@ public static class CharacterServer
         yield return McpServerTool.Create(tools.PowerDetail,     Named(PowerDetailTool));
         yield return McpServerTool.Create(tools.CheckCharacter,  Named(CheckCharacterTool));
         yield return McpServerTool.Create(tools.CheckAlternateForms, Named(CheckAlternateFormsTool));
+        yield return McpServerTool.Create(tools.CheckCompanions, Named(CheckCompanionsTool));
         yield return McpServerTool.Create(tools.CharacterSheetText, Named(CharacterSheetTool));
     }
 
