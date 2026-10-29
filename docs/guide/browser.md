@@ -471,6 +471,11 @@ somebody typing "Battle Axe" would otherwise have to look up in the book.
   `BonusAppliesTo` since the catalogue was built, and while nothing read it a sheet said
   `Crowbar +4` beside `Battle Axe +3` — a general bonus the book does not grant, offering the
   crowbar as the better weapon.
+- **The Perks the GM weighs are said, never applied.** p.91's line sits under the step's opening
+  paragraph and p.92's in the customising panel, both written by `GearPerkNotes` (shared with the
+  terminal) from `gear.json`'s lists, and each names the Perks this character holds. Called from
+  `@code` properties rather than in the markup's `@if`, because the type-name scan reads a
+  condition as prose.
 - **The palette's request is taken on `Commands.Changed` as well as in `OnInitialized`**, for the
   reason the `/rules` bullet further down gives at length: `NavigateTo("build/gear")` from
   `build/gear` is a no-op, Blazor reuses the instance, and a request read on initialisation alone
@@ -521,7 +526,10 @@ have inherited all three by construction, which is the whole reason this is not 
   earning adds to the pool — so the count has a floor of 0 and no top. It is held by `ResolveNow` in
   this browser for 24 hours, keyed by character id, and never on `CharacterSheet`: the owner ruled
   that a count which resets every issue is not worth more persistence than surviving a refresh.
-  Absent for a Villain, and `no-print`, so the ruled box above still prints the opening figure.
+  A Villain's counts the same figure as Adversity (`PoolName`), and it is `no-print`, so the ruled
+  box above still prints the opening figure. **A Perk whose entry limits it says so under the
+  counter** — Fourth Wall's once per scene, Great Wealth's once per issue — read from the Perk's
+  `resolve_limit` and never enforced, because a counter cannot know what a scene is.
 - **A route with nothing linking to it is a feature nobody can reach**, and
   `EveryRoutedPageIsReachableFromAnotherPage` is what says so — it caught this page before it
   shipped. The links are in the character manager: the open character's block, and `sheet/{id}` on

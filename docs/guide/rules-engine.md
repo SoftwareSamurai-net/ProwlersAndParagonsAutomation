@@ -432,6 +432,8 @@ Flat-cost perks: pay `Cost` HP. Per-unit perks: pay `CostPerUnit × Units` HP. `
 
 **What a Perk asks is asked question by question, and stored as one line.** `PerkQuestions.For` is the list every front end asks — the browser's Perk editor, the terminal wizard, and the MCP listing's `narrative_questions` — and `PerkQuestions.Compose` joins the answers into `NarrativeDetail`, or answers null while any is missing, which is the editor's "Add waits". Three fields on `perks.json` drive it: `narrative_prompts` (Patron's who / provides / expects, each with the label it prints after), `narrative_per_unit` (Contacts: one name per contact type bought), and `identity_choice` (Fame and Reputation, asked only of a character carrying the Secret Identity Flaw, because that is the entry's own condition). The flag is held to the entry's text by `TheIdentityQuestionIsOnExactlyThePerksWhoseTextAsksIt`. Like every other narrative answer it is words and never a price, and the sheet's shape did not move.
 
+**`resolve_limit` is on the two Perks whose text limits Resolve** — Fourth Wall earns 1 once per scene (p.54), Great Wealth spends 1 once per issue (p.55). `direction`, `points`, `occasion` and `once_per` are each read back out of the entry's own description, and `page` out of the corpus by the Perk's heading, by `PerkResolveLimitTests`; any entry saying "once per" must carry one. The browser's Resolve counter prints it and nothing enforces it.
+
 
 ## The 1d minimum on every Trait
 

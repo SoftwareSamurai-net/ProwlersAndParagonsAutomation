@@ -49,6 +49,8 @@ whichever way it arrives.
   the printed bonus would leave the choice unmade. A shield says what its die is for, because the
   weapons table prints only the half you get by swinging it.
 - **Nothing here buys a Power.** The Armor rank is reported; `sheet.SelectedPowers` is untouched.
+- **The step opens with p.91's and p.92's Perk lines** from `GearPerkNotes`, the same words the
+  browser's Gear step prints: which Perks the GM weighs, and which of them this character holds.
 
 **`CatalogueLabel` is the one part of this step a test can reach**, and `ChooseGearStepTests` says so
 in as many words rather than implying the step is covered. The wizard has no harness — every step
