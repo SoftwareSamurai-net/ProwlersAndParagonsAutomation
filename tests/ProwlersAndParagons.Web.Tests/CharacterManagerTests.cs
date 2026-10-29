@@ -717,4 +717,40 @@ public sealed class CharacterManagerTests
         Assert.Contains("variant-child", childRow.ClassList);
         Assert.Contains("alternate form", childRow.TextContent, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// A companion is a second character bought with Pet/Sidekick, not a version of the first, so
+    /// the "Version of…" chooser offers every kind but that one. The other three are the control.
+    /// </summary>
+    [Fact]
+    public async Task TheVersionChooserDoesNotOfferCompanion()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var plain = SampleCharacters.Hero();
+        plain.Name = "Plain Character";
+        var plainId = SavedCharacters.NewId();
+        await account.SaveAsync(plainId, plain.Name, plain, SheetMode.Hero);
+
+        var root = SampleCharacters.Hero();
+        root.Name = "Root Character";
+        var rootId = SavedCharacters.NewId();
+        await account.SaveAsync(rootId, root.Name, root, SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        await RowByExactName(cut, plain.Name).QuerySelectorAll("button")
+            .First(btn => btn.TextContent.Contains("Version of", StringComparison.Ordinal))
+            .ClickAsync(new());
+
+        // The kind is asked only once a root is chosen.
+        await cut.Find($"select[id='version-of-root-{plainId}']").ChangeAsync(new() { Value = rootId });
+
+        var kinds = cut.FindAll($"select[id='version-of-kind-{plainId}'] option")
+            .Select(o => o.GetAttribute("value")).ToList();
+
+        Assert.Equal([CharacterVariant.Later, CharacterVariant.AsSeenBy, CharacterVariant.AlternateForm], kinds);
+        Assert.Contains(CharacterVariant.Companion, CharacterVariant.Kinds);
+    }
 }

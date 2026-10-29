@@ -9,7 +9,7 @@ using ProwlersAndParagonsAutomation.Sheets;
 namespace ProwlersAndParagonsAutomation.Mcp;
 
 /// <summary>
-/// The seven tools, and the reasoning behind there being seven.
+/// The eight tools, and the reasoning behind there being eight.
 ///
 /// <para><b>They were chosen by asking what a conversation needs, not by mirroring the
 /// engine.</b> Someone describes a character out loud; the assistant has to find out which
@@ -52,6 +52,7 @@ public sealed class CharacterTools
     private readonly ProConApplicability _applicability;
     private readonly Judgement _judgement;
     private readonly AlternateForms _forms;
+    private readonly Companions _companions;
     private readonly Func<DateTime> _now;
     private readonly Func<string> _guide;
 
@@ -82,6 +83,7 @@ public sealed class CharacterTools
         _applicability = new ProConApplicability(rules);
         _judgement     = new Judgement(rules, costs, derived, validator);
         _forms         = new AlternateForms(rules, costs, derived);
+        _companions    = new Companions(rules, costs, derived);
         _now           = now ?? (() => DateTime.Now);
         _guide         = guide ?? (() => QuestionPolicy.Text);
     }
@@ -631,6 +633,81 @@ public sealed class CharacterTools
         // A member that did not parse is not a member the engine judged, so the family cannot be
         // called fine: "ok" is false whenever one was left out, the same refusal the browser's
         // roster makes by reporting nothing about a family it could not read in full.
+        if (unreadable.Count > 0)
+        {
+            report["ok"]         = false;
+            report["unreadable"] = unreadable;
+        }
+
+        return Write(report);
+    }
+
+    [Description(
+        "Checks a PET/SIDEKICK owner and their companions across two or more sheets at once -- "
+        + "check_character cannot, because it takes one sheet. A companion is a sheet whose "
+        + "Variant is {OfCharacterId: <owner's id>, Kind: \"companion\"}. Ch.2 p.55: each "
+        + "Pet/Sidekick purchase pays for one companion at 10 Hero Points a unit, the companion "
+        + "abides by its owner's Trait Cap, and the owner's Resolve counts the companion's higher "
+        + "Traits and its Flaws -- owner_resolve is that figure, own_resolve the owner's alone. "
+        + "check_character checks the half-of-the-owner ceiling and that a companion buys no "
+        + "Determination; it waives a companion's tier budget, because the real one is here.")]
+    public string CheckCompanions(
+        [Description(
+            "Every member of the roster, as an array of {id, character} objects. \"id\" is "
+            + "what a companion's Variant.OfCharacterId names as its owner; \"character\" is the "
+            + "JSON object creation_guide describes. Two entries under the same id are refused.")]
+        JsonElement roster)
+    {
+        if (!TryReadRoster(roster, out var entries, out var unreadable, out var problem))
+            return Write(problem);
+
+        IReadOnlyList<CompanionFamily> families;
+        try
+        {
+            families = _companions.Families(entries);
+        }
+        catch (ArgumentException e)
+        {
+            return Write(Judgement.Problem("DUPLICATE_ROSTER_ID", e.Message));
+        }
+
+        var array = new JsonArray();
+        var ok = true;
+
+        foreach (var family in families)
+        {
+            var members = new JsonArray();
+
+            foreach (var companion in family.Members)
+                members.Add(new JsonObject
+                {
+                    ["id"]          = companion.Id,
+                    ["name"]        = string.IsNullOrWhiteSpace(companion.Sheet.Name) ? null : companion.Sheet.Name,
+                    ["hero_points"] = family.Budget[companion.Id],
+                    ["spent"]       = family.Spent[companion.Id]
+                });
+
+            if (family.Issues.Any(i => i.Severity == ValidationSeverity.Error)) ok = false;
+
+            array.Add(new JsonObject
+            {
+                ["owner_id"]        = family.OwnerId,
+                ["owner_in_roster"] = family.Owner is not null,
+                ["companions"]      = members,
+                ["own_resolve"]     = family.OwnResolve,
+                ["owner_resolve"]   = family.OwnerResolve,
+                ["issues"]          = Judgement.Issues(family.Issues)
+            });
+        }
+
+        var report = new JsonObject
+        {
+            ["ok"]       = ok,
+            ["families"] = array
+        };
+
+        // As for alternate forms: a member that did not parse is not one the engine judged, so
+        // the roster cannot be called fine.
         if (unreadable.Count > 0)
         {
             report["ok"]         = false;

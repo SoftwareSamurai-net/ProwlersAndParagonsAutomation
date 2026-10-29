@@ -495,7 +495,9 @@ public sealed class BuildCommand
 
         roster["spending"]    = new JsonArray([.. read.Select(Spending)]);
         roster["perks_by_id"] = PerksById(read);
-        roster["alternate_forms"] = AlternateFormFamilies(read, out breaksARule);
+        roster["alternate_forms"] = AlternateFormFamilies(read, out var formsBreak);
+        roster["companions"]      = CompanionFamilies(read, out var companionsBreak);
+        breaksARule = formsBreak || companionsBreak;
 
         return roster;
     }
@@ -582,6 +584,63 @@ public sealed class BuildCommand
                 ["members"]        = members,
                 ["shared_resolve"] = family.SharedResolve,
                 ["issues"]         = Issues(family.Issues)
+            });
+        }
+
+        return array;
+    }
+
+    /// <summary>
+    /// Every Pet/Sidekick owner in the run and their companions, as <see cref="Companions"/>
+    /// answers it — the second cross-sheet rule, reported the way the alternate forms above are.
+    /// Each companion carries the budget its owner's purchase gives it and what it spent; the
+    /// owner carries their Resolve alone and with the companions. Every figure is the engine's.
+    /// </summary>
+    private JsonNode CompanionFamilies(IReadOnlyList<Input> read, out bool breaksARule)
+    {
+        breaksARule = false;
+
+        var entries = read.Select(i => new RosterEntry(RosterId(i.Path), i.Sheet!)).ToList();
+        var sources = new Dictionary<string, Input>(StringComparer.Ordinal);
+        foreach (var input in read) sources.TryAdd(RosterId(input.Path), input);
+
+        IReadOnlyList<CompanionFamily> families;
+        try
+        {
+            families = new Companions(_rules, _costs, _derived).Families(entries);
+        }
+        catch (ArgumentException e)
+        {
+            return new JsonObject { ["unanswered"] = e.Message };
+        }
+
+        var array = new JsonArray();
+
+        foreach (var family in families)
+        {
+            var members = new JsonArray();
+
+            foreach (var companion in family.Members)
+                members.Add(new JsonObject
+                {
+                    ["id"]          = companion.Id,
+                    ["source"]      = sources[companion.Id].Path,
+                    ["name"]        = string.IsNullOrWhiteSpace(companion.Sheet.Name) ? null : companion.Sheet.Name,
+                    ["hero_points"] = family.Budget[companion.Id],
+                    ["spent"]       = family.Spent[companion.Id]
+                });
+
+            if (family.Issues.Any(i => i.Severity == ValidationSeverity.Error)) breaksARule = true;
+
+            array.Add(new JsonObject
+            {
+                ["owner_id"]        = family.OwnerId,
+                ["owner_in_roster"] = family.Owner is not null,
+                ["owner_source"]    = family.Owner is { } owner ? sources[owner.Id].Path : null,
+                ["companions"]      = members,
+                ["own_resolve"]     = family.OwnResolve,
+                ["owner_resolve"]   = family.OwnerResolve,
+                ["issues"]          = Issues(family.Issues)
             });
         }
 

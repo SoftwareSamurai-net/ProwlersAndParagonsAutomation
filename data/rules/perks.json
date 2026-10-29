@@ -84,8 +84,18 @@
     "cost_type": "per_unit",
     "cost_per_unit": 1,
     "unit_label": "Hero Point (= 10 Hero Points for companion)",
-    "description": "You have a pet or sidekick. Every Hero Point you spend on this Perk gives your companion 10 Hero Points to build with. Your companion can't have more than half your total Hero Points, and they must abide by the game's Trait Cap. Your companion earns 1 Hero Point for every 2 that you earn. Pets and sidekicks lack Resolve, but you can spend your Resolve on their behalf.",
+    "description": "You have a pet or sidekick. Every Hero Point you spend on this Perk gives your companion 10 Hero Points to build with. Your companion can't have more than half your total Hero Points, and they must abide by the game's Trait Cap. Your companion earns 1 Hero Point for every 2 that you earn. Pets and sidekicks lack Resolve, but you can spend your Resolve on their behalf. If your companion has higher Trait ranks than you, use theirs when working out your Resolve, and if your companion has Flaws, you earn Resolve from them as if they were a Hero.",
     "narrative_constraint": "Describe your companion (who they are, their role, and their concept).",
+    "companion": {
+      "hero_points_per_unit": 10,
+      "cap_divisor_of_owner": 2,
+      "abides_by_trait_cap": true,
+      "owner_hero_points_per_companion_point": 2,
+      "has_resolve": false,
+      "owner_resolve_uses_higher_traits": true,
+      "flaws_earn_owner_resolve": true,
+      "page": 55
+    },
     "needs_review": false
   },
   {

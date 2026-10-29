@@ -1179,6 +1179,18 @@ public sealed class ValidationIssueStructureTests
         ["ALTERNATE_FORM_PAID_NOT_IN_ROSTER"] = [ValidationSubject.Character],
         ["ALTERNATE_FORM_CAP_NOT_ROOTS"]      = [ValidationSubject.Character],
 
+        // Pet/Sidekick (Ch.2 p.55). The five Companions codes are AlternateForms' shape: SubjectId
+        // is the roster id at fault and OwnerId the owner's. The three single-sheet codes name
+        // the Perk or the Power on the sheet that breaks the rule.
+        ["COMPANION_OWNER_NOT_IN_ROSTER"] = [ValidationSubject.Character],
+        ["COMPANION_NOT_PAID"]            = [ValidationSubject.Character],
+        ["COMPANION_OVER_BUDGET"]         = [ValidationSubject.Character],
+        ["COMPANION_CAP_NOT_OWNERS"]      = [ValidationSubject.Character],
+        ["PET_SIDEKICK_NO_COMPANION"]     = [ValidationSubject.Character],
+        ["PET_SIDEKICK_OVER_HALF"]        = [ValidationSubject.Character],
+        ["COMPANION_HAS_NO_RESOLVE"]      = [ValidationSubject.Power],
+        ["COMPANION_HAS_COMPANION"]       = [ValidationSubject.Character],
+
         // Ruling 7: reported against the character when CheckCampaignAssets finds it on a
         // contribution, and against the shared object when CheckSharedAsset finds it while
         // walking every member's contribution to that object.
@@ -1455,7 +1467,7 @@ public sealed class ValidationIssueStructureTests
         "house cap above the tier", "house cap below one",
         "a table's price for immortality",
         "a vehicle", "a headquarters", "a gadget", "assets without names", "a shared asset",
-        "a variant", "a proposal", "unnamed units"
+        "a variant", "a proposal", "unnamed units", "a companion"
     ];
 
     /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
@@ -1883,6 +1895,17 @@ public sealed class ValidationIssueStructureTests
                 return sheet;
             }
 
+            case "a companion":
+            {
+                // Everything one sheet can say about Pet/Sidekick at once: a companion buying
+                // Determination and a companion of its own, at more than half its tier's budget.
+                var sheet = Legal();
+                sheet.Variant = new CharacterVariant("kestrel", CharacterVariant.Companion);
+                sheet.SelectedPowers.Add(new SelectedPower("determination", 0) { Units = 1, SourceId = "innate" });
+                sheet.Perks.Add(new SelectedPerk("pet_sidekick", 7, "A flea"));
+                return sheet;
+            }
+
             case "a proposal":
             {
                 // PROGRESS item 33, rulings 5+6: a proposal is a CampaignAsset riding the
@@ -1989,7 +2012,12 @@ public sealed class ValidationIssueStructureTests
         // to this one.
         "ALTERNATE_FORM_ROOT_NOT_IN_ROSTER", "ALTERNATE_FORM_NOT_PAID", "ALTERNATE_FORM_COST_DIFFERS",
         "ALTERNATE_FORM_ABOVE_ROOT_LEVEL", "ALTERNATE_FORM_LEVEL_NOT_PAID",
-        "ALTERNATE_FORM_PAID_NOT_IN_ROSTER", "ALTERNATE_FORM_CAP_NOT_ROOTS"
+        "ALTERNATE_FORM_PAID_NOT_IN_ROSTER", "ALTERNATE_FORM_CAP_NOT_ROOTS",
+
+        // The same for Pet/Sidekick: these five come only out of Companions.Families, which
+        // takes a roster. CompanionTests provokes every one and holds its list to this one.
+        "COMPANION_OWNER_NOT_IN_ROSTER", "COMPANION_NOT_PAID", "COMPANION_OVER_BUDGET",
+        "COMPANION_CAP_NOT_OWNERS", "PET_SIDEKICK_NO_COMPANION"
     ];
 
     /// <summary>

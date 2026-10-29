@@ -47,7 +47,42 @@ public record PerkModel
     /// </summary>
     public PerkResolveLimit? ResolveLimit { get; init; }
 
+    /// <summary>
+    /// Pet/Sidekick's companion rule: what each unit buys, the ceiling, and what the companion
+    /// does to its owner's Resolve. Null on every other Perk. Read by <c>Companions</c>, which
+    /// checks an owner and their companion together; a test holds every field to the entry's text.
+    /// </summary>
+    public PerkCompanionRule? Companion { get; init; }
+
     public bool NeedsReview { get; init; }
+}
+
+/// <summary>What Ch.2 p.55 says a Pet/Sidekick companion is, field by field.</summary>
+public sealed record PerkCompanionRule
+{
+    /// <summary>"Every Hero Point you spend on this Perk gives you 10 Hero Points to create this character."</summary>
+    public int HeroPointsPerUnit { get; init; }
+
+    /// <summary>"Can't have more than half your Hero Points" — the owner's budget divided by this.</summary>
+    public int CapDivisorOfOwner { get; init; }
+
+    /// <summary>"They must abide by the game's Trait Cap" — the owner's.</summary>
+    public bool AbidesByTraitCap { get; init; }
+
+    /// <summary>"Earns 1 Hero Point for every 2 that you earn." Printed, not computed: nothing tracks earning.</summary>
+    public int OwnerHeroPointsPerCompanionPoint { get; init; }
+
+    /// <summary>"Pets and sidekicks ... lack Resolve."</summary>
+    public bool HasResolve { get; init; }
+
+    /// <summary>"If your companion has higher Trait ranks than you, use their Traits when determining your Resolve."</summary>
+    public bool OwnerResolveUsesHigherTraits { get; init; }
+
+    /// <summary>"If your companion has Flaws, you earn Resolve as if that character were a Hero."</summary>
+    public bool FlawsEarnOwnerResolve { get; init; }
+
+    /// <summary>The page the Perk is printed on, in Ch.2.</summary>
+    public int Page { get; init; }
 }
 
 /// <summary>How often a Perk lets its holder earn or spend Resolve, in the entry's own terms.</summary>

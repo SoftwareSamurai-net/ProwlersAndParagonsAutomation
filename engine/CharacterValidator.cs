@@ -167,8 +167,13 @@ public sealed class CharacterValidator
 
         if (tier is not null)
         {
-            if (selectionsResolvable && modifiersResolvable && perksResolvable && gearResolvable)
+            // A companion's budget is its owner's Pet/Sidekick, which this sheet alone cannot see:
+            // the tier's budget is waived here and Companions checks the real one against the
+            // owner — the companion declares, the family verifies, as for an alternate form's cap.
+            if (selectionsResolvable && modifiersResolvable && perksResolvable && gearResolvable
+                && !IsCompanion(sheet))
                 CheckHpBudget(sheet, tier, issues);
+            CheckCompanionCeiling(sheet, tier, issues);
             CheckTraitCap(sheet, tier, issues);
             CheckIconicTier(tier, issues);
         }
@@ -187,6 +192,7 @@ public sealed class CharacterValidator
         CheckSources(sheet, issues);
         CheckUnitNames(sheet, issues);
         CheckVariant(sheet, issues);
+        CheckCompanionHasNoResolve(sheet, issues);
 
         return new ValidationResult(issues);
     }
@@ -447,6 +453,79 @@ public sealed class CharacterValidator
                 Options     = CharacterVariant.Kinds
             });
     }
+
+    private static bool IsCompanion(CharacterSheet sheet) =>
+        sheet.Variant is { Kind: CharacterVariant.Companion };
+
+    /// <summary>
+    /// Ch.2 p.55: "your companion can't have more than half your Hero Points". The half is of
+    /// the owner's tier budget, the only total this engine holds (the owner's ruling of
+    /// 2026-10-29), and it is a fact about the owner's purchase alone, so it is checked here
+    /// rather than waiting for the companion to be in a roster. Each purchase buys one companion,
+    /// so each is held to the ceiling on its own. Read off any Perk that carries the companion
+    /// rule, never by id.
+    ///
+    /// <para><b>Reported whatever the budget switch says.</b> A sheet built without a budget
+    /// still has a tier, and the validator is never told about the switch — a host decides what
+    /// an over-the-ceiling finding means on such a sheet.</para>
+    /// </summary>
+    private void CheckCompanionCeiling(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
+    {
+        foreach (var purchase in sheet.Perks)
+        {
+            if (Perk(purchase.PerkId) is not { Companion: { } rule } perk) continue;
+            if (rule.CapDivisorOfOwner <= 0) continue;
+
+            var budget = (long)purchase.Units * rule.HeroPointsPerUnit;
+            if (budget * rule.CapDivisorOfOwner <= tier.HeroPoints) continue;
+
+            var ceiling = tier.HeroPoints / rule.CapDivisorOfOwner;
+            issues.Add(new(ValidationSeverity.Error, "PET_SIDEKICK_OVER_HALF",
+                $"{perk.Name} at {purchase.Units} gives a companion {budget} Hero Points, and a companion "
+                + $"can have at most half of this character's {tier.HeroPoints} — {ceiling} (p.{rule.Page}). "
+                + $"Buy at most {ceiling / rule.HeroPointsPerUnit}.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                SubjectId   = perk.Id,
+                Value       = (int)Math.Min(budget, int.MaxValue),
+                Limit       = ceiling
+            });
+        }
+    }
+
+    /// <summary>
+    /// Ch.2 p.55: "pets and sidekicks ... lack Resolve, but you can spend your Resolve on their
+    /// behalf". So a companion buying Determination buys Resolve it cannot hold, and a companion
+    /// buying a companion of its own chains one budget off another, which the entry never
+    /// describes — the owner's ruling of 2026-10-29 refuses both. Both are about this sheet and
+    /// its own link, so neither waits for the owner.
+    /// </summary>
+    private void CheckCompanionHasNoResolve(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        if (!IsCompanion(sheet)) return;
+
+        if (sheet.HasPower(DeterminationId))
+            issues.Add(new(ValidationSeverity.Error, "COMPANION_HAS_NO_RESOLVE",
+                "A companion has no Resolve of its own — its owner spends theirs on its behalf — "
+                + "so it cannot buy Determination. Take it off this character.")
+            {
+                SubjectKind = ValidationSubject.Power,
+                SubjectId   = DeterminationId
+            });
+
+        foreach (var perk in sheet.Perks.Select(p => Perk(p.PerkId)).OfType<PerkModel>()
+                     .Where(p => p.Companion is not null).DistinctBy(p => p.Id))
+            issues.Add(new(ValidationSeverity.Error, "COMPANION_HAS_COMPANION",
+                $"A companion cannot buy {perk.Name} for a companion of its own. Take it off this "
+                + "character, or have its owner buy the second companion.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                SubjectId   = perk.Id
+            });
+    }
+
+    /// <summary>Determination: the Power that buys starting Resolve, which a companion has none of.</summary>
+    private const string DeterminationId = "determination";
 
     /// <summary>
     /// The one Power whose printed entry hands its price to the table. Named once, because a

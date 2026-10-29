@@ -41,7 +41,7 @@ public sealed class McpSetupDocumentationTests
         ScanRegex.Build(pattern, options);
 
     /// <summary>
-    /// The seven wire names, as literals.
+    /// The eight wire names, as literals.
     ///
     /// <para>Not the constants on <c>CharacterServer</c>, for the reason
     /// <see cref="McpServerTests"/> already records: comparing a document with the constant it
@@ -53,8 +53,8 @@ public sealed class McpSetupDocumentationTests
     /// </summary>
     private static readonly string[] WireNames =
     [
-        "character_sheet", "check_alternate_forms", "check_character", "creation_guide",
-        "list_options", "power_detail", "search_powers"
+        "character_sheet", "check_alternate_forms", "check_character", "check_companions",
+        "creation_guide", "list_options", "power_detail", "search_powers"
     ];
 
     /// <summary>
@@ -68,7 +68,7 @@ public sealed class McpSetupDocumentationTests
     /// </summary>
     private static List<string> ToolsTheGuideNames()
     {
-        var section = Rx("^## The seven tools.*?(?=^## )", RegexOptions.Multiline | RegexOptions.Singleline)
+        var section = Rx("^## The eight tools.*?(?=^## )", RegexOptions.Multiline | RegexOptions.Singleline)
             .Match(Guide);
 
         Assert.True(section.Success, "The guide no longer has a section listing the tools.");

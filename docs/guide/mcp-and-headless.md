@@ -1,6 +1,6 @@
 # The two assisted-creation surfaces
 
-Read before touching `mcp/`, `mcp-play/`, `mcp-shared/` or `cli/Headless/`: the question policy, the seven tools, the standard-output discipline, the `build --from` contract, and the second server that runs fights.
+Read before touching `mcp/`, `mcp-play/`, `mcp-shared/` or `cli/Headless/`: the question policy, the eight tools, the standard-output discipline, the `build --from` contract, and the second server that runs fights.
 
 > Part of the guide set indexed by [`CLAUDE.md`](../../CLAUDE.md). Read that first; it carries the
 > disciplines that apply whatever you are working on. **Open work lives in
@@ -81,7 +81,7 @@ questions about the rules. It does not replace `build --from`; both call the sam
   deliberately ordinary at, and Source** — and the second is the one a model is most tempted
   to answer silently. Everything else is decided and *shown*. The reasoning for each is in the
   document; do not re-derive it from the tool descriptions.
-- **Seven tools, chosen by what a conversation needs rather than by mirroring the engine.**
+- **Eight tools, chosen by what a conversation needs rather than by mirroring the engine.**
   `cost_character` beside `validate_character` is the engine's API: no turn of a conversation
   wants a price without knowing whether the thing priced is allowed, and a separate costing
   tool is an invitation to quote a number for a character that breaks a rule. So
@@ -89,6 +89,15 @@ questions about the rules. It does not replace `build --from`; both call the sam
   catalogues are one `list_options` for the same reason in reverse — ten tools for a dozen
   entries each would crowd out the ones that matter. Powers get two tools of their own because
   141 entries are searched rather than listed.
+- **`check_companions` is the eighth: Ch.2 p.55's Pet/Sidekick, the second rule that needs two
+  sheets.** Same roster input and refusals as `check_alternate_forms`, answered by
+  `Companions.Families`, which `build --from` reports as `roster.companions`. A companion is a
+  sheet linked to its owner with `Variant.Kind` `companion`; each family carries every
+  companion's `hero_points` (its matched purchase × 10) and `spent`, and the owner's
+  `own_resolve` and `owner_resolve` — the second counting the companions' higher Traits and
+  their Flaws. `check_character` checks what one sheet can say: `PET_SIDEKICK_OVER_HALF` on the
+  owner, `COMPANION_HAS_NO_RESOLVE` and `COMPANION_HAS_COMPANION` on a companion, and it waives a
+  companion's tier budget, because the real one is its owner's.
 - **`check_alternate_forms` is the seventh, and the one rule that needs two sheets at once.**
   `check_character` takes exactly one character and cannot see a root beside its forms, so
   Ch.2 p.21's Alternate Form family — both forms must pay for the Power and pay the same, a
