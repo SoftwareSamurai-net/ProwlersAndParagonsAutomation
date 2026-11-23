@@ -59,7 +59,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Qodana scan
-        uses: JetBrains/qodana-action@v2026.2
+        uses: JetBrains/qodana-action@v2026.3
         with:
           # No fail-threshold yet: the first runs establish what the codebase actually
           # reports. Once that is triaged, add `args: --baseline,qodana.sarif.json`
